@@ -1,3 +1,4 @@
+using Xunit;
 using YasPortal.Domain.Organization;
 
 namespace YasPortal.Tests;
