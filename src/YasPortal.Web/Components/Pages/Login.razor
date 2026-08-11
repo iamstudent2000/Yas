@@ -1,5 +1,6 @@
 @page "/login"
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Sign in - YasPortal</PageTitle>
 
@@ -13,6 +14,7 @@
     }
 
     <form method="post" action="/account/login">
+        <AntiforgeryToken />
         <div>
             <label for="username">Username</label>
             <input id="username" name="username" autocomplete="username" required />
@@ -24,7 +26,7 @@
         <button type="submit">Sign in</button>
     </form>
 
-    <p>Development accounts are documented in the project README.</p>
+    <p>Development accounts: <code>admin / Admin123!</code> and <code>employee / Employee123!</code>.</p>
 </div>
 
 @code {
