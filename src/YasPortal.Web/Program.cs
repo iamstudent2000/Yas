@@ -42,11 +42,15 @@ builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStat
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
-builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
+// Blazor Server circuits can execute authorization and component queries concurrently.
+// A factory gives each operation its own DbContext instead of sharing one circuit-scoped instance.
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddScoped<IApplicationDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUser>());
-builder.Services.AddScoped<IPermissionChecker, PermissionChecker>();
+builder.Services.AddScoped<PermissionChecker>();
+builder.Services.AddScoped<IPermissionChecker>(sp => sp.GetRequiredService<PermissionChecker>());
 builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 
 var app = builder.Build();
