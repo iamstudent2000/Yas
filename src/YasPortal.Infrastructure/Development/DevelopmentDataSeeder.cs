@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Organization;
@@ -20,13 +21,22 @@ public static class DevelopmentDataSeeder
                 .SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]")
                 .SingleAsync(ct) == 1;
 
-            // Development only: when the schema predates the persistent active-position
-            // feature, recreate it so EnsureCreated can build the complete current model.
             if (organizationsTableExists == 0 || !lastActivePositionColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
-        await db.Database.EnsureCreatedAsync(ct);
+        // SQL Server can report that a development database already exists when the
+        // initial connectivity check could not open it (for example, immediately after
+        // a manual database reset). Treat error 1801 as a signal to retry the normal
+        // EnsureCreated path against the now-existing database.
+        try
+        {
+            await db.Database.EnsureCreatedAsync(ct);
+        }
+        catch (SqlException ex) when (ex.Number == 1801)
+        {
+            await db.Database.EnsureCreatedAsync(ct);
+        }
 
         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
@@ -140,10 +150,6 @@ public static class DevelopmentDataSeeder
         if (existingForEmployee is not null)
             return;
 
-        // Development seed data must be deterministic. If an old development database
-        // has the position actively assigned to another employee, end that stale row
-        // and commit the UPDATE before inserting the new active assignment. This avoids
-        // a SQL Server filtered-unique-index conflict when EF batches the changes.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
