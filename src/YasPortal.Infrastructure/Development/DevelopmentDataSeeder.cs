@@ -21,14 +21,31 @@ public static class DevelopmentDataSeeder
         var employee = new Employee("employee", "Demo Employee");
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, "Employee123!"));
 
-        var position = new Position("Employee");
+        var adminPosition = new Position("Administrator");
+        var employeePosition = new Position("Employee");
+
+        var adminUsersPermission = new Permission("Admin.Users", "Manage users");
+        var adminPositionsPermission = new Permission("Admin.Positions", "Manage positions");
+        var adminPermissionsPermission = new Permission("Admin.Permissions", "Manage permissions");
         var dashboardPermission = new Permission("Dashboard.View", "View dashboard");
 
         db.Employees.AddRange(admin, employee);
-        db.Positions.Add(position);
-        db.Permissions.Add(dashboardPermission);
-        db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
-        db.UserPositionPermissions.Add(new UserPositionPermission(employee.Id, position.Id, dashboardPermission.Id));
+        db.Positions.AddRange(adminPosition, employeePosition);
+        db.Permissions.AddRange(
+            adminUsersPermission,
+            adminPositionsPermission,
+            adminPermissionsPermission,
+            dashboardPermission);
+
+        db.EmployeePositions.AddRange(
+            new EmployeePosition(admin.Id, adminPosition.Id),
+            new EmployeePosition(employee.Id, employeePosition.Id));
+
+        db.UserPositionPermissions.AddRange(
+            new UserPositionPermission(admin.Id, adminPosition.Id, adminUsersPermission.Id),
+            new UserPositionPermission(admin.Id, adminPosition.Id, adminPositionsPermission.Id),
+            new UserPositionPermission(admin.Id, adminPosition.Id, adminPermissionsPermission.Id),
+            new UserPositionPermission(employee.Id, employeePosition.Id, dashboardPermission.Id));
 
         await db.SaveChangesAsync(ct);
     }
