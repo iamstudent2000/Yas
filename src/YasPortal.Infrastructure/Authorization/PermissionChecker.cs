@@ -1,22 +1,42 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Application.Authorization;
 using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Authorization;
 
-public sealed class PermissionChecker(IDbContextFactory<ApplicationDbContext> dbContextFactory) : IPermissionChecker
+public sealed class PermissionChecker(
+    IDbContextFactory<ApplicationDbContext> dbContextFactory,
+    AuthenticationStateProvider authenticationStateProvider) : IPermissionChecker
 {
     public async Task<bool> HasPermissionAsync(string permissionCode, CancellationToken cancellationToken = default)
     {
-        // Permission checks can run concurrently in a Blazor Server circuit.
-        // Never use the circuit-scoped DbContext for these reads.
+        var user = (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        return await HasPermissionAsync(user, permissionCode, cancellationToken);
+    }
+
+    public async Task<bool> HasPermissionAsync(
+        ClaimsPrincipal user,
+        string permissionCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (user.Identity?.IsAuthenticated != true)
+            return false;
+
+        if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var employeeId))
+            return false;
+
+        if (!Guid.TryParse(user.FindFirst(AuthClaimNames.ActivePositionId)?.Value, out var positionId))
+            return false;
+
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var employeeId = await db.Employees
-            .Where(x => x.Username != null)
-            .Select(x => new { x.Id })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return false;
+        return await db.UserPositionPermissions
+            .AnyAsync(
+                x => x.EmployeeId == employeeId &&
+                     x.PositionId == positionId &&
+                     x.Permission.Code == permissionCode,
+                cancellationToken);
     }
 }
