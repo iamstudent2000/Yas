@@ -26,7 +26,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Admin.Users", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Users")));
+    options.AddPolicy("Admin.Positions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Positions")));
+    options.AddPolicy("Admin.Permissions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Permissions")));
+});
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
