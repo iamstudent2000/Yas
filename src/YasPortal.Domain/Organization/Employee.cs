@@ -22,20 +22,31 @@ public sealed class Employee
     public bool IsActive { get; private set; } = true;
     public bool IsAdmin { get; private set; }
     public string? PasswordHash { get; private set; }
+
+    /// <summary>
+    /// The position this employee last selected as their active position.
+    /// This is only a preference; the position must still have an active EmployeePosition assignment.
+    /// </summary>
+    public Guid? LastActivePositionId { get; private set; }
+
     public ICollection<EmployeePosition> Positions { get; private set; } = new List<EmployeePosition>();
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
     public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
+    public void SetLastActivePosition(Guid? positionId) => LastActivePositionId = positionId;
+
     public void SetFullName(string fullName)
     {
         if (string.IsNullOrWhiteSpace(fullName)) throw new ArgumentException("Full name is required.", nameof(fullName));
         FullName = fullName.Trim();
     }
+
     public void ChangeOrganization(Guid organizationId)
     {
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
         OrganizationId = organizationId;
     }
+
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 }
