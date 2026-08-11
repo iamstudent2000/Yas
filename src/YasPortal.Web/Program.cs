@@ -56,6 +56,11 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
 
+    // The development database may have been deleted. EnsureCreated must run
+    // before any SQL that targets EmployeePositions so a fresh database can be
+    // created automatically.
+    await db.Database.EnsureCreatedAsync();
+
     // EnsureCreated does not update an existing database schema. Older development
     // databases may still have the old non-filtered unique index on PositionId.
     // Rebuild that index so historical assignments are allowed while only one
