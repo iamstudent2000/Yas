@@ -71,11 +71,13 @@
         if (Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var activePositionId))
             _activePositionId = activePositionId;
 
+        // Project scalar values first. EF Core cannot translate OrderBy over
+        // the projected record constructor, so ordering must happen before it.
         _positions = await Db.EmployeePositions
             .AsNoTracking()
             .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .OrderBy(x => x.Position.Name)
             .Select(x => new PositionItem(x.PositionId, x.Position.Name))
-            .OrderBy(x => x.Name)
             .ToListAsync();
     }
 
