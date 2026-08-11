@@ -2,53 +2,44 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inherits LayoutComponentBase
 
-<div class="application-shell">
+<div class="application-shell" dir="rtl">
     <header class="topbar">
-        <a href="/">یاس پورتال</a>
+        <a class="brand" href="/dashboard"><span class="brand-mark"><i class="bx bx-layer"></i></span><span>یاس پورتال</span></a>
         <AuthorizeView>
             <Authorized Context="auth">
-                <div class="user-area">
-                    <span>@auth.User.Identity?.Name</span>
-                    <form method="post" action="/account/logout">
-                        <AntiforgeryToken />
-                        <button type="submit">خروج</button>
-                    </form>
+                <div class="topbar-user">
+                    <span class="user-avatar"><i class="bx bx-user"></i></span>
+                    <div><strong>@auth.User.Identity?.Name</strong><small>حساب کاربری</small></div>
+                    <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
                 </div>
             </Authorized>
-            <NotAuthorized>
-                <a href="/login">ورود</a>
-            </NotAuthorized>
+            <NotAuthorized><a class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</a></NotAuthorized>
         </AuthorizeView>
     </header>
-
     <div class="application-body">
         <AuthorizeView>
             <Authorized Context="auth">
                 <aside class="sidebar">
+                    <div class="sidebar-section-title">منوی اصلی</div>
+                    <nav class="sidebar-nav">
+                        <NavLink href="/dashboard" Match="NavLinkMatch.All"><i class="bx bx-grid-alt"></i><span>داشبورد</span></NavLink>
+                        <NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink>
+                        <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
+                    </nav>
                     @if (auth.User.HasClaim("yas_is_admin", "True"))
                     {
-                        <h3>مدیریت سیستم</h3>
-                        <nav>
-                            <a href="/dashboard">داشبورد مدیریت</a>
-                            <a href="/admin/users">کاربران</a>
-                            <a href="/admin/positions">سمت‌ها</a>
-                            <a href="/admin/permissions">مجوزها</a>
+                        <div class="sidebar-section-title admin-title">مدیریت سامانه</div>
+                        <nav class="sidebar-nav">
+                            <NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink>
+                            <NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink>
+                            <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
+                            <NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink>
                         </nav>
                     }
-                    else
-                    {
-                        <h3>حساب کاربری</h3>
-                        <nav>
-                            <a href="/dashboard">داشبورد من</a>
-                            <a href="/my-profile">پروفایل من</a>
-                        </nav>
-                    }
+                    <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
                 </aside>
             </Authorized>
         </AuthorizeView>
-
-        <main class="content">
-            @Body
-        </main>
+        <main class="content">@Body</main>
     </div>
 </div>
