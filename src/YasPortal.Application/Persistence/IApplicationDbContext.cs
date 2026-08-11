@@ -6,6 +6,7 @@ namespace YasPortal.Application.Persistence;
 
 public interface IApplicationDbContext
 {
+    DbSet<Organization> Organizations { get; }
     DbSet<Employee> Employees { get; }
     DbSet<Position> Positions { get; }
     DbSet<EmployeePosition> EmployeePositions { get; }
