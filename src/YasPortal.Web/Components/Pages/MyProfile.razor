@@ -10,19 +10,22 @@
 
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
-<div dir="rtl" class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px;">
-        <div><h1 style="margin-bottom:6px;">پروفایل من</h1><p style="margin:0;color:#667085;">اطلاعات حساب کاربری، سازمان و وضعیت دسترسی شما</p></div>
-        <a href="/dashboard" style="padding:10px 16px;border-radius:10px;background:#eef6ff;color:#1769aa;font-weight:700;text-decoration:none;">داشبورد</a>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
-        <div class="card" style="box-shadow:none;background:#f8fafc;"><div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">نام و نام خانوادگی</div><strong>@FullName</strong></div>
-        <div class="card" style="box-shadow:none;background:#f8fafc;"><div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">نام کاربری</div><strong>@Username</strong></div>
-        <div class="card" style="box-shadow:none;background:#f8fafc;"><div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">سازمان</div><strong>@OrganizationName</strong></div>
-        <div class="card" style="box-shadow:none;background:#f8fafc;"><div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">نوع حساب</div><strong>@AccountType</strong></div>
-        <div class="card" style="box-shadow:none;background:#f8fafc;"><div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">وضعیت سازمان</div><strong>@OrganizationStatus</strong></div>
-    </div>
+<div class="page-header">
+    <div><h1 class="page-title">پروفایل من</h1><p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p></div>
+    <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
 </div>
+
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">نام و نام خانوادگی</span><strong class="stat-value">@FullName</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-at"></i></div><span class="stat-label">نام کاربری</span><strong class="stat-value">@Username</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">سازمان</span><strong class="stat-value">@OrganizationName</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield"></i></div><span class="stat-label">نوع حساب</span><strong class="stat-value">@AccountType</strong></div>
+</div>
+
+<section class="card">
+    <h2 class="section-title">وضعیت سازمان</h2>
+    <div class="profile-status"><span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")"><i class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i> سازمان @OrganizationStatus</span><span>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود.</span></div>
+</section>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
