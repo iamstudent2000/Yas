@@ -2,33 +2,30 @@
 @implements IDisposable
 @inject AppState AppState
 
-@if (AppState.Toasts.Count > 0)
-{
-    <div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
-        @foreach (var toast in AppState.Toasts)
-        {
-            <div @key="toast.Id"
-                 class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()"
-                 role="status">
-                <div class="app-toast-icon" aria-hidden="true">
-                    <i class="@GetIcon(toast.Level)"></i>
-                </div>
-
-                <div class="app-toast-content">
-                    <div class="app-toast-title">@GetTitle(toast.Level)</div>
-                    <div class="app-toast-message">@toast.Message</div>
-                </div>
-
-                <button type="button"
-                        class="app-toast-close"
-                        aria-label="بستن"
-                        @onclick="() => AppState.RemoveToast(toast)">
-                    <i class="bx bx-x"></i>
-                </button>
+<div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
+    @foreach (var toast in AppState.Toasts)
+    {
+        <div @key="toast.Id"
+             class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()"
+             role="status">
+            <div class="app-toast-icon" aria-hidden="true">
+                <i class="@GetIcon(toast.Level)"></i>
             </div>
-        }
-    </div>
-}
+
+            <div class="app-toast-content">
+                <div class="app-toast-title">@GetTitle(toast.Level)</div>
+                <div class="app-toast-message">@toast.Message</div>
+            </div>
+
+            <button type="button"
+                    class="app-toast-close"
+                    aria-label="بستن"
+                    @onclick="() => AppState.RemoveToast(toast)">
+                <i class="bx bx-x"></i>
+            </button>
+        </div>
+    }
+</div>
 
 @code {
     protected override void OnInitialized()
