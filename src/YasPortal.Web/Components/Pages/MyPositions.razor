@@ -3,7 +3,6 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
-@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using YasPortal.Infrastructure.Persistence
@@ -13,49 +12,32 @@
 
 <PageTitle>سمت‌های من - یاس پورتال</PageTitle>
 
-<div class="card">
-    <div style="margin-bottom:24px;">
-        <h1 style="margin-bottom:6px;">سمت‌های من</h1>
-        <p style="margin:0;color:#667085;">یک سمت را به عنوان سمت فعال انتخاب کنید. مجوزهای سامانه بر اساس سمت فعال اعمال می‌شوند.</p>
+<div class="page-header"><div><h1 class="page-title">سمت‌های من</h1><p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p></div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span></div>
+
+@if (_positions is null)
+{
+    <section class="card"><p>در حال بارگذاری سمت‌ها...</p></section>
+}
+else if (_positions.Count == 0)
+{
+    <section class="card"><div class="empty-state"><div class="empty-icon"><i class="bx bx-id-card"></i></div><strong>هیچ سمت فعالی ثبت نشده است</strong><span>برای این حساب هنوز سمت فعالی تعریف نشده است.</span></div></section>
+}
+else
+{
+    <div class="position-grid">
+        @foreach (var position in _positions)
+        {
+            <article class="position-card @(position.Id == _activePositionId ? "selected" : "")">
+                <div class="position-icon"><i class="bx bx-briefcase-alt-2"></i></div>
+                <div class="position-content"><h2>@position.Name</h2>@if (position.Id == _activePositionId){<span class="badge badge-success"><i class="bx bx-check-circle"></i> سمت فعال فعلی</span>}else{<span class="badge badge-muted">سمت دیگر</span>}</div>
+                @if (position.Id != _activePositionId)
+                {
+                    <form method="post" action="/account/position"><AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" /><button class="btn btn-primary" type="submit"><i class="bx bx-check"></i> انتخاب سمت</button></form>
+                }
+            </article>
+        }
     </div>
-
-    @if (_positions is null)
-    {
-        <p>در حال بارگذاری...</p>
-    }
-    else if (_positions.Count == 0)
-    {
-        <div class="alert">هیچ سمت فعالی برای حساب شما ثبت نشده است.</div>
-    }
-    else
-    {
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
-            @foreach (var position in _positions)
-            {
-                <div class="card" style="box-shadow:none;background:@(position.Id == _activePositionId ? "#eef6ff" : "#f8fafc");border:1px solid @(position.Id == _activePositionId ? "#9bc7e8" : "#e8edf3");">
-                    <div style="font-size:18px;font-weight:700;margin-bottom:8px;">@position.Name</div>
-                    @if (position.Id == _activePositionId)
-                    {
-                        <div style="color:#1769aa;font-weight:700;margin-bottom:14px;">✓ سمت فعال فعلی</div>
-                    }
-                    else
-                    {
-                        <div style="color:#667085;margin-bottom:14px;">سمت غیرفعال</div>
-                    }
-
-                    @if (position.Id != _activePositionId)
-                    {
-                        <form method="post" action="/account/position">
-                            <AntiforgeryToken />
-                            <input type="hidden" name="positionId" value="@position.Id" />
-                            <button type="submit" style="width:100%;padding:11px;border:0;border-radius:10px;background:#1769aa;color:white;font-weight:700;cursor:pointer;">انتخاب به عنوان سمت فعال</button>
-                        </form>
-                    }
-                </div>
-            }
-        </div>
-    }
-</div>
+}
 
 @code {
     private List<PositionItem>? _positions;
@@ -65,20 +47,9 @@
     {
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
-        var employeeIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        if (!Guid.TryParse(employeeIdValue, out var employeeId))
-            return;
-
-        if (Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var activePositionId))
-            _activePositionId = activePositionId;
-
-        _positions = await Db.EmployeePositions
-            .AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
-            .OrderBy(x => x.Position.Name)
-            .Select(x => new PositionItem(x.PositionId, x.Position.Name))
-            .ToListAsync();
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId)) return;
+        if (Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var activePositionId)) _activePositionId = activePositionId;
+        _positions = await Db.EmployeePositions.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.EndedAt == null).OrderBy(x => x.Position.Name).Select(x => new PositionItem(x.PositionId, x.Position.Name)).ToListAsync();
     }
 
     private sealed record PositionItem(Guid Id, string Name);
