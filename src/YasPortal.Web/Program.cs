@@ -55,6 +55,35 @@ if (app.Environment.IsDevelopment())
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
+
+    // EnsureCreated does not update an existing database schema. Older development
+    // databases may still have the old non-filtered unique index on PositionId.
+    // Rebuild that index so historical assignments are allowed while only one
+    // active employee can hold a position at a time.
+    await db.Database.ExecuteSqlRawAsync("""
+        IF EXISTS (
+            SELECT 1
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions')
+              AND name = N'IX_EmployeePositions_PositionId'
+        )
+        BEGIN
+            DROP INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions];
+        END;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions')
+              AND name = N'IX_EmployeePositions_PositionId'
+        )
+        BEGIN
+            CREATE UNIQUE INDEX [IX_EmployeePositions_PositionId]
+                ON [dbo].[EmployeePositions] ([PositionId])
+                WHERE [EndedAt] IS NULL;
+        END;
+        """);
+
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
 else
