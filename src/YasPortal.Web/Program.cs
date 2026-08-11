@@ -142,6 +142,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     var form = await http.Request.ReadFormAsync();
     var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
     var positionIdValue = form["positionId"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
 
     if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
         return Results.Redirect("/my-positions");
@@ -166,6 +167,15 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 
     var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+
+    // Active-position selection originates from our own rendered form. Still validate
+    // the destination as a local URL so the endpoint cannot become an open redirect.
+    if (!string.IsNullOrWhiteSpace(returnUrl) && Uri.TryCreate(returnUrl, UriKind.Relative, out var returnUri)
+        && returnUri.OriginalString.StartsWith('/', StringComparison.Ordinal)
+        && !returnUri.OriginalString.StartsWith("//", StringComparison.Ordinal))
+    {
+        return Results.Redirect(returnUri.OriginalString);
+    }
 
     return Results.Redirect("/my-positions");
 });
