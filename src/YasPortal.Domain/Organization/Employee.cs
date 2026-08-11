@@ -31,6 +31,8 @@ public sealed class Employee
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
         OrganizationId = organizationId;
     }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
 }
 
 public sealed class EmployeePosition
@@ -48,4 +50,6 @@ public sealed class EmployeePosition
     public Position Position { get; private set; } = null!;
     public DateTime? EndedAt { get; private set; }
     public bool IsActive => EndedAt is null;
+    public void End() => EndedAt = DateTime.UtcNow;
+    public void Reactivate() => EndedAt = null;
 }
