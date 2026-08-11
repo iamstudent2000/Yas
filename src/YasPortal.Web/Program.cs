@@ -17,18 +17,16 @@ using YasPortal.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
-    {
-        options.Cookie.Name = "YasPortal.Auth";
-        options.LoginPath = "/login";
-        options.AccessDeniedPath = "/access-denied";
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
-        options.SlidingExpiration = true;
-    });
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
+{
+    options.Cookie.Name = "YasPortal.Auth";
+    options.LoginPath = "/login";
+    options.AccessDeniedPath = "/access-denied";
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+});
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Admin.Users", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Users")));
@@ -41,14 +39,9 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 builder.Services.AddScoped<AppState>();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
-
-// Blazor Server circuits can execute authorization and component queries concurrently.
-// A factory gives each operation its own DbContext instead of sharing one circuit-scoped instance.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
-builder.Services.AddScoped<IApplicationDbContext>(sp =>
-    sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
+builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUser>());
 builder.Services.AddScoped<PermissionChecker>();
@@ -82,39 +75,17 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     var form = await http.Request.ReadFormAsync();
     var username = form["username"].ToString().Trim();
     var password = form["password"].ToString();
+    if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password)) return Results.Redirect("/login?error=1");
 
-    if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
-        return Results.Redirect("/login?error=1");
-
-    var employee = await db.Employees
-        .Include(x => x.Positions)
-        .SingleOrDefaultAsync(x => x.Username.ToLower() == username.ToLower() && x.IsActive);
-
-    if (employee is null || string.IsNullOrWhiteSpace(employee.PasswordHash))
-        return Results.Redirect("/login?error=1");
-
+    var employee = await db.Employees.Include(x => x.Positions).SingleOrDefaultAsync(x => x.Username.ToLower() == username.ToLower() && x.IsActive);
+    if (employee is null || string.IsNullOrWhiteSpace(employee.PasswordHash)) return Results.Redirect("/login?error=1");
     var passwordResult = passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, password);
-    if (passwordResult == PasswordVerificationResult.Failed)
-        return Results.Redirect("/login?error=1");
+    if (passwordResult == PasswordVerificationResult.Failed) return Results.Redirect("/login?error=1");
+    if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded) employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
 
-    if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
-        employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
-
-    var activePositionId = employee.Positions
-        .Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId)
-        .Select(x => (Guid?)x.PositionId)
-        .FirstOrDefault();
-
-    activePositionId ??= employee.Positions
-        .Where(x => x.EndedAt == null)
-        .Select(x => (Guid?)x.PositionId)
-        .FirstOrDefault();
-
-    // If the remembered position no longer exists as an active assignment, replace
-    // the stale preference with the first currently active assignment.
-    if (employee.LastActivePositionId != activePositionId)
-        employee.SetLastActivePosition(activePositionId);
-
+    var activePositionId = employee.Positions.Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId).Select(x => (Guid?)x.PositionId).FirstOrDefault();
+    activePositionId ??= employee.Positions.Where(x => x.EndedAt == null).Select(x => (Guid?)x.PositionId).FirstOrDefault();
+    if (employee.LastActivePositionId != activePositionId) employee.SetLastActivePosition(activePositionId);
     await db.SaveChangesAsync();
 
     var claims = new List<Claim>
@@ -123,60 +94,34 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         new(ClaimTypes.Name, employee.Username),
         new(AuthClaimNames.IsAdmin, employee.IsAdmin.ToString())
     };
-
-    if (activePositionId is Guid positionId)
-        claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-
-    var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-
+    if (activePositionId is Guid positionId) claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     return Results.Redirect("/");
 });
 
 app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery) =>
 {
-    if (!(http.User.Identity?.IsAuthenticated ?? false))
-        return Results.Redirect("/login");
-
+    if (!(http.User.Identity?.IsAuthenticated ?? false)) return Results.Redirect("/login");
     await antiforgery.ValidateRequestAsync(http);
     var form = await http.Request.ReadFormAsync();
     var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
     var positionIdValue = form["positionId"].ToString();
     var returnUrl = form["returnUrl"].ToString();
+    if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId)) return Results.Redirect("/my-positions");
 
-    if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
-        return Results.Redirect("/my-positions");
-
-    var validPosition = await db.EmployeePositions
-        .AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
-
-    if (!validPosition)
-        return Results.Redirect("/my-positions");
-
+    var validPosition = await db.EmployeePositions.AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
+    if (!validPosition) return Results.Redirect("/my-positions");
     var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive);
-    if (employee is null)
-        return Results.Redirect("/login");
-
+    if (employee is null) return Results.Redirect("/login");
     employee.SetLastActivePosition(positionId);
     await db.SaveChangesAsync();
 
-    var claims = http.User.Claims
-        .Where(c => c.Type != AuthClaimNames.ActivePositionId)
-        .ToList();
+    var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList();
     claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
 
-    var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-
-    // Active-position selection originates from our own rendered form. Still validate
-    // the destination as a local URL so the endpoint cannot become an open redirect.
-    if (!string.IsNullOrWhiteSpace(returnUrl) && Uri.TryCreate(returnUrl, UriKind.Relative, out var returnUri)
-        && returnUri.OriginalString.StartsWith('/', StringComparison.Ordinal)
-        && !returnUri.OriginalString.StartsWith("//", StringComparison.Ordinal))
-    {
-        return Results.Redirect(returnUri.OriginalString);
-    }
-
+    if (returnUrl.StartsWith('/') && Uri.TryCreate(returnUrl, UriKind.Relative, out var relativeUri) && !relativeUri.IsAbsoluteUri)
+        return Results.Redirect(returnUrl);
     return Results.Redirect("/my-positions");
 });
 
@@ -187,7 +132,5 @@ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery
     return Results.Redirect("/login");
 });
 
-app.MapRazorComponents<YasPortal.Web.Components.App>()
-    .AddInteractiveServerRenderMode();
-
+app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
