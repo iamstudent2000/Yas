@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Identity;
@@ -106,13 +108,13 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
     return Results.Redirect("/");
-}).RequireAntiforgery();
+}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
 
 app.MapPost("/account/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
-}).RequireAntiforgery();
+}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
 
 app.MapRazorComponents<YasPortal.Web.Components.App>()
     .AddInteractiveServerRenderMode();
