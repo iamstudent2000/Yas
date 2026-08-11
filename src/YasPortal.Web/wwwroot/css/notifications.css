@@ -4,26 +4,25 @@
     inset-inline-end: 16px !important;
     z-index: 2147483000 !important;
     width: min(390px, calc(100vw - 32px)) !important;
-    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
     margin: 0 !important;
     padding: 0 !important;
     pointer-events: none;
     direction: rtl;
 }
 
-/*
-   Each toast receives its vertical position directly from AppNotifications.razor.
-   This deliberately avoids CSS variables, flex ordering and grid placement.
-   The container is the positioning context; every toast occupies one fixed slot.
-*/
+/* The DOM is newest-to-oldest, so normal column flow puts the newest toast on top. */
 .app-toast-container > .app-toast {
-    position: absolute !important;
-    inset-inline-end: 0 !important;
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
     display: flex !important;
     align-items: flex-start !important;
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
     height: 72px !important;
     min-height: 72px !important;
     max-height: 72px !important;
@@ -41,7 +40,6 @@
     box-shadow: 0 12px 30px rgba(16, 24, 40, .14);
     color: #1f2937;
     isolation: isolate;
-    transition: top .18s ease, opacity .18s ease, transform .18s ease;
     animation: app-toast-in .18s ease-out;
 }
 
