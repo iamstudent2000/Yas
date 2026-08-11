@@ -134,8 +134,24 @@ public static class DevelopmentDataSeeder
 
     private static async Task EnsureEmployeePosition(ApplicationDbContext db, Employee employee, Position position, CancellationToken ct)
     {
-        if (!await db.EmployeePositions.AnyAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.EndedAt == null, ct))
-            db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
+        var existingForEmployee = await db.EmployeePositions
+            .SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.EndedAt == null, ct);
+
+        if (existingForEmployee is not null)
+            return;
+
+        // The development seed is deterministic. If an older development database
+        // contains the same active position under another employee, remove that stale
+        // assignment before creating the seeded assignment. Production/business rules
+        // are enforced separately by the unique filtered index and application logic.
+        var conflictingAssignments = await db.EmployeePositions
+            .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
+            .ToListAsync(ct);
+
+        if (conflictingAssignments.Count > 0)
+            db.EmployeePositions.RemoveRange(conflictingAssignments);
+
+        db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
     }
 
     private static async Task EnsurePermission(ApplicationDbContext db, Employee employee, Position position, Permission permission, CancellationToken ct)
