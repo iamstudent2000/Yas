@@ -50,24 +50,14 @@ builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>(
 
 var app = builder.Build();
 
-await using (var scope = app.Services.CreateAsyncScope())
+if (app.Environment.IsDevelopment())
 {
+    await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-    if (app.Environment.IsDevelopment())
-    {
-        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
-        await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
-    }
-    else
-    {
-        // Ensure an existing development-created database has its EF schema before
-        // the first request. Production data should use migrations instead.
-        await db.Database.EnsureCreatedAsync();
-    }
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
+    await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
-
-if (!app.Environment.IsDevelopment())
+else
 {
     app.UseExceptionHandler("/error");
     app.UseHsts();
@@ -90,7 +80,7 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
 
     var employee = await db.Employees
         .Include(x => x.Positions)
-        .SingleOrDefaultAsync(x => x.Username == username && x.IsActive);
+        .SingleOrDefaultAsync(x => x.Username.ToLower() == username.ToLower() && x.IsActive);
 
     if (employee is null || string.IsNullOrWhiteSpace(employee.PasswordHash))
         return Results.Redirect("/login?error=1");
@@ -98,6 +88,14 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     var passwordResult = passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, password);
     if (passwordResult == PasswordVerificationResult.Failed)
         return Results.Redirect("/login?error=1");
+
+    // Persist a stronger/newer hash automatically when the configured password
+    // hasher reports that the stored development hash should be upgraded.
+    if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
+    {
+        employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
+        await db.SaveChangesAsync();
+    }
 
     var activePositionId = employee.Positions
         .Where(x => x.EndedAt == null)
