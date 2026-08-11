@@ -141,15 +141,23 @@ public static class DevelopmentDataSeeder
             return;
 
         // The development seed is deterministic. If an older development database
-        // contains the same active position under another employee, remove that stale
-        // assignment before creating the seeded assignment. Production/business rules
-        // are enforced separately by the unique filtered index and application logic.
+        // contains the same active position under another employee, end that stale
+        // assignment and persist the update before inserting the new assignment.
+        // This ordering is required because SQL Server checks the filtered unique
+        // index while the INSERT is executed and EF may otherwise batch the INSERT
+        // before the DELETE/UPDATE of the conflicting row.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
 
         if (conflictingAssignments.Count > 0)
-            db.EmployeePositions.RemoveRange(conflictingAssignments);
+        {
+            var endedAt = DateTime.UtcNow;
+            foreach (var assignment in conflictingAssignments)
+                assignment.End(endedAt);
+
+            await db.SaveChangesAsync(ct);
+        }
 
         db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
     }
