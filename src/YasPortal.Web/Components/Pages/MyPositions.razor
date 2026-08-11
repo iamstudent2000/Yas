@@ -1,0 +1,81 @@
+@page "/my-positions"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using YasPortal.Infrastructure.Persistence
+@attribute [Authorize]
+@inject ApplicationDbContext Db
+
+<PageTitle>سمت‌های من - یاس پورتال</PageTitle>
+
+<div class="card">
+    <div style="margin-bottom:24px;">
+        <h1 style="margin-bottom:6px;">سمت‌های من</h1>
+        <p style="margin:0;color:#667085;">یک سمت را به عنوان سمت فعال انتخاب کنید. مجوزهای سامانه بر اساس سمت فعال اعمال می‌شوند.</p>
+    </div>
+
+    @if (_positions is null)
+    {
+        <p>در حال بارگذاری...</p>
+    }
+    else if (_positions.Count == 0)
+    {
+        <div class="alert">هیچ سمت فعالی برای حساب شما ثبت نشده است.</div>
+    }
+    else
+    {
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">
+            @foreach (var position in _positions)
+            {
+                <div class="card" style="box-shadow:none;background:@(position.Id == _activePositionId ? "#eef6ff" : "#f8fafc");border:1px solid @(position.Id == _activePositionId ? "#9bc7e8" : "#e8edf3");">
+                    <div style="font-size:18px;font-weight:700;margin-bottom:8px;">@position.Name</div>
+                    @if (position.Id == _activePositionId)
+                    {
+                        <div style="color:#1769aa;font-weight:700;margin-bottom:14px;">✓ سمت فعال فعلی</div>
+                    }
+                    else
+                    {
+                        <div style="color:#667085;margin-bottom:14px;">سمت غیرفعال</div>
+                    }
+
+                    @if (position.Id != _activePositionId)
+                    {
+                        <form method="post" action="/account/position">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="positionId" value="@position.Id" />
+                            <button type="submit" style="width:100%;padding:11px;border:0;border-radius:10px;background:#1769aa;color:white;font-weight:700;cursor:pointer;">انتخاب به عنوان سمت فعال</button>
+                        </form>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PositionItem>? _positions;
+    private Guid? _activePositionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var employeeIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!Guid.TryParse(employeeIdValue, out var employeeId))
+            return;
+
+        if (Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var activePositionId))
+            _activePositionId = activePositionId;
+
+        _positions = await Db.EmployeePositions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .Select(x => new PositionItem(x.PositionId, x.Position.Name))
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private sealed record PositionItem(Guid Id, string Name);
+}
