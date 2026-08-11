@@ -1,13 +1,14 @@
 namespace YasPortal.Web.Services;
 
 /// <summary>
-/// Blazor Server scoped state for UI-level notifications and toast messages.
+/// Blazor Server scoped state for application-wide UI notifications and toast messages.
 /// One instance is created per Blazor circuit/user.
 /// </summary>
 public sealed class AppState : IDisposable
 {
     private readonly object _sync = new();
     private readonly List<ToastMessage> _toasts = [];
+    private readonly Dictionary<Guid, Timer> _toastTimers = [];
     private bool _disposed;
 
     public event Action? OnChange;
@@ -25,6 +26,9 @@ public sealed class AppState : IDisposable
 
     public void SetUnreadNotificationCount(int count)
     {
+        if (_disposed)
+            return;
+
         UnreadNotificationCount = Math.Max(0, count);
         NotifyStateChanged();
     }
@@ -34,37 +38,49 @@ public sealed class AppState : IDisposable
         if (_disposed || string.IsNullOrWhiteSpace(message))
             return;
 
-        var toast = new ToastMessage(Guid.NewGuid(), message, level, DateTime.UtcNow);
+        var toast = new ToastMessage(
+            Guid.NewGuid(),
+            message,
+            level,
+            DateTime.UtcNow);
+
+        var delay = Math.Max(1000, durationMs);
+
         lock (_sync)
+        {
             _toasts.Add(toast);
 
+            // Use a Timer rather than an async fire-and-forget delay. The timer
+            // reliably fires even though the toast was created from a UI event.
+            _toastTimers[toast.Id] = new Timer(
+                _ => RemoveToast(toast),
+                null,
+                delay,
+                Timeout.Infinite);
+        }
+
         NotifyStateChanged();
-        _ = AutoRemoveAsync(toast, Math.Max(1000, durationMs));
     }
 
     public void RemoveToast(ToastMessage toast)
     {
-        if (_disposed)
-            return;
-
+        Timer? timer = null;
         var removed = false;
+
         lock (_sync)
+        {
             removed = _toasts.Remove(toast);
+
+            if (_toastTimers.Remove(toast.Id, out timer))
+            {
+                // The timer has already fired when this method is called by
+                // its callback; Dispose is still safe and prevents reuse.
+                timer.Dispose();
+            }
+        }
 
         if (removed)
             NotifyStateChanged();
-    }
-
-    private async Task AutoRemoveAsync(ToastMessage toast, int durationMs)
-    {
-        try
-        {
-            await Task.Delay(durationMs);
-            RemoveToast(toast);
-        }
-        catch (OperationCanceledException)
-        {
-        }
     }
 
     private void NotifyStateChanged()
@@ -75,10 +91,19 @@ public sealed class AppState : IDisposable
 
     public void Dispose()
     {
-        _disposed = true;
-        OnChange = null;
+        Timer[] timers;
+
         lock (_sync)
+        {
+            _disposed = true;
+            OnChange = null;
             _toasts.Clear();
+            timers = _toastTimers.Values.ToArray();
+            _toastTimers.Clear();
+        }
+
+        foreach (var timer in timers)
+            timer.Dispose();
     }
 }
 
