@@ -10,10 +10,10 @@ public static class DevelopmentDataSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct = default)
     {
-        await EnsureDevelopmentDatabaseAsync(db, ct);
-
-        if (await db.Employees.AnyAsync(ct))
-            return;
+        // Development only: always start from a clean database so an old/partial
+        // YasPortalClean database can never leave the application without its schema.
+        await db.Database.EnsureDeletedAsync(ct);
+        await db.Database.EnsureCreatedAsync(ct);
 
         var admin = new Employee("admin", "System Administrator", isAdmin: true);
         admin.SetPasswordHash(passwordHasher.HashPassword(admin, "Admin123!"));
@@ -48,22 +48,5 @@ public static class DevelopmentDataSeeder
             new UserPositionPermission(employee.Id, employeePosition.Id, dashboardPermission.Id));
 
         await db.SaveChangesAsync(ct);
-    }
-
-    private static async Task EnsureDevelopmentDatabaseAsync(ApplicationDbContext db, CancellationToken ct)
-    {
-        // EnsureCreated does not repair an existing database whose schema is incomplete.
-        // This is development-only code, so if the expected Employees table is missing,
-        // recreate the database and let EF Core build the complete schema again.
-        var employeesTableExists = await db.Database.SqlQueryRaw<int>(
-            "SELECT COUNT(*) AS [Value] FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Employees'")
-            .SingleAsync(ct);
-
-        if (employeesTableExists == 0)
-        {
-            await db.Database.EnsureDeletedAsync(ct);
-        }
-
-        await db.Database.EnsureCreatedAsync(ct);
     }
 }
