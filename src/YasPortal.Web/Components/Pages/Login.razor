@@ -2,31 +2,35 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 
-<PageTitle>Sign in - YasPortal</PageTitle>
+<PageTitle>ورود - یاس پورتال</PageTitle>
 
 <div class="login-page">
-    <h1>YasPortal</h1>
-    <h2>Sign in</h2>
-
-    @if (Error)
-    {
-        <p role="alert">Invalid username or password.</p>
-    }
-
-    <form method="post" action="/account/login">
-        <AntiforgeryToken />
-        <div>
-            <label for="username">Username</label>
-            <input id="username" name="username" autocomplete="username" required />
+    <div class="login-card">
+        <div class="brand">
+            <h1>یاس پورتال</h1>
+            <p>سامانه یکپارچه مدیریت و گردش کار</p>
         </div>
-        <div>
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required />
-        </div>
-        <button type="submit">Sign in</button>
-    </form>
 
-    <p>Development accounts: <code>admin / Admin123!</code> and <code>employee / Employee123!</code>.</p>
+        @if (Error)
+        {
+            <div class="alert" role="alert">نام کاربری یا رمز عبور صحیح نیست.</div>
+        }
+
+        <form class="login-form" method="post" action="/account/login">
+            <AntiforgeryToken />
+            <div>
+                <label for="username">نام کاربری</label>
+                <input id="username" name="username" autocomplete="username" placeholder="نام کاربری خود را وارد کنید" required />
+            </div>
+            <div>
+                <label for="password">رمز عبور</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="رمز عبور خود را وارد کنید" required />
+            </div>
+            <button type="submit">ورود به سامانه</button>
+        </form>
+
+        <div class="demo-note">حساب‌های توسعه: <code>admin / Admin123!</code> و <code>employee / Employee123!</code></div>
+    </div>
 </div>
 
 @code {
