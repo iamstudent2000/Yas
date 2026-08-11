@@ -32,7 +32,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Admin.Positions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Positions")));
     options.AddPolicy("Admin.Permissions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Permissions")));
 });
-builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 
