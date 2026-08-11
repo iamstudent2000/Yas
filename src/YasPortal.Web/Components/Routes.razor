@@ -2,7 +2,13 @@
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
-        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(YasPortal.Web.Components.Layout.ApplicationLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(YasPortal.Web.Components.Layout.ApplicationLayout">
+            <NotAuthorized>
+                <h1>Sign in required</h1>
+                <p>You must sign in to access this page.</p>
+                <a href="/login">Go to sign in</a>
+            </NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
     <NotFound>
