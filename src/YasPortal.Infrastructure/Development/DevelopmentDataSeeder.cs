@@ -25,10 +25,6 @@ public static class DevelopmentDataSeeder
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
-        // SQL Server can report that a development database already exists when the
-        // initial connectivity check could not open it (for example, immediately after
-        // a manual database reset). Treat error 1801 as a signal to retry the normal
-        // EnsureCreated path against the now-existing database.
         try
         {
             await db.Database.EnsureCreatedAsync(ct);
@@ -130,7 +126,6 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["manager"], positions["کارمند"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
-        await db.SaveChangesAsync(ct);
 
         foreach (var permission in permissions.Values)
             await EnsurePermission(db, employees["admin"], positions["مدیر سامانه"], permission, ct);
@@ -158,11 +153,10 @@ public static class DevelopmentDataSeeder
         {
             foreach (var assignment in conflictingAssignments)
                 assignment.End();
-
-            await db.SaveChangesAsync(ct);
         }
 
         db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task EnsurePermission(ApplicationDbContext db, Employee employee, Position position, Permission permission, CancellationToken ct)
