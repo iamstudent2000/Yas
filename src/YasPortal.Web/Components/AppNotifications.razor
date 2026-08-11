@@ -4,10 +4,19 @@
 
 @if (AppState.Toasts.Count > 0)
 {
+<<<<<<< HEAD
     <div class="app-toast-container" aria-live="polite" aria-atomic="true">
         @foreach (var toast in AppState.Toasts.AsEnumerable().Reverse())
         {
             <div class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()" role="status">
+=======
+    <div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
+        @foreach (var toast in AppState.Toasts.OrderByDescending(x => x.CreatedAt))
+        {
+            <div @key="toast.Id"
+                 class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()"
+                 role="status">
+>>>>>>> 7a644de2d5f7ea05ecdb48202efa4affb618be5f
                 <div class="app-toast-icon" aria-hidden="true">
                     <i class="@GetIcon(toast.Level)"></i>
                 </div>
@@ -39,7 +48,11 @@
 
     private static string GetIcon(ToastLevel level) => level switch
     {
+<<<<<<< HEAD
         ToastLevel.Success => "bx bx-check",
+=======
+        ToastLevel.Success => "bx bx-check-circle",
+>>>>>>> 7a644de2d5f7ea05ecdb48202efa4affb618be5f
         ToastLevel.Info => "bx bx-info-circle",
         ToastLevel.Warning => "bx bx-error",
         ToastLevel.Error => "bx bx-x-circle",
