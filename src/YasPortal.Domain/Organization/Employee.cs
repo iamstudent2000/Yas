@@ -26,6 +26,11 @@ public sealed class Employee
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
     public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
+    public void SetFullName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) throw new ArgumentException("Full name is required.", nameof(fullName));
+        FullName = fullName.Trim();
+    }
     public void ChangeOrganization(Guid organizationId)
     {
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
