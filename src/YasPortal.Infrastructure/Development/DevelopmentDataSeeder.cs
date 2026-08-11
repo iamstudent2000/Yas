@@ -12,6 +12,18 @@ public static class DevelopmentDataSeeder
     {
         await db.Database.EnsureCreatedAsync(ct);
 
+        var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
+        {
+            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == name, ct);
+            if (organization is null)
+            {
+                organization = new Organization(name);
+                db.Organizations.Add(organization);
+            }
+            organizations[name] = organization;
+        }
+
         var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in new[] { "مدیر سامانه", "مدیر منابع انسانی", "مدیر واحد", "کارشناس مالی", "کارمند" })
         {
@@ -45,22 +57,24 @@ public static class DevelopmentDataSeeder
             ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها")
         };
 
-        foreach (var permission in permissions.Values)
+        foreach (var permission in permissions.Values.ToList())
         {
             var existing = await db.Permissions.SingleOrDefaultAsync(x => x.Code == permission.Code, ct);
-            if (existing is null)
-                db.Permissions.Add(permission);
-            else
+            if (existing is not null)
                 permissions[permission.Code] = existing;
+            else
+                db.Permissions.Add(permission);
         }
+
+        await db.SaveChangesAsync(ct);
 
         var employeeDefinitions = new[]
         {
-            (Username: "admin", FullName: "مدیر سامانه", IsAdmin: true, Password: "Admin123!"),
-            (Username: "employee", FullName: "کارمند نمونه", IsAdmin: false, Password: "Employee123!"),
-            (Username: "hr", FullName: "سارا احمدی", IsAdmin: false, Password: "Hr123!"),
-            (Username: "manager", FullName: "علی رضایی", IsAdmin: false, Password: "Manager123!"),
-            (Username: "finance", FullName: "رضا محمدی", IsAdmin: false, Password: "Finance123!")
+            (Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
+            (Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
+            (Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
+            (Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
+            (Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
         };
 
         var employees = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
@@ -70,13 +84,16 @@ public static class DevelopmentDataSeeder
 
             if (employee is null)
             {
-                employee = new Employee(definition.Username, definition.FullName, definition.IsAdmin);
+                employee = new Employee(definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
                 employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
                 db.Employees.Add(employee);
             }
-            else if (string.IsNullOrWhiteSpace(employee.PasswordHash))
+            else
             {
-                employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
+                employee.ChangeOrganization(organizations[definition.Organization].Id);
+                employee.SetAdmin(definition.IsAdmin);
+                if (string.IsNullOrWhiteSpace(employee.PasswordHash))
+                    employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
             }
 
             employees[definition.Username] = employee;
