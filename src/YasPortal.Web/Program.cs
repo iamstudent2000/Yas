@@ -89,8 +89,6 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     if (passwordResult == PasswordVerificationResult.Failed)
         return Results.Redirect("/login?error=1");
 
-    // Persist a stronger/newer hash automatically when the configured password
-    // hasher reports that the stored development hash should be upgraded.
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
     {
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
@@ -116,6 +114,35 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
     return Results.Redirect("/");
+}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
+
+app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db) =>
+{
+    if (!(http.User.Identity?.IsAuthenticated ?? false))
+        return Results.Redirect("/login");
+
+    var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var form = await http.Request.ReadFormAsync();
+    var positionIdValue = form["positionId"].ToString();
+
+    if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
+        return Results.Redirect("/my-positions");
+
+    var validPosition = await db.EmployeePositions
+        .AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
+
+    if (!validPosition)
+        return Results.Redirect("/my-positions");
+
+    var claims = http.User.Claims
+        .Where(c => c.Type != AuthClaimNames.ActivePositionId)
+        .ToList();
+    claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+
+    var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+
+    return Results.Redirect("/my-positions");
 }).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
 
 app.MapPost("/account/logout", async (HttpContext http) =>
