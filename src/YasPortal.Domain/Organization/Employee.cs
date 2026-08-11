@@ -17,9 +17,11 @@ public sealed class Employee
     public string FullName { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
     public bool IsAdmin { get; private set; }
+    public string? PasswordHash { get; private set; }
     public ICollection<EmployeePosition> Positions { get; private set; } = new List<EmployeePosition>();
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
+    public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
 }
 
 public sealed class EmployeePosition
