@@ -4,11 +4,10 @@
     inset-inline-end: 16px !important;
     z-index: 2147483000 !important;
     width: min(390px, calc(100vw - 32px)) !important;
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-auto-rows: max-content !important;
-    align-items: start !important;
-    justify-items: stretch !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
     gap: 10px !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -16,24 +15,25 @@
     direction: rtl;
 }
 
-/* One grid row per toast. The newest toast is rendered first by AppState. */
+/* Normal document flow is intentional: each toast occupies its own row.
+   Newest toast is the first child, so it is always at the top. */
 .app-toast-container > .app-toast {
     position: relative !important;
     inset: auto !important;
-    grid-column: 1 !important;
     display: flex !important;
+    flex: 0 0 auto !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
     height: auto !important;
-    min-height: 64px;
+    min-height: 64px !important;
     margin: 0 !important;
-    padding: 13px 14px;
-    box-sizing: border-box;
+    padding: 13px 14px !important;
+    box-sizing: border-box !important;
     float: none !important;
     clear: both !important;
     pointer-events: auto;
-    overflow: hidden;
+    overflow: hidden !important;
 }
 
 .app-toast {
