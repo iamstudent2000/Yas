@@ -1,7 +1,10 @@
 @page "/"
-@layout MainLayout
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@attribute [Authorize]
 
 <PageTitle>YasPortal</PageTitle>
 
 <h1>YasPortal</h1>
-<p>Clean foundation ready for authentication, User + Position + Permission authorization, and workflow.</p>
+<p>Authentication and authorization foundation is active.</p>
+<p><a href="/dashboard">Open your dashboard</a></p>
