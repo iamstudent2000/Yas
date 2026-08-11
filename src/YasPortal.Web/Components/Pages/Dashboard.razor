@@ -1,0 +1,23 @@
+@page "/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+
+<PageTitle>Dashboard - YasPortal</PageTitle>
+
+<AuthorizeView Context="auth">
+    <Authorized>
+        @if (auth.User.HasClaim("yas_is_admin", "True"))
+        {
+            <h1>Admin Dashboard</h1>
+            <p>You are signed in as an administrator.</p>
+            <p>Administrative access will be controlled by IsAdmin plus explicit permissions. There is no SuperAdmin bypass.</p>
+        }
+        else
+        {
+            <h1>Employee Dashboard</h1>
+            <p>Welcome, @auth.User.Identity?.Name.</p>
+            <p>Your permissions are evaluated from your active position.</p>
+        }
+    </Authorized>
+</AuthorizeView>
