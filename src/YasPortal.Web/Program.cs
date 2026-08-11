@@ -50,14 +50,24 @@ builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>(
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+await using (var scope = app.Services.CreateAsyncScope())
 {
-    await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
-    await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
+
+    if (app.Environment.IsDevelopment())
+    {
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
+        await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
+    }
+    else
+    {
+        // Ensure an existing development-created database has its EF schema before
+        // the first request. Production data should use migrations instead.
+        await db.Database.EnsureCreatedAsync();
+    }
 }
-else
+
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error");
     app.UseHsts();
