@@ -31,7 +31,7 @@ public static class DevelopmentDataSeeder
         }
         catch (SqlException ex) when (ex.Number == 1801)
         {
-            await db.Database.EnsureCreatedAsync(ct);
+            // Another startup instance may have created the database concurrently.
         }
 
         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
@@ -139,21 +139,28 @@ public static class DevelopmentDataSeeder
 
     private static async Task EnsureEmployeePosition(ApplicationDbContext db, Employee employee, Position position, CancellationToken ct)
     {
+        // EmployeePosition has a composite primary key (EmployeeId, PositionId), so an ended
+        // historical assignment must be reactivated instead of inserting another row.
         var existingForEmployee = await db.EmployeePositions
-            .SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.EndedAt == null, ct);
+            .SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id, ct);
 
         if (existingForEmployee is not null)
-            return;
+        {
+            if (!existingForEmployee.IsActive)
+                existingForEmployee.Reactivate();
 
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+
+        // A position may have only one active employee. End any other active assignment
+        // before creating the assignment for this employee.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
 
-        if (conflictingAssignments.Count > 0)
-        {
-            foreach (var assignment in conflictingAssignments)
-                assignment.End();
-        }
+        foreach (var assignment in conflictingAssignments)
+            assignment.End();
 
         db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
         await db.SaveChangesAsync(ct);
