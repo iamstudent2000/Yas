@@ -30,6 +30,10 @@ public sealed class PermissionChecker(
         if (!Guid.TryParse(user.FindFirst(AuthClaimNames.ActivePositionId)?.Value, out var positionId))
             return false;
 
+        if (permissionCode.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(user.FindFirst(AuthClaimNames.IsAdmin)?.Value, "True", StringComparison.OrdinalIgnoreCase))
+            return false;
+
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.UserPositionPermissions
