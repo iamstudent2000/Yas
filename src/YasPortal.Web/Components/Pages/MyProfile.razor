@@ -1,0 +1,50 @@
+@page "/my-profile"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
+@attribute [Authorize]
+
+<PageTitle>پروفایل من - یاس پورتال</PageTitle>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px;">
+        <div>
+            <h1 style="margin-bottom:6px;">پروفایل من</h1>
+            <p style="margin:0;color:#667085;">اطلاعات حساب کاربری و وضعیت دسترسی شما</p>
+        </div>
+        <a href="/dashboard" style="padding:10px 16px;border-radius:10px;background:#eef6ff;color:#1769aa;font-weight:700;">بازگشت به داشبورد</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+        <div class="card" style="box-shadow:none;background:#f8fafc;">
+            <div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">نام کاربری</div>
+            <strong>@Username</strong>
+        </div>
+        <div class="card" style="box-shadow:none;background:#f8fafc;">
+            <div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">نوع حساب</div>
+            <strong>@AccountType</strong>
+        </div>
+        <div class="card" style="box-shadow:none;background:#f8fafc;">
+            <div style="color:#8a96a6;font-size:13px;margin-bottom:6px;">وضعیت</div>
+            <strong>فعال</strong>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string Username { get; set; } = "کاربر";
+    private string AccountType { get; set; } = "کاربر عادی";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationStateTask is null)
+            return;
+
+        var user = (await AuthenticationStateTask).User;
+        Username = user.Identity?.Name ?? "کاربر";
+        AccountType = user.HasClaim("yas_is_admin", "True") ? "مدیر سیستم" : "کاربر عادی";
+    }
+}
