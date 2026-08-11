@@ -10,10 +10,13 @@ public static class DevelopmentDataSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct = default)
     {
-        // Development only: always start from a clean database so an old/partial
-        // YasPortalClean database can never leave the application without its schema.
-        await db.Database.EnsureDeletedAsync(ct);
+        // Development database: create the schema if needed, but do not delete and
+        // recreate it on every application restart. Recreating the database changes
+        // employee/position IDs and invalidates an existing authentication cookie.
         await db.Database.EnsureCreatedAsync(ct);
+
+        if (await db.Employees.AnyAsync(ct))
+            return;
 
         var admin = new Employee("admin", "System Administrator", isAdmin: true);
         admin.SetPasswordHash(passwordHasher.HashPassword(admin, "Admin123!"));
