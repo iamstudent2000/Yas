@@ -1,36 +1,35 @@
 .app-toast-container {
-    position: fixed !important;
-    top: 16px !important;
-    inset-inline-end: 16px !important;
-    z-index: 2147483000 !important;
-    width: min(390px, calc(100vw - 32px)) !important;
-    display: block !important;
-    pointer-events: none !important;
-    direction: rtl !important;
+    position: fixed;
+    top: 16px;
+    inset-inline-end: 16px;
+    z-index: 2147483000;
+    width: min(390px, calc(100vw - 32px));
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    direction: rtl;
 }
 
-/* Deliberately use normal block flow here. It is harder for global layout CSS
-   to accidentally make notifications overlap than flex/grid positioning. */
+/* The component renders newest first. Normal column flow therefore means:
+   newest toast at the top, older toasts below it. */
 .app-toast-container > .app-toast {
-    position: relative !important;
-    inset: auto !important;
-    float: none !important;
-    clear: both !important;
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    min-height: 64px !important;
-    margin: 0 0 10px 0 !important;
-    padding: 13px 14px !important;
-    box-sizing: border-box !important;
-    transform: none;
-    pointer-events: auto !important;
-    isolation: isolate;
-}
-
-.app-toast-container > .app-toast:last-child {
-    margin-bottom: 0 !important;
+    position: relative;
+    inset: auto;
+    display: flex;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    padding: 13px 14px;
+    box-sizing: border-box;
+    float: none;
+    clear: both;
+    pointer-events: auto;
 }
 
 .app-toast {
@@ -41,6 +40,8 @@
     border-radius: 13px;
     box-shadow: 0 12px 30px rgba(16, 24, 40, .14);
     color: #1f2937;
+    min-height: 64px;
+    isolation: isolate;
     animation: app-toast-in .18s ease-out;
 }
 
@@ -65,8 +66,19 @@
     text-align: right;
 }
 
-.app-toast-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; color: #344054; }
-.app-toast-message { font-size: 12px; line-height: 1.7; color: #667085; overflow-wrap: anywhere; }
+.app-toast-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 3px;
+    color: #344054;
+}
+
+.app-toast-message {
+    font-size: 12px;
+    line-height: 1.7;
+    color: #667085;
+    overflow-wrap: anywhere;
+}
 
 .app-toast-close {
     flex: 0 0 26px;
@@ -81,7 +93,10 @@
     cursor: pointer;
 }
 
-.app-toast-close:hover { background: #f2f4f7; color: #344054; }
+.app-toast-close:hover {
+    background: #f2f4f7;
+    color: #344054;
+}
 
 @keyframes app-toast-in {
     from { opacity: 0; transform: translateY(-8px); }
@@ -90,8 +105,8 @@
 
 @media (max-width: 576px) {
     .app-toast-container {
-        top: 12px !important;
-        inset-inline: 12px !important;
-        width: auto !important;
+        top: 12px;
+        inset-inline: 12px;
+        width: auto;
     }
 }
