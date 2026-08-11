@@ -69,8 +69,9 @@ app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
 
-app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher) =>
+app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, IAntiforgery antiforgery) =>
 {
+    await antiforgery.ValidateRequestAsync(http);
     var form = await http.Request.ReadFormAsync();
     var username = form["username"].ToString().Trim();
     var password = form["password"].ToString();
@@ -114,15 +115,16 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
     return Results.Redirect("/");
-}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
+});
 
-app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db) =>
+app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery) =>
 {
     if (!(http.User.Identity?.IsAuthenticated ?? false))
         return Results.Redirect("/login");
 
-    var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    await antiforgery.ValidateRequestAsync(http);
     var form = await http.Request.ReadFormAsync();
+    var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
     var positionIdValue = form["positionId"].ToString();
 
     if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
@@ -143,13 +145,14 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
 
     return Results.Redirect("/my-positions");
-}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
+});
 
-app.MapPost("/account/logout", async (HttpContext http) =>
+app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) =>
 {
+    await antiforgery.ValidateRequestAsync(http);
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
-}).Add(endpointBuilder => endpointBuilder.Metadata.Add(new RequireAntiforgeryTokenAttribute()));
+});
 
 app.MapRazorComponents<YasPortal.Web.Components.App>()
     .AddInteractiveServerRenderMode();
