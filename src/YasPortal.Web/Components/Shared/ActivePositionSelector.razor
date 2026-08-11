@@ -1,14 +1,17 @@
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Infrastructure.Persistence
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
 
 @if (_positions.Count > 1)
 {
     <form method="post" action="/account/position" class="active-position-form">
         <AntiforgeryToken />
+        <input type="hidden" name="returnUrl" value="@GetReturnUrl()" />
         <label for="active-position-selector" class="sr-only">سمت فعال</label>
         <select id="active-position-selector" name="positionId" class="active-position-select" value="@_activePositionId">
             @foreach (var position in _positions)
@@ -53,6 +56,12 @@ else if (_positions.Count == 1)
 
         if (_activePositionId == Guid.Empty || !_positions.Any(x => x.Id == _activePositionId))
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
+    }
+
+    private string GetReturnUrl()
+    {
+        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        return string.IsNullOrWhiteSpace(relative) ? "/" : "/" + relative;
     }
 
     private sealed record PositionItem(Guid Id, string Name);
