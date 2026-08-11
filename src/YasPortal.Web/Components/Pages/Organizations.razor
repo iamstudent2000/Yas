@@ -1,297 +1,41 @@
 @page "/admin/organizations"
-@page "/organizations"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Organization
 @using YasPortal.Infrastructure.Persistence
 @attribute [Authorize(Policy = "Admin.Organizations")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 
-<PageTitle>مدیریت سازمان‌ها - یاس پورتال</PageTitle>
+<PageTitle>سازمان‌ها - یاس پورتال</PageTitle>
 
-<div dir="rtl" class="org-page">
-    <div class="org-shell">
-        <header class="org-header">
-            <div>
-                <div class="breadcrumb">مدیریت سامانه <span>/</span> سازمان‌ها</div>
-                <h1>سازمان‌ها</h1>
-                <p>مدیریت ساختار سازمانی و تعیین سازمان هر کارمند</p>
-            </div>
-            <a class="back-link" href="/dashboard">بازگشت به داشبورد</a>
-        </header>
+<div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / سازمان‌ها</div><h1 class="page-title">مدیریت سازمان‌ها</h1><p class="page-subtitle">ایجاد سازمان، تغییر وضعیت و تعیین سازمان هر کارمند</p></div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
 
-        @if (!string.IsNullOrWhiteSpace(_message))
-        {
-            <div class="notice">@_message</div>
-        }
+@if (!string.IsNullOrWhiteSpace(_message)){<div class="alert" style="margin-bottom:18px;"><i class="bx bx-info-circle"></i> @_message</div>}
 
-        <section class="stats-grid">
-            <div class="stat-card">
-                <span class="stat-label">کل سازمان‌ها</span>
-                <strong>@_organizations.Count</strong>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">سازمان‌های فعال</span>
-                <strong>@_organizations.Count(x => x.IsActive)</strong>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">کارکنان</span>
-                <strong>@_employees.Count</strong>
-            </div>
-        </section>
-
-        <div class="content-grid">
-            <section class="panel form-panel">
-                <div class="panel-title">
-                    <div class="icon-badge">＋</div>
-                    <div>
-                        <h2>@(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
-                        <p>نام سازمان را وارد کنید.</p>
-                    </div>
-                </div>
-
-                <label for="organization-name">نام سازمان</label>
-                <input id="organization-name" @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" />
-
-                <div class="form-actions">
-                    <button class="primary-btn" @onclick="SaveOrganization">@(_editingId is null ? "ایجاد سازمان" : "ذخیره تغییرات")</button>
-                    @if (_editingId is not null)
-                    {
-                        <button class="secondary-btn" @onclick="CancelEdit">انصراف</button>
-                    }
-                </div>
-            </section>
-
-            <section class="panel organization-panel">
-                <div class="section-heading">
-                    <div>
-                        <h2>فهرست سازمان‌ها</h2>
-                        <p>وضعیت و تعداد کارکنان هر سازمان</p>
-                    </div>
-                </div>
-
-                @if (_organizations.Count == 0)
-                {
-                    <div class="empty-state">
-                        <div class="empty-icon">□</div>
-                        <strong>هنوز سازمانی ثبت نشده است</strong>
-                        <span>از فرم کنار صفحه اولین سازمان را ایجاد کنید.</span>
-                    </div>
-                }
-                else
-                {
-                    <div class="organization-list">
-                        @foreach (var organization in _organizations)
-                        {
-                            <article class="organization-row">
-                                <div class="org-main">
-                                    <div class="org-avatar">@GetInitial(organization.Name)</div>
-                                    <div>
-                                        <strong>@organization.Name</strong>
-                                        <span>@organization.EmployeeCount کارمند</span>
-                                    </div>
-                                </div>
-                                <div class="org-actions">
-                                    <span class="status @(organization.IsActive ? "active" : "inactive")">
-                                        <span class="status-dot"></span>@(organization.IsActive ? "فعال" : "غیرفعال")
-                                    </span>
-                                    <button class="small-btn" @onclick="() => BeginEdit(organization.Id)">ویرایش</button>
-                                    <button class="small-btn @(organization.IsActive ? "danger" : "success")" @onclick="() => ToggleOrganization(organization.Id)">
-                                        @(organization.IsActive ? "غیرفعال کردن" : "فعال کردن")
-                                    </button>
-                                </div>
-                            </article>
-                        }
-                    </div>
-                }
-            </section>
-        </div>
-
-        <section class="panel assignment-panel">
-            <div class="section-heading assignment-heading">
-                <div>
-                    <h2>تخصیص سازمان به کارکنان</h2>
-                    <p>هر کارمند دقیقاً به یک سازمان تعلق دارد. انتخاب جدید، سازمان قبلی را جایگزین می‌کند.</p>
-                </div>
-                <div class="rule-badge">یک سازمان برای هر کارمند</div>
-            </div>
-
-            <div class="employee-list">
-                @foreach (var employee in _employees)
-                {
-                    <div class="employee-row">
-                        <div class="employee-info">
-                            <div class="employee-avatar">@GetInitial(employee.FullName)</div>
-                            <div>
-                                <strong>@employee.FullName</strong>
-                                <span>@employee.Username</span>
-                            </div>
-                        </div>
-                        <div class="employee-select-wrap">
-                            <label>سازمان</label>
-                            <select value="@employee.OrganizationId" @onchange="e => ChangeEmployeeOrganization(employee.Id, e.Value?.ToString())">
-                                @foreach (var organization in _organizations.Where(x => x.IsActive))
-                                {
-                                    <option value="@organization.Id">@organization.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <span class="employee-status @(employee.IsActive ? "active" : "inactive")">@(employee.IsActive ? "کارمند فعال" : "غیرفعال")</span>
-                    </div>
-                }
-            </div>
-        </section>
-    </div>
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">کل سازمان‌ها</span><strong class="stat-value">@_organizations.Count</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">سازمان‌های فعال</span><strong class="stat-value">@_organizations.Count(x => x.IsActive)</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کارکنان</span><strong class="stat-value">@_employees.Count</strong></div>
 </div>
 
-<style>
-    .org-page { min-height:100vh; background:#f4f7fb; padding:32px 20px 60px; color:#172033; }
-    .org-shell { max-width:1180px; margin:0 auto; }
-    .org-header { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:24px; }
-    .breadcrumb { color:#7b8798; font-size:13px; margin-bottom:8px; }
-    .breadcrumb span { margin:0 7px; color:#b4bdc9; }
-    .org-header h1 { margin:0; font-size:32px; letter-spacing:-.5px; }
-    .org-header p { margin:7px 0 0; color:#687386; }
-    .back-link { background:#fff; border:1px solid #dce3ec; color:#344054; text-decoration:none; padding:10px 16px; border-radius:11px; font-weight:700; box-shadow:0 2px 6px rgba(16,24,40,.04); }
-    .notice { background:#ecfdf3; border:1px solid #abefc6; color:#067647; padding:12px 16px; border-radius:12px; margin-bottom:18px; font-weight:600; }
-    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:18px; }
-    .stat-card,.panel { background:#fff; border:1px solid #e5eaf1; border-radius:18px; box-shadow:0 5px 20px rgba(16,24,40,.045); }
-    .stat-card { padding:20px 22px; }
-    .stat-label { display:block; color:#7b8798; font-size:13px; margin-bottom:8px; }
-    .stat-card strong { font-size:28px; }
-    .content-grid { display:grid; grid-template-columns:330px 1fr; gap:18px; align-items:start; }
-    .panel { padding:24px; }
-    .panel-title,.section-heading { display:flex; align-items:center; gap:13px; }
-    .panel-title { margin-bottom:22px; }
-    .panel-title h2,.section-heading h2 { margin:0; font-size:19px; }
-    .panel-title p,.section-heading p { margin:5px 0 0; color:#7b8798; font-size:13px; }
-    .icon-badge { width:40px; height:40px; display:grid; place-items:center; border-radius:12px; background:#eef4ff; color:#315bb5; font-size:25px; }
-    .form-panel label { display:block; font-size:13px; font-weight:700; margin-bottom:8px; }
-    .form-panel input,.employee-select-wrap select { width:100%; box-sizing:border-box; border:1px solid #d5dce6; border-radius:11px; background:#fff; padding:12px 13px; outline:none; font:inherit; transition:.15s; }
-    .form-panel input:focus,.employee-select-wrap select:focus { border-color:#7aa2ed; box-shadow:0 0 0 3px #e9f0ff; }
-    .form-actions { display:flex; gap:9px; margin-top:16px; }
-    .primary-btn,.secondary-btn,.small-btn { border-radius:10px; padding:10px 14px; font:inherit; font-weight:700; cursor:pointer; }
-    .primary-btn { border:0; background:#315bb5; color:#fff; flex:1; }
-    .secondary-btn { border:1px solid #d5dce6; background:#fff; color:#344054; }
-    .organization-panel { min-height:300px; }
-    .organization-list { margin-top:18px; border-top:1px solid #edf0f4; }
-    .organization-row { display:flex; justify-content:space-between; align-items:center; gap:18px; padding:16px 2px; border-bottom:1px solid #edf0f4; }
-    .org-main,.employee-info { display:flex; align-items:center; gap:12px; min-width:0; }
-    .org-avatar,.employee-avatar { width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; border-radius:12px; background:#eef2ff; color:#315bb5; font-weight:800; }
-    .org-main strong,.employee-info strong { display:block; font-size:15px; }
-    .org-main span,.employee-info span { display:block; color:#7b8798; font-size:12px; margin-top:4px; }
-    .org-actions { display:flex; align-items:center; justify-content:flex-end; gap:7px; flex-wrap:wrap; }
-    .status,.employee-status { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; padding:6px 9px; border-radius:999px; }
-    .status.active,.employee-status.active { color:#067647; background:#ecfdf3; }
-    .status.inactive,.employee-status.inactive { color:#667085; background:#f2f4f7; }
-    .status-dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
-    .small-btn { border:1px solid #d9e0e9; background:#fff; color:#344054; padding:7px 10px; }
-    .small-btn.danger { color:#b42318; }
-    .small-btn.success { color:#067647; }
-    .assignment-panel { margin-top:18px; }
-    .assignment-heading { justify-content:space-between; }
-    .rule-badge { white-space:nowrap; background:#f5f7fa; color:#667085; border:1px solid #e4e7ec; padding:8px 11px; border-radius:10px; font-size:12px; font-weight:700; }
-    .employee-list { margin-top:20px; border:1px solid #e8ecf2; border-radius:14px; overflow:hidden; }
-    .employee-row { display:grid; grid-template-columns:1fr 260px 120px; align-items:center; gap:18px; padding:15px 17px; border-bottom:1px solid #edf0f4; }
-    .employee-row:last-child { border-bottom:0; }
-    .employee-select-wrap label { display:block; color:#7b8798; font-size:11px; margin-bottom:5px; }
-    .employee-status { justify-content:center; }
-    .empty-state { min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#667085; text-align:center; gap:7px; }
-    .empty-icon { width:52px; height:52px; display:grid; place-items:center; border-radius:16px; background:#f2f4f7; color:#98a2b3; font-size:25px; margin-bottom:6px; }
-    .empty-state strong { color:#344054; }
-    @@media (max-width:900px) { .content-grid { grid-template-columns:1fr; } .employee-row { grid-template-columns:1fr; } .employee-status { justify-self:start; } }
-    @@media (max-width:650px) { .org-page { padding:20px 12px 40px; } .org-header { align-items:flex-start; flex-direction:column; } .stats-grid { grid-template-columns:1fr; } .organization-row { align-items:flex-start; flex-direction:column; } .org-actions { justify-content:flex-start; } .assignment-heading { align-items:flex-start; flex-direction:column; } }
-</style>
+<div style="display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:18px;align-items:start;">
+<section class="card"><h2 class="section-title"><i class="bx bx-plus-circle"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2><label class="form-label">نام سازمان</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" /><div style="display:flex;gap:8px;margin-top:15px;"><button class="btn btn-primary" @onclick="SaveOrganization"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>@if(_editingId is not null){<button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>}</div></section>
+<section class="card table-card"><div class="table-toolbar"><h2 class="section-title" style="margin:0;">فهرست سازمان‌ها</h2></div>@if(_organizations.Count==0){<div class="empty-state"><div class="empty-icon"><i class="bx bx-buildings"></i></div><strong>سازمانی ثبت نشده است</strong><span>از فرم ایجاد سازمان استفاده کنید.</span></div>}else{<div class="data-table-wrap"><table class="data-table"><thead><tr><th>سازمان</th><th>کارکنان</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>@foreach(var organization in _organizations){<tr><td><strong>@organization.Name</strong></td><td>@organization.EmployeeCount نفر</td><td><span class="badge @(organization.IsActive?"badge-success":"badge-muted")"><i class="bx @(organization.IsActive?"bx-check-circle":"bx-minus-circle")"></i> @(organization.IsActive?"فعال":"غیرفعال")</span></td><td><button class="btn btn-secondary" @onclick="()=>BeginEdit(organization.Id)"><i class="bx bx-edit"></i> ویرایش</button> <button class="btn @(organization.IsActive?"btn-danger":"btn-primary")" @onclick="()=>ToggleOrganization(organization.Id)"><i class="bx @(organization.IsActive?"bx-pause":"bx-play")"></i> @(organization.IsActive?"غیرفعال کردن":"فعال کردن")</button></td></tr>}</tbody></table></div>}</section>
+</div>
+
+<section class="card" style="margin-top:18px;"><div class="page-header" style="margin-bottom:18px;"><div><h2 class="section-title" style="margin:0;">تخصیص سازمان به کارکنان</h2><p class="page-subtitle">هر کارمند دقیقاً یک سازمان دارد و تغییر انتخاب، سازمان قبلی را جایگزین می‌کند.</p></div><span class="badge badge-muted"><i class="bx bx-link"></i> یک سازمان برای هر کارمند</span></div><div class="employee-list">@foreach(var employee in _employees){<div class="employee-row"><div class="employee-info"><div class="employee-avatar">@GetInitial(employee.FullName)</div><div><strong>@employee.FullName</strong><span>@employee.Username</span></div></div><select class="form-control" value="@employee.OrganizationId" @onchange="e=>ChangeEmployeeOrganization(employee.Id,e.Value?.ToString())">@foreach(var organization in _organizations.Where(x=>x.IsActive)){<option value="@organization.Id">@organization.Name</option>}</select><span class="badge @(employee.IsActive?"badge-success":"badge-muted")">@(employee.IsActive?"فعال":"غیرفعال")</span></div>}</div></section>
 
 @code {
-    private List<OrganizationItem> _organizations = [];
-    private List<EmployeeItem> _employees = [];
-    private Guid? _editingId;
-    private string _name = string.Empty;
-    private string? _message;
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task LoadAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _organizations = await db.Organizations.AsNoTracking().OrderBy(x => x.Name)
-            .Select(x => new OrganizationItem(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync();
-        _employees = await db.Employees.AsNoTracking().OrderBy(x => x.FullName)
-            .Select(x => new EmployeeItem(x.Id, x.Username, x.FullName, x.OrganizationId, x.IsActive)).ToListAsync();
-    }
-
-    private void BeginEdit(Guid id)
-    {
-        var organization = _organizations.Single(x => x.Id == id);
-        _editingId = id;
-        _name = organization.Name;
-        _message = null;
-    }
-
-    private void CancelEdit()
-    {
-        _editingId = null;
-        _name = string.Empty;
-    }
-
-    private async Task SaveOrganization()
-    {
-        var name = _name.Trim();
-        if (string.IsNullOrWhiteSpace(name)) { _message = "نام سازمان الزامی است."; return; }
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        if (await db.Organizations.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty)))
-        {
-            _message = "سازمانی با این نام قبلاً ثبت شده است.";
-            return;
-        }
-
-        if (_editingId is Guid id)
-        {
-            var organization = await db.Organizations.SingleAsync(x => x.Id == id);
-            organization.Rename(name);
-            _message = "سازمان با موفقیت ویرایش شد.";
-        }
-        else
-        {
-            db.Organizations.Add(new Organization(name));
-            _message = "سازمان جدید با موفقیت ایجاد شد.";
-        }
-
-        await db.SaveChangesAsync();
-        CancelEdit();
-        await LoadAsync();
-    }
-
-    private async Task ToggleOrganization(Guid id)
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var organization = await db.Organizations.SingleAsync(x => x.Id == id);
-        if (organization.IsActive) organization.Deactivate(); else organization.Activate();
-        await db.SaveChangesAsync();
-        _message = organization.IsActive ? "سازمان فعال شد." : "سازمان غیرفعال شد.";
-        await LoadAsync();
-    }
-
-    private async Task ChangeEmployeeOrganization(Guid employeeId, string? value)
-    {
-        if (!Guid.TryParse(value, out var organizationId)) return;
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Id == organizationId && x.IsActive);
-        if (organization is null) { _message = "فقط می‌توان کارمند را به یک سازمان فعال اختصاص داد."; return; }
-
-        var employee = await db.Employees.SingleAsync(x => x.Id == employeeId);
-        employee.ChangeOrganization(organization.Id);
-        await db.SaveChangesAsync();
-        _message = $"سازمان «{organization.Name}» برای کارمند ثبت شد.";
-        await LoadAsync();
-    }
-
-    private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "س" : value.Trim()[0].ToString();
-
-    private sealed record OrganizationItem(Guid Id, string Name, bool IsActive, int EmployeeCount);
-    private sealed record EmployeeItem(Guid Id, string Username, string FullName, Guid OrganizationId, bool IsActive);
+private List<OrganizationItem> _organizations=[]; private List<EmployeeItem> _employees=[]; private Guid? _editingId; private string _name=string.Empty; private string? _message;
+protected override async Task OnInitializedAsync()=>await LoadAsync();
+private async Task LoadAsync(){await using var db=await DbFactory.CreateDbContextAsync();_organizations=await db.Organizations.AsNoTracking().OrderBy(x=>x.Name).Select(x=>new OrganizationItem(x.Id,x.Name,x.IsActive,x.Employees.Count)).ToListAsync();_employees=await db.Employees.AsNoTracking().OrderBy(x=>x.FullName).Select(x=>new EmployeeItem(x.Id,x.Username,x.FullName,x.OrganizationId,x.IsActive)).ToListAsync();}
+private void BeginEdit(Guid id){var x=_organizations.Single(x=>x.Id==id);_editingId=id;_name=x.Name;_message=null;} private void CancelEdit(){_editingId=null;_name=string.Empty;}
+private async Task SaveOrganization(){var name=_name.Trim();if(string.IsNullOrWhiteSpace(name)){_message="نام سازمان الزامی است.";return;}await using var db=await DbFactory.CreateDbContextAsync();if(await db.Organizations.AnyAsync(x=>x.Name==name&&x.Id!=(_editingId??Guid.Empty))){_message="سازمانی با این نام قبلاً ثبت شده است.";return;}if(_editingId is Guid id){(await db.Organizations.SingleAsync(x=>x.Id==id)).Rename(name);_message="سازمان ویرایش شد.";}else{db.Organizations.Add(new Organization(name));_message="سازمان جدید ایجاد شد.";}await db.SaveChangesAsync();CancelEdit();await LoadAsync();}
+private async Task ToggleOrganization(Guid id){await using var db=await DbFactory.CreateDbContextAsync();var x=await db.Organizations.SingleAsync(x=>x.Id==id);if(x.IsActive)x.Deactivate();else x.Activate();await db.SaveChangesAsync();_message=x.IsActive?"سازمان فعال شد.":"سازمان غیرفعال شد.";await LoadAsync();}
+private async Task ChangeEmployeeOrganization(Guid employeeId,string? value){if(!Guid.TryParse(value,out var organizationId))return;await using var db=await DbFactory.CreateDbContextAsync();var organization=await db.Organizations.SingleOrDefaultAsync(x=>x.Id==organizationId&&x.IsActive);if(organization is null){_message="فقط سازمان فعال قابل انتخاب است.";return;}var employee=await db.Employees.SingleAsync(x=>x.Id==employeeId);employee.ChangeOrganization(organization.Id);await db.SaveChangesAsync();_message=$"سازمان «{organization.Name}» برای کارمند ثبت شد.";await LoadAsync();}
+private static string GetInitial(string value)=>string.IsNullOrWhiteSpace(value)?"ک":value.Trim()[0].ToString();
+private sealed record OrganizationItem(Guid Id,string Name,bool IsActive,int EmployeeCount);private sealed record EmployeeItem(Guid Id,string Username,string FullName,Guid OrganizationId,bool IsActive);
 }
+<style>
+.data-table-wrap{overflow:auto}.employee-list{border:1px solid #e6ebf2;border-radius:14px;overflow:hidden}.employee-row{display:grid;grid-template-columns:1fr 300px 90px;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid #edf0f4}.employee-row:last-child{border-bottom:0}.employee-info{display:flex;align-items:center;gap:12px}.employee-avatar{width:42px;height:42px;border-radius:12px;background:#eef4ff;color:#155eef;display:grid;place-items:center;font-weight:800}.employee-info strong{display:block}.employee-info span{display:block;color:#667085;font-size:12px;margin-top:3px}@media(max-width:900px){.content>div[style*="grid-template-columns"]{grid-template-columns:1fr!important}.employee-row{grid-template-columns:1fr}.employee-row .badge{justify-self:start}}
+</style>
