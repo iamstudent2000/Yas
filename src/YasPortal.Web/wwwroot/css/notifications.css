@@ -4,47 +4,45 @@
     inset-inline-end: 16px !important;
     z-index: 2147483000 !important;
     width: min(390px, calc(100vw - 32px)) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-    gap: 10px !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     pointer-events: none;
     direction: rtl;
 }
 
-/* Normal document flow is intentional: each toast occupies its own row.
-   Newest toast is the first child, so it is always at the top. */
+/*
+   Do not rely on flex/grid ordering here. Each toast gets its own explicit
+   vertical slot from --toast-index. This makes overlapping impossible even
+   if another application stylesheet changes the container display mode.
+*/
 .app-toast-container > .app-toast {
-    position: relative !important;
-    inset: auto !important;
+    position: absolute !important;
+    top: calc(var(--toast-index) * 82px) !important;
+    inset-inline-end: 0 !important;
     display: flex !important;
-    flex: 0 0 auto !important;
+    align-items: flex-start !important;
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
-    height: auto !important;
-    min-height: 64px !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
     margin: 0 !important;
-    padding: 13px 14px !important;
+    padding: 12px 14px !important;
     box-sizing: border-box !important;
     float: none !important;
-    clear: both !important;
-    pointer-events: auto;
+    clear: none !important;
     overflow: hidden !important;
-}
-
-.app-toast {
-    align-items: flex-start;
-    gap: 11px;
+    pointer-events: auto;
+    gap: 10px;
     background: #fff;
     border: 1px solid #e4e7ec;
     border-radius: 13px;
     box-shadow: 0 12px 30px rgba(16, 24, 40, .14);
     color: #1f2937;
     isolation: isolate;
+    transition: top .18s ease, opacity .18s ease, transform .18s ease;
     animation: app-toast-in .18s ease-out;
 }
 
@@ -67,20 +65,25 @@
     min-width: 0;
     flex: 1 1 auto;
     text-align: right;
+    overflow: hidden;
 }
 
 .app-toast-title {
     font-size: 12px;
     font-weight: 700;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
     color: #344054;
 }
 
 .app-toast-message {
     font-size: 12px;
-    line-height: 1.7;
+    line-height: 1.55;
     color: #667085;
+    overflow: hidden;
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
 }
 
 .app-toast-close {
@@ -111,5 +114,12 @@
         top: 12px !important;
         inset-inline: 12px !important;
         width: auto !important;
+    }
+
+    .app-toast-container > .app-toast {
+        top: calc(var(--toast-index) * 78px) !important;
+        height: 68px !important;
+        min-height: 68px !important;
+        max-height: 68px !important;
     }
 }
