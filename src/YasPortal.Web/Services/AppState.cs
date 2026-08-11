@@ -13,6 +13,10 @@ public sealed class AppState : IDisposable
 
     public event Action? OnChange;
 
+    /// <summary>
+    /// Newest toast is always first. A snapshot is returned so the renderer never
+    /// enumerates the mutable backing collection outside the lock.
+    /// </summary>
     public IReadOnlyList<ToastMessage> Toasts
     {
         get
@@ -48,13 +52,19 @@ public sealed class AppState : IDisposable
 
         lock (_sync)
         {
-            _toasts.Add(toast);
+            // Insert at index 0. The UI therefore has one deterministic rule:
+            // newest message is always rendered at the top of the stack.
+            _toasts.Insert(0, toast);
 
-            // Each toast gets its own timer, so multiple messages can coexist
-            // and each one is removed independently after its own duration.
+            // Every toast owns its own one-shot timer. Adding a second toast never
+            // replaces or resets the timer belonging to the first toast.
             _toastTimers[toast.Id] = new Timer(
-                _ => RemoveToast(toast),
-                null,
+                static state =>
+                {
+                    if (state is ToastRemovalState removal)
+                        removal.AppState.RemoveToast(removal.Toast);
+                },
+                new ToastRemovalState(this, toast),
                 delay,
                 Timeout.Infinite);
         }
@@ -75,10 +85,7 @@ public sealed class AppState : IDisposable
             removed = _toasts.Remove(toast);
 
             if (_toastTimers.Remove(toast.Id, out timer))
-            {
-                // Dispose the timer so it cannot fire again.
                 timer.Dispose();
-            }
         }
 
         if (removed)
@@ -110,6 +117,8 @@ public sealed class AppState : IDisposable
         foreach (var timer in timers)
             timer.Dispose();
     }
+
+    private sealed record ToastRemovalState(AppState AppState, ToastMessage Toast);
 }
 
 public sealed record ToastMessage(
