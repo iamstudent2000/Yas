@@ -1,0 +1,35 @@
+@page "/login"
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Sign in - YasPortal</PageTitle>
+
+<div class="login-page">
+    <h1>YasPortal</h1>
+    <h2>Sign in</h2>
+
+    @if (Error)
+    {
+        <p role="alert">Invalid username or password.</p>
+    }
+
+    <form method="post" action="/account/login">
+        <div>
+            <label for="username">Username</label>
+            <input id="username" name="username" autocomplete="username" required />
+        </div>
+        <div>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit">Sign in</button>
+    </form>
+
+    <p>Development accounts are documented in the project README.</p>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? ErrorValue { get; set; }
+
+    private bool Error => string.Equals(ErrorValue, "1", StringComparison.Ordinal);
+}
