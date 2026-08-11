@@ -10,22 +10,124 @@ public static class DevelopmentDataSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct = default)
     {
+        if (await db.Database.CanConnectAsync(ct))
+        {
+            var organizationsTableExists = await db.Database
+                .SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Organizations]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]")
+                .SingleAsync(ct);
+
+            var lastActivePositionColumnExists = organizationsTableExists == 1 && await db.Database
+                .SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]")
+                .SingleAsync(ct) == 1;
+
+            // Development only: when the schema predates the persistent active-position
+            // feature, recreate it so EnsureCreated can build the complete current model.
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists)
+                await db.Database.EnsureDeletedAsync(ct);
+        }
+
         await db.Database.EnsureCreatedAsync(ct);
 
-        var permissions = await EnsurePermissions(db, ct);
-        var positions = await EnsurePositions(db, ct);
-        var employees = await EnsureEmployees(db, passwordHasher, ct);
+        var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
+        {
+            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == name, ct);
+            if (organization is null)
+            {
+                organization = new Organization(name);
+                db.Organizations.Add(organization);
+            }
+            organizations[name] = organization;
+        }
 
-        await EnsureEmployeePosition(db, employees["admin"], positions["مدیر سیستم"], ct);
-        await EnsureEmployeePosition(db, employees["manager"], positions["مدیر"], ct);
-        await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
+        var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in new[] { "مدیر سامانه", "مدیر منابع انسانی", "مدیر واحد", "کارشناس مالی", "کارمند" })
+        {
+            var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
+            if (position is null)
+            {
+                position = new Position(name);
+                db.Positions.Add(position);
+            }
+            positions[name] = position;
+        }
+
+        var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dashboard.View"] = new Permission("Dashboard.View", "مشاهده داشبورد"),
+            ["Profile.View"] = new Permission("Profile.View", "مشاهده پروفایل"),
+            ["Requests.Create"] = new Permission("Requests.Create", "ایجاد درخواست"),
+            ["Requests.View"] = new Permission("Requests.View", "مشاهده درخواست‌ها"),
+            ["Requests.Approve"] = new Permission("Requests.Approve", "تأیید درخواست‌ها"),
+            ["Requests.Reject"] = new Permission("Requests.Reject", "رد درخواست‌ها"),
+            ["Requests.ReturnToRequester"] = new Permission("Requests.ReturnToRequester", "بازگرداندن درخواست به درخواست‌کننده"),
+            ["Requests.ReturnToPreviousStep"] = new Permission("Requests.ReturnToPreviousStep", "بازگرداندن درخواست به مرحله قبل"),
+            ["Employees.View"] = new Permission("Employees.View", "مشاهده کارکنان"),
+            ["Employees.Manage"] = new Permission("Employees.Manage", "مدیریت کارکنان"),
+            ["Organizations.View"] = new Permission("Organizations.View", "مشاهده سازمان‌ها"),
+            ["Organizations.Manage"] = new Permission("Organizations.Manage", "مدیریت سازمان‌ها"),
+            ["Positions.View"] = new Permission("Positions.View", "مشاهده سمت‌ها"),
+            ["Positions.Manage"] = new Permission("Positions.Manage", "مدیریت سمت‌ها"),
+            ["Permissions.View"] = new Permission("Permissions.View", "مشاهده مجوزها"),
+            ["Permissions.Manage"] = new Permission("Permissions.Manage", "مدیریت مجوزها"),
+            ["Admin.Users"] = new Permission("Admin.Users", "مدیریت کاربران"),
+            ["Admin.Positions"] = new Permission("Admin.Positions", "مدیریت سمت‌ها"),
+            ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها"),
+            ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها")
+        };
+
+        foreach (var permission in permissions.Values.ToList())
+        {
+            var existing = await db.Permissions.SingleOrDefaultAsync(x => x.Code == permission.Code, ct);
+            if (existing is not null) permissions[permission.Code] = existing;
+            else db.Permissions.Add(permission);
+        }
+        await db.SaveChangesAsync(ct);
+
+        var employeeDefinitions = new[]
+        {
+            (Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
+            (Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
+            (Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
+            (Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
+            (Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
+        };
+
+        var employees = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in employeeDefinitions)
+        {
+            var employee = await db.Employees.SingleOrDefaultAsync(x => x.Username == definition.Username, ct);
+            if (employee is null)
+            {
+                employee = new Employee(definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
+                employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
+                db.Employees.Add(employee);
+            }
+            else
+            {
+                employee.ChangeOrganization(organizations[definition.Organization].Id);
+                employee.SetAdmin(definition.IsAdmin);
+                if (string.IsNullOrWhiteSpace(employee.PasswordHash))
+                    employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
+            }
+            employees[definition.Username] = employee;
+        }
+        await db.SaveChangesAsync(ct);
+
+        await EnsureEmployeePosition(db, employees["admin"], positions["مدیر سامانه"], ct);
         await EnsureEmployeePosition(db, employees["employee"], positions["کارمند"], ct);
-        await EnsureEmployeePosition(db, employees["admin"], positions["کارشناس مالی"], ct);
+        await EnsureEmployeePosition(db, employees["hr"], positions["مدیر منابع انسانی"], ct);
+        await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["manager"], positions["کارمند"], ct);
+        await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
+        await db.SaveChangesAsync(ct);
 
-        await Grant(db, employees["admin"], positions["مدیر سیستم"], permissions, new[] { "Dashboard.View", "Profile.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
-        await Grant(db, employees["manager"], positions["مدیر"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
+        foreach (var permission in permissions.Values)
+            await EnsurePermission(db, employees["admin"], positions["مدیر سامانه"], permission, ct);
         await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
+        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Employees.View" }, ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View" }, ct);
+        await Grant(db, employees["manager"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
     }
@@ -38,12 +140,10 @@ public static class DevelopmentDataSeeder
         if (existingForEmployee is not null)
             return;
 
-        // The development seed is deterministic. If an older development database
-        // contains the same active position under another employee, end that stale
-        // assignment and persist the update before inserting the new assignment.
-        // This ordering is required because SQL Server checks the filtered unique
-        // index while the INSERT is executed and EF may otherwise batch the INSERT
-        // before the UPDATE of the conflicting row.
+        // Development seed data must be deterministic. If an old development database
+        // has the position actively assigned to another employee, end that stale row
+        // and commit the UPDATE before inserting the new active assignment. This avoids
+        // a SQL Server filtered-unique-index conflict when EF batches the changes.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
@@ -69,86 +169,5 @@ public static class DevelopmentDataSeeder
     {
         foreach (var code in codes)
             await EnsurePermission(db, employee, position, permissions[code], ct);
-    }
-
-    private static async Task<Dictionary<string, Permission>> EnsurePermissions(ApplicationDbContext db, CancellationToken ct)
-    {
-        var definitions = new[]
-        {
-            ("Dashboard.View", "مشاهده داشبورد"),
-            ("Profile.View", "مشاهده پروفایل"),
-            ("Admin.Users", "مدیریت کاربران"),
-            ("Admin.Positions", "مدیریت سمت‌ها"),
-            ("Admin.Permissions", "مدیریت مجوزها"),
-            ("Admin.Organizations", "مدیریت سازمان‌ها"),
-            ("Requests.Create", "ایجاد درخواست"),
-            ("Requests.View", "مشاهده درخواست‌ها"),
-            ("Requests.Approve", "تأیید درخواست‌ها"),
-            ("Requests.Reject", "رد درخواست‌ها")
-        };
-
-        var result = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (code, name) in definitions)
-        {
-            var permission = await db.Permissions.SingleOrDefaultAsync(x => x.Code == code, ct);
-            if (permission is null)
-            {
-                permission = new Permission(code, name);
-                db.Permissions.Add(permission);
-            }
-
-            result[code] = permission;
-        }
-
-        await db.SaveChangesAsync(ct);
-        return result;
-    }
-
-    private static async Task<Dictionary<string, Position>> EnsurePositions(ApplicationDbContext db, CancellationToken ct)
-    {
-        var names = new[] { "مدیر سیستم", "مدیر", "کارشناس مالی", "کارمند" };
-        var result = new Dictionary<string, Position>(StringComparer.Ordinal);
-        foreach (var name in names)
-        {
-            var position = await db.Positions.SingleOrDefaultAsync(x => x.Title == name, ct);
-            if (position is null)
-            {
-                position = new Position(name);
-                db.Positions.Add(position);
-                await db.SaveChangesAsync(ct);
-            }
-
-            result[name] = position;
-        }
-
-        return result;
-    }
-
-    private static async Task<Dictionary<string, Employee>> EnsureEmployees(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct)
-    {
-        var definitions = new[]
-        {
-            ("admin", "admin", "مدیر سیستم", true),
-            ("manager", "manager", "مدیر", false),
-            ("finance", "finance", "کارشناس مالی", false),
-            ("employee", "employee", "کارمند", false)
-        };
-
-        var result = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, username, displayName, isAdmin) in definitions)
-        {
-            var employee = await db.Employees.SingleOrDefaultAsync(x => x.Username == username, ct);
-            if (employee is null)
-            {
-                employee = new Employee(username, displayName, isAdmin);
-                employee.SetPasswordHash(passwordHasher.HashPassword(employee, "P@ssw0rd"));
-                db.Employees.Add(employee);
-                await db.SaveChangesAsync(ct);
-            }
-
-            result[key] = employee;
-        }
-
-        return result;
     }
 }
