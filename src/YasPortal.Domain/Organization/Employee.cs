@@ -3,18 +3,22 @@ namespace YasPortal.Domain.Organization;
 public sealed class Employee
 {
     private Employee() { }
-    public Employee(string username, string fullName, bool isAdmin = false)
+    public Employee(string username, string fullName, Guid organizationId, bool isAdmin = false)
     {
         if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Username is required.", nameof(username));
         if (string.IsNullOrWhiteSpace(fullName)) throw new ArgumentException("Full name is required.", nameof(fullName));
+        if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
         Username = username.Trim();
         FullName = fullName.Trim();
+        OrganizationId = organizationId;
         IsAdmin = isAdmin;
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string Username { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
+    public Guid OrganizationId { get; private set; }
+    public Organization Organization { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
     public bool IsAdmin { get; private set; }
     public string? PasswordHash { get; private set; }
@@ -22,6 +26,11 @@ public sealed class Employee
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
     public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
+    public void ChangeOrganization(Guid organizationId)
+    {
+        if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
+        OrganizationId = organizationId;
+    }
 }
 
 public sealed class EmployeePosition
