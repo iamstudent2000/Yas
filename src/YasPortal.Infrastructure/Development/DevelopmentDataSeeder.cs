@@ -10,6 +10,21 @@ public static class DevelopmentDataSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct = default)
     {
+        // This project currently uses EnsureCreated rather than EF migrations for the
+        // development database. When the domain schema changes, an existing development
+        // database must be recreated before seeding; otherwise EnsureCreated intentionally
+        // leaves the old schema untouched. We only do this automatically when the new
+        // Organizations table is missing, so normal application restarts preserve data.
+        if (await db.Database.CanConnectAsync(ct))
+        {
+            var organizationsTableExists = await db.Database
+                .SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Organizations]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]")
+                .SingleAsync(ct);
+
+            if (organizationsTableExists == 0)
+                await db.Database.EnsureDeletedAsync(ct);
+        }
+
         await db.Database.EnsureCreatedAsync(ct);
 
         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
