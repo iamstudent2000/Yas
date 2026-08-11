@@ -7,6 +7,7 @@ namespace YasPortal.Infrastructure.Persistence;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options), IApplicationDbContext
 {
+    public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<EmployeePosition> EmployeePositions => Set<EmployeePosition>();
@@ -15,6 +16,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Organization>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        });
+
         modelBuilder.Entity<Employee>(e =>
         {
             e.HasKey(x => x.Id);
@@ -22,6 +30,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.Property(x => x.Username).HasMaxLength(256).IsRequired();
             e.Property(x => x.FullName).HasMaxLength(256).IsRequired();
             e.Property(x => x.PasswordHash).HasMaxLength(512);
+            e.HasOne(x => x.Organization)
+                .WithMany(x => x.Employees)
+                .HasForeignKey(x => x.OrganizationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Position>(e =>
