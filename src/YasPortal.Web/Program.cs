@@ -33,6 +33,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Admin.Users", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Users")));
     options.AddPolicy("Admin.Positions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Positions")));
     options.AddPolicy("Admin.Permissions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Permissions")));
+    options.AddPolicy("Admin.Organizations", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Organizations")));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
