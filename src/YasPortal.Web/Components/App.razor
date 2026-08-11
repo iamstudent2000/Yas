@@ -11,7 +11,8 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="css/site.css" />
     <link rel="stylesheet" href="css/components.css" />
-    <link rel="stylesheet" href="css/notifications.css" />
+    <!-- Cache-busted so notification layout changes are immediately visible after deployment. -->
+    <link rel="stylesheet" href="css/notifications.css?v=20260811-2" />
     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
