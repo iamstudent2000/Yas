@@ -52,6 +52,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => new { x.EmployeeId, x.PositionId });
             e.HasOne(x => x.Employee).WithMany(x => x.Positions).HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+
+            // A position may have many historical assignments, but only one active
+            // employee assignment at a time.
+            e.HasIndex(x => x.PositionId)
+                .IsUnique()
+                .HasFilter("[EndedAt] IS NULL");
         });
 
         modelBuilder.Entity<Permission>(e =>
