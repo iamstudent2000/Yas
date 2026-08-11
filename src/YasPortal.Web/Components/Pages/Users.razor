@@ -228,8 +228,8 @@
         _employeePositions = await db.EmployeePositions
             .AsNoTracking()
             .Where(x => x.EmployeeId == employeeId)
+            .OrderBy(x => x.Position.Name)
             .Select(x => new EmployeePositionRow(x.PositionId, x.Position.Name, x.EndedAt == null))
-            .OrderBy(x => x.PositionName)
             .ToListAsync();
 
         if (!_employeePositions.Any(x => x.PositionId == _permissionPositionId && x.IsActive))
