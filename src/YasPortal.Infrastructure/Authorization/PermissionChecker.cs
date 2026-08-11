@@ -9,20 +9,13 @@ public sealed class PermissionChecker(IApplicationDbContext db, ICurrentUser cur
 {
     public Task<bool> HasPermissionAsync(string permissionCode, CancellationToken cancellationToken = default)
     {
-        if (currentUser.EmployeeId is null || currentUser.ActivePositionId is null)
+        if (currentUser.EmployeeId is not Guid employeeId || currentUser.ActivePositionId is not Guid positionId)
             return Task.FromResult(false);
 
         return db.UserPositionPermissions.AnyAsync(
-            x => x.EmployeeId == currentUser.EmployeeId.Value &&
-                 x.PositionId == currentUser.ActivePositionId.Value &&
+            x => x.EmployeeId == employeeId &&
+                 x.PositionId == positionId &&
                  x.Permission.Code == permissionCode,
             cancellationToken);
     }
-}
-
-public sealed class CurrentUser : ICurrentUser
-{
-    public Guid? EmployeeId { get; init; }
-    public Guid? ActivePositionId { get; init; }
-    public bool IsAdmin { get; init; }
 }
