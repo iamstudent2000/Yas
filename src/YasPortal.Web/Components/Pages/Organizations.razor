@@ -19,7 +19,7 @@
 
 @if (!string.IsNullOrWhiteSpace(_message))
 {
-    <div class="toast @( _messageIsError ? "toast-error" : "toast-success")" role="status">
+    <div class="toast @(_messageIsError ? "toast-error" : "toast-success")" role="status">
         <i class="bx @(_messageIsError ? "bx-error-circle" : "bx-check-circle")"></i>
         <span>@_message</span>
         <button type="button" class="toast-close" @onclick="ClearMessage" aria-label="بستن"><i class="bx bx-x"></i></button>
@@ -84,10 +84,18 @@
     <div class="employee-list">
         @foreach (var employee in _employees)
         {
+            var currentOrganization = _organizations.FirstOrDefault(x => x.Id == employee.OrganizationId);
             <div class="employee-row">
                 <div class="employee-info"><div class="employee-avatar">@GetInitial(employee.FullName)</div><div><strong>@employee.FullName</strong><span>@employee.Username</span></div></div>
                 <select class="form-control" value="@employee.OrganizationId" @onchange="e => ChangeEmployeeOrganization(employee.Id, e.Value?.ToString())">
-                    @foreach (var organization in _organizations.Where(x => x.IsActive)) { <option value="@organization.Id">@organization.Name</option> }
+                    @if (currentOrganization is not null && !currentOrganization.IsActive)
+                    {
+                        <option value="@currentOrganization.Id">@currentOrganization.Name (غیرفعال - سازمان فعلی)</option>
+                    }
+                    @foreach (var organization in _organizations.Where(x => x.IsActive))
+                    {
+                        <option value="@organization.Id">@organization.Name</option>
+                    }
                 </select>
                 <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
             </div>
@@ -108,7 +116,7 @@
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _organizations = await db.Organizations.AsNoTracking().OrderBy(x => x.Name).Select(x => new OrganizationItem(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync();
+        _organizations = await db.Organizations.AsNoTracking().OrderByDescending(x => x.IsActive).ThenBy(x => x.Name).Select(x => new OrganizationItem(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync();
         _employees = await db.Employees.AsNoTracking().OrderBy(x => x.FullName).Select(x => new EmployeeItem(x.Id, x.Username, x.FullName, x.OrganizationId, x.IsActive)).ToListAsync();
     }
 
