@@ -4,17 +4,19 @@
 
 <div class="application-shell">
     <header class="topbar">
-        <a href="/">YasPortal</a>
+        <a href="/">یاس پورتال</a>
         <AuthorizeView>
             <Authorized Context="auth">
-                <span>@auth.User.Identity?.Name</span>
-                <form method="post" action="/account/logout">
-                    <AntiforgeryToken />
-                    <button type="submit">Sign out</button>
-                </form>
+                <div class="user-area">
+                    <span>@auth.User.Identity?.Name</span>
+                    <form method="post" action="/account/logout">
+                        <AntiforgeryToken />
+                        <button type="submit">خروج</button>
+                    </form>
+                </div>
             </Authorized>
             <NotAuthorized>
-                <a href="/login">Sign in</a>
+                <a href="/login">ورود</a>
             </NotAuthorized>
         </AuthorizeView>
     </header>
@@ -25,20 +27,20 @@
                 <aside class="sidebar">
                     @if (auth.User.HasClaim("yas_is_admin", "True"))
                     {
-                        <h3>Administration</h3>
+                        <h3>مدیریت سیستم</h3>
                         <nav>
-                            <a href="/dashboard">Admin Dashboard</a>
-                            <a href="/admin/users">Users</a>
-                            <a href="/admin/positions">Positions</a>
-                            <a href="/admin/permissions">Permissions</a>
+                            <a href="/dashboard">داشبورد مدیریت</a>
+                            <a href="/admin/users">کاربران</a>
+                            <a href="/admin/positions">سمت‌ها</a>
+                            <a href="/admin/permissions">مجوزها</a>
                         </nav>
                     }
                     else
                     {
-                        <h3>Employee</h3>
+                        <h3>حساب کاربری</h3>
                         <nav>
-                            <a href="/dashboard">My Dashboard</a>
-                            <a href="/my-profile">My Profile</a>
+                            <a href="/dashboard">داشبورد من</a>
+                            <a href="/my-profile">پروفایل من</a>
                         </nav>
                     }
                 </aside>
