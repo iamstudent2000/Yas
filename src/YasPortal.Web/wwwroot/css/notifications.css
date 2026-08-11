@@ -1,17 +1,17 @@
 .app-toast-container {
     position: fixed !important;
-    top: 16px !important;
-    right: 16px !important;
-    left: auto !important;
-    bottom: auto !important;
+    top: auto !important;
+    bottom: 16px !important;
+    left: 16px !important;
+    right: auto !important;
     z-index: 2147483000 !important;
-    width: min(390px, calc(100vw - 32px)) !important;
+    width: min(320px, calc(100vw - 32px)) !important;
     height: auto !important;
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
     align-items: stretch !important;
     justify-content: flex-start !important;
-    gap: 10px !important;
+    gap: 8px !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
@@ -21,8 +21,10 @@
 
 /*
    AppState.Toasts is ordered newest -> oldest.
+   Container uses column-reverse, so the newest toast (index 0) renders
+   closest to the bottom edge of the screen and older ones stack upward.
    Do not use absolute positioning, top offsets, transforms or grid placement.
-   Normal flex column flow is the only positioning mechanism.
+   Normal flex column-reverse flow is the only positioning mechanism.
 */
 .app-toast-container > .app-toast {
     position: static !important;
@@ -33,38 +35,38 @@
     left: auto !important;
     order: 0 !important;
     display: flex !important;
-    flex: 0 0 72px !important;
+    flex: 0 0 52px !important;
     align-self: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
-    height: 72px !important;
-    min-height: 72px !important;
-    max-height: 72px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
     margin: 0 !important;
-    padding: 12px 14px !important;
+    padding: 8px 10px !important;
     box-sizing: border-box !important;
     float: none !important;
     clear: none !important;
     overflow: hidden !important;
     pointer-events: auto !important;
-    gap: 10px !important;
+    gap: 8px !important;
     background: #fff !important;
     border: 1px solid #e4e7ec !important;
-    border-radius: 13px !important;
-    box-shadow: 0 12px 30px rgba(16, 24, 40, .14) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 20px rgba(16, 24, 40, .14) !important;
     color: #1f2937 !important;
     isolation: isolate;
     animation: app-toast-in .18s ease-out;
 }
 
 .app-toast-icon {
-    flex: 0 0 34px;
-    width: 34px;
-    height: 34px;
+    flex: 0 0 26px;
+    width: 26px;
+    height: 26px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
-    font-size: 20px;
+    border-radius: 8px;
+    font-size: 15px;
 }
 
 .app-toast-success .app-toast-icon { background: #ecfdf3; color: #039855; }
@@ -80,34 +82,35 @@
 }
 
 .app-toast-title {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     color: #344054;
 }
 
 .app-toast-message {
-    font-size: 12px;
-    line-height: 1.55;
+    font-size: 11px;
+    line-height: 1.4;
     color: #667085;
     overflow: hidden;
     overflow-wrap: anywhere;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
 }
 
 .app-toast-close {
-    flex: 0 0 26px;
-    width: 26px;
-    height: 26px;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
     border: 0;
     background: transparent;
     color: #98a2b3;
-    border-radius: 7px;
+    border-radius: 6px;
     display: grid;
     place-items: center;
     cursor: pointer;
+    font-size: 13px;
 }
 
 .app-toast-close:hover {
@@ -116,21 +119,21 @@
 }
 
 @keyframes app-toast-in {
-    from { opacity: 0; transform: translateY(-8px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 576px) {
     .app-toast-container {
-        top: 12px !important;
-        right: 12px !important;
+        bottom: 12px !important;
+        left: 12px !important;
         width: calc(100vw - 24px) !important;
     }
 
     .app-toast-container > .app-toast {
-        flex-basis: 68px !important;
-        height: 68px !important;
-        min-height: 68px !important;
-        max-height: 68px !important;
+        flex-basis: 48px !important;
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
     }
 }
