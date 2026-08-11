@@ -13,6 +13,7 @@ using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
 using YasPortal.Infrastructure.Persistence;
+using YasPortal.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +39,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+builder.Services.AddScoped<AppState>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
