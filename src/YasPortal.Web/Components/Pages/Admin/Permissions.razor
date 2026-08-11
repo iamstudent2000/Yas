@@ -1,0 +1,8 @@
+@page "/admin/permissions"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Admin.Permissions")]
+
+<PageTitle>Permissions - YasPortal</PageTitle>
+
+<h1>Permissions</h1>
+<p>This administrative area requires <code>IsAdmin = true</code> and the <code>Admin.Permissions</code> permission on the active position.</p>
