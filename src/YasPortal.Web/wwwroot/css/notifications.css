@@ -1,26 +1,40 @@
 .app-toast-container {
     position: fixed !important;
     top: 16px !important;
-    inset-inline-end: 16px !important;
+    right: 16px !important;
+    left: auto !important;
+    bottom: auto !important;
     z-index: 2147483000 !important;
     width: min(390px, calc(100vw - 32px)) !important;
+    height: auto !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: stretch !important;
+    justify-content: flex-start !important;
     gap: 10px !important;
     margin: 0 !important;
     padding: 0 !important;
-    pointer-events: none;
-    direction: rtl;
+    overflow: visible !important;
+    pointer-events: none !important;
+    direction: rtl !important;
 }
 
-/* The DOM is newest-to-oldest, so normal column flow puts the newest toast on top. */
+/*
+   AppState.Toasts is ordered newest -> oldest.
+   Do not use absolute positioning, top offsets, transforms or grid placement.
+   Normal flex column flow is the only positioning mechanism.
+*/
 .app-toast-container > .app-toast {
-    position: relative !important;
+    position: static !important;
     inset: auto !important;
-    flex: 0 0 auto !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    order: 0 !important;
     display: flex !important;
-    align-items: flex-start !important;
+    flex: 0 0 72px !important;
+    align-self: stretch !important;
     width: 100% !important;
     min-width: 0 !important;
     height: 72px !important;
@@ -32,13 +46,13 @@
     float: none !important;
     clear: none !important;
     overflow: hidden !important;
-    pointer-events: auto;
-    gap: 10px;
-    background: #fff;
-    border: 1px solid #e4e7ec;
-    border-radius: 13px;
-    box-shadow: 0 12px 30px rgba(16, 24, 40, .14);
-    color: #1f2937;
+    pointer-events: auto !important;
+    gap: 10px !important;
+    background: #fff !important;
+    border: 1px solid #e4e7ec !important;
+    border-radius: 13px !important;
+    box-shadow: 0 12px 30px rgba(16, 24, 40, .14) !important;
+    color: #1f2937 !important;
     isolation: isolate;
     animation: app-toast-in .18s ease-out;
 }
@@ -109,11 +123,12 @@
 @media (max-width: 576px) {
     .app-toast-container {
         top: 12px !important;
-        inset-inline: 12px !important;
-        width: auto !important;
+        right: 12px !important;
+        width: calc(100vw - 24px) !important;
     }
 
     .app-toast-container > .app-toast {
+        flex-basis: 68px !important;
         height: 68px !important;
         min-height: 68px !important;
         max-height: 68px !important;
