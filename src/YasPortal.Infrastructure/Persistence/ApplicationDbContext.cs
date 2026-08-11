@@ -21,6 +21,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasIndex(x => x.Username).IsUnique();
             e.Property(x => x.Username).HasMaxLength(256).IsRequired();
             e.Property(x => x.FullName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.PasswordHash).HasMaxLength(512);
         });
 
         modelBuilder.Entity<Position>(e =>
