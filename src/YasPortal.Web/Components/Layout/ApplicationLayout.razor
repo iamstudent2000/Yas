@@ -8,6 +8,7 @@
         <AuthorizeView>
             <Authorized Context="auth">
                 <div class="topbar-user">
+                    <YasPortal.Web.Components.Shared.ActivePositionSelector />
                     <span class="user-avatar"><i class="bx bx-user"></i></span>
                     <div><strong>@auth.User.Identity?.Name</strong><small>حساب کاربری</small></div>
                     <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
