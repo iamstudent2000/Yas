@@ -98,15 +98,24 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         return Results.Redirect("/login?error=1");
 
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
-    {
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
-        await db.SaveChangesAsync();
-    }
 
     var activePositionId = employee.Positions
+        .Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId)
+        .Select(x => (Guid?)x.PositionId)
+        .FirstOrDefault();
+
+    activePositionId ??= employee.Positions
         .Where(x => x.EndedAt == null)
         .Select(x => (Guid?)x.PositionId)
         .FirstOrDefault();
+
+    // If the remembered position no longer exists as an active assignment, replace
+    // the stale preference with the first currently active assignment.
+    if (employee.LastActivePositionId != activePositionId)
+        employee.SetLastActivePosition(activePositionId);
+
+    await db.SaveChangesAsync();
 
     var claims = new List<Claim>
     {
@@ -142,6 +151,13 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 
     if (!validPosition)
         return Results.Redirect("/my-positions");
+
+    var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive);
+    if (employee is null)
+        return Results.Redirect("/login");
+
+    employee.SetLastActivePosition(positionId);
+    await db.SaveChangesAsync();
 
     var claims = http.User.Claims
         .Where(c => c.Type != AuthClaimNames.ActivePositionId)
