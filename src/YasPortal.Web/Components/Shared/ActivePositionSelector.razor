@@ -1,0 +1,80 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Infrastructure.Persistence
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+@if (_positions.Count > 1)
+{
+    <form method="post" action="/account/position" class="active-position-form">
+        <AntiforgeryToken />
+        <label for="active-position-selector" class="sr-only">سمت فعال</label>
+        <select id="active-position-selector" name="positionId" class="active-position-select" value="@_activePositionId" @onchange="SubmitSelection">
+            @foreach (var position in _positions)
+            {
+                <option value="@position.Id">@position.Name</option>
+            }
+        </select>
+        <span class="active-position-icon"><i class="bx bx-briefcase-alt-2"></i></span>
+    </form>
+}
+else if (_positions.Count == 1)
+{
+    <div class="active-position-single">
+        <i class="bx bx-briefcase-alt-2"></i>
+        <span>@_positions[0].Name</span>
+    </div>
+}
+
+@code {
+    private List<PositionItem> _positions = [];
+    private Guid _activePositionId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+            return;
+
+        Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out _activePositionId);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _positions = await db.EmployeePositions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .OrderBy(x => x.Position.Name)
+            .Select(x => new PositionItem(x.PositionId, x.Position.Name))
+            .ToListAsync();
+
+        if (_activePositionId == Guid.Empty || !_positions.Any(x => x.Id == _activePositionId))
+            _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
+    }
+
+    private async Task SubmitSelection(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(args.Value?.ToString(), out var positionId) || positionId == Guid.Empty)
+            return;
+
+        _activePositionId = positionId;
+        await InvokeAsync(StateHasChanged);
+
+        // The form is intentionally submitted by JavaScript-free browser navigation.
+        // The endpoint persists the selection and refreshes the authentication cookie.
+        await JSRuntime.InvokeVoidAsync("eval", "document.querySelector('.active-position-form')?.submit()");
+    }
+
+    private sealed record PositionItem(Guid Id, string Name);
+}
+
+<style>
+    .active-position-form{position:relative;display:flex;align-items:center;min-width:180px}
+    .active-position-select{width:100%;height:38px;padding:0 34px 0 10px;border:1px solid #d9e0ea;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer;direction:rtl;appearance:none}
+    .active-position-select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .active-position-icon{position:absolute;right:10px;pointer-events:none;color:#667085;font-size:17px}
+    .active-position-single{display:flex;align-items:center;gap:6px;padding:0 10px;height:38px;border:1px solid #e4e7ec;border-radius:9px;color:#475467;font-size:12px;background:#f8fafc}
+    .active-position-single i{color:#2563eb;font-size:17px}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+</style>
