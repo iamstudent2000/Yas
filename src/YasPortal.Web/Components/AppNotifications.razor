@@ -5,10 +5,12 @@
 @if (AppState.Toasts.Count > 0)
 {
     <div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
-        @foreach (var toast in AppState.Toasts)
+        @for (var index = 0; index < AppState.Toasts.Count; index++)
         {
+            var toast = AppState.Toasts[index];
             <div @key="toast.Id"
                  class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()"
+                 style="--toast-index:@index;"
                  role="status">
                 <div class="app-toast-icon" aria-hidden="true">
                     <i class="@GetIcon(toast.Level)"></i>
