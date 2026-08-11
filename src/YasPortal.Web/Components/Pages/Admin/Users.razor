@@ -1,0 +1,8 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Admin.Users")]
+
+<PageTitle>Users - YasPortal</PageTitle>
+
+<h1>Users</h1>
+<p>This administrative area requires <code>IsAdmin = true</code> and the <code>Admin.Users</code> permission on the active position.</p>
