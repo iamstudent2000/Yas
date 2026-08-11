@@ -12,13 +12,12 @@
 }
 
 /*
-   Do not rely on flex/grid ordering here. Each toast gets its own explicit
-   vertical slot from --toast-index. This makes overlapping impossible even
-   if another application stylesheet changes the container display mode.
+   Each toast receives its vertical position directly from AppNotifications.razor.
+   This deliberately avoids CSS variables, flex ordering and grid placement.
+   The container is the positioning context; every toast occupies one fixed slot.
 */
 .app-toast-container > .app-toast {
     position: absolute !important;
-    top: calc(var(--toast-index) * 82px) !important;
     inset-inline-end: 0 !important;
     display: flex !important;
     align-items: flex-start !important;
@@ -117,7 +116,6 @@
     }
 
     .app-toast-container > .app-toast {
-        top: calc(var(--toast-index) * 78px) !important;
         height: 68px !important;
         min-height: 68px !important;
         max-height: 68px !important;
