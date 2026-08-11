@@ -2,21 +2,13 @@
 @implements IDisposable
 @inject AppState AppState
 
-@{
-    var toasts = AppState.Toasts;
-}
-
-@if (toasts.Count > 0)
+@if (AppState.Toasts.Count > 0)
 {
     <div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
-        @for (var index = 0; index < toasts.Count; index++)
+        @foreach (var toast in AppState.Toasts)
         {
-            var toast = toasts[index];
-            var top = index * 82;
-
             <div @key="toast.Id"
                  class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()"
-                 style="top:@top.ToString(System.Globalization.CultureInfo.InvariantCulture)px;"
                  role="status">
                 <div class="app-toast-icon" aria-hidden="true">
                     <i class="@GetIcon(toast.Level)"></i>
