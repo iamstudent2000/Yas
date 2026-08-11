@@ -12,10 +12,451 @@
 @inject AppState AppState
 
 <PageTitle>کاربران - یاس پورتال</PageTitle>
-<div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / کاربران</div><h1 class="page-title">کاربران و کارکنان</h1><p class="page-subtitle">مدیریت حساب، سازمان، وضعیت، سمت‌ها و مجوزهای هر کاربر</p></div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
-<div class="stat-grid"><div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کاربران</span><strong class="stat-value">@_employees.Count</strong></div><div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">کاربران فعال</span><strong class="stat-value">@_employees.Count(x => x.IsActive)</strong></div><div class="stat-card"><div class="stat-icon"><i class="bx bx-shield-quarter"></i></div><span class="stat-label">مدیر سامانه</span><strong class="stat-value">@_employees.Count(x => x.IsAdmin)</strong></div></div>
-<div class="admin-two-col"><section class="card"><h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2><label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256" disabled="@(_editingId is not null)"/><label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName" maxlength="256"/><label class="form-label">سازمان</label><select class="form-control" @bind="_organizationId"><option value="@Guid.Empty">انتخاب سازمان</option>@foreach(var x in _organizations.Where(x=>x.IsActive)){<option value="@x.Id">@x.Name</option>}</select><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password"/><label class="check-row"><input type="checkbox" @bind="_isAdmin"/> <span>مدیر سامانه باشد</span></label><div class="form-actions"><button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>@if(_editingId is not null){<button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>}</div></section>
-<section class="card table-card"><div class="table-toolbar"><h2 class="section-title" style="margin:0">فهرست کاربران</h2></div><div class="data-table-wrap"><table class="data-table"><thead><tr><th>کاربر</th><th>سازمان</th><th>سمت فعال</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>@foreach(var x in _employees){<tr @key="x.Id"><td><strong>@x.FullName</strong><small class="muted-line">@x.Username @(x.IsAdmin ? " · مدیر" : "")</small></td><td>@x.OrganizationName</td><td>@x.ActivePositionCount</td><td><span class="badge @(x.IsActive?"badge-success":"badge-muted")">@(x.IsActive?"فعال":"غیرفعال")</span></td><td class="action-cell"><button class="btn btn-secondary btn-sm" @onclick="()=>BeginEdit(x.Id)"><i class="bx bx-edit-alt"></i></button><button class="btn @(x.IsActive?"btn-danger":"btn-primary") btn-sm" @onclick="()=>ToggleEmployee(x.Id)"><i class="bx @(x.IsActive?"bx-user-x":"bx-user-check")"></i></button><button class="btn btn-secondary btn-sm" @onclick="()=>SelectEmployee(x.Id)"><i class="bx bx-cog"></i> دسترسی</button></td></tr>}</tbody></table></div></section></div>
-@if(_selectedEmployeeId is Guid selectedId){<section class="card" style="margin-top:16px"><div class="page-header compact-header"><div><h2 class="section-title" style="margin:0">دسترسی‌های @SelectedEmployeeName</h2><p class="page-subtitle">سمت‌های فعال و مجوزهای همان کاربر را مدیریت کنید.</p></div><button class="btn btn-secondary btn-sm" @onclick="ClearSelection">بستن</button></div><div class="admin-three-col"><div><h3 class="sub-title">سمت‌ها</h3>@foreach(var p in _positions){var link=_employeePositions.FirstOrDefault(x=>x.PositionId==p.Id);<label class="assignment-row"><input type="checkbox" checked="@(link?.IsActive==true)" @onchange="e=>TogglePosition(selectedId,p.Id,e.Value is true)"/><span>@p.Name</span>@if(link?.IsActive==true){<span class="badge badge-success">فعال</span>}</label>}</div><div><h3 class="sub-title">انتخاب سمت برای مجوزها</h3><select class="form-control" value="@_permissionPositionId" @onchange="OnPermissionPositionChanged"><option value="@Guid.Empty">انتخاب سمت</option>@foreach(var p in _employeePositions.Where(x=>x.IsActive)){<option value="@p.PositionId">@p.PositionName</option>}</select><h3 class="sub-title" style="margin-top:18px">مجوزها</h3>@if(_permissionPositionId != Guid.Empty){@foreach(var p in _permissions){<label class="assignment-row"><input type="checkbox" checked="@_grantedPermissionIds.Contains(p.Id)" @onchange="e=>TogglePermission(selectedId,_permissionPositionId,p.Id,e.Value is true)"/><span><strong>@p.Name</strong><small>@p.Code</small></span></label>}}else{<div class="empty-state">ابتدا یک سمت فعال انتخاب کنید.</div>}</div></div></section>}
-@code { private List<EmployeeRow> _employees=[];private List<OrgRow> _organizations=[];private List<PositionRow> _positions=[];private List<PermissionRow> _permissions=[];private List<EmployeePositionRow> _employeePositions=[];private Guid? _editingId;private Guid? _selectedEmployeeId;private Guid _organizationId;private Guid _permissionPositionId;private string _username="",_fullName="",_password="";private bool _isAdmin;private HashSet<Guid> _grantedPermissionIds=[];private string SelectedEmployeeName=>_employees.FirstOrDefault(x=>x.Id==_selectedEmployeeId)?.FullName??"";protected override async Task OnInitializedAsync()=>await LoadAsync();private async Task LoadAsync(){await using var db=await DbFactory.CreateDbContextAsync();_organizations=await db.Organizations.AsNoTracking().OrderBy(x=>x.Name).Select(x=>new OrgRow(x.Id,x.Name,x.IsActive)).ToListAsync();_employees=await db.Employees.AsNoTracking().OrderBy(x=>x.FullName).Select(x=>new EmployeeRow(x.Id,x.Username,x.FullName,x.Organization.Name,x.IsActive,x.IsAdmin,x.Positions.Count(p=>p.EndedAt==null))).ToListAsync();_positions=await db.Positions.AsNoTracking().OrderBy(x=>x.Name).Select(x=>new PositionRow(x.Id,x.Name)).ToListAsync();_permissions=await db.Permissions.AsNoTracking().OrderBy(x=>x.Code).Select(x=>new PermissionRow(x.Id,x.Code,x.Name)).ToListAsync();if(_selectedEmployeeId is Guid id)await LoadAssignmentsAsync(id);}private async Task LoadAssignmentsAsync(Guid id){await using var db=await DbFactory.CreateDbContextAsync();_employeePositions=await db.EmployeePositions.AsNoTracking().Where(x=>x.EmployeeId==id).Select(x=>new EmployeePositionRow(x.PositionId,x.Position.Name,x.EndedAt==null)).OrderBy(x=>x.PositionName).ToListAsync();if(!_employeePositions.Any(x=>x.PositionId==_permissionPositionId&&x.IsActive))_permissionPositionId=_employeePositions.FirstOrDefault(x=>x.IsActive)?.PositionId??Guid.Empty;_grantedPermissionIds=_permissionPositionId==Guid.Empty?[]:await db.UserPositionPermissions.AsNoTracking().Where(x=>x.EmployeeId==id&&x.PositionId==_permissionPositionId).Select(x=>x.PermissionId).ToHashSetAsync();}private void BeginEdit(Guid id){var x=_employees.Single(x=>x.Id==id);_editingId=id;_username=x.Username;_fullName=x.FullName;_organizationId=_organizations.FirstOrDefault(o=>o.Name==x.OrganizationName)?.Id??Guid.Empty;_isAdmin=x.IsAdmin;_password="";}private void CancelEdit(){_editingId=null;_username=_fullName=_password="";_organizationId=Guid.Empty;_isAdmin=false;}private async Task SaveEmployee(){if(string.IsNullOrWhiteSpace(_username)||string.IsNullOrWhiteSpace(_fullName)||_organizationId==Guid.Empty){AppState.AddToast("نام کاربری، نام و سازمان الزامی است.",ToastLevel.Error);return;}await using var db=await DbFactory.CreateDbContextAsync();Employee employee;if(_editingId is Guid id){employee=await db.Employees.SingleAsync(x=>x.Id==id);employee.SetFullName(_fullName);employee.ChangeOrganization(_organizationId);employee.SetAdmin(_isAdmin);if(!string.IsNullOrWhiteSpace(_password))employee.SetPasswordHash(PasswordHasher.HashPassword(employee,_password));AppState.AddToast("کاربر ویرایش شد.",ToastLevel.Success);}else{if(await db.Employees.AnyAsync(x=>x.Username==_username.Trim())){AppState.AddToast("این نام کاربری قبلاً استفاده شده است.",ToastLevel.Error);return;}if(string.IsNullOrWhiteSpace(_password)){AppState.AddToast("برای کاربر جدید رمز عبور الزامی است.",ToastLevel.Error);return;}employee=new Employee(_username,_fullName,_organizationId,_isAdmin);employee.SetPasswordHash(PasswordHasher.HashPassword(employee,_password));db.Employees.Add(employee);AppState.AddToast("کاربر جدید ایجاد شد.",ToastLevel.Success);}await db.SaveChangesAsync();CancelEdit();await LoadAsync();}private async Task ToggleEmployee(Guid id){await using var db=await DbFactory.CreateDbContextAsync();var x=await db.Employees.SingleAsync(x=>x.Id==id);if(x.IsActive)x.Deactivate();else x.Activate();await db.SaveChangesAsync();AppState.AddToast(x.IsActive?"کاربر فعال شد.":"کاربر غیرفعال شد.",ToastLevel.Success);await LoadAsync();}private async Task SelectEmployee(Guid id){_selectedEmployeeId=id;await LoadAssignmentsAsync(id);}private void ClearSelection(){_selectedEmployeeId=null;_permissionPositionId=Guid.Empty;_grantedPermissionIds=[];}private async Task TogglePosition(Guid employeeId,Guid positionId,bool active){await using var db=await DbFactory.CreateDbContextAsync();var link=await db.EmployeePositions.SingleOrDefaultAsync(x=>x.EmployeeId==employeeId&&x.PositionId==positionId);if(active){if(link is null)db.EmployeePositions.Add(new EmployeePosition(employeeId,positionId));else link.Reactivate();}else if(link is not null)link.End();await db.SaveChangesAsync();await LoadAssignmentsAsync(employeeId);AppState.AddToast(active?"سمت فعال شد.":"سمت غیرفعال شد.",ToastLevel.Success);}private async Task OnPermissionPositionChanged(ChangeEventArgs e){if(Guid.TryParse(e.Value?.ToString(),out var id))_permissionPositionId=id;await LoadAssignmentsAsync(_selectedEmployeeId!.Value);}private async Task TogglePermission(Guid employeeId,Guid positionId,Guid permissionId,bool grant){await using var db=await DbFactory.CreateDbContextAsync();var link=await db.UserPositionPermissions.SingleOrDefaultAsync(x=>x.EmployeeId==employeeId&&x.PositionId==positionId&&x.PermissionId==permissionId);if(grant&&link is null)db.UserPositionPermissions.Add(new UserPositionPermission(employeeId,positionId,permissionId));else if(!grant&&link is not null)db.UserPositionPermissions.Remove(link);await db.SaveChangesAsync();await LoadAssignmentsAsync(employeeId);AppState.AddToast(grant?"مجوز اختصاص یافت.":"مجوز حذف شد.",ToastLevel.Success);}private sealed record EmployeeRow(Guid Id,string Username,string FullName,string OrganizationName,bool IsActive,bool IsAdmin,int ActivePositionCount);private sealed record OrgRow(Guid Id,string Name,bool IsActive);private sealed record PositionRow(Guid Id,string Name);private sealed record PermissionRow(Guid Id,string Code,string Name);private sealed record EmployeePositionRow(Guid PositionId,string PositionName,bool IsActive);}
-<style>.admin-two-col{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:16px;align-items:start}.admin-three-col{display:grid;grid-template-columns:1fr 1fr;gap:28px}.form-label{display:block;margin:12px 0 6px}.check-row,.assignment-row{display:flex;align-items:center;gap:9px;padding:9px 0}.assignment-row{border-bottom:1px solid #edf0f4}.assignment-row span:last-child{margin-right:auto}.assignment-row small,.muted-line{display:block;color:#667085;font-size:11px;margin-top:2px}.sub-title{font-size:14px;margin:0 0 10px}.compact-header{margin-bottom:12px}.btn-sm{padding:7px 10px;font-size:12px}.action-cell{white-space:nowrap}@@media(max-width:900px){.admin-two-col,.admin-three-col{grid-template-columns:1fr}}</style>
+
+<div class="page-header">
+    <div>
+        <div class="page-subtitle">مدیریت سامانه / کاربران</div>
+        <h1 class="page-title">کاربران و کارکنان</h1>
+        <p class="page-subtitle">مدیریت حساب، سازمان، سمت‌ها و مجوزهای هر کاربر</p>
+    </div>
+    <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+</div>
+
+<div class="stat-grid">
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کاربران</span><strong class="stat-value">@_employees.Count</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">کاربران فعال</span><strong class="stat-value">@_employees.Count(x => x.IsActive)</strong></div>
+    <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield-quarter"></i></div><span class="stat-label">مدیر سامانه</span><strong class="stat-value">@_employees.Count(x => x.IsAdmin)</strong></div>
+</div>
+
+<div class="admin-two-col">
+    <section class="card">
+        <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
+        <label class="form-label">نام کاربری</label>
+        <input class="form-control" @bind="_username" maxlength="256" disabled="@(_editingId is not null)" />
+        <label class="form-label">نام و نام خانوادگی</label>
+        <input class="form-control" @bind="_fullName" maxlength="256" />
+        <label class="form-label">سازمان</label>
+        <select class="form-control" @bind="_organizationId">
+            <option value="@Guid.Empty">انتخاب سازمان</option>
+            @foreach (var x in _organizations.Where(x => x.IsActive))
+            {
+                <option value="@x.Id">@x.Name</option>
+            }
+        </select>
+        <label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label>
+        <input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
+        <label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>
+            @if (_editingId is not null)
+            {
+                <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+            }
+        </div>
+    </section>
+
+    <section class="card table-card">
+        <div class="table-toolbar"><h2 class="section-title" style="margin:0">فهرست کاربران</h2></div>
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead><tr><th>کاربر</th><th>سازمان</th><th>سمت فعال</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                <tbody>
+                    @foreach (var x in _employees)
+                    {
+                        <tr @key="x.Id">
+                            <td><strong>@x.FullName</strong><small class="muted-line">@x.Username @(x.IsAdmin ? " · مدیر" : "")</small></td>
+                            <td>@x.OrganizationName</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(x.LastActivePositionName))
+                                {
+                                    <span class="badge badge-success">@x.LastActivePositionName</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-muted">انتخاب نشده</span>
+                                }
+                            </td>
+                            <td><span class="badge @(x.IsActive ? "badge-success" : "badge-muted")">@(x.IsActive ? "فعال" : "غیرفعال")</span></td>
+                            <td class="action-cell">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(x.Id)" title="ویرایش"><i class="bx bx-edit-alt"></i></button>
+                                <button class="btn @(x.IsActive ? "btn-danger" : "btn-primary") btn-sm" @onclick="() => ToggleEmployee(x.Id)" title="@(x.IsActive ? "غیرفعال کردن" : "فعال کردن")"><i class="bx @(x.IsActive ? "bx-user-x" : "bx-user-check")"></i></button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => SelectEmployee(x.Id)"><i class="bx bx-cog"></i> دسترسی</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@if (_selectedEmployeeId is Guid selectedId)
+{
+    <section class="card" style="margin-top:16px">
+        <div class="page-header compact-header">
+            <div>
+                <h2 class="section-title" style="margin:0">دسترسی‌های @SelectedEmployeeName</h2>
+                <p class="page-subtitle">سمت‌های تخصیص‌یافته و مجوزهای همان کاربر را مدیریت کنید. مجوزها همیشه به ترکیب «کاربر + سمت» تعلق دارند.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" @onclick="ClearSelection">بستن</button>
+        </div>
+
+        <div class="admin-three-col">
+            <div>
+                <h3 class="sub-title">سمت‌های تخصیص‌یافته</h3>
+                <p class="help-text">این قسمت مشخص می‌کند کاربر چه سمت‌هایی دارد. فعال بودن چند سمت در اینجا مجاز است؛ فقط یک سمت در هر لحظه به عنوان سمت فعال کاربر انتخاب می‌شود.</p>
+                @foreach (var p in _positions)
+                {
+                    var link = _employeePositions.FirstOrDefault(x => x.PositionId == p.Id);
+                    <label class="assignment-row">
+                        <input type="checkbox" checked="@(link?.IsActive == true)" @onchange="e => TogglePosition(selectedId, p.Id, e.Value is bool value && value)" />
+                        <span>@p.Name</span>
+                        @if (link?.IsActive == true)
+                        {
+                            <span class="badge badge-success">تخصیص‌یافته</span>
+                        }
+                    </label>
+                }
+            </div>
+
+            <div>
+                <h3 class="sub-title">سمت مورد استفاده برای مجوزها</h3>
+                <select class="form-control" @bind="_permissionPositionId" @bind:after="PermissionPositionChanged">
+                    <option value="@Guid.Empty">انتخاب سمت</option>
+                    @foreach (var p in _employeePositions.Where(x => x.IsActive).OrderBy(x => x.PositionName))
+                    {
+                        <option value="@p.PositionId">@p.PositionName</option>
+                    }
+                </select>
+
+                @if (_permissionPositionId != Guid.Empty)
+                {
+                    <div class="selected-position-note">
+                        <i class="bx bx-info-circle"></i>
+                        <span>در حال ویرایش مجوزهای سمت <strong>@SelectedPermissionPositionName</strong></span>
+                    </div>
+                }
+
+                <h3 class="sub-title" style="margin-top:18px">مجوزها</h3>
+                @if (_permissionPositionId != Guid.Empty)
+                {
+                    @foreach (var p in _permissions)
+                    {
+                        <label class="assignment-row permission-row">
+                            <input type="checkbox" checked="@_grantedPermissionIds.Contains(p.Id)" disabled="@_savingPermission" @onchange="e => TogglePermission(selectedId, _permissionPositionId, p.Id, e.Value is bool value && value)" />
+                            <span><strong>@p.Name</strong><small>@p.Code</small></span>
+                        </label>
+                    }
+                }
+                else
+                {
+                    <div class="empty-state">ابتدا حداقل یک سمت تخصیص‌یافته را انتخاب کنید.</div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private List<EmployeeRow> _employees = [];
+    private List<OrgRow> _organizations = [];
+    private List<PositionRow> _positions = [];
+    private List<PermissionRow> _permissions = [];
+    private List<EmployeePositionRow> _employeePositions = [];
+
+    private Guid? _editingId;
+    private Guid? _selectedEmployeeId;
+    private Guid _organizationId;
+    private Guid _permissionPositionId;
+    private string _username = "";
+    private string _fullName = "";
+    private string _password = "";
+    private bool _isAdmin;
+    private bool _savingPermission;
+    private HashSet<Guid> _grantedPermissionIds = [];
+
+    private string SelectedEmployeeName => _employees.FirstOrDefault(x => x.Id == _selectedEmployeeId)?.FullName ?? "";
+    private string SelectedPermissionPositionName => _employeePositions.FirstOrDefault(x => x.PositionId == _permissionPositionId && x.IsActive)?.PositionName ?? "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _organizations = await db.Organizations
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .Select(x => new OrgRow(x.Id, x.Name, x.IsActive))
+            .ToListAsync();
+
+        _employees = await db.Employees
+            .AsNoTracking()
+            .OrderBy(x => x.FullName)
+            .Select(x => new EmployeeRow(
+                x.Id,
+                x.Username,
+                x.FullName,
+                x.Organization.Name,
+                x.IsActive,
+                x.IsAdmin,
+                x.LastActivePositionId,
+                x.Positions.Count(p => p.EndedAt == null),
+                x.Positions.Where(p => p.EndedAt == null && p.PositionId == x.LastActivePositionId).Select(p => p.Position.Name).FirstOrDefault()))
+            .ToListAsync();
+
+        _positions = await db.Positions
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .Select(x => new PositionRow(x.Id, x.Name))
+            .ToListAsync();
+
+        _permissions = await db.Permissions
+            .AsNoTracking()
+            .OrderBy(x => x.Code)
+            .Select(x => new PermissionRow(x.Id, x.Code, x.Name))
+            .ToListAsync();
+
+        if (_selectedEmployeeId is Guid id)
+            await LoadAssignmentsAsync(id);
+    }
+
+    private async Task LoadAssignmentsAsync(Guid employeeId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _employeePositions = await db.EmployeePositions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .Select(x => new EmployeePositionRow(x.PositionId, x.Position.Name, x.EndedAt == null))
+            .OrderBy(x => x.PositionName)
+            .ToListAsync();
+
+        if (!_employeePositions.Any(x => x.PositionId == _permissionPositionId && x.IsActive))
+            _permissionPositionId = _employeePositions.FirstOrDefault(x => x.IsActive)?.PositionId ?? Guid.Empty;
+
+        _grantedPermissionIds = _permissionPositionId == Guid.Empty
+            ? []
+            : await db.UserPositionPermissions
+                .AsNoTracking()
+                .Where(x => x.EmployeeId == employeeId && x.PositionId == _permissionPositionId)
+                .Select(x => x.PermissionId)
+                .ToHashSetAsync();
+    }
+
+    private void BeginEdit(Guid id)
+    {
+        var x = _employees.Single(x => x.Id == id);
+        _editingId = id;
+        _username = x.Username;
+        _fullName = x.FullName;
+        _organizationId = _organizations.FirstOrDefault(o => o.Name == x.OrganizationName)?.Id ?? Guid.Empty;
+        _isAdmin = x.IsAdmin;
+        _password = "";
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _username = "";
+        _fullName = "";
+        _password = "";
+        _organizationId = Guid.Empty;
+        _isAdmin = false;
+    }
+
+    private async Task SaveEmployee()
+    {
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId == Guid.Empty)
+        {
+            AppState.AddToast("نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        Employee employee;
+
+        if (_editingId is Guid id)
+        {
+            employee = await db.Employees.SingleAsync(x => x.Id == id);
+            employee.SetFullName(_fullName);
+            employee.ChangeOrganization(_organizationId);
+            employee.SetAdmin(_isAdmin);
+
+            if (!string.IsNullOrWhiteSpace(_password))
+                employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password));
+
+            AppState.AddToast("کاربر ویرایش شد.", ToastLevel.Success);
+        }
+        else
+        {
+            var username = _username.Trim();
+            if (await db.Employees.AnyAsync(x => x.Username == username))
+            {
+                AppState.AddToast("این نام کاربری قبلاً استفاده شده است.", ToastLevel.Error);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_password))
+            {
+                AppState.AddToast("برای کاربر جدید رمز عبور الزامی است.", ToastLevel.Error);
+                return;
+            }
+
+            employee = new Employee(username, _fullName, _organizationId, _isAdmin);
+            employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password));
+            db.Employees.Add(employee);
+            AppState.AddToast("کاربر جدید ایجاد شد.", ToastLevel.Success);
+        }
+
+        await db.SaveChangesAsync();
+        CancelEdit();
+        await LoadAsync();
+    }
+
+    private async Task ToggleEmployee(Guid id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var employee = await db.Employees.SingleAsync(x => x.Id == id);
+
+        if (employee.IsActive)
+            employee.Deactivate();
+        else
+            employee.Activate();
+
+        await db.SaveChangesAsync();
+        AppState.AddToast(employee.IsActive ? "کاربر فعال شد." : "کاربر غیرفعال شد.", ToastLevel.Success);
+        await LoadAsync();
+    }
+
+    private async Task SelectEmployee(Guid id)
+    {
+        _selectedEmployeeId = id;
+        _permissionPositionId = Guid.Empty;
+        _grantedPermissionIds = [];
+        await LoadAssignmentsAsync(id);
+    }
+
+    private void ClearSelection()
+    {
+        _selectedEmployeeId = null;
+        _permissionPositionId = Guid.Empty;
+        _grantedPermissionIds = [];
+        _employeePositions = [];
+    }
+
+    private async Task TogglePosition(Guid employeeId, Guid positionId, bool active)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId);
+
+        if (active)
+        {
+            if (link is null)
+                db.EmployeePositions.Add(new EmployeePosition(employeeId, positionId));
+            else
+                link.Reactivate();
+        }
+        else if (link is not null)
+        {
+            // Do not allow the current active position preference to point at an ended assignment.
+            var employee = await db.Employees.SingleAsync(x => x.Id == employeeId);
+            if (employee.LastActivePositionId == positionId)
+                employee.SetLastActivePosition(null);
+            link.End();
+        }
+
+        await db.SaveChangesAsync();
+        await LoadAssignmentsAsync(employeeId);
+        AppState.AddToast(active ? "سمت به کاربر تخصیص یافت." : "سمت از کاربر حذف شد.", ToastLevel.Success);
+    }
+
+    private async Task PermissionPositionChanged()
+    {
+        if (_selectedEmployeeId is Guid employeeId)
+            await LoadAssignmentsAsync(employeeId);
+    }
+
+    private async Task TogglePermission(Guid employeeId, Guid positionId, Guid permissionId, bool grant)
+    {
+        if (positionId == Guid.Empty)
+            return;
+
+        _savingPermission = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            var positionAssigned = await db.EmployeePositions
+                .AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
+
+            if (!positionAssigned)
+            {
+                AppState.AddToast("این سمت دیگر به کاربر تخصیص‌یافته نیست.", ToastLevel.Error);
+                await LoadAssignmentsAsync(employeeId);
+                return;
+            }
+
+            var link = await db.UserPositionPermissions.SingleOrDefaultAsync(x =>
+                x.EmployeeId == employeeId &&
+                x.PositionId == positionId &&
+                x.PermissionId == permissionId);
+
+            if (grant && link is null)
+            {
+                db.UserPositionPermissions.Add(new UserPositionPermission(employeeId, positionId, permissionId));
+                _grantedPermissionIds.Add(permissionId);
+            }
+            else if (!grant && link is not null)
+            {
+                db.UserPositionPermissions.Remove(link);
+                _grantedPermissionIds.Remove(permissionId);
+            }
+            else
+            {
+                return;
+            }
+
+            await db.SaveChangesAsync();
+            AppState.AddToast(grant ? "مجوز اختصاص یافت." : "مجوز حذف شد.", ToastLevel.Success);
+        }
+        finally
+        {
+            _savingPermission = false;
+        }
+    }
+
+    private sealed record EmployeeRow(
+        Guid Id,
+        string Username,
+        string FullName,
+        string OrganizationName,
+        bool IsActive,
+        bool IsAdmin,
+        Guid? LastActivePositionId,
+        int ActivePositionCount,
+        string? LastActivePositionName);
+
+    private sealed record OrgRow(Guid Id, string Name, bool IsActive);
+    private sealed record PositionRow(Guid Id, string Name);
+    private sealed record PermissionRow(Guid Id, string Code, string Name);
+    private sealed record EmployeePositionRow(Guid PositionId, string PositionName, bool IsActive);
+}
+
+<style>
+    .admin-two-col{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:16px;align-items:start}
+    .admin-three-col{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+    .form-label{display:block;margin:12px 0 6px}
+    .check-row,.assignment-row{display:flex;align-items:center;gap:9px;padding:9px 0}
+    .assignment-row{border-bottom:1px solid #edf0f4}
+    .assignment-row span:last-child{margin-right:auto}
+    .assignment-row small,.muted-line{display:block;color:#667085;font-size:11px;margin-top:2px}
+    .sub-title{font-size:14px;margin:0 0 10px}
+    .help-text{margin:0 0 10px;color:#667085;font-size:12px;line-height:1.8}
+    .selected-position-note{display:flex;align-items:center;gap:7px;margin-top:10px;padding:9px 11px;border-radius:9px;background:#f5f8ff;color:#475467;font-size:12px}
+    .permission-row{cursor:pointer}
+    .compact-header{margin-bottom:12px}
+    .btn-sm{padding:7px 10px;font-size:12px}
+    .action-cell{white-space:nowrap}
+    @@media(max-width:900px){.admin-two-col,.admin-three-col{grid-template-columns:1fr}}
+</style>
