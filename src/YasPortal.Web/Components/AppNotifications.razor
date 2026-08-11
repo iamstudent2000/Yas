@@ -5,7 +5,7 @@
 @if (AppState.Toasts.Count > 0)
 {
     <div class="app-toast-container" aria-live="polite" aria-atomic="true">
-        @foreach (var toast in AppState.Toasts)
+        @foreach (var toast in AppState.Toasts.AsEnumerable().Reverse())
         {
             <div class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant()" role="status">
                 <div class="app-toast-icon" aria-hidden="true">
