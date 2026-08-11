@@ -1,0 +1,52 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@inherits LayoutComponentBase
+
+<div class="application-shell">
+    <header class="topbar">
+        <a href="/">YasPortal</a>
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <span>@auth.User.Identity?.Name</span>
+                <form method="post" action="/account/logout">
+                    <AntiforgeryToken />
+                    <button type="submit">Sign out</button>
+                </form>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/login">Sign in</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </header>
+
+    <div class="application-body">
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <aside class="sidebar">
+                    @if (auth.User.HasClaim("yas_is_admin", "True"))
+                    {
+                        <h3>Administration</h3>
+                        <nav>
+                            <a href="/dashboard">Admin Dashboard</a>
+                            <a href="/admin/users">Users</a>
+                            <a href="/admin/positions">Positions</a>
+                            <a href="/admin/permissions">Permissions</a>
+                        </nav>
+                    }
+                    else
+                    {
+                        <h3>Employee</h3>
+                        <nav>
+                            <a href="/dashboard">My Dashboard</a>
+                            <a href="/my-profile">My Profile</a>
+                        </nav>
+                    }
+                </aside>
+            </Authorized>
+        </AuthorizeView>
+
+        <main class="content">
+            @Body
+        </main>
+    </div>
+</div>
