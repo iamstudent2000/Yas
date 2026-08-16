@@ -13,6 +13,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<EmployeePosition> EmployeePositions => Set<EmployeePosition>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserPositionPermission> UserPositionPermissions => Set<UserPositionPermission>();
+    public DbSet<EmployeePermission> EmployeePermissions => Set<EmployeePermission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,12 +58,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => new { x.EmployeeId, x.PositionId });
             e.HasOne(x => x.Employee).WithMany(x => x.Positions).HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
-
-            // A position may have many historical assignments, but only one active
-            // employee assignment at a time.
-            e.HasIndex(x => x.PositionId)
-                .IsUnique()
-                .HasFilter("[EndedAt] IS NULL");
+            e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL");
         });
 
         modelBuilder.Entity<Permission>(e =>
@@ -78,6 +74,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => new { x.EmployeeId, x.PositionId, x.PermissionId });
             e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmployeePermission>(e =>
+        {
+            e.HasKey(x => new { x.EmployeeId, x.PermissionId });
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
         });
     }
