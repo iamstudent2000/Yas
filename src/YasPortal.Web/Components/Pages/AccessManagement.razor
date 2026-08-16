@@ -31,23 +31,14 @@
         <div class="selector-grid">
             <div>
                 <label class="form-label">کاربر</label>
-                <SearchableGuidSelect Options="@EmployeeOptions"
-                                      Value="@_employeeId"
-                                      ValueChanged="EmployeeChanged"
-                                      Placeholder="کاربر را جستجو و انتخاب کنید..."
-                                      SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
+                <SearchableGuidSelect Options="@EmployeeOptions" Value="@_employeeId" ValueChanged="EmployeeChanged" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
                 <div class="selector-hint">@_employees.Count کاربر در دسترس است · با تایپ، فهرست فیلتر می‌شود.</div>
             </div>
             @if (_selectedEmployee?.IsAdmin != true)
             {
                 <div>
                     <label class="form-label">سمت</label>
-                    <SearchableGuidSelect Options="@PositionOptions"
-                                          Value="@_positionId"
-                                          ValueChanged="PositionChanged"
-                                          Placeholder="سمت را جستجو و انتخاب کنید..."
-                                          SearchPlaceholder="نام سمت را جستجو کنید..."
-                                          Disabled="@(_employeeId is null)" />
+                    <SearchableGuidSelect Options="@PositionOptions" Value="@_positionId" ValueChanged="PositionChanged" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را جستجو کنید..." Disabled="@(_employeeId is null)" />
                     @if (_employeeId is not null && _employeePositions.Count == 0)
                     {
                         <div class="help-text warning-text">این کارمند هنوز سمت فعال ندارد.</div>
@@ -68,14 +59,8 @@
                 <div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin ? "bx-shield-quarter" : "bx-user")"></i></div>
                 <div>
                     <strong>@_selectedEmployee.FullName</strong>
-                    @if (_selectedEmployee.IsAdmin)
-                    {
-                        <span>مدیر سامانه · دسترسی حساب‌محور</span>
-                    }
-                    else
-                    {
-                        <span>کارمند · @SelectedPositionName</span>
-                    }
+                    @if (_selectedEmployee.IsAdmin) { <span>مدیر سامانه · دسترسی حساب‌محور</span> }
+                    else { <span>کارمند · @SelectedPositionName</span> }
                 </div>
             </div>
             <div class="subject-stats">
@@ -85,44 +70,22 @@
             </div>
         </section>
 
-        @if (!string.IsNullOrWhiteSpace(_statusMessage))
-        {
-            <div class="access-status">@_statusMessage</div>
-        }
+        @if (!string.IsNullOrWhiteSpace(_statusMessage)) { <div class="access-status">@_statusMessage</div> }
 
         <section class="card access-panel">
             <div class="panel-heading">
-                <div>
-                    <div class="panel-step">۲ · مجوز مستقیم</div>
-                    <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
-                    <p>این مجوزها فقط برای موضوع انتخاب‌شده ذخیره می‌شوند؛ برای کارمند یعنی همین کارمند + همین سمت.</p>
-                </div>
+                <div><div class="panel-step">۲ · مجوز مستقیم</div><h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2><p>این مجوزها فقط برای موضوع انتخاب‌شده ذخیره می‌شوند؛ برای کارمند یعنی همین کارمند + همین سمت.</p></div>
                 <div class="counter"><strong>@_directPermissionIds.Count</strong><span>انتخاب شده</span></div>
             </div>
-
             <div class="filter-bar">
-                <div class="search-box">
-                    <i class="bx bx-search"></i>
-                    <input class="form-control" placeholder="جستجو با نام مجوز..." @bind="_permissionSearch" @bind:event="oninput" />
-                </div>
-                <select class="form-control filter-select" @bind="_permissionArea">
-                    <option value="">همه بخش‌ها</option>
-                    @foreach (var area in PermissionAreas)
-                    {
-                        <option value="@area">@area</option>
-                    }
-                </select>
+                <div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجو با نام مجوز..." @bind="_permissionSearch" @bind:event="oninput" /></div>
+                <select class="form-control filter-select" @bind="_permissionArea"><option value="">همه بخش‌ها</option>@foreach (var area in PermissionAreas) { <option value="@area">@area</option> }</select>
                 <label class="selected-filter"><input type="checkbox" @bind="_onlySelected" /> فقط انتخاب‌شده‌ها</label>
             </div>
-
             <div class="selection-toolbar">
                 <span><strong>@FilteredPermissions.Count()</strong> مجوز نمایش داده می‌شود</span>
-                <div>
-                    <button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(true)">انتخاب نتایج</button>
-                    <button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(false)">حذف نتایج</button>
-                </div>
+                <div><button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(true)">انتخاب نتایج</button><button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(false)">حذف نتایج</button></div>
             </div>
-
             @if (!FilteredPermissions.Any())
             {
                 <div class="empty-state compact-empty"><i class="bx bx-search-alt"></i><strong>@(_permissions.Count == 0 ? "هیچ مجوزی ثبت نشده است" : "مجوزی مطابق فیلتر پیدا نشد")</strong><span>@(_permissions.Count == 0 ? "ابتدا مجوزها را در صفحه مجوزها ایجاد کنید." : "جستجو یا فیلتر بخش را تغییر دهید.")</span></div>
@@ -133,19 +96,12 @@
                     @foreach (var areaGroup in FilteredPermissionGroups)
                     {
                         <section class="permission-area">
-                            <div class="area-heading">
-                                <div><strong>@areaGroup.Key</strong><span>@areaGroup.Count() مجوز</span></div>
-                                <div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), true)">همه</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), false)">حذف</button></div>
-                            </div>
+                            <div class="area-heading"><div><strong>@areaGroup.Key</strong><span>@areaGroup.Count() مجوز</span></div><div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), true)">همه</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), false)">حذف</button></div></div>
                             <div class="permission-grid">
                                 @foreach (var permission in areaGroup)
                                 {
                                     var selected = _directPermissionIds.Contains(permission.Id);
-                                    <label class="permission-tile @(selected ? "selected" : "")">
-                                        <input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e => ToggleDirectAsync(permission.Id, e.Value is bool value && value)" />
-                                        <span class="tile-check"><i class="bx bx-check"></i></span>
-                                        <span class="tile-text"><strong>@permission.Name</strong><small>@areaGroup.Key</small></span>
-                                    </label>
+                                    <label class="permission-tile @(selected ? "selected" : "")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e => ToggleDirectAsync(permission.Id, e.Value is bool value && value)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="tile-text"><strong>@permission.Name</strong><small>@areaGroup.Key</small></span></label>
                                 }
                             </div>
                         </section>
@@ -156,10 +112,7 @@
 
         <div class="access-columns">
             <section class="card access-panel">
-                <div class="panel-heading compact-heading">
-                    <div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>گروه، مجموعه‌ای آماده از مجوزهاست و همه اعضای آن به موضوع دسترسی اضافه می‌شوند.</p></div>
-                    <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" /></div>
-                </div>
+                <div class="panel-heading compact-heading"><div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>گروه، مجموعه‌ای آماده از مجوزهاست و همه اعضای آن به موضوع دسترسی اضافه می‌شوند.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" /></div></div>
                 <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span></div>
                 <div class="group-list">
                     @foreach (var group in FilteredGroups)
@@ -172,15 +125,9 @@
             </section>
 
             <section class="card access-panel effective-panel">
-                <div class="panel-heading compact-heading">
-                    <div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و مجوزهای تمام گروه‌های انتخاب‌شده. Deny permission وجود ندارد.</p></div>
-                    <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز نهایی..." @bind="_effectiveSearch" @bind:event="oninput" /></div>
-                </div>
+                <div class="panel-heading compact-heading"><div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و مجوزهای تمام گروه‌های انتخاب‌شده. Deny permission وجود ندارد.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز نهایی..." @bind="_effectiveSearch" @bind:event="oninput" /></div></div>
                 <div class="effective-summary"><span><i class="bx bx-key"></i> مستقیم: @_directPermissionIds.Count</span><span><i class="bx bx-layer"></i> از گروه: @_effectiveViaGroupIds.Count</span><span><i class="bx bx-shield-check"></i> نهایی: @_effectivePermissionIds.Count</span></div>
-                @if (!FilteredEffectiveGroups.Any())
-                {
-                    <div class="empty-state compact-empty">هیچ مجوز نهایی برای این موضوع وجود ندارد.</div>
-                }
+                @if (!FilteredEffectiveGroups.Any()) { <div class="empty-state compact-empty">هیچ مجوز نهایی برای این موضوع وجود ندارد.</div> }
                 else
                 {
                     <div class="effective-list">
@@ -205,7 +152,7 @@
 </div>
 
 <style>
-.access-page{padding-bottom:40px}.access-header{margin-bottom:18px}.access-selector,.access-panel{padding:22px;margin-bottom:18px}.selector-title{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}.selector-title h2{margin:0 0 6px;font-size:20px}.selector-title p,.panel-heading p{margin:0;color:var(--text-muted,#6b7280)}.step-number{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;background:var(--primary,#2563eb);color:#fff;flex:none}.selector-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.selector-hint{margin-top:6px;color:var(--text-muted,#6b7280);font-size:11px}.subject-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:18px}.subject-main{display:flex;align-items:center;gap:13px}.subject-main>div:last-child{display:flex;flex-direction:column;gap:4px}.subject-main span{color:var(--text-muted,#6b7280);font-size:13px}.subject-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(37,99,235,.1);font-size:23px}.subject-stats{display:flex;gap:10px}.subject-stats div{min-width:74px;padding:8px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;text-align:center}.subject-stats strong,.subject-stats span{display:block}.subject-stats span{color:var(--text-muted,#6b7280);font-size:12px;margin-top:2px}.access-status{padding:10px 14px;margin-bottom:16px;border-radius:10px;background:rgba(34,197,94,.1)}.panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.panel-heading h2{margin:2px 0 5px;font-size:20px}.panel-step{font-size:12px;font-weight:800;color:var(--primary,#2563eb);margin-bottom:4px}.counter{min-width:90px;text-align:center;padding:9px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px}.counter strong,.counter span{display:block}.counter span{font-size:11px;color:var(--text-muted,#6b7280)}.filter-bar{display:grid;grid-template-columns:minmax(220px,1fr) 190px auto;gap:10px;align-items:center;margin-bottom:12px}.search-box{position:relative}.search-box>i{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:1;color:var(--text-muted,#6b7280)}.search-box input{padding-right:36px}.selected-filter{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:var(--surface-muted,#f8fafc);font-size:13px}.selection-toolbar>div{display:flex;gap:7px}.permission-area{border:1px solid var(--border,#e5e7eb);border-radius:14px;overflow:hidden;margin-bottom:12px}.area-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;background:var(--surface-muted,#f8fafc);border-bottom:1px solid var(--border,#e5e7eb)}.area-heading>div:first-child{display:flex;align-items:center;gap:9px}.area-heading span{color:var(--text-muted,#6b7280);font-size:12px}.permission-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px}.permission-tile,.group-tile{position:relative;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border,#e5e7eb);border-radius:11px;cursor:pointer;background:var(--surface,#fff);transition:.15s ease}.permission-tile:hover,.group-tile:hover{transform:translateY(-1px);border-color:var(--primary,#2563eb)}.permission-tile.selected,.group-tile.selected{border-color:var(--primary,#2563eb);background:rgba(37,99,235,.07)}.permission-tile input,.group-tile input{position:absolute;opacity:0;pointer-events:none}.tile-check{width:22px;height:22px;border:1.5px solid #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;color:transparent}.selected .tile-check{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff}.tile-text,.group-text{min-width:0;display:flex;flex-direction:column;gap:3px}.tile-text strong,.group-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-text small,.group-text small{color:var(--text-muted,#6b7280);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.access-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}.small-search{width:230px;flex:none}.group-list{display:flex;flex-direction:column;gap:8px}.group-tile{width:100%}.effective-summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.effective-summary span{padding:7px 10px;border-radius:9px;background:var(--surface-muted,#f8fafc);font-size:12px}.effective-list{border:1px solid var(--border,#e5e7eb);border-radius:13px;overflow:hidden}.effective-area+.effective-area{border-top:1px solid var(--border,#e5e7eb)}.effective-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-bottom:1px solid var(--border,#eef2f7)}.effective-row:last-child{border-bottom:0}.effective-row>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}.effective-row strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-badges{display:flex;gap:5px;flex:none}.source-badge{font-size:11px;padding:4px 7px;border-radius:7px}.source-badge.direct{background:rgba(37,99,235,.1);color:#1d4ed8}.source-badge.group{background:rgba(124,58,237,.1);color:#6d28d9}.empty-state{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;color:var(--text-muted,#6b7280)}.compact-empty{min-height:130px}.empty-state i{font-size:34px}.empty-state strong{color:var(--text,#111827)}.access-empty{margin-top:18px}.warning-text{margin-top:7px;color:#b45309;font-size:12px}@media(max-width:800px){.selector-grid,.access-columns{grid-template-columns:1fr}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.subject-card{align-items:flex-start;flex-direction:column}.small-search{width:100%}}@media(max-width:560px){.filter-bar{grid-template-columns:1fr}.permission-grid{grid-template-columns:1fr}}
+.access-page{padding-bottom:40px}.access-header{margin-bottom:18px}.access-selector,.access-panel{padding:22px;margin-bottom:18px}.selector-title{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}.selector-title h2{margin:0 0 6px;font-size:20px}.selector-title p,.panel-heading p{margin:0;color:var(--text-muted,#6b7280)}.step-number{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;background:var(--primary,#2563eb);color:#fff;flex:none}.selector-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.selector-hint{margin-top:6px;color:var(--text-muted,#6b7280);font-size:11px}.subject-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:18px}.subject-main{display:flex;align-items:center;gap:13px}.subject-main>div:last-child{display:flex;flex-direction:column;gap:4px}.subject-main span{color:var(--text-muted,#6b7280);font-size:13px}.subject-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(37,99,235,.1);font-size:23px}.subject-stats{display:flex;gap:10px}.subject-stats div{min-width:74px;padding:8px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;text-align:center}.subject-stats strong,.subject-stats span{display:block}.subject-stats span{color:var(--text-muted,#6b7280);font-size:12px;margin-top:2px}.access-status{padding:10px 14px;margin-bottom:16px;border-radius:10px;background:rgba(34,197,94,.1)}.panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.panel-heading h2{margin:2px 0 5px;font-size:20px}.panel-step{font-size:12px;font-weight:800;color:var(--primary,#2563eb);margin-bottom:4px}.counter{min-width:90px;text-align:center;padding:9px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px}.counter strong,.counter span{display:block}.counter span{font-size:11px;color:var(--text-muted,#6b7280)}.filter-bar{display:grid;grid-template-columns:minmax(220px,1fr) 190px auto;gap:10px;align-items:center;margin-bottom:12px}.search-box{position:relative}.search-box>i{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:1;color:var(--text-muted,#6b7280)}.search-box input{padding-right:36px}.selected-filter{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:var(--surface-muted,#f8fafc);font-size:13px}.selection-toolbar>div{display:flex;gap:7px}.permission-area{border:1px solid var(--border,#e5e7eb);border-radius:14px;overflow:hidden;margin-bottom:12px}.area-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;background:var(--surface-muted,#f8fafc);border-bottom:1px solid var(--border,#e5e7eb)}.area-heading>div:first-child{display:flex;align-items:center;gap:9px}.area-heading span{color:var(--text-muted,#6b7280);font-size:12px}.permission-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px}.permission-tile,.group-tile{position:relative;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border,#e5e7eb);border-radius:11px;cursor:pointer;background:var(--surface,#fff);transition:.15s ease}.permission-tile:hover,.group-tile:hover{transform:translateY(-1px);border-color:var(--primary,#2563eb)}.permission-tile.selected,.group-tile.selected{border-color:var(--primary,#2563eb);background:rgba(37,99,235,.07)}.permission-tile input,.group-tile input{position:absolute;opacity:0;pointer-events:none}.tile-check{width:22px;height:22px;border:1.5px solid #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;color:transparent}.selected .tile-check{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff}.tile-text,.group-text{min-width:0;display:flex;flex-direction:column;gap:3px}.tile-text strong,.group-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-text small,.group-text small{color:var(--text-muted,#6b7280);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.access-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}.small-search{width:230px;flex:none}.group-list{display:flex;flex-direction:column;gap:8px}.group-tile{width:100%}.effective-summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.effective-summary span{padding:7px 10px;border-radius:9px;background:var(--surface-muted,#f8fafc);font-size:12px}.effective-list{border:1px solid var(--border,#e5e7eb);border-radius:13px;overflow:hidden}.effective-area+.effective-area{border-top:1px solid var(--border,#e5e7eb)}.effective-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-bottom:1px solid var(--border,#eef2f7)}.effective-row:last-child{border-bottom:0}.effective-row>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}.effective-row strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-badges{display:flex;gap:5px;flex:none}.source-badge{font-size:11px;padding:4px 7px;border-radius:7px}.source-badge.direct{background:rgba(37,99,235,.1);color:#1d4ed8}.source-badge.group{background:rgba(124,58,237,.1);color:#6d28d9}.empty-state{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;color:var(--text-muted,#6b7280)}.compact-empty{min-height:130px}.empty-state i{font-size:34px}.empty-state strong{color:var(--text,#111827)}.access-empty{margin-top:18px}.warning-text{margin-top:7px;color:#b45309;font-size:12px}@@media(max-width:800px){.selector-grid,.access-columns{grid-template-columns:1fr}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.subject-card{align-items:flex-start;flex-direction:column}.small-search{width:100%}}@@media(max-width:560px){.filter-bar{grid-template-columns:1fr}.permission-grid{grid-template-columns:1fr}}
 </style>
 
 @code {
@@ -305,7 +252,6 @@
     }
 
     private async Task SetVisibleDirectAsync(bool selected) => await SetDirectAsync(FilteredPermissions.ToList(), selected);
-
     private async Task SetDirectAsync(IReadOnlyCollection<PermissionRow> permissions, bool selected)
     {
         if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is null)) return;
