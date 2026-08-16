@@ -21,7 +21,11 @@ public static class DevelopmentDataSeeder
                 .SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]")
                 .SingleAsync(ct) == 1;
 
-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists)
+            var parentPositionColumnExists = organizationsTableExists == 1 && await db.Database
+                .SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Positions]', N'ParentPositionId') IS NULL THEN 0 ELSE 1 END AS [Value]")
+                .SingleAsync(ct) == 1;
+
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
@@ -64,17 +68,20 @@ public static class DevelopmentDataSeeder
             organizations[name] = organization;
         }
 
+        await db.SaveChangesAsync(ct);
+
+        // Development position hierarchy:
+        // مدیر سامانه
+        // ├── مدیر منابع انسانی
+        // └── مدیر واحد
+        //     ├── کارشناس مالی
+        //     └── کارمند
         var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in new[] { "مدیر سامانه", "مدیر منابع انسانی", "مدیر واحد", "کارشناس مالی", "کارمند" })
-        {
-            var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
-            if (position is null)
-            {
-                position = new Position(name);
-                db.Positions.Add(position);
-            }
-            positions[name] = position;
-        }
+        positions["مدیر سامانه"] = await EnsurePosition(db, "مدیر سامانه", null, ct);
+        positions["مدیر منابع انسانی"] = await EnsurePosition(db, "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
+        positions["مدیر واحد"] = await EnsurePosition(db, "مدیر واحد", positions["مدیر سامانه"].Id, ct);
+        positions["کارشناس مالی"] = await EnsurePosition(db, "کارشناس مالی", positions["مدیر واحد"].Id, ct);
+        positions["کارمند"] = await EnsurePosition(db, "کارمند", positions["مدیر واحد"].Id, ct);
 
         var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase)
         {
@@ -155,6 +162,26 @@ public static class DevelopmentDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    private static async Task<Position> EnsurePosition(ApplicationDbContext db, string name, Guid? parentPositionId, CancellationToken ct)
+    {
+        var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
+        if (position is null)
+        {
+            position = new Position(name, parentPositionId);
+            db.Positions.Add(position);
+            await db.SaveChangesAsync(ct);
+            return position;
+        }
+
+        if (position.ParentPositionId != parentPositionId)
+        {
+            position.ChangeParent(parentPositionId);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return position;
+    }
+
     private static async Task EnsureEmployeePosition(ApplicationDbContext db, Employee employee, Position position, CancellationToken ct)
     {
         var existingForEmployee = await db.EmployeePositions
@@ -165,8 +192,6 @@ public static class DevelopmentDataSeeder
 
         // A position can have only one active employee. End the current holder first
         // and commit that change before inserting/reactivating the next assignment.
-        // EF Core does not guarantee that an UPDATE which removes a row from a
-        // filtered unique index will execute before a competing INSERT in the same batch.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
