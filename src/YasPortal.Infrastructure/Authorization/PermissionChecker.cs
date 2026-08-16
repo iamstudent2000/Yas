@@ -27,16 +27,33 @@ public sealed class PermissionChecker(
         if (!Guid.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var employeeId))
             return false;
 
+        var isAdmin = string.Equals(
+            user.FindFirst(AuthClaimNames.IsAdmin)?.Value,
+            "True",
+            StringComparison.OrdinalIgnoreCase);
+
+        // Administrators are a separate user type. Their permissions are direct
+        // Employee + Permission assignments and do not require an organizational position.
+        if (isAdmin)
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await db.EmployeePermissions
+                .AnyAsync(
+                    x => x.EmployeeId == employeeId &&
+                         x.Permission.Code == permissionCode,
+                    cancellationToken);
+        }
+
         if (!Guid.TryParse(user.FindFirst(AuthClaimNames.ActivePositionId)?.Value, out var positionId))
             return false;
 
-        if (permissionCode.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(user.FindFirst(AuthClaimNames.IsAdmin)?.Value, "True", StringComparison.OrdinalIgnoreCase))
+        // Non-admin employees can only use permissions assigned to their active position.
+        if (permissionCode.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var employeeDb = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.UserPositionPermissions
+        return await employeeDb.UserPositionPermissions
             .AnyAsync(
                 x => x.EmployeeId == employeeId &&
                      x.PositionId == positionId &&
