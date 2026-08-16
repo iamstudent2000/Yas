@@ -3,7 +3,7 @@
 @implements IAsyncDisposable
 
 <div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
-    <button type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync"><span class="server-lookup-value">@(SelectedText ?? Placeholder)</span><i class="bx bx-chevron-down"></i></button>
+    <button type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync"><span class="server-lookup-value">@(SelectedText ?? _selectedDisplayText ?? Placeholder)</span><i class="bx bx-chevron-down"></i></button>
     @if (_open && !Disabled)
     {
         <div class="server-lookup-menu">
@@ -23,12 +23,13 @@
     [Parameter] public string SearchPlaceholder { get; set; }="جستجو...";
     [Parameter] public string? SelectedText { get; set; }
     [Parameter] public bool Disabled { get; set; }
-    private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private bool _open,_loading;private CancellationTokenSource? _cts;
+    private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private string? _selectedDisplayText;private bool _open,_loading;private CancellationTokenSource? _cts;
+    protected override void OnParametersSet(){if(SelectedText is not null)_selectedDisplayText=SelectedText;}
     private async Task ToggleAsync(){_open=!_open;if(_open){_search="";await SearchNowAsync();await Task.Yield();await _input.FocusAsync();}}
     private Task SearchInputChanged(ChangeEventArgs e){_search=e.Value?.ToString()??"";return SearchNowAsync();}
     private async Task SearchNowAsync(){_cts?.Cancel();_cts?.Dispose();_cts=new();var token=_cts.Token;_loading=true;try{await Task.Delay(180,token);_options=(await SearchAsync(_search,token)).ToList();}catch(OperationCanceledException){}finally{if(!token.IsCancellationRequested)_loading=false;}}
     private Task HandleKeyDown(KeyboardEventArgs e){if(e.Key=="Escape")_open=false;return Task.CompletedTask;}
-    private async Task SelectAsync(AdminQueryService.LookupItem option){_open=false;_search="";if(Value!=option.Id)await ValueChanged.InvokeAsync(option.Id);}
+    private async Task SelectAsync(AdminQueryService.LookupItem option){_open=false;_search="";_selectedDisplayText=option.Text;if(Value!=option.Id)await ValueChanged.InvokeAsync(option.Id);}
     public ValueTask DisposeAsync(){_cts?.Cancel();_cts?.Dispose();return ValueTask.CompletedTask;}
 }
 
