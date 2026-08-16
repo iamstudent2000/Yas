@@ -1,6 +1,7 @@
 @page "/admin/access"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Web
 @using YasPortal.Domain.Authorization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
@@ -13,26 +14,21 @@
 
 <div class="access-page" dir="rtl">
     <div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل. تمام انتخاب‌های بزرگ از SQL Server به‌صورت صفحه‌ای بارگذاری می‌شوند.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
-
     <section class="card access-selector"><div class="selector-title"><div class="step-number">۱</div><div><h2>موضوع دسترسی</h2><p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p></div></div><div class="selector-grid">
         <div><label class="form-label">کاربر</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><div class="selector-hint">نتایج جستجو حداکثر ۳۰ مورد و مستقیماً از پایگاه داده است.</div></div>
         @if(_selectedEmployee?.IsAdmin!=true){<div><label class="form-label">سمت</label><ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchEmployeePositionsAsync" SelectedText="@_positionName" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را تایپ کنید..." Disabled="@(_employeeId is null)" />@if(_employeeId is not null){<div class="selector-hint">فقط سمت‌های فعال همین کارمند قابل انتخاب است.</div>}</div>}
     </div></section>
-
     @if(_selectedEmployee is not null&&(_selectedEmployee.IsAdmin||_positionId is not null))
     {
         <section class="card subject-card"><div class="subject-main"><div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin?"bx-shield-quarter":"bx-user")"></i></div><div><strong>@_selectedEmployee.FullName</strong><span>@(_selectedEmployee.IsAdmin?"مدیر سامانه · حساب‌محور":$"کارمند · {_positionName}")</span></div></div><div class="subject-stats"><div><strong>@_assignedGroupIds.Count</strong><span>گروه</span></div><div><strong>@_directPermissionIds.Count</strong><span>مستقیم</span></div><div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div></div></section>
         @if(!string.IsNullOrWhiteSpace(_statusMessage)){<div class="access-status">@_statusMessage</div>}
-
         <section class="card access-panel"><div class="panel-heading"><div><div class="panel-step">۲ · مجوز مستقیم</div><h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2><p>فقط نام مجوز نمایش داده می‌شود؛ کد فنی در این صفحه وجود ندارد.</p></div></div>
             <div class="filter-bar"><div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="نام مجوز را تایپ کنید..." @bind="_permissionSearch" @bind:event="oninput" @onkeyup="PermissionSearchChanged" /></div><span class="lookup-note">@_permissionTotal نتیجه در پایگاه داده</span></div>
             <div class="selection-toolbar"><span><strong>@_directPermissionIds.Count</strong> مجوز مستقیم انتخاب شده</span><div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectPageAsync(true)">انتخاب نتایج صفحه</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectPageAsync(false)">حذف نتایج صفحه</button></div></div>
             @if(_permissionLoading){<div class="empty-state">در حال جستجو...</div>}else if(_permissions.Count==0){<div class="empty-state">مجوزی پیدا نشد.</div>}else{<div class="permission-grid">@foreach(var p in _permissions){var selected=_directPermissionIds.Contains(p.Id);<label class="permission-tile @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleDirectAsync(p.Id,e.Value is bool v&&v)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="tile-text"><strong>@p.Name</strong><small>@PermissionArea(p.Code)</small></span></label>}</div>}
             <ServerPagination Page="@_permissionPage" PageSize="@PageSize" TotalCount="@_permissionTotal" Busy="@_permissionLoading" PageChanged="PermissionPageChanged" />
         </section>
-
         <div class="access-columns"><section class="card access-panel"><div class="panel-heading"><div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>گروه‌ها فقط مجوز اضافه می‌کنند؛ Deny وجود ندارد.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" @onkeyup="GroupSearchChanged" /></div></div><div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span></div>@if(_groupLoading){<div class="empty-state">در حال جستجو...</div>}else{<div class="group-list">@foreach(var group in _groups){var selected=_assignedGroupIds.Contains(group.Id);<label class="group-tile @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleGroupAsync(group.Id,e.Value is bool v&&v)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="group-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز · @group.AssignmentCount تخصیص</small></span></label>}</div>}<ServerPagination Page="@_groupPage" PageSize="@PageSize" TotalCount="@_groupTotal" Busy="@_groupLoading" PageChanged="GroupPageChanged" /></section>
-
         <section class="card access-panel effective-panel"><div class="panel-heading"><div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div></div><div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه: @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>@if(_effectivePermissions.Count==0){<div class="empty-state">هیچ مجوز نهایی وجود ندارد.</div>}else{<div class="effective-list">@foreach(var p in _effectivePermissions.Where(x=>string.IsNullOrWhiteSpace(_effectiveSearch)||x.Name.Contains(_effectiveSearch,StringComparison.OrdinalIgnoreCase))){<div class="effective-row"><div><i class="bx bx-check-circle"></i><strong>@p.Name</strong></div><div class="source-badges">@if(_directPermissionIds.Contains(p.Id)){<span class="source-badge direct">مستقیم</span>}@if(_effectiveViaGroupIds.Contains(p.Id)){<span class="source-badge group">گروه</span>}</div></div>}</div>}</section></div>
     }
     else{<section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>}
@@ -48,7 +44,8 @@
     private List<AdminQueryService.PermissionGroupPageRow> _groups=[];
     private List<EffectivePermission> _effectivePermissions=[];
     private int _permissionPage=1,_permissionTotal,_groupPage=1,_groupTotal;
-    private string _permissionSearch="",_groupSearch="",_effectiveSearch="",? _statusMessage;
+    private string _permissionSearch="",_groupSearch="",_effectiveSearch="";
+    private string? _statusMessage;
     private bool _permissionLoading,_groupLoading,_saving;
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search,CancellationToken ct)=>AdminQueries.SearchEmployeesAsync(search,ct);
