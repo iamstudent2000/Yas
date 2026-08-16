@@ -1,0 +1,140 @@
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="ys-search-select" @onfocusout="HandleFocusOut" tabindex="-1" dir="rtl">
+    <input class="form-control ys-search-input"
+           value="@SearchText"
+           @oninput="HandleInput"
+           @onfocus="Open"
+           @onkeydown="HandleKeyDown"
+           placeholder="@Placeholder"
+           autocomplete="off"
+           aria-autocomplete="list"
+           aria-expanded="@_open" />
+
+    @if (_open)
+    {
+        <div class="ys-search-dropdown" role="listbox">
+            @if (FilteredOptions.Count == 0)
+            {
+                <div class="ys-search-empty">موردی پیدا نشد</div>
+            }
+            else
+            {
+                @foreach (var option in FilteredOptions.Take(100))
+                {
+                    <button type="button"
+                            class="ys-search-option @(option.Value == Value ? "selected" : "")"
+                            @onmousedown="PreventBlur"
+                            @onclick="() => SelectAsync(option.Value)">
+                        <span>@option.Text</span>
+                    </button>
+                }
+                @if (FilteredOptions.Count > 100)
+                {
+                    <div class="ys-search-more">@FilteredOptions.Count نتیجه؛ برای نتایج دقیق‌تر جستجو کنید.</div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<SearchableGuidOption> Options { get; set; } = [];
+    [Parameter] public Guid? Value { get; set; }
+    [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "جستجو و انتخاب...";
+    [Parameter] public bool Disabled { get; set; }
+
+    private string SearchText { get; set; } = "";
+    private bool _open;
+    private int _activeIndex = -1;
+    private bool _preventBlur;
+
+    private List<SearchableGuidOption> FilteredOptions =>
+        string.IsNullOrWhiteSpace(SearchText)
+            ? Options.ToList()
+            : Options.Where(x => x.Text.Contains(SearchText.Trim(), StringComparison.CurrentCultureIgnoreCase)).ToList();
+
+    protected override void OnParametersSet()
+    {
+        if (!_open)
+            SearchText = Options.FirstOrDefault(x => x.Value == Value)?.Text ?? "";
+    }
+
+    private void Open()
+    {
+        if (Disabled) return;
+        _open = true;
+        _activeIndex = -1;
+    }
+
+    private void HandleInput(ChangeEventArgs e)
+    {
+        if (Disabled) return;
+        SearchText = e.Value?.ToString() ?? "";
+        _open = true;
+        _activeIndex = -1;
+    }
+
+    private async Task SelectAsync(Guid? value)
+    {
+        if (Disabled) return;
+        await ValueChanged.InvokeAsync(value);
+        SearchText = Options.FirstOrDefault(x => x.Value == value)?.Text ?? "";
+        _open = false;
+        _activeIndex = -1;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled) return;
+        if (e.Key == "Escape")
+        {
+            SearchText = Options.FirstOrDefault(x => x.Value == Value)?.Text ?? "";
+            _open = false;
+            return;
+        }
+
+        if (e.Key == "ArrowDown")
+        {
+            if (!_open) Open();
+            _activeIndex = Math.Min(_activeIndex + 1, Math.Max(0, Math.Min(FilteredOptions.Count, 100) - 1));
+        }
+        else if (e.Key == "ArrowUp")
+        {
+            _activeIndex = Math.Max(_activeIndex - 1, 0);
+        }
+        else if (e.Key == "Enter" && _open && _activeIndex >= 0 && _activeIndex < Math.Min(FilteredOptions.Count, 100))
+        {
+            await SelectAsync(FilteredOptions[_activeIndex].Value);
+        }
+    }
+
+    private void PreventBlur() => _preventBlur = true;
+
+    private async Task HandleFocusOut()
+    {
+        await Task.Delay(100);
+        if (_preventBlur)
+        {
+            _preventBlur = false;
+            return;
+        }
+        SearchText = Options.FirstOrDefault(x => x.Value == Value)?.Text ?? "";
+        _open = false;
+        _activeIndex = -1;
+    }
+
+    public sealed record SearchableGuidOption(Guid Value, string Text);
+}
+
+<style>
+.ys-search-select { position:relative; width:100%; outline:none; }
+.ys-search-input { width:100%; min-height:42px; }
+.ys-search-dropdown { position:absolute; z-index:4000; top:calc(100% + 5px); right:0; left:0; max-height:340px; overflow-y:auto; padding:6px; border:1px solid var(--border,#e5e7eb); border-radius:12px; background:var(--card-bg,#fff); box-shadow:0 16px 40px rgba(15,23,42,.16); }
+.ys-search-option { display:block; width:100%; padding:10px 12px; border:0; border-radius:8px; background:transparent; color:inherit; text-align:right; font:inherit; cursor:pointer; }
+.ys-search-option:hover,.ys-search-option.selected { background:rgba(37,99,235,.09); }
+.ys-search-option.selected { font-weight:700; }
+.ys-search-empty,.ys-search-more { padding:12px; text-align:center; color:var(--text-muted,#6b7280); font-size:13px; }
+.ys-search-more { border-top:1px solid var(--border,#e5e7eb); }
+</style>
