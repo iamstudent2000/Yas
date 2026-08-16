@@ -56,15 +56,8 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
 
-    // The development database may have been deleted. EnsureCreated must run
-    // before any SQL that targets EmployeePositions so a fresh database can be
-    // created automatically.
     await db.Database.EnsureCreatedAsync();
 
-    // EnsureCreated does not update an existing database schema. Older development
-    // databases may still have the old non-filtered unique index on PositionId.
-    // Rebuild that index so historical assignments are allowed while only one
-    // active employee can hold a position at a time.
     await db.Database.ExecuteSqlRawAsync("""
         IF EXISTS (
             SELECT 1
@@ -117,9 +110,26 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     if (passwordResult == PasswordVerificationResult.Failed) return Results.Redirect("/login?error=1");
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded) employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
 
-    var activePositionId = employee.Positions.Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId).Select(x => (Guid?)x.PositionId).FirstOrDefault();
-    activePositionId ??= employee.Positions.Where(x => x.EndedAt == null).Select(x => (Guid?)x.PositionId).FirstOrDefault();
-    if (employee.LastActivePositionId != activePositionId) employee.SetLastActivePosition(activePositionId);
+    // Employees must have an active position. Administrators are a separate user
+    // type and may sign in without any position at all.
+    Guid? activePositionId = null;
+    if (!employee.IsAdmin)
+    {
+        activePositionId = employee.Positions
+            .Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId)
+            .Select(x => (Guid?)x.PositionId)
+            .FirstOrDefault();
+        activePositionId ??= employee.Positions
+            .Where(x => x.EndedAt == null)
+            .Select(x => (Guid?)x.PositionId)
+            .FirstOrDefault();
+
+        if (activePositionId is null)
+            return Results.Redirect("/login?error=no-position");
+    }
+
+    if (employee.LastActivePositionId != activePositionId)
+        employee.SetLastActivePosition(activePositionId);
     await db.SaveChangesAsync();
 
     var claims = new List<Claim>
@@ -128,8 +138,11 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         new(ClaimTypes.Name, employee.Username),
         new(AuthClaimNames.IsAdmin, employee.IsAdmin.ToString())
     };
-    if (activePositionId is Guid positionId) claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    if (activePositionId is Guid positionId)
+        claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+        new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     return Results.Redirect("/");
 });
 
@@ -145,7 +158,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 
     var validPosition = await db.EmployeePositions.AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
     if (!validPosition) return Results.Redirect("/my-positions");
-    var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive);
+    var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
     if (employee is null) return Results.Redirect("/login");
     employee.SetLastActivePosition(positionId);
     await db.SaveChangesAsync();
