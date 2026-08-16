@@ -29,10 +29,20 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 });
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("Admin.Users", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Users")));
-    options.AddPolicy("Admin.Positions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Positions")));
-    options.AddPolicy("Admin.Permissions", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Permissions")));
-    options.AddPolicy("Admin.Organizations", policy => policy.Requirements.Add(new PermissionRequirement("Admin.Organizations")));
+    foreach (var permission in new[]
+    {
+        "Dashboard.View", "Profile.View",
+        "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject",
+        "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep",
+        "Employees.View", "Employees.Manage",
+        "Organizations.View", "Organizations.Manage",
+        "Positions.View", "Positions.Manage",
+        "Permissions.View", "Permissions.Manage",
+        "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations"
+    })
+    {
+        options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
+    }
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
@@ -110,8 +120,6 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     if (passwordResult == PasswordVerificationResult.Failed) return Results.Redirect("/login?error=1");
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded) employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
 
-    // Employees must have an active position. Administrators are a separate user
-    // type and may sign in without any position at all.
     Guid? activePositionId = null;
     if (!employee.IsAdmin)
     {
