@@ -12,58 +12,21 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
     }
     public sealed record EmployeeSummary(Guid Id, string Username, string FullName, bool IsAdmin, Guid? LastActivePositionId);
-    public sealed record PermissionUsageDetails(
-        Guid PermissionId,
-        string PermissionName,
-        string PermissionCode,
-        IReadOnlyList<DirectPermissionUsage> DirectAssignments,
-        IReadOnlyList<GroupPermissionUsage> Groups);
-    public sealed record DirectPermissionUsage(Guid EmployeeId, string EmployeeName, string Username, Guid? PositionId, string? PositionName, string Source);
-    public sealed record GroupPermissionUsage(Guid GroupId, string GroupName, string? Description, int PermissionCount, int AssignedEmployeeCount, string Source);
+    public sealed record PermissionUsageDetails(Guid PermissionId,string PermissionName,string PermissionCode,IReadOnlyList<DirectPermissionUsage> DirectAssignments,IReadOnlyList<GroupPermissionUsage> Groups);
+    public sealed record DirectPermissionUsage(Guid EmployeeId,string EmployeeName,string Username,Guid? PositionId,string? PositionName,string Source);
+    public sealed record GroupPermissionUsage(Guid GroupId,string GroupName,string? Description,int PermissionCount,int AssignedEmployeeCount,string Source);
 
-    public async Task<EmployeeSummary?> GetEmployeeAsync(Guid id, CancellationToken ct = default){await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Employees.AsNoTracking().Where(x=>x.Id==id).Select(x=>new EmployeeSummary(x.Id,x.Username,x.FullName,x.IsAdmin,x.LastActivePositionId)).SingleOrDefaultAsync(ct);}
+    public async Task<EmployeeSummary?> GetEmployeeAsync(Guid id,CancellationToken ct=default){await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Employees.AsNoTracking().Where(x=>x.Id==id).Select(x=>new EmployeeSummary(x.Id,x.Username,x.FullName,x.IsAdmin,x.LastActivePositionId)).SingleOrDefaultAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchEmployeesAsync(string? search,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Employees.AsNoTracking().Where(x=>q==""||x.FullName.Contains(q)||x.Username.Contains(q)).OrderBy(x=>x.FullName).Take(30).Select(x=>new LookupItem(x.Id,x.FullName+" — "+x.Username+(x.IsAdmin?" (مدیر سامانه)":" (کارمند)"))).ToListAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchOrganizationsAsync(string? search,bool activeOnly=true,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Organizations.AsNoTracking().Where(x=>(!activeOnly||x.IsActive)&&(q==""||x.Name.Contains(q))).OrderBy(x=>x.Name).Take(30).Select(x=>new LookupItem(x.Id,x.Name)).ToListAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchPositionsAsync(string? search,Guid? employeeId=null,Guid? excludeId=null,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var query=db.Positions.AsNoTracking();if(employeeId is Guid eid)query=query.Where(x=>db.EmployeePositions.Any(ep=>ep.EmployeeId==eid&&ep.PositionId==x.Id&&ep.EndedAt==null));if(excludeId is Guid xid)query=query.Where(x=>x.Id!=xid);return await query.Where(x=>q==""||x.Name.Contains(q)).OrderBy(x=>x.Name).Take(30).Select(x=>new LookupItem(x.Id,x.Name)).ToListAsync(ct);}
+    public async Task<IReadOnlyList<LookupItem>> SearchAvailablePositionsAsync(string? search,Guid? excludePositionId=null,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var query=db.Positions.AsNoTracking().Where(p=>!db.EmployeePositions.Any(ep=>ep.PositionId==p.Id&&ep.EndedAt==null));if(excludePositionId is Guid exclude)query=query.Where(p=>p.Id!=exclude);return await query.Where(p=>q==""||p.Name.Contains(q)).OrderBy(p=>p.Name).Take(30).Select(p=>new LookupItem(p.Id,p.Name+" — آزاد")).ToListAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchPermissionsAsync(string? search,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Permissions.AsNoTracking().Where(x=>q==""||x.Name.Contains(q)||x.Code.Contains(q)).OrderBy(x=>x.Name).Take(30).Select(x=>new LookupItem(x.Id,x.Name)).ToListAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchPermissionGroupsAsync(string? search,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.PermissionGroups.AsNoTracking().Where(x=>q==""||x.Name.Contains(q)||(x.Description!=null&&x.Description.Contains(q))).OrderBy(x=>x.Name).Take(30).Select(x=>new LookupItem(x.Id,x.Name)).ToListAsync(ct);}
 
-    public async Task<PermissionUsageDetails?> GetPermissionUsageAsync(Guid permissionId, CancellationToken ct=default)
-    {
-        await using var db=await dbFactory.CreateDbContextAsync(ct);
-        var permission=await db.Permissions.AsNoTracking().Where(x=>x.Id==permissionId).Select(x=>new{x.Id,x.Name,x.Code}).SingleOrDefaultAsync(ct);
-        if(permission is null) return null;
+    public async Task<PermissionUsageDetails?> GetPermissionUsageAsync(Guid permissionId,CancellationToken ct=default){await using var db=await dbFactory.CreateDbContextAsync(ct);var permission=await db.Permissions.AsNoTracking().Where(x=>x.Id==permissionId).Select(x=>new{x.Id,x.Name,x.Code}).SingleOrDefaultAsync(ct);if(permission is null)return null;var directByPosition=await db.UserPositionPermissions.AsNoTracking().Where(x=>x.PermissionId==permissionId).OrderBy(x=>x.Employee.FullName).ThenBy(x=>x.Position.Name).Select(x=>new DirectPermissionUsage(x.EmployeeId,x.Employee.FullName,x.Employee.Username,x.PositionId,x.Position.Name,"سمت + کارمند")).ToListAsync(ct);var directEmployee=await db.EmployeePermissions.AsNoTracking().Where(x=>x.PermissionId==permissionId).OrderBy(x=>x.Employee.FullName).Select(x=>new DirectPermissionUsage(x.EmployeeId,x.Employee.FullName,x.Employee.Username,null,null,"مستقیم به کارمند")).ToListAsync(ct);var direct=directByPosition.Concat(directEmployee).ToList();var groups=await db.PermissionGroupPermissions.AsNoTracking().Where(x=>x.PermissionId==permissionId).OrderBy(x=>x.Group.Name).Select(x=>new GroupPermissionUsage(x.GroupId,x.Group.Name,x.Group.Description,db.PermissionGroupPermissions.Count(g=>g.GroupId==x.GroupId),db.UserPositionPermissionGroups.Count(a=>a.GroupId==x.GroupId)+db.EmployeePermissionGroups.Count(a=>a.GroupId==x.GroupId),"گروه مجوز")).ToListAsync(ct);return new PermissionUsageDetails(permission.Id,permission.Name,permission.Code,direct,groups);}
 
-        var directByPosition=await db.UserPositionPermissions.AsNoTracking()
-            .Where(x=>x.PermissionId==permissionId)
-            .OrderBy(x=>x.Employee.FullName).ThenBy(x=>x.Position.Name)
-            .Select(x=>new DirectPermissionUsage(x.EmployeeId,x.Employee.FullName,x.Employee.Username,x.PositionId,x.Position.Name,"سمت + کارمند"))
-            .ToListAsync(ct);
-
-        var directEmployee=await db.EmployeePermissions.AsNoTracking()
-            .Where(x=>x.PermissionId==permissionId)
-            .OrderBy(x=>x.Employee.FullName)
-            .Select(x=>new DirectPermissionUsage(x.EmployeeId,x.Employee.FullName,x.Employee.Username,null,null,"مستقیم به کارمند"))
-            .ToListAsync(ct);
-
-        var direct=directByPosition.Concat(directEmployee).ToList();
-
-        var groups=await db.PermissionGroupPermissions.AsNoTracking()
-            .Where(x=>x.PermissionId==permissionId)
-            .OrderBy(x=>x.Group.Name)
-            .Select(x=>new GroupPermissionUsage(
-                x.GroupId,
-                x.Group.Name,
-                x.Group.Description,
-                db.PermissionGroupPermissions.Count(g=>g.GroupId==x.GroupId),
-                db.UserPositionPermissionGroups.Count(a=>a.GroupId==x.GroupId)+db.EmployeePermissionGroups.Count(a=>a.GroupId==x.GroupId),
-                "گروه مجوز"))
-            .ToListAsync(ct);
-
-        return new PermissionUsageDetails(permission.Id,permission.Name,permission.Code,direct,groups);
-    }
-
-    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search=null,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var rows=await db.Permissions.AsNoTracking().Where(x=>q==""||x.Name.Contains(q)).OrderBy(x=>x.Name).ThenBy(x=>x.Id).Select(x=>new{ x.Id,x.Code,x.Name,DirectAssignmentCount=db.UserPositionPermissions.Count(up=>up.PermissionId==x.Id)+db.EmployeePermissions.Count(ep=>ep.PermissionId==x.Id),GroupMembershipCount=db.PermissionGroupPermissions.Count(gp=>gp.PermissionId==x.Id)}).ToListAsync(ct);return rows.Select(x=>new PermissionPageRow(x.Id,x.Code,x.Name,x.DirectAssignmentCount,x.GroupMembershipCount)).ToList();}
+    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search=null,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var rows=await db.Permissions.AsNoTracking().Where(x=>q==""||x.Name.Contains(q)).OrderBy(x=>x.Name).ThenBy(x=>x.Id).Select(x=>new{x.Id,x.Code,x.Name,DirectAssignmentCount=db.UserPositionPermissions.Count(up=>up.PermissionId==x.Id)+db.EmployeePermissions.Count(ep=>ep.PermissionId==x.Id),GroupMembershipCount=db.PermissionGroupPermissions.Count(gp=>gp.PermissionId==x.Id)}).ToListAsync(ct);return rows.Select(x=>new PermissionPageRow(x.Id,x.Code,x.Name,x.DirectAssignmentCount,x.GroupMembershipCount)).ToList();}
     public async Task<IReadOnlyList<PermissionGroupPageRow>> GetAllPermissionGroupsAsync(string? search=null,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var rows=await db.PermissionGroups.AsNoTracking().Where(x=>q==""||x.Name.Contains(q)||(x.Description!=null&&x.Description.Contains(q))).OrderBy(x=>x.Name).ThenBy(x=>x.Id).Select(x=>new{x.Id,x.Name,x.Description,PermissionCount=db.PermissionGroupPermissions.Count(g=>g.GroupId==x.Id),AssignmentCount=db.UserPositionPermissionGroups.Count(a=>a.GroupId==x.Id)+db.EmployeePermissionGroups.Count(a=>a.GroupId==x.Id)}).ToListAsync(ct);return rows.Select(x=>new PermissionGroupPageRow(x.Id,x.Name,x.Description,x.PermissionCount,x.AssignmentCount)).ToList();}
     public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page,int pageSize,string? search,CancellationToken ct=default){page=Page(page);pageSize=Size(pageSize);var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var query=db.Employees.AsNoTracking().Where(x=>q==""||x.FullName.Contains(q)||x.Username.Contains(q));var total=await query.CountAsync(ct);var items=await query.OrderBy(x=>x.FullName).Skip((page-1)*pageSize).Take(pageSize).Select(x=>new EmployeePageRow(x.Id,x.Username,x.FullName,x.Organization.Name,x.IsActive,x.IsAdmin,x.Positions.Where(p=>p.EndedAt==null&&p.PositionId==x.LastActivePositionId).Select(p=>p.Position.Name).FirstOrDefault())).ToListAsync(ct);return new(items,total,page,pageSize);}
     public async Task<PageResult<OrganizationPageRow>> GetOrganizationsAsync(int page,int pageSize,string? search,CancellationToken ct=default){page=Page(page);pageSize=Size(pageSize);var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);var query=db.Organizations.AsNoTracking().Where(x=>q==""||x.Name.Contains(q));var total=await query.CountAsync(ct);var items=await query.OrderBy(x=>x.Name).Skip((page-1)*pageSize).Take(pageSize).Select(x=>new OrganizationPageRow(x.Id,x.Name,x.IsActive,x.Employees.Count)).ToListAsync(ct);return new(items,total,page,pageSize);}
