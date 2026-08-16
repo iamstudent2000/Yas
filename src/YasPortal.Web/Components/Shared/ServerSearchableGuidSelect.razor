@@ -7,7 +7,7 @@
     @if (_open && !Disabled)
     {
         <div class="server-lookup-menu">
-            <div class="server-lookup-search"><i class="bx bx-search"></i><input @ref="_input" @bind="_search" @bind:event="oninput" @oninput="SearchInputChanged" @onkeydown="HandleKeyDown" placeholder="@SearchPlaceholder" autocomplete="off" /></div>
+            <div class="server-lookup-search"><i class="bx bx-search"></i><input @ref="_input" value="@_search" @oninput="SearchInputChanged" @onkeydown="HandleKeyDown" placeholder="@SearchPlaceholder" autocomplete="off" /></div>
             @if (_loading){<div class="server-lookup-empty"><i class="bx bx-loader-alt bx-spin"></i> در حال جستجو...</div>}
             else if(_options.Count==0){<div class="server-lookup-empty">نتیجه‌ای پیدا نشد.</div>}
             else{<div class="server-lookup-results">@foreach(var option in _options){<button type="button" class="server-lookup-option @(option.Id==Value?"selected":"")" @onclick="()=>SelectAsync(option)"><span>@option.Text</span>@if(option.Id==Value){<i class="bx bx-check"></i>}</button>}</div>}
@@ -25,7 +25,7 @@
     [Parameter] public bool Disabled { get; set; }
     private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private bool _open,_loading;private CancellationTokenSource? _cts;
     private async Task ToggleAsync(){_open=!_open;if(_open){_search="";await SearchNowAsync();await Task.Yield();await _input.FocusAsync();}}
-    private Task SearchInputChanged(ChangeEventArgs _)=>SearchNowAsync();
+    private Task SearchInputChanged(ChangeEventArgs e){_search=e.Value?.ToString()??"";return SearchNowAsync();}
     private async Task SearchNowAsync(){_cts?.Cancel();_cts?.Dispose();_cts=new();var token=_cts.Token;_loading=true;try{await Task.Delay(180,token);_options=(await SearchAsync(_search,token)).ToList();}catch(OperationCanceledException){}finally{if(!token.IsCancellationRequested)_loading=false;}}
     private Task HandleKeyDown(KeyboardEventArgs e){if(e.Key=="Escape")_open=false;return Task.CompletedTask;}
     private async Task SelectAsync(AdminQueryService.LookupItem option){_open=false;_search="";if(Value!=option.Id)await ValueChanged.InvokeAsync(option.Id);}
