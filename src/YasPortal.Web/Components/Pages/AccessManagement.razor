@@ -1,335 +1,79 @@
 @page "/admin/access"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Authorization
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
 @attribute [Authorize(Policy = "Admin.Users")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AdminQueryService AdminQueries
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
 
 <div class="access-page" dir="rtl">
-    <div class="page-header access-header">
-        <div>
-            <div class="page-subtitle">مدیریت سامانه / دسترسی</div>
-            <h1 class="page-title">مدیریت دسترسی</h1>
-            <p class="page-subtitle">یک محل واحد برای مدیریت مجوز مستقیم، گروه مجوز و مجوزهای نهایی.</p>
-        </div>
-        <a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
-    </div>
+    <div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل. تمام انتخاب‌های بزرگ از SQL Server به‌صورت صفحه‌ای بارگذاری می‌شوند.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
 
-    <section class="card access-selector">
-        <div class="selector-title">
-            <div class="step-number">۱</div>
-            <div>
-                <h2>موضوع دسترسی</h2>
-                <p>برای کارمند، دسترسی همیشه متعلق به ترکیب دقیق <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p>
-            </div>
-        </div>
-        <div class="selector-grid">
-            <div>
-                <label class="form-label">کاربر</label>
-                <SearchableGuidSelect Options="@EmployeeOptions" Value="@_employeeId" ValueChanged="EmployeeChanged" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
-                <div class="selector-hint">@_employees.Count کاربر در دسترس است · با تایپ، فهرست فیلتر می‌شود.</div>
-            </div>
-            @if (_selectedEmployee?.IsAdmin != true)
-            {
-                <div>
-                    <label class="form-label">سمت</label>
-                    <SearchableGuidSelect Options="@PositionOptions" Value="@_positionId" ValueChanged="PositionChanged" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را جستجو کنید..." Disabled="@(_employeeId is null)" />
-                    @if (_employeeId is not null && _employeePositions.Count == 0)
-                    {
-                        <div class="help-text warning-text">این کارمند هنوز سمت فعال ندارد.</div>
-                    }
-                    else if (_employeeId is not null)
-                    {
-                        <div class="selector-hint">@_employeePositions.Count سمت فعال · فقط سمت‌های فعال این کارمند نمایش داده می‌شود.</div>
-                    }
-                </div>
-            }
-        </div>
-    </section>
+    <section class="card access-selector"><div class="selector-title"><div class="step-number">۱</div><div><h2>موضوع دسترسی</h2><p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p></div></div><div class="selector-grid">
+        <div><label class="form-label">کاربر</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><div class="selector-hint">نتایج جستجو حداکثر ۳۰ مورد و مستقیماً از پایگاه داده است.</div></div>
+        @if(_selectedEmployee?.IsAdmin!=true){<div><label class="form-label">سمت</label><ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchEmployeePositionsAsync" SelectedText="@_positionName" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را تایپ کنید..." Disabled="@(_employeeId is null)" />@if(_employeeId is not null){<div class="selector-hint">فقط سمت‌های فعال همین کارمند قابل انتخاب است.</div>}</div>}
+    </div></section>
 
-    @if (_selectedEmployee is not null && (_selectedEmployee.IsAdmin || _positionId is not null))
+    @if(_selectedEmployee is not null&&(_selectedEmployee.IsAdmin||_positionId is not null))
     {
-        <section class="card subject-card">
-            <div class="subject-main">
-                <div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin ? "bx-shield-quarter" : "bx-user")"></i></div>
-                <div>
-                    <strong>@_selectedEmployee.FullName</strong>
-                    @if (_selectedEmployee.IsAdmin) { <span>مدیر سامانه · دسترسی حساب‌محور</span> }
-                    else { <span>کارمند · @SelectedPositionName</span> }
-                </div>
-            </div>
-            <div class="subject-stats">
-                <div><strong>@_assignedGroupIds.Count</strong><span>گروه</span></div>
-                <div><strong>@_directPermissionIds.Count</strong><span>مستقیم</span></div>
-                <div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div>
-            </div>
+        <section class="card subject-card"><div class="subject-main"><div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin?"bx-shield-quarter":"bx-user")"></i></div><div><strong>@_selectedEmployee.FullName</strong><span>@(_selectedEmployee.IsAdmin?"مدیر سامانه · حساب‌محور":$"کارمند · {_positionName}")</span></div></div><div class="subject-stats"><div><strong>@_assignedGroupIds.Count</strong><span>گروه</span></div><div><strong>@_directPermissionIds.Count</strong><span>مستقیم</span></div><div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div></div></section>
+        @if(!string.IsNullOrWhiteSpace(_statusMessage)){<div class="access-status">@_statusMessage</div>}
+
+        <section class="card access-panel"><div class="panel-heading"><div><div class="panel-step">۲ · مجوز مستقیم</div><h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2><p>فقط نام مجوز نمایش داده می‌شود؛ کد فنی در این صفحه وجود ندارد.</p></div></div>
+            <div class="filter-bar"><div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="نام مجوز را تایپ کنید..." @bind="_permissionSearch" @bind:event="oninput" @onkeyup="PermissionSearchChanged" /></div><span class="lookup-note">@_permissionTotal نتیجه در پایگاه داده</span></div>
+            <div class="selection-toolbar"><span><strong>@_directPermissionIds.Count</strong> مجوز مستقیم انتخاب شده</span><div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectPageAsync(true)">انتخاب نتایج صفحه</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectPageAsync(false)">حذف نتایج صفحه</button></div></div>
+            @if(_permissionLoading){<div class="empty-state">در حال جستجو...</div>}else if(_permissions.Count==0){<div class="empty-state">مجوزی پیدا نشد.</div>}else{<div class="permission-grid">@foreach(var p in _permissions){var selected=_directPermissionIds.Contains(p.Id);<label class="permission-tile @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleDirectAsync(p.Id,e.Value is bool v&&v)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="tile-text"><strong>@p.Name</strong><small>@PermissionArea(p.Code)</small></span></label>}</div>}
+            <ServerPagination Page="@_permissionPage" PageSize="@PageSize" TotalCount="@_permissionTotal" Busy="@_permissionLoading" PageChanged="PermissionPageChanged" />
         </section>
 
-        @if (!string.IsNullOrWhiteSpace(_statusMessage)) { <div class="access-status">@_statusMessage</div> }
+        <div class="access-columns"><section class="card access-panel"><div class="panel-heading"><div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>گروه‌ها فقط مجوز اضافه می‌کنند؛ Deny وجود ندارد.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" @onkeyup="GroupSearchChanged" /></div></div><div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span></div>@if(_groupLoading){<div class="empty-state">در حال جستجو...</div>}else{<div class="group-list">@foreach(var group in _groups){var selected=_assignedGroupIds.Contains(group.Id);<label class="group-tile @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleGroupAsync(group.Id,e.Value is bool v&&v)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="group-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز · @group.AssignmentCount تخصیص</small></span></label>}</div>}<ServerPagination Page="@_groupPage" PageSize="@PageSize" TotalCount="@_groupTotal" Busy="@_groupLoading" PageChanged="GroupPageChanged" /></section>
 
-        <section class="card access-panel">
-            <div class="panel-heading">
-                <div><div class="panel-step">۲ · مجوز مستقیم</div><h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2><p>این مجوزها فقط برای موضوع انتخاب‌شده ذخیره می‌شوند؛ برای کارمند یعنی همین کارمند + همین سمت.</p></div>
-                <div class="counter"><strong>@_directPermissionIds.Count</strong><span>انتخاب شده</span></div>
-            </div>
-            <div class="filter-bar">
-                <div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجو با نام مجوز..." @bind="_permissionSearch" @bind:event="oninput" /></div>
-                <select class="form-control filter-select" @bind="_permissionArea"><option value="">همه بخش‌ها</option>@foreach (var area in PermissionAreas) { <option value="@area">@area</option> }</select>
-                <label class="selected-filter"><input type="checkbox" @bind="_onlySelected" /> فقط انتخاب‌شده‌ها</label>
-            </div>
-            <div class="selection-toolbar">
-                <span><strong>@FilteredPermissions.Count()</strong> مجوز نمایش داده می‌شود</span>
-                <div><button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(true)">انتخاب نتایج</button><button class="btn btn-secondary btn-sm" disabled="@(_saving || !FilteredPermissions.Any())" @onclick="() => SetVisibleDirectAsync(false)">حذف نتایج</button></div>
-            </div>
-            @if (!FilteredPermissions.Any())
-            {
-                <div class="empty-state compact-empty"><i class="bx bx-search-alt"></i><strong>@(_permissions.Count == 0 ? "هیچ مجوزی ثبت نشده است" : "مجوزی مطابق فیلتر پیدا نشد")</strong><span>@(_permissions.Count == 0 ? "ابتدا مجوزها را در صفحه مجوزها ایجاد کنید." : "جستجو یا فیلتر بخش را تغییر دهید.")</span></div>
-            }
-            else
-            {
-                <div class="permission-area-list">
-                    @foreach (var areaGroup in FilteredPermissionGroups)
-                    {
-                        <section class="permission-area">
-                            <div class="area-heading"><div><strong>@areaGroup.Key</strong><span>@areaGroup.Count() مجوز</span></div><div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), true)">همه</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="() => SetDirectAsync(areaGroup.ToList(), false)">حذف</button></div></div>
-                            <div class="permission-grid">
-                                @foreach (var permission in areaGroup)
-                                {
-                                    var selected = _directPermissionIds.Contains(permission.Id);
-                                    <label class="permission-tile @(selected ? "selected" : "")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e => ToggleDirectAsync(permission.Id, e.Value is bool value && value)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="tile-text"><strong>@permission.Name</strong><small>@areaGroup.Key</small></span></label>
-                                }
-                            </div>
-                        </section>
-                    }
-                </div>
-            }
-        </section>
-
-        <div class="access-columns">
-            <section class="card access-panel">
-                <div class="panel-heading compact-heading"><div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>گروه، مجموعه‌ای آماده از مجوزهاست و همه اعضای آن به موضوع دسترسی اضافه می‌شوند.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" /></div></div>
-                <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span></div>
-                <div class="group-list">
-                    @foreach (var group in FilteredGroups)
-                    {
-                        var selected = _assignedGroupIds.Contains(group.Id);
-                        <label class="group-tile @(selected ? "selected" : "")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool value && value)" /><span class="tile-check"><i class="bx bx-check"></i></span><span class="group-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز@(string.IsNullOrWhiteSpace(group.Description) ? "" : $" · {group.Description}")</small></span></label>
-                    }
-                    @if (!FilteredGroups.Any()) { <div class="empty-state compact-empty">گروهی مطابق جستجو پیدا نشد.</div> }
-                </div>
-            </section>
-
-            <section class="card access-panel effective-panel">
-                <div class="panel-heading compact-heading"><div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و مجوزهای تمام گروه‌های انتخاب‌شده. Deny permission وجود ندارد.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز نهایی..." @bind="_effectiveSearch" @bind:event="oninput" /></div></div>
-                <div class="effective-summary"><span><i class="bx bx-key"></i> مستقیم: @_directPermissionIds.Count</span><span><i class="bx bx-layer"></i> از گروه: @_effectiveViaGroupIds.Count</span><span><i class="bx bx-shield-check"></i> نهایی: @_effectivePermissionIds.Count</span></div>
-                @if (!FilteredEffectiveGroups.Any()) { <div class="empty-state compact-empty">هیچ مجوز نهایی برای این موضوع وجود ندارد.</div> }
-                else
-                {
-                    <div class="effective-list">
-                        @foreach (var areaGroup in FilteredEffectiveGroups)
-                        {
-                            <section class="effective-area"><div class="area-heading"><strong>@areaGroup.Key</strong><span>@areaGroup.Count() مجوز</span></div>
-                                @foreach (var permission in areaGroup)
-                                {
-                                    <div class="effective-row"><div><i class="bx bx-check-circle"></i><strong>@permission.Name</strong></div><div class="source-badges">@if (_directPermissionIds.Contains(permission.Id)) { <span class="source-badge direct">مستقیم</span> } @if (_effectiveViaGroupIds.Contains(permission.Id)) { <span class="source-badge group">گروه</span> }</div></div>
-                                }
-                            </section>
-                        }
-                    </div>
-                }
-            </section>
-        </div>
+        <section class="card access-panel effective-panel"><div class="panel-heading"><div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div></div><div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه: @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>@if(_effectivePermissions.Count==0){<div class="empty-state">هیچ مجوز نهایی وجود ندارد.</div>}else{<div class="effective-list">@foreach(var p in _effectivePermissions.Where(x=>string.IsNullOrWhiteSpace(_effectiveSearch)||x.Name.Contains(_effectiveSearch,StringComparison.OrdinalIgnoreCase))){<div class="effective-row"><div><i class="bx bx-check-circle"></i><strong>@p.Name</strong></div><div class="source-badges">@if(_directPermissionIds.Contains(p.Id)){<span class="source-badge direct">مستقیم</span>}@if(_effectiveViaGroupIds.Contains(p.Id)){<span class="source-badge group">گروه</span>}</div></div>}</div>}</section></div>
     }
-    else
-    {
-        <section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید تا دسترسی‌های همان Employee + Position مدیریت شود.</span></section>
-    }
+    else{<section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>}
 </div>
 
-<style>
-.access-page{padding-bottom:40px}.access-header{margin-bottom:18px}.access-selector,.access-panel{padding:22px;margin-bottom:18px}.selector-title{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}.selector-title h2{margin:0 0 6px;font-size:20px}.selector-title p,.panel-heading p{margin:0;color:var(--text-muted,#6b7280)}.step-number{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;background:var(--primary,#2563eb);color:#fff;flex:none}.selector-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.selector-hint{margin-top:6px;color:var(--text-muted,#6b7280);font-size:11px}.subject-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:18px}.subject-main{display:flex;align-items:center;gap:13px}.subject-main>div:last-child{display:flex;flex-direction:column;gap:4px}.subject-main span{color:var(--text-muted,#6b7280);font-size:13px}.subject-icon{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(37,99,235,.1);font-size:23px}.subject-stats{display:flex;gap:10px}.subject-stats div{min-width:74px;padding:8px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;text-align:center}.subject-stats strong,.subject-stats span{display:block}.subject-stats span{color:var(--text-muted,#6b7280);font-size:12px;margin-top:2px}.access-status{padding:10px 14px;margin-bottom:16px;border-radius:10px;background:rgba(34,197,94,.1)}.panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.panel-heading h2{margin:2px 0 5px;font-size:20px}.panel-step{font-size:12px;font-weight:800;color:var(--primary,#2563eb);margin-bottom:4px}.counter{min-width:90px;text-align:center;padding:9px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px}.counter strong,.counter span{display:block}.counter span{font-size:11px;color:var(--text-muted,#6b7280)}.filter-bar{display:grid;grid-template-columns:minmax(220px,1fr) 190px auto;gap:10px;align-items:center;margin-bottom:12px}.search-box{position:relative}.search-box>i{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:1;color:var(--text-muted,#6b7280)}.search-box input{padding-right:36px}.selected-filter{display:flex;align-items:center;gap:7px;white-space:nowrap;font-size:13px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:var(--surface-muted,#f8fafc);font-size:13px}.selection-toolbar>div{display:flex;gap:7px}.permission-area{border:1px solid var(--border,#e5e7eb);border-radius:14px;overflow:hidden;margin-bottom:12px}.area-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;background:var(--surface-muted,#f8fafc);border-bottom:1px solid var(--border,#e5e7eb)}.area-heading>div:first-child{display:flex;align-items:center;gap:9px}.area-heading span{color:var(--text-muted,#6b7280);font-size:12px}.permission-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px}.permission-tile,.group-tile{position:relative;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border,#e5e7eb);border-radius:11px;cursor:pointer;background:var(--surface,#fff);transition:.15s ease}.permission-tile:hover,.group-tile:hover{transform:translateY(-1px);border-color:var(--primary,#2563eb)}.permission-tile.selected,.group-tile.selected{border-color:var(--primary,#2563eb);background:rgba(37,99,235,.07)}.permission-tile input,.group-tile input{position:absolute;opacity:0;pointer-events:none}.tile-check{width:22px;height:22px;border:1.5px solid #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;color:transparent}.selected .tile-check{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff}.tile-text,.group-text{min-width:0;display:flex;flex-direction:column;gap:3px}.tile-text strong,.group-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-text small,.group-text small{color:var(--text-muted,#6b7280);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.access-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}.small-search{width:230px;flex:none}.group-list{display:flex;flex-direction:column;gap:8px}.group-tile{width:100%}.effective-summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.effective-summary span{padding:7px 10px;border-radius:9px;background:var(--surface-muted,#f8fafc);font-size:12px}.effective-list{border:1px solid var(--border,#e5e7eb);border-radius:13px;overflow:hidden}.effective-area+.effective-area{border-top:1px solid var(--border,#e5e7eb)}.effective-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-bottom:1px solid var(--border,#eef2f7)}.effective-row:last-child{border-bottom:0}.effective-row>div:first-child{display:flex;align-items:center;gap:8px;min-width:0}.effective-row strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-badges{display:flex;gap:5px;flex:none}.source-badge{font-size:11px;padding:4px 7px;border-radius:7px}.source-badge.direct{background:rgba(37,99,235,.1);color:#1d4ed8}.source-badge.group{background:rgba(124,58,237,.1);color:#6d28d9}.empty-state{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;color:var(--text-muted,#6b7280)}.compact-empty{min-height:130px}.empty-state i{font-size:34px}.empty-state strong{color:var(--text,#111827)}.access-empty{margin-top:18px}.warning-text{margin-top:7px;color:#b45309;font-size:12px}@@media(max-width:800px){.selector-grid,.access-columns{grid-template-columns:1fr}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.subject-card{align-items:flex-start;flex-direction:column}.small-search{width:100%}}@@media(max-width:560px){.filter-bar{grid-template-columns:1fr}.permission-grid{grid-template-columns:1fr}}
-</style>
-
 @code {
-    private List<EmployeeRow> _employees = [];
-    private List<EmployeePositionRow> _employeePositions = [];
-    private List<PermissionRow> _permissions = [];
-    private List<GroupRow> _groups = [];
-    private Guid? _employeeId;
-    private Guid? _positionId;
-    private EmployeeRow? _selectedEmployee;
-    private HashSet<Guid> _assignedGroupIds = [];
-    private HashSet<Guid> _directPermissionIds = [];
-    private HashSet<Guid> _effectivePermissionIds = [];
-    private HashSet<Guid> _effectiveViaGroupIds = [];
-    private string _permissionSearch = "";
-    private string _permissionArea = "";
-    private string _groupSearch = "";
-    private string _effectiveSearch = "";
-    private bool _onlySelected;
-    private bool _saving;
-    private string? _statusMessage;
+    private const int PageSize=20;
+    private Guid? _employeeId,_positionId;
+    private AdminQueryService.EmployeeSummary? _selectedEmployee;
+    private string _positionName="";
+    private HashSet<Guid> _assignedGroupIds=[],_directPermissionIds=[],_effectivePermissionIds=[],_effectiveViaGroupIds=[];
+    private List<AdminQueryService.PermissionPageRow> _permissions=[];
+    private List<AdminQueryService.PermissionGroupPageRow> _groups=[];
+    private List<EffectivePermission> _effectivePermissions=[];
+    private int _permissionPage=1,_permissionTotal,_groupPage=1,_groupTotal;
+    private string _permissionSearch="",_groupSearch="",_effectiveSearch="",? _statusMessage;
+    private bool _permissionLoading,_groupLoading,_saving;
 
-    private IReadOnlyList<SearchableGuidSelect.SearchableGuidOption> EmployeeOptions => _employees.Select(x => new SearchableGuidSelect.SearchableGuidOption(x.Id, $"{x.FullName} — {x.Username} {(x.IsAdmin ? "(مدیر سامانه)" : "(کارمند)" )}")).ToList();
-    private IReadOnlyList<SearchableGuidSelect.SearchableGuidOption> PositionOptions => _employeePositions.Select(x => new SearchableGuidSelect.SearchableGuidOption(x.PositionId, x.PositionName)).ToList();
-    private IEnumerable<string> PermissionAreas => _permissions.Select(x => PermissionArea(x.Code)).Distinct().OrderBy(x => x);
-    private IEnumerable<PermissionRow> FilteredPermissions => _permissions.Where(x => string.IsNullOrWhiteSpace(_permissionSearch) || x.Name.Contains(_permissionSearch.Trim(), StringComparison.OrdinalIgnoreCase)).Where(x => string.IsNullOrWhiteSpace(_permissionArea) || PermissionArea(x.Code).Equals(_permissionArea, StringComparison.OrdinalIgnoreCase)).Where(x => !_onlySelected || _directPermissionIds.Contains(x.Id)).OrderBy(x => PermissionArea(x.Code)).ThenBy(x => x.Name);
-    private IEnumerable<IGrouping<string, PermissionRow>> FilteredPermissionGroups => FilteredPermissions.GroupBy(x => PermissionArea(x.Code)).OrderBy(x => x.Key);
-    private IEnumerable<GroupRow> FilteredGroups => _groups.Where(x => string.IsNullOrWhiteSpace(_groupSearch) || x.Name.Contains(_groupSearch.Trim(), StringComparison.OrdinalIgnoreCase) || (x.Description?.Contains(_groupSearch.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).OrderBy(x => x.Name);
-    private IEnumerable<PermissionRow> FilteredEffectivePermissions => _permissions.Where(x => _effectivePermissionIds.Contains(x.Id)).Where(x => string.IsNullOrWhiteSpace(_effectiveSearch) || x.Name.Contains(_effectiveSearch.Trim(), StringComparison.OrdinalIgnoreCase)).OrderBy(x => PermissionArea(x.Code)).ThenBy(x => x.Name);
-    private IEnumerable<IGrouping<string, PermissionRow>> FilteredEffectiveGroups => FilteredEffectivePermissions.GroupBy(x => PermissionArea(x.Code)).OrderBy(x => x.Key);
-    private string SelectedPositionName => _employeePositions.FirstOrDefault(x => x.PositionId == _positionId)?.PositionName ?? "سمت انتخاب نشده";
-
-    protected override async Task OnInitializedAsync() => await LoadBaseDataAsync();
-
-    private async Task LoadBaseDataAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _employees = await db.Employees.AsNoTracking().OrderBy(x => x.FullName).Select(x => new EmployeeRow(x.Id, x.FullName, x.Username, x.IsAdmin, x.LastActivePositionId)).ToListAsync();
-        _permissions = await db.Permissions.AsNoTracking().OrderBy(x => x.Name).Select(x => new PermissionRow(x.Id, x.Code, x.Name)).ToListAsync();
-        _groups = await db.PermissionGroups.AsNoTracking().OrderBy(x => x.Name).Select(x => new GroupRow(x.Id, x.Name, x.Description, db.PermissionGroupPermissions.Count(gp => gp.GroupId == x.Id))).ToListAsync();
-    }
-
-    private async Task EmployeeChanged(Guid? id)
-    {
-        _statusMessage = null;
-        _employeeId = id;
-        _positionId = null;
-        _selectedEmployee = _employees.FirstOrDefault(x => x.Id == _employeeId);
-        _employeePositions = [];
-        ClearAccessState();
-        if (_selectedEmployee is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        if (_selectedEmployee.IsAdmin) { await LoadAdminAccessAsync(db, _selectedEmployee.Id); return; }
-        _employeePositions = await db.EmployeePositions.AsNoTracking().Include(x => x.Position).Where(x => x.EmployeeId == _selectedEmployee.Id && x.EndedAt == null).OrderBy(x => x.Position.Name).Select(x => new EmployeePositionRow(x.PositionId, x.Position.Name)).ToListAsync();
-        if (_selectedEmployee.LastActivePositionId is Guid preferred && _employeePositions.Any(x => x.PositionId == preferred))
-        {
-            _positionId = preferred;
-            await LoadEmployeePositionAccessAsync(db, _selectedEmployee.Id, preferred);
-        }
-    }
-
-    private async Task PositionChanged(Guid? id)
-    {
-        _positionId = id;
-        ClearAccessState();
-        if (_selectedEmployee is null || _selectedEmployee.IsAdmin || _positionId is null) return;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        await LoadEmployeePositionAccessAsync(db, _selectedEmployee.Id, _positionId.Value);
-    }
-
-    private async Task LoadAdminAccessAsync(ApplicationDbContext db, Guid employeeId)
-    {
-        _directPermissionIds = (await db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId).Select(x => x.PermissionId).ToListAsync()).ToHashSet();
-        _assignedGroupIds = (await db.EmployeePermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employeeId).Select(x => x.GroupId).ToListAsync()).ToHashSet();
-        await RebuildEffectiveAsync(db);
-    }
-
-    private async Task LoadEmployeePositionAccessAsync(ApplicationDbContext db, Guid employeeId, Guid positionId)
-    {
-        _directPermissionIds = (await db.UserPositionPermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.PositionId == positionId).Select(x => x.PermissionId).ToListAsync()).ToHashSet();
-        _assignedGroupIds = (await db.UserPositionPermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.PositionId == positionId).Select(x => x.GroupId).ToListAsync()).ToHashSet();
-        await RebuildEffectiveAsync(db);
-    }
-
-    private async Task RebuildEffectiveAsync(ApplicationDbContext db)
-    {
-        var groupPermissionIds = _assignedGroupIds.Count == 0 ? [] : await db.PermissionGroupPermissions.AsNoTracking().Where(x => _assignedGroupIds.Contains(x.GroupId)).Select(x => x.PermissionId).Distinct().ToListAsync();
-        _effectiveViaGroupIds = groupPermissionIds.ToHashSet();
-        _effectivePermissionIds = _directPermissionIds.Concat(groupPermissionIds).ToHashSet();
-    }
-
-    private async Task ToggleDirectAsync(Guid permissionId, bool selected)
-    {
-        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is null)) return;
-        if (selected) _directPermissionIds.Add(permissionId); else _directPermissionIds.Remove(permissionId);
-        await PersistDirectAsync();
-    }
-
-    private async Task SetVisibleDirectAsync(bool selected) => await SetDirectAsync(FilteredPermissions.ToList(), selected);
-    private async Task SetDirectAsync(IReadOnlyCollection<PermissionRow> permissions, bool selected)
-    {
-        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is null)) return;
-        foreach (var permission in permissions) { if (selected) _directPermissionIds.Add(permission.Id); else _directPermissionIds.Remove(permission.Id); }
-        await PersistDirectAsync();
-    }
-
-    private async Task PersistDirectAsync()
-    {
-        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is null)) return;
-        _saving = true; _statusMessage = null;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            if (_selectedEmployee.IsAdmin)
-            {
-                var existing = await db.EmployeePermissions.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
-                db.EmployeePermissions.RemoveRange(existing);
-                db.EmployeePermissions.AddRange(_directPermissionIds.Select(id => new EmployeePermission(_selectedEmployee.Id, id)));
-            }
-            else
-            {
-                var existing = await db.UserPositionPermissions.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId == _positionId!.Value).ToListAsync();
-                db.UserPositionPermissions.RemoveRange(existing);
-                db.UserPositionPermissions.AddRange(_directPermissionIds.Select(id => new UserPositionPermission(_selectedEmployee.Id, _positionId!.Value, id)));
-            }
-            await db.SaveChangesAsync();
-            await RebuildEffectiveAsync(db);
-            _statusMessage = "مجوزهای مستقیم ذخیره شد.";
-        }
-        finally { _saving = false; }
-    }
-
-    private async Task ToggleGroupAsync(Guid groupId, bool selected)
-    {
-        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is null)) return;
-        if (selected) _assignedGroupIds.Add(groupId); else _assignedGroupIds.Remove(groupId);
-        _saving = true; _statusMessage = null;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            if (_selectedEmployee.IsAdmin)
-            {
-                var existing = await db.EmployeePermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
-                db.EmployeePermissionGroups.RemoveRange(existing);
-                db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Select(id => new EmployeePermissionGroup(_selectedEmployee.Id, id)));
-            }
-            else
-            {
-                var existing = await db.UserPositionPermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId == _positionId!.Value).ToListAsync();
-                db.UserPositionPermissionGroups.RemoveRange(existing);
-                db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Select(id => new UserPositionPermissionGroup(_selectedEmployee.Id, _positionId!.Value, id)));
-            }
-            await db.SaveChangesAsync();
-            await RebuildEffectiveAsync(db);
-            _statusMessage = "گروه‌های مجوز ذخیره شد.";
-        }
-        finally { _saving = false; }
-    }
-
-    private void ClearAccessState()
-    {
-        _assignedGroupIds = []; _directPermissionIds = []; _effectivePermissionIds = []; _effectiveViaGroupIds = [];
-    }
-
-    private static string PermissionArea(string code)
-    {
-        if (string.IsNullOrWhiteSpace(code)) return "سایر";
-        var dot = code.IndexOf('.');
-        if (dot <= 0) return "سایر";
-        return code[..dot] switch
-        {
-            "Admin" => "مدیریت سامانه", "Requests" => "درخواست‌ها", "Workflow" => "گردش کار", "Reports" => "گزارش‌ها", "Users" => "کاربران", "Organizations" => "سازمان و ساختار", "Permissions" => "مجوزها", _ => code[..dot]
-        };
-    }
-
-    private sealed record EmployeeRow(Guid Id, string FullName, string Username, bool IsAdmin, Guid? LastActivePositionId);
-    private sealed record EmployeePositionRow(Guid PositionId, string PositionName);
-    private sealed record PermissionRow(Guid Id, string Code, string Name);
-    private sealed record GroupRow(Guid Id, string Name, string? Description, int PermissionCount);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search,CancellationToken ct)=>AdminQueries.SearchEmployeesAsync(search,ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeePositionsAsync(string search,CancellationToken ct)=>_employeeId is Guid id?AdminQueries.SearchPositionsAsync(search,id,null,ct):Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
+    private async Task EmployeeChanged(Guid? id){_statusMessage=null;_employeeId=id;_positionId=null;_positionName="";ClearAccessState();_selectedEmployee=id is Guid eid?await AdminQueries.GetEmployeeAsync(eid):null;if(_selectedEmployee is null)return;if(_selectedEmployee.IsAdmin){await LoadAdminAccessAsync(_selectedEmployee.Id);}else if(_selectedEmployee.LastActivePositionId is Guid pid){var positions=await AdminQueries.SearchPositionsAsync("",_selectedEmployee.Id,null);var selected=positions.FirstOrDefault(x=>x.Id==pid);if(selected is not null){_positionId=pid;_positionName=selected.Text;await LoadEmployeePositionAccessAsync(_selectedEmployee.Id,pid);}}await LoadPermissionPageAsync();await LoadGroupPageAsync();}
+    private async Task PositionChanged(Guid? id){_positionId=id;_positionName="";ClearAccessState();if(_selectedEmployee is null||_selectedEmployee.IsAdmin||id is null)return;var positions=await AdminQueries.SearchPositionsAsync("",_selectedEmployee.Id,null);_positionName=positions.FirstOrDefault(x=>x.Id==id)?.Text??"سمت";await LoadEmployeePositionAccessAsync(_selectedEmployee.Id,id.Value);await LoadPermissionPageAsync();await LoadGroupPageAsync();}
+    private async Task LoadAdminAccessAsync(Guid employeeId){await using var db=await DbFactory.CreateDbContextAsync();_directPermissionIds=await db.EmployeePermissions.AsNoTracking().Where(x=>x.EmployeeId==employeeId).Select(x=>x.PermissionId).ToHashSetAsync();_assignedGroupIds=await db.EmployeePermissionGroups.AsNoTracking().Where(x=>x.EmployeeId==employeeId).Select(x=>x.GroupId).ToHashSetAsync();await RebuildEffectiveAsync(db);}
+    private async Task LoadEmployeePositionAccessAsync(Guid employeeId,Guid positionId){await using var db=await DbFactory.CreateDbContextAsync();_directPermissionIds=await db.UserPositionPermissions.AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.PositionId==positionId).Select(x=>x.PermissionId).ToHashSetAsync();_assignedGroupIds=await db.UserPositionPermissionGroups.AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.PositionId==positionId).Select(x=>x.GroupId).ToHashSetAsync();await RebuildEffectiveAsync(db);}
+    private async Task RebuildEffectiveAsync(ApplicationDbContext db){var ids=_assignedGroupIds.Count==0?[]:await db.PermissionGroupPermissions.AsNoTracking().Where(x=>_assignedGroupIds.Contains(x.GroupId)).Select(x=>x.PermissionId).Distinct().ToListAsync();_effectiveViaGroupIds=ids.ToHashSet();_effectivePermissionIds=_directPermissionIds.Concat(ids).ToHashSet();_effectivePermissions=await db.Permissions.AsNoTracking().Where(x=>_effectivePermissionIds.Contains(x.Id)).OrderBy(x=>x.Name).Select(x=>new EffectivePermission(x.Id,x.Name)).ToListAsync();}
+    private async Task LoadPermissionPageAsync(){if(_selectedEmployee is null)return;_permissionLoading=true;try{var r=await AdminQueries.GetPermissionsAsync(_permissionPage,PageSize,_permissionSearch,null);_permissions=r.Items.ToList();_permissionTotal=r.TotalCount;}finally{_permissionLoading=false;}}
+    private async Task LoadGroupPageAsync(){if(_selectedEmployee is null)return;_groupLoading=true;try{var r=await AdminQueries.GetPermissionGroupsAsync(_groupPage,PageSize,_groupSearch);_groups=r.Items.ToList();_groupTotal=r.TotalCount;}finally{_groupLoading=false;}}
+    private async Task PermissionSearchChanged(KeyboardEventArgs e){if(e.Key is "Enter" or "Tab"||_permissionSearch.Length==0){_permissionPage=1;await LoadPermissionPageAsync();}}
+    private async Task GroupSearchChanged(KeyboardEventArgs e){if(e.Key is "Enter" or "Tab"||_groupSearch.Length==0){_groupPage=1;await LoadGroupPageAsync();}}
+    private async Task PermissionPageChanged(int page){_permissionPage=page;await LoadPermissionPageAsync();}
+    private async Task GroupPageChanged(int page){_groupPage=page;await LoadGroupPageAsync();}
+    private async Task ToggleDirectAsync(Guid id,bool selected){if(selected)_directPermissionIds.Add(id);else _directPermissionIds.Remove(id);await PersistDirectAsync();}
+    private async Task SetDirectPageAsync(bool selected){foreach(var p in _permissions){if(selected)_directPermissionIds.Add(p.Id);else _directPermissionIds.Remove(p.Id);}await PersistDirectAsync();}
+    private async Task PersistDirectAsync(){if(_selectedEmployee is null||(!_selectedEmployee.IsAdmin&&_positionId is null))return;_saving=true;try{await using var db=await DbFactory.CreateDbContextAsync();if(_selectedEmployee.IsAdmin){var old=await db.EmployeePermissions.Where(x=>x.EmployeeId==_selectedEmployee.Id).ToListAsync();db.EmployeePermissions.RemoveRange(old);db.EmployeePermissions.AddRange(_directPermissionIds.Select(id=>new EmployeePermission(_selectedEmployee.Id,id)));}else{var old=await db.UserPositionPermissions.Where(x=>x.EmployeeId==_selectedEmployee.Id&&x.PositionId==_positionId!.Value).ToListAsync();db.UserPositionPermissions.RemoveRange(old);db.UserPositionPermissions.AddRange(_directPermissionIds.Select(id=>new UserPositionPermission(_selectedEmployee.Id,_positionId!.Value,id)));}await db.SaveChangesAsync();await RebuildEffectiveAsync(db);_statusMessage="مجوزهای مستقیم ذخیره شد.";}finally{_saving=false;}}
+    private async Task ToggleGroupAsync(Guid id,bool selected){if(selected)_assignedGroupIds.Add(id);else _assignedGroupIds.Remove(id);await PersistGroupsAsync();}
+    private async Task PersistGroupsAsync(){if(_selectedEmployee is null||(!_selectedEmployee.IsAdmin&&_positionId is null))return;_saving=true;try{await using var db=await DbFactory.CreateDbContextAsync();if(_selectedEmployee.IsAdmin){var old=await db.EmployeePermissionGroups.Where(x=>x.EmployeeId==_selectedEmployee.Id).ToListAsync();db.EmployeePermissionGroups.RemoveRange(old);db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Select(id=>new EmployeePermissionGroup(_selectedEmployee.Id,id)));}else{var old=await db.UserPositionPermissionGroups.Where(x=>x.EmployeeId==_selectedEmployee.Id&&x.PositionId==_positionId!.Value).ToListAsync();db.UserPositionPermissionGroups.RemoveRange(old);db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Select(id=>new UserPositionPermissionGroup(_selectedEmployee.Id,_positionId!.Value,id)));}await db.SaveChangesAsync();await RebuildEffectiveAsync(db);_statusMessage="گروه‌های مجوز ذخیره شد.";}finally{_saving=false;}}
+    private void ClearAccessState(){_assignedGroupIds=[];_directPermissionIds=[];_effectivePermissionIds=[];_effectiveViaGroupIds=[];_effectivePermissions=[];}
+    private static string PermissionArea(string code)=>code.Split('.',2)[0] switch{"Admin"=>"مدیریت سامانه","Requests"=>"درخواست‌ها","Workflow"=>"گردش کار","Reports"=>"گزارش‌ها","Users"=>"کاربران","Organizations"=>"سازمان و ساختار","Permissions"=>"مجوزها",_=>code.Split('.',2)[0]};
+    private sealed record EffectivePermission(Guid Id,string Name);
 }
+
+<style>
+.access-page{padding-bottom:40px}.access-selector,.access-panel{padding:22px;margin-bottom:18px}.selector-title{display:flex;gap:14px;align-items:flex-start;margin-bottom:18px}.selector-title h2{margin:0 0 6px;font-size:20px}.selector-title p,.panel-heading p{margin:0;color:#667085}.step-number{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:#2563eb;color:#fff;flex:none}.selector-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.selector-hint,.lookup-note{margin-top:6px;color:#667085;font-size:11px}.subject-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;margin-bottom:18px}.subject-main{display:flex;align-items:center;gap:13px}.subject-main>div:last-child{display:flex;flex-direction:column;gap:4px}.subject-main span{color:#667085;font-size:13px}.subject-icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(37,99,235,.1);font-size:23px}.subject-stats{display:flex;gap:10px}.subject-stats div{min-width:74px;padding:8px 12px;border:1px solid #e5e7eb;border-radius:12px;text-align:center}.subject-stats strong,.subject-stats span{display:block}.subject-stats span{color:#667085;font-size:12px}.access-status{padding:10px 14px;margin-bottom:16px;border-radius:10px;background:rgba(34,197,94,.1)}.panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.panel-heading h2{margin:2px 0 5px;font-size:20px}.panel-step{font-size:12px;font-weight:800;color:#2563eb;margin-bottom:4px}.filter-bar{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;align-items:center;margin-bottom:12px}.search-box{position:relative}.search-box>i{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#667085}.search-box input{padding-right:36px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:#f8fafc;font-size:13px}.selection-toolbar>div{display:flex;gap:7px}.permission-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.permission-tile,.group-tile{position:relative;display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #e5e7eb;border-radius:11px;cursor:pointer;background:#fff}.permission-tile.selected,.group-tile.selected{border-color:#2563eb;background:rgba(37,99,235,.07)}.permission-tile input,.group-tile input{position:absolute;opacity:0}.tile-check{width:22px;height:22px;border:1.5px solid #cbd5e1;border-radius:6px;display:grid;place-items:center;flex:none;color:transparent}.selected .tile-check{background:#2563eb;border-color:#2563eb;color:#fff}.tile-text,.group-text{min-width:0;display:flex;flex-direction:column;gap:3px}.tile-text strong,.group-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile-text small,.group-text small{color:#667085;font-size:11px}.access-columns{display:grid;grid-template-columns:1fr 1fr;gap:18px}.small-search{width:230px}.group-list{display:flex;flex-direction:column;gap:8px}.effective-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.effective-summary span{padding:7px 10px;border-radius:9px;background:#f8fafc;font-size:12px}.effective-list{border:1px solid #e5e7eb;border-radius:13px;overflow:hidden}.effective-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-bottom:1px solid #eef2f7}.effective-row:last-child{border-bottom:0}.effective-row>div:first-child{display:flex;align-items:center;gap:8px}.source-badges{display:flex;gap:5px}.source-badge{font-size:11px;padding:4px 7px;border-radius:7px}.source-badge.direct{background:rgba(37,99,235,.1);color:#1d4ed8}.source-badge.group{background:rgba(124,58,237,.1);color:#6d28d9}.empty-state{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#667085}.access-empty{margin-top:18px}@media(max-width:800px){.selector-grid,.access-columns{grid-template-columns:1fr}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.subject-card{align-items:flex-start;flex-direction:column}.small-search{width:100%}}@media(max-width:560px){.permission-grid{grid-template-columns:1fr}.filter-bar{grid-template-columns:1fr}}
+</style>
