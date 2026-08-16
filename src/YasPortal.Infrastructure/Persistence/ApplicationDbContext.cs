@@ -14,6 +14,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserPositionPermission> UserPositionPermissions => Set<UserPositionPermission>();
     public DbSet<EmployeePermission> EmployeePermissions => Set<EmployeePermission>();
+    public DbSet<PermissionGroup> PermissionGroups => Set<PermissionGroup>();
+    public DbSet<PermissionGroupPermission> PermissionGroupPermissions => Set<PermissionGroupPermission>();
+    public DbSet<UserPositionPermissionGroup> UserPositionPermissionGroups => Set<UserPositionPermissionGroup>();
+    public DbSet<EmployeePermissionGroup> EmployeePermissionGroups => Set<EmployeePermissionGroup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,14 +35,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.Property(x => x.Username).HasMaxLength(256).IsRequired();
             e.Property(x => x.FullName).HasMaxLength(256).IsRequired();
             e.Property(x => x.PasswordHash).HasMaxLength(512);
-            e.HasOne(x => x.Organization)
-                .WithMany(x => x.Employees)
-                .HasForeignKey(x => x.OrganizationId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne<Position>()
-                .WithMany()
-                .HasForeignKey(x => x.LastActivePositionId)
-                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Position>(e =>
@@ -46,11 +44,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
-
-            e.HasOne(x => x.ParentPosition)
-                .WithMany(x => x.Children)
-                .HasForeignKey(x => x.ParentPositionId)
-                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.ParentPosition).WithMany(x => x.Children).HasForeignKey(x => x.ParentPositionId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EmployeePosition>(e =>
@@ -82,6 +76,36 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => new { x.EmployeeId, x.PermissionId });
             e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PermissionGroup>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<PermissionGroupPermission>(e =>
+        {
+            e.HasKey(x => new { x.GroupId, x.PermissionId });
+            e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserPositionPermissionGroup>(e =>
+        {
+            e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId });
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EmployeePermissionGroup>(e =>
+        {
+            e.HasKey(x => new { x.EmployeeId, x.GroupId });
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
