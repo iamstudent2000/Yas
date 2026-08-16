@@ -88,7 +88,11 @@
                             <td class="action-cell">
                                 <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(x.Id)" title="ویرایش"><i class="bx bx-edit-alt"></i></button>
                                 <button class="btn @(x.IsActive ? "btn-danger" : "btn-primary") btn-sm" @onclick="() => ToggleEmployee(x.Id)" title="@(x.IsActive ? "غیرفعال کردن" : "فعال کردن")"><i class="bx @(x.IsActive ? "bx-user-x" : "bx-user-check")"></i></button>
-                                <a class="btn btn-secondary btn-sm" href="/admin/access" title="مدیریت دسترسی"><i class="bx bx-shield-quarter"></i> دسترسی</a>
+                                @if (!x.IsAdmin)
+                                {
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => SelectEmployeePositions(x.Id)"><i class="bx bx-sitemap"></i> سمت‌ها</button>
+                                }
+                                <a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id" title="مدیریت دسترسی"><i class="bx bx-shield-quarter"></i> دسترسی</a>
                             </td>
                         </tr>
                     }
@@ -98,23 +102,67 @@
     </section>
 </div>
 
+@if (_selectedEmployeeId is Guid selectedId && _employees.FirstOrDefault(x => x.Id == selectedId) is EmployeeRow selected)
+{
+    <section class="card" dir="rtl" style="margin-top:16px">
+        <div class="page-header compact-header">
+            <div>
+                <h2 class="section-title" style="margin:0">سمت‌های @selected.FullName</h2>
+                <p class="page-subtitle">هر کارمند می‌تواند چند سمت داشته باشد؛ هر سمت فقط یک مالک فعال دارد. مجوزهای سمت در «مدیریت دسترسی» تنظیم می‌شوند.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" @onclick="ClearPositionSelection">بستن</button>
+        </div>
+
+        <div class="position-assignment-list">
+            @foreach (var p in _positions)
+            {
+                var link = _employeePositions.FirstOrDefault(x => x.PositionId == p.Id);
+                var hasOtherOwner = _positionOwners.TryGetValue(p.Id, out var ownerName) && link?.IsActive != true;
+                <div class="assignment-row">
+                    <div class="assignment-main">
+                        <strong>@p.Name</strong>
+                        @if (link?.IsActive == true)
+                        {
+                            <span class="badge badge-success">تخصیص‌یافته به این کاربر</span>
+                        }
+                        else if (hasOtherOwner)
+                        {
+                            <span class="badge badge-muted">تخصیص‌یافته به @ownerName</span>
+                        }
+                        else if (link is not null)
+                        {
+                            <span class="badge badge-muted">تخصیص قبلی، اکنون غیرفعال</span>
+                        }
+                    </div>
+
+                    @if (link?.IsActive == true)
+                    {
+                        <button class="btn btn-danger btn-sm" disabled="@_savingPosition" @onclick="() => TogglePosition(selectedId, p.Id, false)">حذف تخصیص</button>
+                    }
+                    else if (!hasOtherOwner)
+                    {
+                        <button class="btn btn-primary btn-sm" disabled="@_savingPosition" @onclick="() => TogglePosition(selectedId, p.Id, true)">تخصیص</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary btn-sm" disabled>در اختیار کارمند دیگر</button>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}
+
 <section class="card" dir="rtl" style="margin-top:16px">
     <div class="single-access-note">
         <div class="single-access-icon"><i class="bx bx-lock-open-alt"></i></div>
         <div>
             <h2 class="section-title" style="margin:0 0 4px">مدیریت متمرکز دسترسی</h2>
-            <p class="page-subtitle" style="margin:0">تخصیص مجوز مستقیم، گروه مجوز و مشاهده مجوزهای نهایی دیگر در این صفحه انجام نمی‌شود. برای جلوگیری از اختلاف داده و دو رابط متفاوت، همه این عملیات فقط در <strong>مدیریت سامانه ← دسترسی</strong> قرار دارد.</p>
+            <p class="page-subtitle" style="margin:0">تخصیص مجوز مستقیم، گروه مجوز و مشاهده مجوزهای نهایی در این صفحه انجام نمی‌شود. همه این عملیات فقط در <strong>مدیریت سامانه ← دسترسی</strong> قرار دارد.</p>
         </div>
         <a class="btn btn-primary" href="/admin/access">باز کردن مدیریت دسترسی <i class="bx bx-left-arrow-alt"></i></a>
     </div>
 </section>
-
-@if (_employees.Any(x => !x.IsAdmin && x.ActivePositionCount == 0))
-{
-    <section class="card" dir="rtl" style="margin-top:16px">
-        <div class="help-text"><i class="bx bx-info-circle"></i> برای تخصیص سمت به کارمند، از همین صفحه استفاده کنید. مجوزهای آن سمت پس از تخصیص، در «مدیریت دسترسی» قابل تنظیم هستند.</div>
-    </section>
-}
 
 @code {
     private List<EmployeeRow> _employees = [];
@@ -124,6 +172,7 @@
     private Dictionary<Guid, string> _positionOwners = [];
 
     private Guid? _editingId;
+    private Guid? _selectedEmployeeId;
     private Guid _organizationId;
     private string _username = "";
     private string _fullName = "";
@@ -139,6 +188,29 @@
         _organizations = await db.Organizations.AsNoTracking().OrderBy(x => x.Name).Select(x => new OrgRow(x.Id, x.Name, x.IsActive)).ToListAsync();
         _employees = await db.Employees.AsNoTracking().OrderBy(x => x.FullName).Select(x => new EmployeeRow(x.Id, x.Username, x.FullName, x.Organization.Name, x.IsActive, x.IsAdmin, x.LastActivePositionId, x.Positions.Count(p => p.EndedAt == null), x.Positions.Where(p => p.EndedAt == null && p.PositionId == x.LastActivePositionId).Select(p => p.Position.Name).FirstOrDefault())).ToListAsync();
         _positions = await db.Positions.AsNoTracking().OrderBy(x => x.Name).Select(x => new PositionRow(x.Id, x.Name)).ToListAsync();
+        if (_selectedEmployeeId is Guid id) await LoadPositionAccessAsync(id);
+    }
+
+    private async Task SelectEmployeePositions(Guid id)
+    {
+        var employee = _employees.FirstOrDefault(x => x.Id == id);
+        if (employee is null || employee.IsAdmin) return;
+        _selectedEmployeeId = id;
+        await LoadPositionAccessAsync(id);
+    }
+
+    private async Task LoadPositionAccessAsync(Guid employeeId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _employeePositions = await db.EmployeePositions.AsNoTracking().Where(x => x.EmployeeId == employeeId).OrderBy(x => x.Position.Name).Select(x => new EmployeePositionRow(x.PositionId, x.Position.Name, x.EndedAt == null)).ToListAsync();
+        _positionOwners = await db.EmployeePositions.AsNoTracking().Where(x => x.EndedAt == null).Select(x => new { x.PositionId, x.Employee.FullName }).ToDictionaryAsync(x => x.PositionId, x => x.FullName);
+    }
+
+    private void ClearPositionSelection()
+    {
+        _selectedEmployeeId = null;
+        _employeePositions = [];
+        _positionOwners = [];
     }
 
     private void BeginEdit(Guid id)
@@ -236,6 +308,7 @@
                 if (otherOwner is not null)
                 {
                     AppState.AddToast($"این سمت در حال حاضر به «{otherOwner}» تخصیص داده شده است.", ToastLevel.Error);
+                    await LoadPositionAccessAsync(employeeId);
                     return;
                 }
                 if (link is null) db.EmployeePositions.Add(new EmployeePosition(employeeId, positionId));
@@ -258,7 +331,6 @@
             {
                 AppState.AddToast("این سمت هم‌زمان توسط کارمند دیگری تخصیص داده شد. فهرست را دوباره بررسی کنید.", ToastLevel.Error);
             }
-
             await LoadAsync();
         }
         finally
@@ -274,5 +346,5 @@
 }
 
 <style>
-.single-access-note{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}.single-access-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#f2f4f7;font-size:22px}.btn-sm{padding:7px 10px;font-size:12px}.form-actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:900px){.single-access-note{grid-template-columns:1fr}.single-access-icon{display:none}}
+.single-access-note{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}.single-access-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#f2f4f7;font-size:22px}.position-assignment-list{display:flex;flex-direction:column;gap:8px}.assignment-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #eaecf0;border-radius:10px}.assignment-main{display:flex;align-items:center;gap:10px;min-width:0}.btn-sm{padding:7px 10px;font-size:12px}.form-actions{display:flex;gap:8px;flex-wrap:wrap}@media(max-width:900px){.single-access-note{grid-template-columns:1fr}.single-access-icon{display:none}.assignment-row{align-items:flex-start;flex-direction:column}.assignment-main{flex-wrap:wrap}}
 </style>
