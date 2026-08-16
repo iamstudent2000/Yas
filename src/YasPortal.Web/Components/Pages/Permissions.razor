@@ -4,8 +4,10 @@
 @using YasPortal.Domain.Authorization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
+@using YasPortal.Web.Components.Shared
 @attribute [Authorize(Policy = "Admin.Permissions")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AdminQueryService AdminQueries
 @inject AppState AppState
 
 <PageTitle>مجوزها - یاس پورتال</PageTitle>
@@ -15,7 +17,7 @@
         <div>
             <div class="page-kicker">مدیریت سامانه / کنترل دسترسی</div>
             <h1 class="page-title">مجوزها</h1>
-            <p class="page-subtitle">مجوزهای پایه را تعریف و مدیریت کنید. کد مجوز فقط برای تعریف و نگهداری فنی استفاده می‌شود و در فهرست انتخاب دسترسی نمایش داده نمی‌شود.</p>
+            <p class="page-subtitle">مجوزهای پایه را تعریف و مدیریت کنید. در فهرست‌ها فقط نام نمایشی مجوز دیده می‌شود.</p>
         </div>
         <div class="admin-page-actions">
             <a class="btn btn-primary" href="/admin/permission-groups"><i class="bx bx-layer"></i> گروه‌های مجوز</a>
@@ -24,7 +26,7 @@
     </div>
 
     <div class="admin-stat-grid">
-        <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-key"></i></span><div><small>کل مجوزها</small><strong>@_permissions.Count</strong></div></div>
+        <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-key"></i></span><div><small>کل مجوزها</small><strong>@_totalCount</strong></div></div>
         <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-user-check"></i></span><div><small>تخصیص مستقیم</small><strong>@_directAssignmentCount</strong></div></div>
         <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-layer"></i></span><div><small>عضویت در گروه</small><strong>@_groupMembershipCount</strong></div></div>
     </div>
@@ -33,90 +35,91 @@
         <section class="card permission-form-card">
             <div class="card-heading">
                 <div class="card-heading-icon"><i class="bx @( _editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
-                <div><h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2><p class="muted">نام نمایشی مجوز را برای مدیران و کاربران قابل فهم نگه دارید.</p></div>
+                <div><h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2><p class="muted">نام نمایشی را برای مدیران قابل فهم نگه دارید.</p></div>
             </div>
             <label class="form-label">نام مجوز</label>
             <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
             <label class="form-label">کد فنی مجوز</label>
             <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve" dir="ltr" />
-            <div class="form-hint"><i class="bx bx-info-circle"></i><span>کد باید یکتا باشد. این کد در صفحات تخصیص دسترسی نمایش داده نمی‌شود.</span></div>
+            <div class="form-hint"><i class="bx bx-info-circle"></i><span>کد فنی فقط برای تعریف و نگهداری است و در صفحات تخصیص نمایش داده نمی‌شود.</span></div>
             <div class="form-actions">
                 <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد مجوز" : "ذخیره تغییرات")</button>
-                @if (_editingId is not null)
-                { <button class="btn btn-secondary" @onclick="Cancel">انصراف</button> }
+                @if (_editingId is not null) { <button class="btn btn-secondary" @onclick="Cancel">انصراف</button> }
             </div>
         </section>
 
         <section class="card permission-list-card">
             <div class="card-toolbar">
-                <div><h2 class="section-title">فهرست مجوزها</h2><p class="muted">مجوز را با نام جستجو کنید و میزان استفاده آن را ببینید.</p></div>
-                <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نام مجوز..." @bind="_search" @bind:event="oninput" /></div>
+                <div><h2 class="section-title">فهرست مجوزها</h2><p class="muted">جستجو و صفحه‌بندی مستقیماً روی SQL Server انجام می‌شود.</p></div>
+                <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نام مجوز..." @bind="_search" @bind:event="oninput" @onkeyup="SearchChanged" /></div>
             </div>
             <div class="permission-filter-row">
-                <span class="result-count">@FilteredPermissions.Count مجوز</span>
-                <select class="form-control compact-select" @bind="_usageFilter">
-                    <option value="">همه</option>
-                    <option value="used">در حال استفاده</option>
-                    <option value="unused">بدون استفاده</option>
+                <span class="result-count">@_totalCount مجوز</span>
+                <select class="form-control compact-select" @bind="_usageFilter" @onchange="UsageChanged">
+                    <option value="">همه</option><option value="used">در حال استفاده</option><option value="unused">بدون استفاده</option>
                 </select>
             </div>
             <div class="permission-list">
-                @foreach (var x in FilteredPermissions)
+                @if (_loading)
                 {
-                    var category = PermissionCategory(x.Code);
-                    var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
-                    <article class="permission-list-row" @key="x.Id">
-                        <div class="permission-list-main">
-                            <div class="permission-avatar"><i class="bx bx-key"></i></div>
-                            <div class="permission-text"><strong>@x.Name</strong><span>@category</span></div>
-                        </div>
-                        <div class="permission-usage">
-                            <span class="usage-pill"><i class="bx bx-user-check"></i> @x.DirectAssignmentCount مستقیم</span>
-                            <span class="usage-pill"><i class="bx bx-layer"></i> @x.GroupMembershipCount گروه</span>
-                        </div>
-                        <div class="permission-row-actions">
-                            <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x.Id)"><i class="bx bx-edit-alt"></i> ویرایش</button>
-                            @if (!used)
-                            { <button class="btn btn-danger btn-sm" @onclick="() => Delete(x.Id)" title="حذف"><i class="bx bx-trash"></i></button> }
-                            else
-                            { <button class="btn btn-disabled btn-sm" disabled title="این مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button> }
-                        </div>
-                    </article>
+                    <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
                 }
-                @if (FilteredPermissions.Count == 0)
-                { <div class="empty-state"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا فیلتر را تغییر دهید.</span></div> }
+                else if (_permissions.Count == 0)
+                {
+                    <div class="empty-state"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا فیلتر را تغییر دهید.</span></div>
+                }
+                else
+                {
+                    @foreach (var x in _permissions)
+                    {
+                        var category = PermissionCategory(x.Code);
+                        var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
+                        <article class="permission-list-row" @key="x.Id">
+                            <div class="permission-list-main"><div class="permission-avatar"><i class="bx bx-key"></i></div><div class="permission-text"><strong>@x.Name</strong><span>@category</span></div></div>
+                            <div class="permission-usage"><span class="usage-pill"><i class="bx bx-user-check"></i> @x.DirectAssignmentCount مستقیم</span><span class="usage-pill"><i class="bx bx-layer"></i> @x.GroupMembershipCount گروه</span></div>
+                            <div class="permission-row-actions">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i> ویرایش</button>
+                                @if (!used) { <button class="btn btn-danger btn-sm" @onclick="() => Delete(x.Id)" title="حذف"><i class="bx bx-trash"></i></button> }
+                                else { <button class="btn btn-disabled btn-sm" disabled title="این مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button> }
+                            </div>
+                        </article>
+                    }
+                }
             </div>
+            <ServerPagination Page="@_page" PageSize="@PageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" />
         </section>
     </div>
 
-    <section class="card permission-model-note">
-        <div class="model-icon"><i class="bx bx-shield-quarter"></i></div>
-        <div><strong>مدل دسترسی یاس پورتال</strong><p>هیچ Deny permission وجود ندارد. برای هر «کارمند + سمت» یا مدیر سامانه، مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و مجوزهای تمام گروه‌های اختصاص‌یافته.</p></div>
-    </section>
+    <section class="card permission-model-note"><div class="model-icon"><i class="bx bx-shield-quarter"></i></div><div><strong>مدل دسترسی یاس پورتال</strong><p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های اختصاص‌یافته.</p></div></section>
 </div>
 
 @code {
-    private List<PermissionRow> _permissions = [];
+    private List<AdminQueryService.PermissionPageRow> _permissions = [];
     private Guid? _editingId;
     private string _code = "", _name = "", _search = "", _usageFilter = "";
-    private int _directAssignmentCount, _groupMembershipCount;
-
-    private IReadOnlyList<PermissionRow> FilteredPermissions => _permissions.Where(x =>
-        (string.IsNullOrWhiteSpace(_search) || x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || PermissionCategory(x.Code).Contains(_search, StringComparison.OrdinalIgnoreCase)) &&
-        (string.IsNullOrWhiteSpace(_usageFilter) || (_usageFilter == "used" ? x.DirectAssignmentCount + x.GroupMembershipCount > 0 : x.DirectAssignmentCount + x.GroupMembershipCount == 0))).ToList();
+    private int _page = 1, _totalCount, _directAssignmentCount, _groupMembershipCount;
+    private const int PageSize = 20;
+    private bool _loading;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _permissions = await db.Permissions.AsNoTracking().OrderBy(x => x.Name)
-            .Select(x => new PermissionRow(x.Id, x.Code, x.Name,
-                db.UserPositionPermissions.Count(up => up.PermissionId == x.Id) + db.EmployeePermissions.Count(ep => ep.PermissionId == x.Id),
-                db.PermissionGroupPermissions.Count(gp => gp.PermissionId == x.Id))).ToListAsync();
-        _directAssignmentCount = _permissions.Sum(x => x.DirectAssignmentCount);
-        _groupMembershipCount = _permissions.Sum(x => x.GroupMembershipCount);
+        _loading = true;
+        try
+        {
+            var result = await AdminQueries.GetPermissionsAsync(_page, PageSize, _search, _usageFilter);
+            _permissions = result.Items.ToList(); _totalCount = result.TotalCount;
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _directAssignmentCount = await db.UserPositionPermissions.CountAsync() + await db.EmployeePermissions.CountAsync();
+            _groupMembershipCount = await db.PermissionGroupPermissions.CountAsync();
+        }
+        finally { _loading = false; }
     }
+
+    private async Task SearchChanged(KeyboardEventArgs e) { if (e.Key is "Enter" or "Tab" || _search.Length == 0) { _page = 1; await LoadAsync(); } }
+    private async Task UsageChanged(ChangeEventArgs _) { _page = 1; await LoadAsync(); }
+    private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
 
     private static string PermissionCategory(string code) => code.Split('.', 2)[0] switch
     {
@@ -124,7 +127,7 @@
         "Organizations" => "سازمان‌ها", "Positions" => "سمت‌ها", "Permissions" => "مجوزها", "Admin" => "مدیریت سامانه", _ => code.Split('.', 2)[0]
     };
 
-    private void Edit(Guid id) { var x = _permissions.Single(x => x.Id == id); _editingId = id; _code = x.Code; _name = x.Name; }
+    private void Edit(AdminQueryService.PermissionPageRow x) { _editingId = x.Id; _code = x.Code; _name = x.Name; }
     private void Cancel() { _editingId = null; _code = _name = ""; }
 
     private async Task Save()
@@ -147,8 +150,6 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         if (await db.UserPositionPermissions.AnyAsync(x => x.PermissionId == id) || await db.EmployeePermissions.AnyAsync(x => x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.PermissionId == id)) { AppState.AddToast("این مجوز در حال استفاده است و قابل حذف نیست.", ToastLevel.Error); return; }
-        var x = await db.Permissions.SingleAsync(x => x.Id == id); db.Permissions.Remove(x); await db.SaveChangesAsync(); AppState.AddToast("مجوز حذف شد.", ToastLevel.Success); await LoadAsync();
+        db.Permissions.Remove(await db.Permissions.SingleAsync(x => x.Id == id)); await db.SaveChangesAsync(); AppState.AddToast("مجوز حذف شد.", ToastLevel.Success); if (_page > 1 && _permissions.Count == 1) _page--; await LoadAsync();
     }
-
-    private sealed record PermissionRow(Guid Id, string Code, string Name, int DirectAssignmentCount, int GroupMembershipCount);
 }
