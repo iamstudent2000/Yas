@@ -5,7 +5,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Infrastructure.Persistence
-@attribute [Authorize]
+@attribute [Authorize(Policy = "Profile.View")]
 @inject ApplicationDbContext Db
 
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
