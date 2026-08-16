@@ -141,9 +141,8 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        // Keep the database query in terms of scalar/anonymous projections. EF Core cannot
-        // translate ordering/filtering over the custom PermissionPageRow constructor itself.
-        // Counts, filtering, ordering and paging therefore all remain server-side.
+        // Query scalar values first. EF Core cannot translate filtering/ordering over
+        // a custom record constructor containing correlated subqueries.
         var query = db.Permissions.AsNoTracking()
             .Select(x => new
             {
@@ -165,7 +164,6 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             query = query.Where(x => x.DirectAssignmentCount + x.GroupMembershipCount == 0);
 
         var total = await query.CountAsync(ct);
-
         var rows = await query
             .OrderBy(x => x.Name)
             .ThenBy(x => x.Id)
@@ -173,14 +171,12 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = rows
-            .Select(x => new PermissionPageRow(
-                x.Id,
-                x.Code,
-                x.Name,
-                x.DirectAssignmentCount,
-                x.GroupMembershipCount))
-            .ToList();
+        var items = rows.Select(x => new PermissionPageRow(
+            x.Id,
+            x.Code,
+            x.Name,
+            x.DirectAssignmentCount,
+            x.GroupMembershipCount)).ToList();
 
         return new(items, total, page, pageSize);
     }
@@ -192,24 +188,37 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
+        // Same pattern as permissions: keep filtering/ordering/paging on SQL-translatable
+        // scalar projections and construct UI records only after the paged query completes.
         var query = db.PermissionGroups.AsNoTracking()
-            .Select(x => new PermissionGroupPageRow(
+            .Select(x => new
+            {
                 x.Id,
                 x.Name,
                 x.Description,
-                db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id),
-                db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) +
-                db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id)));
+                PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id),
+                AssignmentCount =
+                    db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) +
+                    db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id)
+            });
 
         if (q != "")
             query = query.Where(x => x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q)));
 
         var total = await query.CountAsync(ct);
-        var items = await query
+        var rows = await query
             .OrderBy(x => x.Name)
+            .ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
+
+        var items = rows.Select(x => new PermissionGroupPageRow(
+            x.Id,
+            x.Name,
+            x.Description,
+            x.PermissionCount,
+            x.AssignmentCount)).ToList();
 
         return new(items, total, page, pageSize);
     }
