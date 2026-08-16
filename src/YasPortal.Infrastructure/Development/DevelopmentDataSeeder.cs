@@ -38,8 +38,6 @@ public static class DevelopmentDataSeeder
             // Another startup instance may have created the database concurrently.
         }
 
-        // EnsureCreated does not update an existing development database schema.
-        // Rebuild the index explicitly so only active assignments are unique.
         await db.Database.ExecuteSqlRawAsync("""
             IF EXISTS (
                 SELECT 1
@@ -67,7 +65,6 @@ public static class DevelopmentDataSeeder
             }
             organizations[name] = organization;
         }
-
         await db.SaveChangesAsync(ct);
 
         // Development position hierarchy:
@@ -76,8 +73,10 @@ public static class DevelopmentDataSeeder
         // └── مدیر واحد
         //     ├── کارشناس مالی
         //     └── کارمند
-        var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase);
-        positions["مدیر سامانه"] = await EnsurePosition(db, "مدیر سامانه", null, ct);
+        var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["مدیر سامانه"] = await EnsurePosition(db, "مدیر سامانه", null, ct)
+        };
         positions["مدیر منابع انسانی"] = await EnsurePosition(db, "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
         positions["مدیر واحد"] = await EnsurePosition(db, "مدیر واحد", positions["مدیر سامانه"].Id, ct);
         positions["کارشناس مالی"] = await EnsurePosition(db, "کارشناس مالی", positions["مدیر واحد"].Id, ct);
@@ -149,7 +148,6 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["employee"], positions["کارمند"], ct);
         await EnsureEmployeePosition(db, employees["hr"], positions["مدیر منابع انسانی"], ct);
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
-        await EnsureEmployeePosition(db, employees["manager"], positions["کارمند"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
         foreach (var permission in permissions.Values)
@@ -157,7 +155,6 @@ public static class DevelopmentDataSeeder
         await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
         await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Employees.View" }, ct);
         await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View" }, ct);
-        await Grant(db, employees["manager"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
     }
@@ -190,8 +187,6 @@ public static class DevelopmentDataSeeder
         if (existingForEmployee is not null && existingForEmployee.IsActive)
             return;
 
-        // A position can have only one active employee. End the current holder first
-        // and commit that change before inserting/reactivating the next assignment.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
