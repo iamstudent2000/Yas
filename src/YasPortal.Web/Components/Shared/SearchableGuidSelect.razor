@@ -6,7 +6,7 @@
            @oninput="HandleInput"
            @onfocus="Open"
            @onkeydown="HandleKeyDown"
-           placeholder="@Placeholder"
+           placeholder="@(_open ? SearchPlaceholder : Placeholder)"
            autocomplete="off"
            aria-autocomplete="list"
            aria-expanded="@_open"
@@ -45,6 +45,7 @@
     [Parameter] public Guid? Value { get; set; }
     [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
     [Parameter] public string Placeholder { get; set; } = "جستجو و انتخاب...";
+    [Parameter] public string SearchPlaceholder { get; set; } = "برای جستجو تایپ کنید...";
     [Parameter] public bool Disabled { get; set; }
 
     private string SearchText { get; set; } = "";
