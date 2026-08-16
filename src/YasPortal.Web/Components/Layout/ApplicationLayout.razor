@@ -19,14 +19,14 @@
     </header>
     <div class="application-body">
         <AuthorizeView>
-            <Authorized>
+            <Authorized Context="layoutAuth">
                 <aside class="sidebar">
                     <div class="sidebar-section-title">منوی اصلی</div>
                     <nav class="sidebar-nav">
-                        <AuthorizeView Policy="Dashboard.View">
+                        <AuthorizeView Policy="Dashboard.View" Context="dashboardAuth">
                             <NavLink href="/dashboard" Match="NavLinkMatch.All"><i class="bx bx-grid-alt"></i><span>داشبورد</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Profile.View">
+                        <AuthorizeView Policy="Profile.View" Context="profileAuth">
                             <NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink>
                         </AuthorizeView>
                         <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
@@ -34,18 +34,18 @@
 
                     <div class="sidebar-section-title admin-title">مدیریت سامانه</div>
                     <nav class="sidebar-nav">
-                        <AuthorizeView Policy="Admin.Users">
+                        <AuthorizeView Policy="Admin.Users" Context="usersAuth">
                             <NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink>
                             <NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Positions">
+                        <AuthorizeView Policy="Admin.Positions" Context="positionsAuth">
                             <NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Permissions">
+                        <AuthorizeView Policy="Admin.Permissions" Context="permissionsAuth">
                             <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
                             <NavLink href="/admin/permission-groups"><i class="bx bx-layer"></i><span>گروه‌های مجوز</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Organizations">
+                        <AuthorizeView Policy="Admin.Organizations" Context="organizationsAuth">
                             <NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink>
                         </AuthorizeView>
                     </nav>
