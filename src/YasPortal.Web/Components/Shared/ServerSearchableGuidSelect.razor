@@ -1,0 +1,103 @@
+@using YasPortal.Web.Services
+
+<div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
+    <button type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync">
+        <span class="server-lookup-value">@(SelectedText ?? Placeholder)</span>
+        <i class="bx bx-chevron-down"></i>
+    </button>
+    @if (_open && !Disabled)
+    {
+        <div class="server-lookup-menu">
+            <div class="server-lookup-search">
+                <i class="bx bx-search"></i>
+                <input @ref="_input" @bind="_search" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="@SearchPlaceholder" autocomplete="off" />
+            </div>
+            @if (_loading)
+            {
+                <div class="server-lookup-empty"><i class="bx bx-loader-alt bx-spin"></i> در حال جستجو...</div>
+            }
+            else if (_options.Count == 0)
+            {
+                <div class="server-lookup-empty">نتیجه‌ای پیدا نشد.</div>
+            }
+            else
+            {
+                <div class="server-lookup-results">
+                    @foreach (var option in _options)
+                    {
+                        <button type="button" class="server-lookup-option @(option.Id == Value ? "selected" : "")" @onclick="() => SelectAsync(option)">
+                            <span>@option.Text</span>
+                            @if (option.Id == Value) { <i class="bx bx-check"></i> }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? Value { get; set; }
+    [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
+    [Parameter] public Func<string, CancellationToken, Task<IReadOnlyList<AdminQueryService.LookupItem>>> SearchAsync { get; set; } = default!;
+    [Parameter] public string Placeholder { get; set; } = "انتخاب کنید...";
+    [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
+    [Parameter] public string? SelectedText { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+
+    private ElementReference _input;
+    private List<AdminQueryService.LookupItem> _options = [];
+    private string _search = "";
+    private bool _open, _loading;
+    private CancellationTokenSource? _cts;
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _search = "";
+            await SearchNowAsync();
+            await Task.Yield();
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task SearchNowAsync()
+    {
+        _cts?.Cancel(); _cts?.Dispose(); _cts = new();
+        var token = _cts.Token;
+        _loading = true;
+        try
+        {
+            await Task.Delay(180, token);
+            _options = (await SearchAsync(_search, token)).ToList();
+        }
+        catch (OperationCanceledException) { }
+        finally { if (!token.IsCancellationRequested) _loading = false; }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { _open = false; return; }
+        await SearchNowAsync();
+    }
+
+    private async Task SelectAsync(AdminQueryService.LookupItem option)
+    {
+        _open = false;
+        _search = "";
+        if (Value != option.Id) await ValueChanged.InvokeAsync(option.Id);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        await ValueTask.CompletedTask;
+    }
+}
+
+<style>
+.server-lookup{position:relative}.server-lookup-trigger{display:flex;align-items:center;justify-content:space-between;text-align:right;min-height:42px;cursor:pointer}.server-lookup.disabled{opacity:.65}.server-lookup-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.server-lookup-menu{position:absolute;z-index:1000;top:calc(100% + 5px);right:0;left:0;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.12);overflow:hidden}.server-lookup-search{display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid var(--border,#e5e7eb)}.server-lookup-search i{color:#667085}.server-lookup-search input{width:100%;border:0;outline:0;background:transparent;padding:5px}.server-lookup-results{max-height:260px;overflow:auto;padding:5px}.server-lookup-option{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;padding:9px 10px;border-radius:8px;text-align:right;cursor:pointer;font:inherit}.server-lookup-option:hover,.server-lookup-option.selected{background:rgba(37,99,235,.08)}.server-lookup-option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.server-lookup-empty{padding:18px;text-align:center;color:#667085;font-size:12px}
+</style>
