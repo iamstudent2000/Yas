@@ -13,5 +13,9 @@ public interface IApplicationDbContext
     DbSet<Permission> Permissions { get; }
     DbSet<UserPositionPermission> UserPositionPermissions { get; }
     DbSet<EmployeePermission> EmployeePermissions { get; }
+    DbSet<PermissionGroup> PermissionGroups { get; }
+    DbSet<PermissionGroupPermission> PermissionGroupPermissions { get; }
+    DbSet<UserPositionPermissionGroup> UserPositionPermissionGroups { get; }
+    DbSet<EmployeePermissionGroup> EmployeePermissionGroups { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
