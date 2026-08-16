@@ -1,0 +1,29 @@
+@if (TotalPages > 1)
+{
+    <div class="server-pagination" dir="rtl">
+        <span class="server-pagination-info">@((Page - 1) * PageSize + 1)–@Math.Min(Page * PageSize, TotalCount) از @TotalCount</span>
+        <div class="server-pagination-buttons">
+            <button class="btn btn-secondary btn-sm" disabled="@(Page <= 1 || Busy)" @onclick="() => GoAsync(Page - 1)"><i class="bx bx-chevron-right"></i> قبلی</button>
+            @foreach (var p in Pages)
+            {
+                <button class="btn btn-sm @(p == Page ? "btn-primary" : "btn-secondary")" disabled="@Busy" @onclick="() => GoAsync(p)">@p</button>
+            }
+            <button class="btn btn-secondary btn-sm" disabled="@(Page >= TotalPages || Busy)" @onclick="() => GoAsync(Page + 1)">بعدی <i class="bx bx-chevron-left"></i></button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int PageSize { get; set; } = 20;
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+    private IEnumerable<int> Pages => Enumerable.Range(Math.Max(1, Page - 2), Math.Min(TotalPages, 5)).Where(x => x <= TotalPages);
+    private Task GoAsync(int page) => PageChanged.InvokeAsync(Math.Clamp(page, 1, TotalPages));
+}
+
+<style>
+.server-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 4px;margin-top:8px;border-top:1px solid #edf0f4}.server-pagination-info{font-size:12px;color:#667085}.server-pagination-buttons{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.server-pagination-buttons .btn{min-width:34px}
+</style>
