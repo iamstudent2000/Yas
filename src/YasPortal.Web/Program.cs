@@ -139,3 +139,54 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
 
     if (employee.LastActivePositionId != activePositionId)
         employee.SetLastActivePosition(activePositionId);
+    await db.SaveChangesAsync();
+
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.NameIdentifier, employee.Id.ToString()),
+        new(ClaimTypes.Name, employee.Username),
+        new(AuthClaimNames.IsAdmin, employee.IsAdmin.ToString())
+    };
+    if (activePositionId is Guid positionId)
+        claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+        new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    return Results.Redirect("/");
+});
+
+app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery) =>
+{
+    if (!(http.User.Identity?.IsAuthenticated ?? false)) return Results.Redirect("/login");
+    await antiforgery.ValidateRequestAsync(http);
+    var form = await http.Request.ReadFormAsync();
+    var employeeIdValue = http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var positionIdValue = form["positionId"].ToString();
+    var returnUrl = form["returnUrl"].ToString();
+    if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId)) return Results.Redirect("/my-positions");
+
+    var validPosition = await db.EmployeePositions.AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
+    if (!validPosition) return Results.Redirect("/my-positions");
+    var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
+    if (employee is null) return Results.Redirect("/login");
+    employee.SetLastActivePosition(positionId);
+    await db.SaveChangesAsync();
+
+    var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList();
+    claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+
+    if (returnUrl.StartsWith('/') && Uri.TryCreate(returnUrl, UriKind.Relative, out var relativeUri) && !relativeUri.IsAbsoluteUri)
+        return Results.Redirect(returnUrl);
+    return Results.Redirect("/my-positions");
+});
+
+app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) =>
+{
+    await antiforgery.ValidateRequestAsync(http);
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+});
+
+app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
+app.Run();
