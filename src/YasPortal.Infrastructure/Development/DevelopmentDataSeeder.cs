@@ -34,6 +34,24 @@ public static class DevelopmentDataSeeder
             // Another startup instance may have created the database concurrently.
         }
 
+        // EnsureCreated does not update an existing development database schema.
+        // Rebuild the index explicitly so only active assignments are unique.
+        await db.Database.ExecuteSqlRawAsync("""
+            IF EXISTS (
+                SELECT 1
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions')
+                  AND name = N'IX_EmployeePositions_PositionId'
+            )
+            BEGIN
+                DROP INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions];
+            END;
+
+            CREATE UNIQUE INDEX [IX_EmployeePositions_PositionId]
+                ON [dbo].[EmployeePositions] ([PositionId])
+                WHERE [EndedAt] IS NULL;
+            """, ct);
+
         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
         {
@@ -139,28 +157,34 @@ public static class DevelopmentDataSeeder
 
     private static async Task EnsureEmployeePosition(ApplicationDbContext db, Employee employee, Position position, CancellationToken ct)
     {
-        // EmployeePosition has a composite primary key (EmployeeId, PositionId), so an ended
-        // historical assignment must be reactivated instead of inserting another row.
         var existingForEmployee = await db.EmployeePositions
             .SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id, ct);
 
-        if (existingForEmployee is not null)
-        {
-            if (!existingForEmployee.IsActive)
-                existingForEmployee.Reactivate();
-
-            await db.SaveChangesAsync(ct);
+        if (existingForEmployee is not null && existingForEmployee.IsActive)
             return;
-        }
 
-        // A position may have only one active employee. End any other active assignment
-        // before creating the assignment for this employee.
+        // A position can have only one active employee. End the current holder first
+        // and commit that change before inserting/reactivating the next assignment.
+        // EF Core does not guarantee that an UPDATE which removes a row from a
+        // filtered unique index will execute before a competing INSERT in the same batch.
         var conflictingAssignments = await db.EmployeePositions
             .Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null)
             .ToListAsync(ct);
 
-        foreach (var assignment in conflictingAssignments)
-            assignment.End();
+        if (conflictingAssignments.Count > 0)
+        {
+            foreach (var assignment in conflictingAssignments)
+                assignment.End();
+
+            await db.SaveChangesAsync(ct);
+        }
+
+        if (existingForEmployee is not null)
+        {
+            existingForEmployee.Reactivate();
+            await db.SaveChangesAsync(ct);
+            return;
+        }
 
         db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
         await db.SaveChangesAsync(ct);
