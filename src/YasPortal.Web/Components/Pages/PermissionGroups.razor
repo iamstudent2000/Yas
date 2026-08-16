@@ -1,0 +1,219 @@
+@page "/admin/permission-groups"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Authorization
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Admin.Permissions")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AppState AppState
+
+<PageTitle>گروه‌های مجوز - یاس پورتال</PageTitle>
+
+<div class="page-header" dir="rtl">
+    <div>
+        <div class="page-subtitle">مدیریت سامانه / مجوزها</div>
+        <h1 class="page-title">گروه‌های مجوز</h1>
+        <p class="page-subtitle">یک مجموعه مجوز را یک‌بار بسازید و بعد آن را به کارمند + سمت یا مدیر سامانه اختصاص دهید.</p>
+    </div>
+    <div class="form-actions">
+        <a class="btn btn-secondary" href="/admin/permissions"><i class="bx bx-key"></i> مجوزهای منفرد</a>
+        <a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
+    </div>
+</div>
+
+<div class="admin-two-col" dir="rtl">
+    <section class="card">
+        <h2 class="section-title"><i class="bx bx-layer-plus"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
+        <label class="form-label">نام گروه</label>
+        <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً اپراتور درخواست" />
+        <label class="form-label">توضیح</label>
+        <textarea class="form-control" @bind="_description" maxlength="500" rows="3" placeholder="کاربرد این گروه"></textarea>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد گروه" : "ذخیره")</button>
+            @if (_editingId is not null)
+            {
+                <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+            }
+        </div>
+        <div class="group-help"><strong>منطق دسترسی:</strong> مجوزهای گروه فقط اضافه می‌شوند. هیچ Deny وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای گروه‌ها و مجوزهای مستقیم.</div>
+    </section>
+
+    <section class="card table-card">
+        <div class="table-toolbar"><h2 class="section-title" style="margin:0">گروه‌ها</h2></div>
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead><tr><th>گروه</th><th>مجوزها</th><th>تخصیص‌ها</th><th>عملیات</th></tr></thead>
+                <tbody>
+                    @foreach (var group in _groups)
+                    {
+                        <tr @key="group.Id">
+                            <td><strong>@group.Name</strong><small class="muted-line">@group.Description</small></td>
+                            <td>@group.PermissionCount</td>
+                            <td>@(group.EmployeeAssignmentCount + group.PositionAssignmentCount)</td>
+                            <td class="action-cell">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => EditGroup(group.Id)"><i class="bx bx-edit-alt"></i> ویرایش</button>
+                                <button class="btn btn-primary btn-sm" @onclick="() => SelectGroup(group.Id)"><i class="bx bx-key"></i> مجوزها</button>
+                                @if (group.EmployeeAssignmentCount + group.PositionAssignmentCount == 0)
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroup(group.Id)"><i class="bx bx-trash"></i></button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@if (_selectedGroupId is Guid selectedGroupId && _groups.FirstOrDefault(x => x.Id == selectedGroupId) is GroupRow selectedGroup)
+{
+    <section class="card group-editor" dir="rtl">
+        <div class="group-editor-header">
+            <div><h2 class="section-title" style="margin:0">مجوزهای «@selectedGroup.Name»</h2><p class="page-subtitle">@selectedGroup.PermissionCount از @_permissions.Count مجوز انتخاب شده</p></div>
+            <div class="permission-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز..." @bind="_search" @bind:event="oninput" /></div>
+        </div>
+        <div class="permission-groups">
+            @foreach (var group in FilteredPermissionGroups)
+            {
+                <section class="permission-group">
+                    <div class="permission-group-header">
+                        <div><strong>@group.Title</strong><span>@group.Items.Count مجوز</span></div>
+                        <div class="permission-group-actions">
+                            <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupPermissions(selectedGroupId, group.Items, true)">همه</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupPermissions(selectedGroupId, group.Items, false)">هیچ‌کدام</button>
+                        </div>
+                    </div>
+                    <div class="permission-grid">
+                        @foreach (var permission in group.Items)
+                        {
+                            <label class="permission-card @( _selectedPermissionIds.Contains(permission.Id) ? "granted" : "")">
+                                <input type="checkbox" checked="@_selectedPermissionIds.Contains(permission.Id)" disabled="@_saving" @onchange="e => ToggleGroupPermission(selectedGroupId, permission.Id, e.Value is bool value && value)" />
+                                <span><strong>@permission.Name</strong><small>@permission.Code</small></span>
+                            </label>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private List<GroupRow> _groups = [];
+    private List<PermissionRow> _permissions = [];
+    private Guid? _editingId;
+    private Guid? _selectedGroupId;
+    private string _name = "";
+    private string _description = "";
+    private string _search = "";
+    private bool _saving;
+    private HashSet<Guid> _selectedPermissionIds = [];
+
+    private IReadOnlyList<PermissionGroupView> FilteredPermissionGroups =>
+        _permissions
+            .Where(x => string.IsNullOrWhiteSpace(_search) || x.Code.Contains(_search, StringComparison.OrdinalIgnoreCase) || x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x => PermissionGroupTitle(x.Code), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x.Key)
+            .Select(x => new PermissionGroupView(x.Key, x.OrderBy(p => p.Code).ToList()))
+            .ToList();
+
+    private static string PermissionGroupTitle(string code) => code.Split('.', 2)[0] switch
+    {
+        "Dashboard" => "داشبورد", "Profile" => "پروفایل", "Requests" => "درخواست‌ها و گردش‌کار",
+        "Employees" => "کارکنان", "Organizations" => "سازمان‌ها", "Positions" => "سمت‌ها",
+        "Permissions" => "مجوزها", "Admin" => "مدیریت سامانه", _ => code.Split('.', 2)[0]
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _permissions = await db.Permissions.AsNoTracking().OrderBy(x => x.Code).Select(x => new PermissionRow(x.Id, x.Code, x.Name)).ToListAsync();
+        _groups = await db.PermissionGroups.AsNoTracking().OrderBy(x => x.Name)
+            .Select(x => new GroupRow(x.Id, x.Name, x.Description,
+                db.PermissionGroupPermissions.Count(gp => gp.GroupId == x.Id),
+                db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id),
+                db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id)))
+            .ToListAsync();
+        if (_selectedGroupId is Guid id) await LoadSelectedGroupAsync(id);
+    }
+
+    private async Task LoadSelectedGroupAsync(Guid groupId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _selectedPermissionIds = await db.PermissionGroupPermissions.AsNoTracking().Where(x => x.GroupId == groupId).Select(x => x.PermissionId).ToHashSetAsync();
+        _search = "";
+    }
+
+    private void SelectGroup(Guid id) { _selectedGroupId = id; _ = LoadSelectedGroupAsync(id); }
+
+    private void EditGroup(Guid id)
+    {
+        var group = _groups.Single(x => x.Id == id);
+        _editingId = id; _name = group.Name; _description = group.Description ?? "";
+    }
+
+    private void CancelEdit() { _editingId = null; _name = ""; _description = ""; }
+
+    private async Task SaveGroup()
+    {
+        var name = _name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) { AppState.AddToast("نام گروه الزامی است.", ToastLevel.Error); return; }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.PermissionGroups.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("این نام گروه قبلاً استفاده شده است.", ToastLevel.Error); return; }
+        if (_editingId is Guid id)
+        {
+            var group = await db.PermissionGroups.SingleAsync(x => x.Id == id);
+            group.Rename(name, _description);
+        }
+        else db.PermissionGroups.Add(new PermissionGroup(name, _description));
+        await db.SaveChangesAsync();
+        AppState.AddToast(_editingId is null ? "گروه مجوز ایجاد شد." : "گروه مجوز ویرایش شد.", ToastLevel.Success);
+        CancelEdit(); await LoadAsync();
+    }
+
+    private async Task DeleteGroup(Guid id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.UserPositionPermissionGroups.AnyAsync(x => x.GroupId == id) || await db.EmployeePermissionGroups.AnyAsync(x => x.GroupId == id))
+        { AppState.AddToast("این گروه هنوز به کاربر یا سمت اختصاص داده شده است.", ToastLevel.Error); return; }
+        var group = await db.PermissionGroups.SingleAsync(x => x.Id == id);
+        db.PermissionGroups.Remove(group);
+        await db.SaveChangesAsync();
+        if (_selectedGroupId == id) _selectedGroupId = null;
+        AppState.AddToast("گروه حذف شد.", ToastLevel.Success); await LoadAsync();
+    }
+
+    private async Task ToggleGroupPermission(Guid groupId, Guid permissionId, bool grant)
+    {
+        _saving = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var link = await db.PermissionGroupPermissions.SingleOrDefaultAsync(x => x.GroupId == groupId && x.PermissionId == permissionId);
+            if (grant && link is null) { db.PermissionGroupPermissions.Add(new PermissionGroupPermission(groupId, permissionId)); _selectedPermissionIds.Add(permissionId); }
+            else if (!grant && link is not null) { db.PermissionGroupPermissions.Remove(link); _selectedPermissionIds.Remove(permissionId); }
+            else return;
+            await db.SaveChangesAsync();
+            await LoadAsync();
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task SetGroupPermissions(Guid groupId, IReadOnlyList<PermissionRow> permissions, bool grant)
+    {
+        foreach (var permission in permissions)
+            await ToggleGroupPermission(groupId, permission.Id, grant);
+    }
+
+    private sealed record GroupRow(Guid Id, string Name, string? Description, int PermissionCount, int PositionAssignmentCount, int EmployeeAssignmentCount);
+    private sealed record PermissionRow(Guid Id, string Code, string Name);
+    private sealed record PermissionGroupView(string Title, IReadOnlyList<PermissionRow> Items);
+}
+
+<style>
+.admin-two-col{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:16px;align-items:start}.form-label{display:block;margin:12px 0 6px}.form-actions{display:flex;gap:8px;margin-top:13px}.group-help{margin-top:16px;padding:12px;border-radius:10px;background:#f8fafc;line-height:1.9}.group-editor{margin-top:16px}.group-editor-header{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:16px}.permission-search{display:flex;align-items:center;gap:8px;min-width:280px}.permission-search i{font-size:20px}.btn-sm{padding:7px 10px;font-size:12px}.action-cell{white-space:nowrap}@media(max-width:900px){.admin-two-col{grid-template-columns:1fr}.group-editor-header{flex-direction:column;align-items:stretch}.permission-search{min-width:0}}
+</style>
