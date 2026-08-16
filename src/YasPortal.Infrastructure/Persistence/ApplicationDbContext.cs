@@ -45,6 +45,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Name).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+
+            e.HasOne(x => x.ParentPosition)
+                .WithMany(x => x.Children)
+                .HasForeignKey(x => x.ParentPositionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EmployeePosition>(e =>
