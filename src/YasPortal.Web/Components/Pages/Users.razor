@@ -98,17 +98,17 @@
 
 @if (_selectedEmployeeId is Guid selectedId && _employees.FirstOrDefault(x => x.Id == selectedId) is EmployeeRow selected)
 {
-    <section class="card" style="margin-top:16px">
+    <section class="card permission-assignment-panel" style="margin-top:16px">
         <div class="page-header compact-header">
             <div>
                 <h2 class="section-title" style="margin:0">دسترسی‌های @selected.FullName</h2>
                 @if (selected.IsAdmin)
                 {
-                    <p class="page-subtitle">این کاربر <strong>مدیر سامانه</strong> است. مجوزها مستقیماً به مدیر اختصاص داده می‌شوند و هیچ سمتی لازم نیست.</p>
+                    <p class="page-subtitle">مدیر سامانه: مجوزها مستقیماً به حساب مدیر اختصاص داده می‌شوند؛ انتخاب سمت لازم نیست.</p>
                 }
                 else
                 {
-                    <p class="page-subtitle">مجوزهای کارمند فقط برای ترکیب «کارمند + سمت» انتخاب‌شده ذخیره می‌شوند.</p>
+                    <p class="page-subtitle">کارمند: ابتدا سمت را انتخاب کنید، سپس مجوزهای همان «کارمند + سمت» را تنظیم کنید.</p>
                 }
             </div>
             <button class="btn btn-secondary btn-sm" @onclick="ClearSelection">بستن</button>
@@ -116,27 +116,47 @@
 
         @if (selected.IsAdmin)
         {
-            <div class="admin-three-col">
+            <div class="permission-toolbar">
                 <div>
-                    <h3 class="sub-title">مجوزهای مدیر سامانه</h3>
-                    <p class="help-text">این مجوزها مستقل از سازمان و سمت هستند و فقط به همین حساب مدیر تعلق دارند.</p>
-                    @foreach (var p in _permissions)
-                    {
-                        <label class="assignment-row permission-row">
-                            <input type="checkbox" checked="@_directGrantedPermissionIds.Contains(p.Id)" disabled="@_savingPermission" @onchange="e => ToggleDirectPermission(selectedId, p.Id, e.Value is bool value && value)" />
-                            <span><strong>@p.Name</strong><small>@p.Code</small></span>
-                        </label>
-                    }
+                    <strong>مجوزهای مدیر سامانه</strong>
+                    <span class="permission-count">@_directGrantedPermissionIds.Count از @_permissions.Count انتخاب شده</span>
                 </div>
+                <div class="permission-search">
+                    <i class="bx bx-search"></i>
+                    <input class="form-control" placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput" />
+                </div>
+            </div>
+            <p class="help-text">مجوزها بر اساس بخش سامانه گروه‌بندی شده‌اند تا مدیریت آن‌ها ساده‌تر باشد.</p>
+            <div class="permission-groups">
+                @foreach (var group in FilteredPermissionGroups)
+                {
+                    <section class="permission-group">
+                        <div class="permission-group-header">
+                            <div><strong>@group.Title</strong><span>@group.Items.Count مجوز</span></div>
+                            <div class="permission-group-actions">
+                                <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupForAdmin(selectedId, group, true)">همه</button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupForAdmin(selectedId, group, false)">هیچ‌کدام</button>
+                            </div>
+                        </div>
+                        <div class="permission-grid">
+                            @foreach (var p in group.Items)
+                            {
+                                <label class="permission-card @( _directGrantedPermissionIds.Contains(p.Id) ? "granted" : "")">
+                                    <input type="checkbox" checked="@_directGrantedPermissionIds.Contains(p.Id)" disabled="@_savingPermission" @onchange="e => ToggleDirectPermission(selectedId, p.Id, e.Value is bool value && value)" />
+                                    <span><strong>@p.Name</strong><small>@p.Code</small></span>
+                                </label>
+                            }
+                        </div>
+                    </section>
+                }
             </div>
         }
         else
         {
             <div class="admin-three-col">
                 <div>
-                    <h3 class="sub-title">تخصیص سمت به کارمند</h3>
-                    <p class="help-text">هر کارمند می‌تواند چند سمت داشته باشد. هر سمت فقط یک مالک فعال دارد.</p>
-
+                    <h3 class="sub-title">سمت‌های کارمند</h3>
+                    <p class="help-text">هر کارمند می‌تواند چند سمت داشته باشد؛ هر سمت فقط یک مالک فعال دارد.</p>
                     @foreach (var p in _positions)
                     {
                         var link = _employeePositions.FirstOrDefault(x => x.PositionId == p.Id);
@@ -176,29 +196,43 @@
 
                 <div>
                     <h3 class="sub-title">مجوزهای کارمند بر اساس سمت</h3>
-                    <p class="help-text">یک سمت فعال را انتخاب کنید. مجوزهای این بخش فقط برای همان «کارمند + سمت» هستند.</p>
-                    <select class="form-control" @bind="_permissionPositionId" @bind:after="PermissionPositionChanged">
-                        <option value="@Guid.Empty">انتخاب سمت تخصیص‌یافته</option>
-                        @foreach (var p in _employeePositions.Where(x => x.IsActive).OrderBy(x => x.PositionName))
-                        {
-                            <option value="@p.PositionId">@p.PositionName</option>
-                        }
-                    </select>
-
                     @if (_permissionPositionId != Guid.Empty)
                     {
-                        <div class="selected-position-note"><i class="bx bx-info-circle"></i><span>مجوزهای <strong>@selected.FullName + @SelectedPermissionPositionName</strong></span></div>
-                        @foreach (var p in _permissions)
-                        {
-                            <label class="assignment-row permission-row">
-                                <input type="checkbox" checked="@_grantedPermissionIds.Contains(p.Id)" disabled="@_savingPermission" @onchange="e => TogglePermission(selectedId, _permissionPositionId, p.Id, e.Value is bool value && value)" />
-                                <span><strong>@p.Name</strong><small>@p.Code</small></span>
-                            </label>
-                        }
+                        <div class="selected-position-note"><i class="bx bx-id-card"></i><span><strong>@selected.FullName + @SelectedPermissionPositionName</strong></span></div>
+                        <div class="permission-toolbar">
+                            <div><span class="permission-count">@_grantedPermissionIds.Count از @_permissions.Count انتخاب شده</span></div>
+                            <div class="permission-search">
+                                <i class="bx bx-search"></i>
+                                <input class="form-control" placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput" />
+                            </div>
+                        </div>
+                        <div class="permission-groups">
+                            @foreach (var group in FilteredPermissionGroups)
+                            {
+                                <section class="permission-group">
+                                    <div class="permission-group-header">
+                                        <div><strong>@group.Title</strong><span>@group.Items.Count مجوز</span></div>
+                                        <div class="permission-group-actions">
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupForEmployee(selectedId, _permissionPositionId, group, true)">همه</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => SetGroupForEmployee(selectedId, _permissionPositionId, group, false)">هیچ‌کدام</button>
+                                        </div>
+                                    </div>
+                                    <div class="permission-grid">
+                                        @foreach (var p in group.Items)
+                                        {
+                                            <label class="permission-card @( _grantedPermissionIds.Contains(p.Id) ? "granted" : "")">
+                                                <input type="checkbox" checked="@_grantedPermissionIds.Contains(p.Id)" disabled="@_savingPermission" @onchange="e => TogglePermission(selectedId, _permissionPositionId, p.Id, e.Value is bool value && value)" />
+                                                <span><strong>@p.Name</strong><small>@p.Code</small></span>
+                                            </label>
+                                        }
+                                    </div>
+                                </section>
+                            }
+                        </div>
                     }
                     else
                     {
-                        <div class="empty-state">ابتدا حداقل یک سمت را به این کارمند تخصیص دهید.</div>
+                        <div class="empty-state">ابتدا حداقل یک سمت فعال را به این کارمند تخصیص دهید.</div>
                     }
                 </div>
             </div>
@@ -221,6 +255,7 @@
     private string _username = "";
     private string _fullName = "";
     private string _password = "";
+    private string _permissionSearch = "";
     private bool _isAdmin;
     private bool _savingPermission;
     private bool _savingPosition;
@@ -228,6 +263,31 @@
     private HashSet<Guid> _directGrantedPermissionIds = [];
 
     private string SelectedPermissionPositionName => _employeePositions.FirstOrDefault(x => x.PositionId == _permissionPositionId && x.IsActive)?.PositionName ?? "";
+
+    private IReadOnlyList<PermissionGroup> FilteredPermissionGroups =>
+        _permissions
+            .Where(p => string.IsNullOrWhiteSpace(_permissionSearch) || p.Name.Contains(_permissionSearch, StringComparison.OrdinalIgnoreCase) || p.Code.Contains(_permissionSearch, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(p => PermissionGroupTitle(p.Code), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key)
+            .Select(g => new PermissionGroup(g.Key, g.OrderBy(p => p.Code).ToList()))
+            .ToList();
+
+    private static string PermissionGroupTitle(string code)
+    {
+        var prefix = code.Split('.', 2)[0];
+        return prefix switch
+        {
+            "Dashboard" => "داشبورد",
+            "Profile" => "پروفایل",
+            "Requests" => "درخواست‌ها و گردش‌کار",
+            "Employees" => "کارکنان",
+            "Organizations" => "سازمان‌ها",
+            "Positions" => "سمت‌ها",
+            "Permissions" => "مجوزها",
+            "Admin" => "مدیریت سامانه",
+            _ => prefix
+        };
+    }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -250,6 +310,7 @@
         _permissionPositionId = Guid.Empty;
         _grantedPermissionIds = [];
         _directGrantedPermissionIds = [];
+        _permissionSearch = "";
 
         if (employee?.IsAdmin == true)
         {
@@ -390,6 +451,19 @@
         finally { _savingPermission = false; }
     }
 
+    private async Task SetGroupForEmployee(Guid employeeId, Guid positionId, PermissionGroup group, bool grant)
+    {
+        if (positionId == Guid.Empty) return;
+        foreach (var permission in group.Items)
+            await TogglePermission(employeeId, positionId, permission.Id, grant);
+    }
+
+    private async Task SetGroupForAdmin(Guid employeeId, PermissionGroup group, bool grant)
+    {
+        foreach (var permission in group.Items)
+            await ToggleDirectPermission(employeeId, permission.Id, grant);
+    }
+
     private async Task ToggleDirectPermission(Guid employeeId, Guid permissionId, bool grant)
     {
         _savingPermission = true;
@@ -412,4 +486,5 @@
     private sealed record PositionRow(Guid Id, string Name);
     private sealed record PermissionRow(Guid Id, string Code, string Name);
     private sealed record EmployeePositionRow(Guid PositionId, string PositionName, bool IsActive);
+    private sealed record PermissionGroup(string Title, IReadOnlyList<PermissionRow> Items);
 }
