@@ -59,7 +59,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<PositionAssignmentHistory>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.StartedAt).IsRequired();
             e.HasIndex(x => new { x.EmployeeId, x.StartedAt });
             e.HasIndex(x => new { x.PositionId, x.StartedAt });
             e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL");
