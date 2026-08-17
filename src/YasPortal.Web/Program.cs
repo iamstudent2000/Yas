@@ -97,6 +97,22 @@ if (app.Environment.IsDevelopment())
         END;
         """);
 
+    // Preserve the assignments that already existed before history tracking was introduced.
+    // Their original start date is unknown, so StartedAt intentionally remains NULL.
+    await db.Database.ExecuteSqlRawAsync("""
+        INSERT INTO [dbo].[PositionAssignmentHistories] ([Id], [EmployeeId], [PositionId], [StartedAt], [EndedAt])
+        SELECT NEWID(), ep.[EmployeeId], ep.[PositionId], NULL, ep.[EndedAt]
+        FROM [dbo].[EmployeePositions] ep
+        WHERE NOT EXISTS
+        (
+            SELECT 1
+            FROM [dbo].[PositionAssignmentHistories] h
+            WHERE h.[EmployeeId] = ep.[EmployeeId]
+              AND h.[PositionId] = ep.[PositionId]
+              AND ((h.[EndedAt] IS NULL AND ep.[EndedAt] IS NULL) OR (h.[EndedAt] = ep.[EndedAt]))
+        );
+        """);
+
     await db.Database.ExecuteSqlRawAsync("""
         IF EXISTS (
             SELECT 1
