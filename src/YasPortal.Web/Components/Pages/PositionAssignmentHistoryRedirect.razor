@@ -1,0 +1,19 @@
+@page "/admin/positions/history"
+@page "/admin/employees/assignment-history"
+@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager Navigation
+@attribute [Authorize(Policy = "Admin.Positions")]
+
+<div dir="rtl" class="empty-state">
+    <i class="bx bx-loader-alt bx-spin"></i>
+    <span>در حال انتقال به سوابق تخصیص...</span>
+</div>
+
+@code {
+    protected override void OnInitialized()
+        => Navigation.NavigateTo("/admin/assignment-history", replace: true);
+}
+
+<style>
+.empty-state{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#667085}
+</style>
