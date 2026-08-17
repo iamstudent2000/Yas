@@ -3,7 +3,10 @@
 @implements IAsyncDisposable
 
 <div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
-    <button type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync"><span class="server-lookup-value">@(SelectedText ?? _selectedDisplayText ?? Placeholder)</span><i class="bx bx-chevron-down"></i></button>
+    <button type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync">
+        <span class="server-lookup-value">@(string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ?? Placeholder) : SelectedText)</span>
+        <i class="bx bx-chevron-down"></i>
+    </button>
     @if (_open && !Disabled)
     {
         <div class="server-lookup-menu">
@@ -27,10 +30,8 @@
 
     protected override void OnParametersSet()
     {
-        // Keep the text chosen from the server-search result when the parent rerenders.
-        // Many pages intentionally keep SelectedText empty because only the selected Id
-        // is stored in the parent. Do not overwrite our locally selected display text with
-        // that empty value.
+        // The parent may intentionally keep SelectedText empty and only store the selected Id.
+        // In that case keep the text returned by the searchable selector itself.
         if (Value is null)
             _selectedDisplayText = null;
         else if (!string.IsNullOrWhiteSpace(SelectedText))
