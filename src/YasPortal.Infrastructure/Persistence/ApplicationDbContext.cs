@@ -11,6 +11,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<EmployeePosition> EmployeePositions => Set<EmployeePosition>();
+    public DbSet<PositionAssignmentHistory> PositionAssignmentHistories => Set<PositionAssignmentHistory>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserPositionPermission> UserPositionPermissions => Set<UserPositionPermission>();
     public DbSet<EmployeePermission> EmployeePermissions => Set<EmployeePermission>();
@@ -53,6 +54,17 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasOne(x => x.Employee).WithMany(x => x.Positions).HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL");
+        });
+
+        modelBuilder.Entity<PositionAssignmentHistory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.StartedAt).IsRequired();
+            e.HasIndex(x => new { x.EmployeeId, x.StartedAt });
+            e.HasIndex(x => new { x.PositionId, x.StartedAt });
+            e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL");
+            e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Permission>(e =>
