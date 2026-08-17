@@ -20,6 +20,82 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<UserPositionPermissionGroup> UserPositionPermissionGroups => Set<UserPositionPermissionGroup>();
     public DbSet<EmployeePermissionGroup> EmployeePermissionGroups => Set<EmployeePermissionGroup>();
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        CaptureAssignmentHistory();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        await CaptureAssignmentHistoryAsync(cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void CaptureAssignmentHistory()
+    {
+        var entries = ChangeTracker.Entries<EmployeePosition>().ToList();
+
+        foreach (var entry in entries.Where(x => x.State == EntityState.Added))
+        {
+            if (!PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
+                PositionAssignmentHistories.Add(new PositionAssignmentHistory(entry.Entity.EmployeeId, entry.Entity.PositionId));
+        }
+
+        foreach (var entry in entries.Where(x => x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified))
+        {
+            var originalEndedAt = entry.Property(x => x.EndedAt).OriginalValue;
+            var currentEndedAt = entry.Property(x => x.EndedAt).CurrentValue;
+
+            if (originalEndedAt is null && currentEndedAt is not null)
+            {
+                var activeHistory = PositionAssignmentHistories.Local
+                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null);
+
+                if (activeHistory is not null)
+                    activeHistory.End(currentEndedAt);
+            }
+            else if (originalEndedAt is not null && currentEndedAt is null)
+            {
+                if (!PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
+                    PositionAssignmentHistories.Add(new PositionAssignmentHistory(entry.Entity.EmployeeId, entry.Entity.PositionId));
+            }
+        }
+    }
+
+    private async Task CaptureAssignmentHistoryAsync(CancellationToken cancellationToken)
+    {
+        var entries = ChangeTracker.Entries<EmployeePosition>().ToList();
+
+        foreach (var entry in entries.Where(x => x.State == EntityState.Added))
+        {
+            if (!PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
+                PositionAssignmentHistories.Add(new PositionAssignmentHistory(entry.Entity.EmployeeId, entry.Entity.PositionId));
+        }
+
+        foreach (var entry in entries.Where(x => x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified))
+        {
+            var originalEndedAt = entry.Property(x => x.EndedAt).OriginalValue;
+            var currentEndedAt = entry.Property(x => x.EndedAt).CurrentValue;
+
+            if (originalEndedAt is null && currentEndedAt is not null)
+            {
+                var activeHistory = PositionAssignmentHistories.Local
+                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null);
+
+                activeHistory ??= await PositionAssignmentHistories
+                    .FirstOrDefaultAsync(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null, cancellationToken);
+
+                activeHistory?.End(currentEndedAt);
+            }
+            else if (originalEndedAt is not null && currentEndedAt is null)
+            {
+                if (!PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
+                    PositionAssignmentHistories.Add(new PositionAssignmentHistory(entry.Entity.EmployeeId, entry.Entity.PositionId));
+            }
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Organization>(e =>
