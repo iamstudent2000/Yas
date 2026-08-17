@@ -1,0 +1,153 @@
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Infrastructure.Persistence
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<section class="position-history-panel">
+    <div class="history-panel-head">
+        <div>
+            <div class="eyebrow">تاریخچه سمت</div>
+            <h3><i class="bx bx-history"></i> سوابق تخصیص «@PositionName»</h3>
+            <p>تمام کارکنانی که در طول زمان به این سمت تخصیص داشته‌اند نمایش داده می‌شوند.</p>
+        </div>
+        <div class="history-count">@_rows.Count سابقه</div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="history-loading"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری سوابق...</div>
+    }
+    else if (_rows.Count == 0)
+    {
+        <div class="history-empty">
+            <i class="bx bx-history"></i>
+            <div>
+                <strong>هنوز سابقه‌ای برای این سمت ثبت نشده است.</strong>
+                <span>پس از تخصیص و آزادسازی، سوابق این سمت اینجا باقی می‌ماند.</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="history-list">
+            @foreach (var row in _rows)
+            {
+                <div class="history-row">
+                    <div class="history-person">
+                        <span class="history-avatar"><i class="bx bx-user"></i></span>
+                        <div>
+                            <strong>@row.EmployeeName</strong>
+                            <small>@row.Username</small>
+                        </div>
+                    </div>
+                    <div class="history-date">
+                        <span>شروع</span>
+                        <strong>@FormatDate(row.StartedAt)</strong>
+                    </div>
+                    <div class="history-date">
+                        <span>پایان</span>
+                        <strong>@FormatDate(row.EndedAt)</strong>
+                    </div>
+                    @if (row.EndedAt is null)
+                    {
+                        <span class="history-status active"><i class="bx bx-check-circle"></i> فعال</span>
+                    }
+                    else
+                    {
+                        <span class="history-status ended"><i class="bx bx-history"></i> پایان‌یافته</span>
+                    }
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public Guid PositionId { get; set; }
+
+    private List<HistoryRow> _rows = [];
+    private bool _loading;
+    private Guid _loadedPositionId;
+
+    private string PositionName { get; set; } = "سمت";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (PositionId == Guid.Empty || PositionId == _loadedPositionId)
+            return;
+
+        _loadedPositionId = PositionId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            PositionName = await db.Positions.AsNoTracking()
+                .Where(x => x.Id == PositionId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync() ?? "سمت";
+
+            _rows = await db.PositionAssignmentHistories.AsNoTracking()
+                .Where(x => x.PositionId == PositionId)
+                .OrderByDescending(x => x.StartedAt ?? DateTime.MinValue)
+                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue)
+                .Select(x => new HistoryRow(
+                    x.Id,
+                    x.Employee.FullName,
+                    x.Employee.Username,
+                    x.StartedAt,
+                    x.EndedAt))
+                .ToListAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string FormatDate(DateTime? value) => value is null
+        ? "—"
+        : value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+
+    private sealed record HistoryRow(
+        Guid Id,
+        string EmployeeName,
+        string Username,
+        DateTime? StartedAt,
+        DateTime? EndedAt);
+}
+
+<style>
+.position-history-panel{margin-top:14px;border:1px solid #eaecf0;border-radius:14px;background:#fff;overflow:hidden}
+.history-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:15px 16px;background:#f8fafc;border-bottom:1px solid #eaecf0}
+.history-panel-head h3{display:flex;align-items:center;gap:7px;margin:0;font-size:14px;color:#101828}
+.history-panel-head h3 i{font-size:18px;color:#667085}
+.history-panel-head p{margin:5px 0 0;color:#667085;font-size:11px}
+.history-count{padding:5px 9px;border-radius:999px;background:#fff;border:1px solid #eaecf0;color:#667085;font-size:10px;font-weight:700;white-space:nowrap}
+.history-loading,.history-empty{display:flex;align-items:center;justify-content:center;gap:9px;min-height:110px;padding:18px;color:#667085;font-size:12px}
+.history-empty{justify-content:flex-start;padding:18px 20px}
+.history-empty>i{font-size:25px;flex:0 0 auto}
+.history-empty div{display:flex;flex-direction:column;gap:3px}
+.history-empty span{font-size:11px;color:#98a2b3}
+.history-list{display:flex;flex-direction:column}
+.history-row{display:grid;grid-template-columns:minmax(220px,1fr) 150px 150px 105px;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid #f2f4f7}
+.history-row:last-child{border-bottom:0}
+.history-row:hover{background:#fcfcfd}
+.history-person{display:flex;align-items:center;gap:9px;min-width:0}
+.history-person>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.history-person strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-person small{font-size:10px;color:#98a2b3;direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-avatar{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:#f2f4f7;color:#667085;flex:0 0 auto}
+.history-date{display:flex;flex-direction:column;gap:2px}
+.history-date span{font-size:9px;color:#98a2b3}
+.history-date strong{font-size:11px;color:#475467;direction:ltr;text-align:right}
+.history-status{justify-self:start;display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border-radius:999px;font-size:9px;font-weight:700;white-space:nowrap}
+.history-status.active{background:#ecfdf3;color:#027a48}
+.history-status.ended{background:#f2f4f7;color:#667085}
+@@media (max-width:850px){.history-row{grid-template-columns:1fr 1fr}.history-person{grid-column:1/-1}.history-status{justify-self:end}}
+@@media (max-width:520px){.history-panel-head{flex-direction:column}.history-row{grid-template-columns:1fr}.history-status{justify-self:start}}
+</style>
