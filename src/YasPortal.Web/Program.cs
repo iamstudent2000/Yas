@@ -202,7 +202,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 
     var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList();
     claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, new CookieAuthenticationDefaults.AuthenticationScheme)));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
 
     if (returnUrl.StartsWith('/') && Uri.TryCreate(returnUrl, UriKind.Relative, out var relativeUri) && !relativeUri.IsAbsoluteUri)
         return Results.Redirect(returnUrl);
