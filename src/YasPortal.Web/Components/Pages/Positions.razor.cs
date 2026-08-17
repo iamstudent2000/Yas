@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 
 namespace YasPortal.Web.Components.Pages;
 
@@ -20,7 +21,36 @@ public partial class Positions
         if (employee is null || employee.IsAdmin)
             return;
 
-        _employeeToAssign = employeeId;
-        _employeeToAssignName = employee.FullName;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var positionIds = await db.EmployeePositions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .OrderBy(x => x.StartedAt)
+            .Select(x => x.PositionId)
+            .ToListAsync();
+
+        var selectedPositionId = positionIds.FirstOrDefault(id => _positions.Any(p => p.Id == id));
+        if (selectedPositionId != Guid.Empty)
+        {
+            _selectedPositionId = selectedPositionId;
+            _employeeToAssign = null;
+            _employeeToAssignName = "";
+
+            var current = _positions.FirstOrDefault(x => x.Id == selectedPositionId);
+            while (current?.ParentPositionId is Guid parentId)
+            {
+                _collapsedNodeIds.Remove(parentId);
+                current = _positions.FirstOrDefault(x => x.Id == parentId);
+            }
+
+            await LoadSelectedAssignmentAsync(selectedPositionId);
+        }
+        else
+        {
+            _selectedPositionId = null;
+            _employeeToAssign = employeeId;
+            _employeeToAssignName = employee.FullName;
+        }
     }
 }
