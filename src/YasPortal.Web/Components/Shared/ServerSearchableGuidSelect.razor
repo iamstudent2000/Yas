@@ -26,23 +26,50 @@
     [Parameter] public string SearchPlaceholder { get; set; }="جستجو...";
     [Parameter] public string? SelectedText { get; set; }
     [Parameter] public bool Disabled { get; set; }
-    private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private string? _selectedDisplayText;private bool _open,_loading;private CancellationTokenSource? _cts;
+    private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private string? _selectedDisplayText;private bool _open,_loading;private CancellationTokenSource? _cts;private Guid? _resolvedValue;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        // The parent may intentionally keep SelectedText empty and only store the selected Id.
-        // In that case keep the text returned by the searchable selector itself.
         if (Value is null)
+        {
             _selectedDisplayText = null;
-        else if (!string.IsNullOrWhiteSpace(SelectedText))
+            _resolvedValue = null;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(SelectedText))
+        {
             _selectedDisplayText = SelectedText;
+            _resolvedValue = Value;
+            return;
+        }
+
+        // A parent can preselect an item by supplying only its Guid (for example
+        // when navigating from /admin/users). Resolve its display text so the
+        // selector does not appear empty and force the admin to select it again.
+        if (_resolvedValue == Value && !string.IsNullOrWhiteSpace(_selectedDisplayText))
+            return;
+
+        try
+        {
+            var options = await SearchAsync(string.Empty, CancellationToken.None);
+            var selected = options.FirstOrDefault(x => x.Id == Value.Value);
+            _selectedDisplayText = selected?.Text;
+            _resolvedValue = Value;
+        }
+        catch
+        {
+            // Keep rendering safe if the backing lookup fails. The selector can
+            // still be opened and searched normally.
+            _resolvedValue = null;
+        }
     }
 
     private async Task ToggleAsync(){_open=!_open;if(_open){_search="";await SearchNowAsync();await Task.Yield();await _input.FocusAsync();}}
     private Task SearchInputChanged(ChangeEventArgs e){_search=e.Value?.ToString()??"";return SearchNowAsync();}
     private async Task SearchNowAsync(){_cts?.Cancel();_cts?.Dispose();_cts=new();var token=_cts.Token;_loading=true;try{await Task.Delay(180,token);_options=(await SearchAsync(_search,token)).ToList();}catch(OperationCanceledException){}finally{if(!token.IsCancellationRequested)_loading=false;}}
     private Task HandleKeyDown(KeyboardEventArgs e){if(e.Key=="Escape")_open=false;return Task.CompletedTask;}
-    private async Task SelectAsync(AdminQueryService.LookupItem option){_open=false;_search="";_selectedDisplayText=option.Text;if(Value!=option.Id)await ValueChanged.InvokeAsync(option.Id);}
+    private async Task SelectAsync(AdminQueryService.LookupItem option){_open=false;_search="";_selectedDisplayText=option.Text;_resolvedValue=option.Id;if(Value!=option.Id)await ValueChanged.InvokeAsync(option.Id);}
     public ValueTask DisposeAsync(){_cts?.Cancel();_cts?.Dispose();return ValueTask.CompletedTask;}
 }
 
