@@ -26,7 +26,6 @@ public partial class Positions
         var positionIds = await db.EmployeePositions
             .AsNoTracking()
             .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
-            .OrderBy(x => x.StartedAt)
             .Select(x => x.PositionId)
             .ToListAsync();
 
