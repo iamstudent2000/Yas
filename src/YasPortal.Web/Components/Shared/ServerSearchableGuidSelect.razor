@@ -24,7 +24,19 @@
     [Parameter] public string? SelectedText { get; set; }
     [Parameter] public bool Disabled { get; set; }
     private ElementReference _input;private List<AdminQueryService.LookupItem> _options=[];private string _search="";private string? _selectedDisplayText;private bool _open,_loading;private CancellationTokenSource? _cts;
-    protected override void OnParametersSet(){if(SelectedText is not null)_selectedDisplayText=SelectedText;}
+
+    protected override void OnParametersSet()
+    {
+        // Keep the text chosen from the server-search result when the parent rerenders.
+        // Many pages intentionally keep SelectedText empty because only the selected Id
+        // is stored in the parent. Do not overwrite our locally selected display text with
+        // that empty value.
+        if (Value is null)
+            _selectedDisplayText = null;
+        else if (!string.IsNullOrWhiteSpace(SelectedText))
+            _selectedDisplayText = SelectedText;
+    }
+
     private async Task ToggleAsync(){_open=!_open;if(_open){_search="";await SearchNowAsync();await Task.Yield();await _input.FocusAsync();}}
     private Task SearchInputChanged(ChangeEventArgs e){_search=e.Value?.ToString()??"";return SearchNowAsync();}
     private async Task SearchNowAsync(){_cts?.Cancel();_cts?.Dispose();_cts=new();var token=_cts.Token;_loading=true;try{await Task.Delay(180,token);_options=(await SearchAsync(_search,token)).ToList();}catch(OperationCanceledException){}finally{if(!token.IsCancellationRequested)_loading=false;}}
