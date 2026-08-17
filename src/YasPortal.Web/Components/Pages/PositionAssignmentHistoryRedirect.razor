@@ -10,8 +10,11 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
-        => Navigation.NavigateTo("/admin/assignment-history", replace: true);
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            Navigation.NavigateTo("/admin/assignment-history", replace: true);
+    }
 }
 
 <style>
