@@ -3,6 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
+@using YasPortal.Web.Components.Shared
 @attribute [Authorize(Policy = "Admin.Positions")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
@@ -279,6 +280,6 @@
 .info-card span{font-size:11px;line-height:1.7;color:#667085}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:220px;color:#667085}
 .empty-icon{font-size:34px}
-@media (max-width:1000px){.filters-grid{grid-template-columns:1fr 1fr}.filter-action{grid-column:1/-1}.info-grid{grid-template-columns:1fr}}
-@media (max-width:650px){.filters-grid{grid-template-columns:1fr}.filters-head{flex-direction:column}.page-size{display:none}}
+@@media (max-width:1000px){.filters-grid{grid-template-columns:1fr 1fr}.filter-action{grid-column:1/-1}.info-grid{grid-template-columns:1fr}}
+@@media (max-width:650px){.filters-grid{grid-template-columns:1fr}.filters-head{flex-direction:column}.page-size{display:none}}
 </style>
