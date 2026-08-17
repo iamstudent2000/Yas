@@ -1,7 +1,7 @@
 namespace YasPortal.Domain.Organization;
 
 /// <summary>
-/// Immutable record of an employee occupying a position during a period of time.
+/// Historical record of an employee occupying a position during a period of time.
 /// The current EmployeePosition row remains the fast current-state relationship;
 /// this entity preserves every assignment interval, including repeated assignments.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class PositionAssignmentHistory
     public Guid Id { get; private set; }
     public Guid EmployeeId { get; private set; }
     public Guid PositionId { get; private set; }
-    public DateTime StartedAt { get; private set; }
+    public DateTime? StartedAt { get; private set; }
     public DateTime? EndedAt { get; private set; }
 
     public Employee Employee { get; private set; } = null!;
@@ -37,7 +37,7 @@ public sealed class PositionAssignmentHistory
             return;
 
         var value = endedAt ?? DateTime.UtcNow;
-        if (value < StartedAt)
+        if (StartedAt is DateTime start && value < start)
             throw new InvalidOperationException("Assignment end time cannot be before its start time.");
 
         EndedAt = value;
