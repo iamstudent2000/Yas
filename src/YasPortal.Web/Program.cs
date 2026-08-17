@@ -69,6 +69,34 @@ if (app.Environment.IsDevelopment())
 
     await db.Database.EnsureCreatedAsync();
 
+    // Ensure the assignment-history table also exists when an existing development
+    // database was created before the history feature was added.
+    await db.Database.ExecuteSqlRawAsync("""
+        IF OBJECT_ID(N'dbo.PositionAssignmentHistories', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[PositionAssignmentHistories]
+            (
+                [Id] uniqueidentifier NOT NULL,
+                [EmployeeId] uniqueidentifier NOT NULL,
+                [PositionId] uniqueidentifier NOT NULL,
+                [StartedAt] datetime2 NULL,
+                [EndedAt] datetime2 NULL,
+                CONSTRAINT [PK_PositionAssignmentHistories] PRIMARY KEY ([Id]),
+                CONSTRAINT [FK_PositionAssignmentHistories_Employees_EmployeeId]
+                    FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE CASCADE,
+                CONSTRAINT [FK_PositionAssignmentHistories_Positions_PositionId]
+                    FOREIGN KEY ([PositionId]) REFERENCES [dbo].[Positions] ([Id]) ON DELETE NO ACTION
+            );
+            CREATE INDEX [IX_PositionAssignmentHistories_EmployeeId_StartedAt]
+                ON [dbo].[PositionAssignmentHistories] ([EmployeeId], [StartedAt]);
+            CREATE INDEX [IX_PositionAssignmentHistories_PositionId_StartedAt]
+                ON [dbo].[PositionAssignmentHistories] ([PositionId], [StartedAt]);
+            CREATE UNIQUE INDEX [IX_PositionAssignmentHistories_PositionId]
+                ON [dbo].[PositionAssignmentHistories] ([PositionId])
+                WHERE [EndedAt] IS NULL;
+        END;
+        """);
+
     await db.Database.ExecuteSqlRawAsync("""
         IF EXISTS (
             SELECT 1
@@ -174,7 +202,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 
     var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList();
     claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, new CookieAuthenticationDefaults.AuthenticationScheme)));
 
     if (returnUrl.StartsWith('/') && Uri.TryCreate(returnUrl, UriKind.Relative, out var relativeUri) && !relativeUri.IsAbsoluteUri)
         return Results.Redirect(returnUrl);
