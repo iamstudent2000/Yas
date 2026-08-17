@@ -10,6 +10,7 @@ public interface IApplicationDbContext
     DbSet<Employee> Employees { get; }
     DbSet<Position> Positions { get; }
     DbSet<EmployeePosition> EmployeePositions { get; }
+    DbSet<PositionAssignmentHistory> PositionAssignmentHistories { get; }
     DbSet<Permission> Permissions { get; }
     DbSet<UserPositionPermission> UserPositionPermissions { get; }
     DbSet<EmployeePermission> EmployeePermissions { get; }
