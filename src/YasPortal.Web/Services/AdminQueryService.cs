@@ -14,7 +14,8 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
     public sealed record EmployeeSummary(Guid Id, string Username, string FullName, bool IsAdmin, Guid? LastActivePositionId);
     public sealed record PermissionUsageDetails(Guid PermissionId,string PermissionName,string PermissionCode,IReadOnlyList<DirectPermissionUsage> DirectAssignments,IReadOnlyList<GroupPermissionUsage> Groups);
     public sealed record DirectPermissionUsage(Guid EmployeeId,string EmployeeName,string Username,Guid? PositionId,string? PositionName,string Source);
-    public sealed record GroupPermissionUsage(Guid GroupId,string GroupName,string? Description,int PermissionCount,int AssignedEmployeeCount,string Source);
+    public sealed record GroupAssignmentUsage(Guid EmployeeId,string EmployeeName,string Username,string? PositionName,string Source);
+    public sealed record GroupPermissionUsage(Guid GroupId,string GroupName,string? Description,int PermissionCount,int AssignedEmployeeCount,string Source,IReadOnlyList<GroupAssignmentUsage> Assignments);
 
     public async Task<EmployeeSummary?> GetEmployeeAsync(Guid id,CancellationToken ct=default){await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Employees.AsNoTracking().Where(x=>x.Id==id).Select(x=>new EmployeeSummary(x.Id,x.Username,x.FullName,x.IsAdmin,x.LastActivePositionId)).SingleOrDefaultAsync(ct);}
     public async Task<IReadOnlyList<LookupItem>> SearchEmployeesAsync(string? search,CancellationToken ct=default){var q=Normalize(search);await using var db=await dbFactory.CreateDbContextAsync(ct);return await db.Employees.AsNoTracking().Where(x=>q==""||x.FullName.Contains(q)||x.Username.Contains(q)).OrderBy(x=>x.FullName).Take(30).Select(x=>new LookupItem(x.Id,x.FullName+" — "+x.Username+(x.IsAdmin?" (مدیر سامانه)":" (کارمند)"))).ToListAsync(ct);}
@@ -31,9 +32,6 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var permission=await db.Permissions.AsNoTracking().Where(x=>x.Id==permissionId).Select(x=>new{x.Id,x.Name,x.Code}).SingleOrDefaultAsync(ct);
         if(permission is null)return null;
 
-        // A permission can be assigned to the same employee through several positions.
-        // Return one compact employee row and show ALL of that employee's positions instead
-        // of making the admin believe that only one position uses the permission.
         var positionAssignments=await db.UserPositionPermissions.AsNoTracking()
             .Where(x=>x.PermissionId==permissionId)
             .OrderBy(x=>x.Employee.FullName).ThenBy(x=>x.Position.Name)
@@ -48,42 +46,47 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
 
         var direct=positionAssignments
             .GroupBy(x=>new{x.EmployeeId,x.FullName,x.Username})
-            .Select(g=>new DirectPermissionUsage(
-                g.Key.EmployeeId,
-                g.Key.FullName,
-                g.Key.Username,
-                g.Count()==1?g.First().PositionId:null,
-                string.Join("، ",g.Select(x=>x.Name).Distinct()),
-                "سمت‌ها"))
+            .Select(g=>new DirectPermissionUsage(g.Key.EmployeeId,g.Key.FullName,g.Key.Username,g.Count()==1?g.First().PositionId,string.Join("، ",g.Select(x=>x.Name).Distinct()),"سمت‌ها"))
             .ToList();
 
         foreach(var employee in employeeAssignments)
         {
             var existing=direct.FirstOrDefault(x=>x.EmployeeId==employee.EmployeeId);
-            if(existing is null)
-            {
-                direct.Add(new DirectPermissionUsage(employee.EmployeeId,employee.FullName,employee.Username,null,null,"مستقیم به کارمند"));
-            }
-            else
-            {
-                var index=direct.IndexOf(existing);
-                direct[index]=existing with { Source="سمت‌ها + مستقیم به کارمند" };
-            }
+            if(existing is null) direct.Add(new DirectPermissionUsage(employee.EmployeeId,employee.FullName,employee.Username,null,null,"مستقیم به کارمند"));
+            else { var index=direct.IndexOf(existing); direct[index]=existing with { Source="سمت‌ها + مستقیم به کارمند" }; }
         }
-
         direct=direct.OrderBy(x=>x.EmployeeName).ToList();
 
-        var groups=await db.PermissionGroupPermissions.AsNoTracking()
+        var groupRows=await db.PermissionGroupPermissions.AsNoTracking()
             .Where(x=>x.PermissionId==permissionId)
             .OrderBy(x=>x.Group.Name)
-            .Select(x=>new GroupPermissionUsage(
-                x.GroupId,
-                x.Group.Name,
-                x.Group.Description,
-                db.PermissionGroupPermissions.Count(g=>g.GroupId==x.GroupId),
-                db.UserPositionPermissionGroups.Count(a=>a.GroupId==x.GroupId)+db.EmployeePermissionGroups.Count(a=>a.GroupId==x.GroupId),
-                "گروه مجوز"))
+            .Select(x=>new { x.GroupId,x.Group.Name,x.Group.Description,PermissionCount=db.PermissionGroupPermissions.Count(g=>g.GroupId==x.GroupId),AssignedEmployeeCount=db.UserPositionPermissionGroups.Count(a=>a.GroupId==x.GroupId)+db.EmployeePermissionGroups.Count(a=>a.GroupId==x.GroupId) })
             .ToListAsync(ct);
+
+        var groupIds=groupRows.Select(x=>x.GroupId).ToArray();
+        var positionGroupAssignments=await db.UserPositionPermissionGroups.AsNoTracking()
+            .Where(x=>groupIds.Contains(x.GroupId))
+            .OrderBy(x=>x.GroupId).ThenBy(x=>x.Employee.FullName).ThenBy(x=>x.Position.Name)
+            .Select(x=>new { x.GroupId,x.EmployeeId,x.Employee.FullName,x.Employee.Username,PositionName=x.Position.Name })
+            .ToListAsync(ct);
+        var employeeGroupAssignments=await db.EmployeePermissionGroups.AsNoTracking()
+            .Where(x=>groupIds.Contains(x.GroupId))
+            .OrderBy(x=>x.GroupId).ThenBy(x=>x.Employee.FullName)
+            .Select(x=>new { x.GroupId,x.EmployeeId,x.Employee.FullName,x.Employee.Username })
+            .ToListAsync(ct);
+
+        var groups=groupRows.Select(g=>
+        {
+            var assignments=positionGroupAssignments.Where(x=>x.GroupId==g.GroupId)
+                .Select(x=>new GroupAssignmentUsage(x.EmployeeId,x.FullName,x.Username,x.PositionName,"سمت"))
+                .Concat(employeeGroupAssignments.Where(x=>x.GroupId==g.GroupId)
+                    .Select(x=>new GroupAssignmentUsage(x.EmployeeId,x.FullName,x.Username,null,"مستقیم به کارمند")))
+                .GroupBy(x=>new{x.EmployeeId,x.PositionName,x.Source})
+                .Select(x=>x.First())
+                .OrderBy(x=>x.EmployeeName).ThenBy(x=>x.PositionName)
+                .ToList();
+            return new GroupPermissionUsage(g.GroupId,g.Name,g.Description,g.PermissionCount,g.AssignedEmployeeCount,"گروه مجوز",assignments);
+        }).ToList();
 
         return new PermissionUsageDetails(permission.Id,permission.Name,permission.Code,direct,groups);
     }
