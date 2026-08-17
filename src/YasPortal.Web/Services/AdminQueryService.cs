@@ -37,7 +37,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var positionAssignments=await db.UserPositionPermissions.AsNoTracking().Where(x=>x.PermissionId==permissionId).OrderBy(x=>x.Employee.FullName).ThenBy(x=>x.Position.Name).Select(x=>new{x.EmployeeId,x.Employee.FullName,x.Employee.Username,x.PositionId,x.Position.Name}).ToListAsync(ct);
         var employeeAssignments=await db.EmployeePermissions.AsNoTracking().Where(x=>x.PermissionId==permissionId).OrderBy(x=>x.Employee.FullName).Select(x=>new{x.EmployeeId,x.Employee.FullName,x.Employee.Username}).ToListAsync(ct);
 
-        var direct=positionAssignments.GroupBy(x=>new{x.EmployeeId,x.FullName,x.Username}).Select(g=>new DirectPermissionUsage(g.Key.EmployeeId,g.Key.FullName,g.Key.Username,g.Count()==1?g.First().PositionId,string.Join("، ",g.Select(x=>x.Name).Distinct()),"سمت‌ها")).ToList();
+        var direct=positionAssignments.GroupBy(x=>new{x.EmployeeId,x.FullName,x.Username}).Select(g=>new DirectPermissionUsage(g.Key.EmployeeId,g.Key.FullName,g.Key.Username,g.Count()==1?g.First().PositionId:string.Join("، ",g.Select(x=>x.Name).Distinct()),"سمت‌ها")).ToList();
         foreach(var employee in employeeAssignments){var existing=direct.FirstOrDefault(x=>x.EmployeeId==employee.EmployeeId);if(existing is null)direct.Add(new DirectPermissionUsage(employee.EmployeeId,employee.FullName,employee.Username,null,null,"مستقیم به کارمند"));else{var index=direct.IndexOf(existing);direct[index]=existing with{Source="سمت‌ها + مستقیم به کارمند"};}}
         direct=direct.OrderBy(x=>x.EmployeeName).ToList();
 
