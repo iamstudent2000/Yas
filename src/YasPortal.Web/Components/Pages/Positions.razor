@@ -15,8 +15,15 @@
 
 <div dir="rtl" class="positions-page">
     <div class="page-header">
-        <div><div class="page-subtitle">مدیریت سامانه / سمت‌ها</div><h1 class="page-title">ساختار و تخصیص سمت‌ها</h1><p class="page-subtitle">ساختار سمت‌ها درختی است و تخصیص کارمند نیز فقط از همین صفحه انجام می‌شود.</p></div>
-        <div class="form-actions"><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
+        <div>
+            <div class="page-subtitle">مدیریت سامانه / سمت‌ها</div>
+            <h1 class="page-title">ساختار و تخصیص سمت‌ها</h1>
+            <p class="page-subtitle">ساختار سمت‌ها درختی است؛ برای تعداد زیاد سمت‌ها شاخه‌ها را باز و بسته کنید.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
+            <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+        </div>
     </div>
 
     <div class="stat-grid">
@@ -27,36 +34,92 @@
 
     <div class="positions-layout">
         <section class="card position-tree-card-wrap">
-            <div class="section-head"><div><h2 class="section-title"><i class="bx bx-sitemap"></i> درخت سمت‌ها</h2><p class="muted">برای مدیریت تخصیص روی یک سمت کلیک کنید.</p></div><button class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i class="bx bx-plus"></i> سمت ریشه</button></div>
-            @if (_loading){<div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>}
-            else if (_positions.Count==0){<div class="empty-state"><i class="bx bx-sitemap empty-icon"></i><strong>سمتی ثبت نشده است</strong><span>اولین سمت ریشه را ایجاد کنید.</span></div>}
-            else{<div class="position-tree">@foreach(var root in Roots){@RenderNode(root,0)}</div>}
+            <div class="section-head positions-tree-toolbar">
+                <div>
+                    <h2 class="section-title"><i class="bx bx-sitemap"></i> درخت سمت‌ها</h2>
+                    <p class="muted">روی نام سمت برای مدیریت تخصیص کلیک کنید. دکمه‌های <strong>+</strong> و <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
+                </div>
+                <div class="tree-toolbar-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i class="bx bx-chevrons-up"></i> بستن همه</button>
+                    <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i class="bx bx-plus"></i> سمت ریشه</button>
+                </div>
+            </div>
+
+            @if (_loading)
+            {
+                <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>
+            }
+            else if (_positions.Count == 0)
+            {
+                <div class="empty-state"><i class="bx bx-sitemap empty-icon"></i><strong>سمتی ثبت نشده است</strong><span>اولین سمت ریشه را ایجاد کنید.</span></div>
+            }
+            else
+            {
+                <div class="tree-summary">
+                    <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
+                    <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
+                    <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id) && HasChildren(x.Id))</span>
+                </div>
+                <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
+                    @foreach (var root in Roots)
+                    {
+                        @RenderNode(root, 0)
+                    }
+                </div>
+            }
         </section>
 
         <section class="card position-side-panel">
             <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
             <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
-            <label class="form-label">نام سمت</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
+            <label class="form-label">نام سمت</label>
+            <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
             <label class="form-label">سمت بالادست</label>
             <ServerSearchableGuidSelect Value="@_parentPositionId" ValueChanged="ParentChanged" SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName" Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." />
             <small class="help-text">بدون بالادست = سمت ریشه.</small>
-            <div class="form-actions"><button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>@if(_editingId is not null){<button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>}</div>
-            <div class="rules-mini"><div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div><div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div><div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div><div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div></div>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                }
+            </div>
+            <div class="rules-mini">
+                <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
+                <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
+                <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
+                <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
+            </div>
         </section>
     </div>
 
-    @if(_selectedPositionId is Guid selectedPositionId)
+    @if (_selectedPositionId is Guid selectedPositionId)
     {
         <section class="card assignment-card">
-            <div class="section-head"><div><div class="eyebrow">تخصیص کارمند</div><h2 class="section-title" style="margin:0">@SelectedPositionName</h2><p class="muted">هر سمت حداکثر یک کارمند فعال دارد.</p></div><button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button></div>
-            @if(_selectedPositionEmployeeName is not null)
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">تخصیص کارمند</div>
+                    <h2 class="section-title" style="margin:0">@SelectedPositionName</h2>
+                    <p class="muted">هر سمت حداکثر یک کارمند فعال دارد.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button>
+            </div>
+            @if (_selectedPositionEmployeeName is not null)
             {
-                <div class="current-assignment"><div class="current-icon"><i class="bx bx-user-check"></i></div><div class="current-main"><span class="muted">کارمند فعلی</span><strong>@_selectedPositionEmployeeName</strong></div><button class="btn btn-danger btn-sm" disabled="@_savingAssignment" @onclick="() => FreePosition(selectedPositionId)"><i class="bx bx-unlink"></i> آزاد کردن سمت</button></div>
+                <div class="current-assignment">
+                    <div class="current-icon"><i class="bx bx-user-check"></i></div>
+                    <div class="current-main"><span class="muted">کارمند فعلی</span><strong>@_selectedPositionEmployeeName</strong></div>
+                    <button class="btn btn-danger btn-sm" disabled="@_savingAssignment" @onclick="() => FreePosition(selectedPositionId)"><i class="bx bx-unlink"></i> آزاد کردن سمت</button>
+                </div>
             }
             else
             {
                 <div class="assignment-empty"><i class="bx bx-briefcase"></i><div><strong>این سمت آزاد است</strong><span>یک کارمند فعال را جستجو و تخصیص دهید.</span></div></div>
-                <div class="assignment-form"><ServerSearchableGuidSelect Value="@_employeeToAssign" ValueChanged="EmployeeChanged" SearchAsync="SearchAssignableEmployeesAsync" SelectedText="@_employeeToAssignName" Placeholder="کارمند را جستجو کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><button class="btn btn-primary" disabled="@(_savingAssignment || _employeeToAssign is null)" @onclick="AssignEmployee"><i class="bx bx-link"></i> تخصیص کارمند</button></div>
+                <div class="assignment-form">
+                    <ServerSearchableGuidSelect Value="@_employeeToAssign" ValueChanged="EmployeeChanged" SearchAsync="SearchAssignableEmployeesAsync" SelectedText="@_employeeToAssignName" Placeholder="کارمند را جستجو کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
+                    <button class="btn btn-primary" disabled="@(_savingAssignment || _employeeToAssign is null)" @onclick="AssignEmployee"><i class="bx bx-link"></i> تخصیص کارمند</button>
+                </div>
                 <div class="help-text">جستجو مستقیماً از SQL Server انجام می‌شود و فقط کارکنان فعال نمایش داده می‌شوند.</div>
             }
         </section>
@@ -64,41 +127,479 @@
 </div>
 
 @code {
-    private List<PositionRow> _positions=[];
-    private Guid? _editingId,_parentPositionId,_selectedPositionId,_employeeToAssign;
-    private string _name="",_parentPositionName="",_employeeToAssignName="";
+    private List<PositionRow> _positions = [];
+    private readonly HashSet<Guid> _collapsedNodeIds = [];
+    private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign;
+    private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
     private string? _selectedPositionEmployeeName;
-    private bool _loading,_savingAssignment;
-    private IEnumerable<PositionRow> Roots=>_positions.Where(x=>x.ParentPositionId is null).OrderBy(x=>x.Name);
-    private string SelectedPositionName=>_selectedPositionId is Guid id?_positions.FirstOrDefault(x=>x.Id==id)?.Name??"سمت":"سمت";
+    private bool _loading, _savingAssignment, _treeInitialized;
 
-    protected override async Task OnInitializedAsync()=>await LoadAsync();
-    private async Task LoadAsync(){_loading=true;try{await using var db=await DbFactory.CreateDbContextAsync();_positions=await db.Positions.AsNoTracking().OrderBy(x=>x.Name).Select(x=>new PositionRow(x.Id,x.Name,x.ParentPositionId,db.EmployeePositions.Where(ep=>ep.PositionId==x.Id&&ep.EndedAt==null).Select(ep=>(string?)ep.Employee.FullName).FirstOrDefault())).ToListAsync();if(_selectedPositionId is Guid selected)await LoadSelectedAssignmentAsync(selected);}finally{_loading=false;}}
-    private async Task LoadSelectedAssignmentAsync(Guid positionId){await using var db=await DbFactory.CreateDbContextAsync();_selectedPositionEmployeeName=await db.EmployeePositions.AsNoTracking().Where(x=>x.PositionId==positionId&&x.EndedAt==null).Select(x=>(string?)x.Employee.FullName).FirstOrDefaultAsync();}
-    private void BeginCreateRoot(){_editingId=null;_name="";_parentPositionId=null;_parentPositionName="";}
-    private void BeginCreateChild(Guid parentId){_editingId=null;_name="";_parentPositionId=parentId;_parentPositionName=_positions.FirstOrDefault(x=>x.Id==parentId)?.Name??"";}
-    private void Edit(Guid id){var p=_positions.Single(x=>x.Id==id);_editingId=id;_name=p.Name;_parentPositionId=p.ParentPositionId;_parentPositionName=p.ParentPositionId is Guid parent?_positions.FirstOrDefault(x=>x.Id==parent)?.Name??"":"";}
-    private void CancelEdit(){_editingId=null;_name="";_parentPositionId=null;_parentPositionName="";}
-    private Task ParentChanged(Guid? id){_parentPositionId=id;_parentPositionName=id is Guid value?_positions.FirstOrDefault(x=>x.Id==value)?.Name??"":"";return Task.CompletedTask;}
-    private Task EmployeeChanged(Guid? id){_employeeToAssign=id;_employeeToAssignName="";return Task.CompletedTask;}
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchParentPositionsAsync(string search,CancellationToken ct)=>AdminQueries.SearchPositionsAsync(search,null,_editingId,ct);
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchAssignableEmployeesAsync(string search,CancellationToken ct)=>AdminQueries.SearchAssignableEmployeesAsync(search,ct);
+    private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null).OrderBy(x => x.Name);
+    private string SelectedPositionName => _selectedPositionId is Guid id ? _positions.FirstOrDefault(x => x.Id == id)?.Name ?? "سمت" : "سمت";
 
-    private async Task Save(){var name=_name.Trim();if(string.IsNullOrWhiteSpace(name)){AppState.AddToast("نام سمت الزامی است.",ToastLevel.Error);return;}if(_editingId is Guid id&&_parentPositionId==id){AppState.AddToast("یک سمت نمی‌تواند بالادست خودش باشد.",ToastLevel.Error);return;}if(_editingId is Guid editing&&_parentPositionId is Guid parent&&IsDescendantOf(parent,editing)){AppState.AddToast("یک سمت نمی‌تواند زیرمجموعه یکی از فرزندان خودش قرار بگیرد.",ToastLevel.Error);return;}await using var db=await DbFactory.CreateDbContextAsync();if(await db.Positions.AnyAsync(x=>x.Name==name&&x.Id!=(_editingId??Guid.Empty))){AppState.AddToast("سمتی با این نام قبلاً ثبت شده است.",ToastLevel.Error);return;}if(_editingId is Guid eid){var p=await db.Positions.SingleAsync(x=>x.Id==eid);p.Rename(name);p.ChangeParent(_parentPositionId);AppState.AddToast("سمت و ساختار آن ویرایش شد.",ToastLevel.Success);}else{db.Positions.Add(new Position(name,_parentPositionId));AppState.AddToast("سمت جدید ایجاد شد.",ToastLevel.Success);}await db.SaveChangesAsync();CancelEdit();await LoadAsync();}
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task SelectPosition(Guid id){_selectedPositionId=id;_employeeToAssign=null;_employeeToAssignName="";await LoadSelectedAssignmentAsync(id);}
-    private void ClearSelection(){_selectedPositionId=null;_employeeToAssign=null;_employeeToAssignName="";_selectedPositionEmployeeName=null;}
-    private async Task AssignEmployee(){if(_selectedPositionId is not Guid positionId||_employeeToAssign is not Guid employeeId)return;_savingAssignment=true;try{await using var db=await DbFactory.CreateDbContextAsync();var owner=await db.EmployeePositions.AsNoTracking().Where(x=>x.PositionId==positionId&&x.EndedAt==null).Select(x=>(string?)x.Employee.FullName).FirstOrDefaultAsync();if(owner is not null){AppState.AddToast($"این سمت در حال حاضر به «{owner}» تخصیص داده شده است.",ToastLevel.Error);return;}var employee=await db.Employees.SingleAsync(x=>x.Id==employeeId);if(!employee.IsActive||employee.IsAdmin){AppState.AddToast("فقط کارمند فعال قابل تخصیص به سمت است.",ToastLevel.Error);return;}var link=await db.EmployeePositions.SingleOrDefaultAsync(x=>x.EmployeeId==employeeId&&x.PositionId==positionId);if(link is null)db.EmployeePositions.Add(new EmployeePosition(employeeId,positionId));else link.Reactivate();employee.SetLastActivePosition(positionId);try{await db.SaveChangesAsync();AppState.AddToast("کارمند به سمت تخصیص یافت.",ToastLevel.Success);}catch(DbUpdateException){AppState.AddToast("این سمت هم‌زمان توسط کارمند دیگری تخصیص داده شد.",ToastLevel.Error);} _employeeToAssign=null;_employeeToAssignName="";await LoadAsync();}finally{_savingAssignment=false;}}
-    private async Task FreePosition(Guid positionId){if(_savingAssignment)return;_savingAssignment=true;try{await using var db=await DbFactory.CreateDbContextAsync();var assignment=await db.EmployeePositions.SingleOrDefaultAsync(x=>x.PositionId==positionId&&x.EndedAt==null);if(assignment is null){AppState.AddToast("این سمت در حال حاضر آزاد است.",ToastLevel.Error);return;}var employee=await db.Employees.SingleAsync(x=>x.Id==assignment.EmployeeId);if(employee.LastActivePositionId==positionId)employee.SetLastActivePosition(null);assignment.End();await db.SaveChangesAsync();AppState.AddToast("سمت آزاد شد و اکنون قابل تخصیص است.",ToastLevel.Success);await LoadAsync();}finally{_savingAssignment=false;}}
-    private async Task Delete(Guid id){await using var db=await DbFactory.CreateDbContextAsync();if(await db.Positions.AnyAsync(x=>x.ParentPositionId==id)){AppState.AddToast("سمتی که زیرمجموعه دارد قابل حذف نیست.",ToastLevel.Error);return;}if(await db.EmployeePositions.AnyAsync(x=>x.PositionId==id)||await db.UserPositionPermissions.AnyAsync(x=>x.PositionId==id)){AppState.AddToast("این سمت دارای سابقه تخصیص یا مجوز است و قابل حذف نیست.",ToastLevel.Error);return;}var p=await db.Positions.SingleAsync(x=>x.Id==id);db.Positions.Remove(p);await db.SaveChangesAsync();AppState.AddToast("سمت حذف شد.",ToastLevel.Success);if(_selectedPositionId==id)ClearSelection();await LoadAsync();}
-    private bool IsDescendantOf(Guid candidateId,Guid ancestorId){var current=_positions.FirstOrDefault(x=>x.Id==candidateId);while(current?.ParentPositionId is Guid parentId){if(parentId==ancestorId)return true;current=_positions.FirstOrDefault(x=>x.Id==parentId);}return false;}
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _positions = await db.Positions.AsNoTracking().OrderBy(x => x.Name).Select(x => new PositionRow(
+                x.Id,
+                x.Name,
+                x.ParentPositionId,
+                db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep => (string?)ep.Employee.FullName).FirstOrDefault()
+            )).ToListAsync();
 
-    private RenderFragment RenderNode(PositionRow position,int depth)=>builder=>{var children=_positions.Where(x=>x.ParentPositionId==position.Id).OrderBy(x=>x.Name).ToList();var s=0;builder.OpenElement(s++,"div");builder.AddAttribute(s++,"class","tree-node");builder.AddAttribute(s++,"style",$"--depth:{depth};");builder.OpenElement(s++,"div");builder.AddAttribute(s++,"class",_selectedPositionId==position.Id?"tree-item selected":"tree-item");builder.OpenElement(s++,"button");builder.AddAttribute(s++,"class","tree-main");builder.AddAttribute(s++,"title","مدیریت تخصیص این سمت");builder.AddAttribute(s++,"onclick",EventCallback.Factory.Create(this,()=>SelectPosition(position.Id)));builder.OpenElement(s++,"span");builder.AddAttribute(s++,"class",position.IsOccupied?"tree-icon occupied":"tree-icon free");builder.OpenElement(s++,"i");builder.AddAttribute(s++,"class",position.IsOccupied?"bx bx-user":"bx bx-briefcase");builder.CloseElement();builder.CloseElement();builder.OpenElement(s++,"span");builder.AddAttribute(s++,"class","tree-text");builder.OpenElement(s++,"strong");builder.AddContent(s++,position.Name);builder.CloseElement();builder.OpenElement(s++,"small");builder.AddContent(s++,position.IsOccupied?$"کارمند: {position.EmployeeName}":"سمت آزاد");builder.CloseElement();builder.CloseElement();builder.CloseElement();builder.OpenElement(s++,"div");builder.AddAttribute(s++,"class","tree-actions");AddButton(builder,ref s,"btn btn-secondary btn-sm","bx bx-plus","زیرسمت",()=>BeginCreateChild(position.Id));AddButton(builder,ref s,"btn btn-secondary btn-sm","bx bx-edit-alt","ویرایش",()=>Edit(position.Id));if(position.IsOccupied)AddAsyncButton(builder,ref s,"btn btn-danger btn-sm","bx bx-unlink","آزاد",()=>FreePosition(position.Id));AddAsyncButton(builder,ref s,"btn btn-secondary btn-sm icon-only","bx bx-trash","حذف",()=>Delete(position.Id));builder.CloseElement();builder.CloseElement();if(children.Count>0){builder.OpenElement(s++,"div");builder.AddAttribute(s++,"class","tree-children");foreach(var child in children)builder.AddContent(s++,RenderNode(child,depth+1));builder.CloseElement();}builder.CloseElement();};
-    private void AddButton(RenderTreeBuilder builder,ref int seq,string css,string icon,string text,Action action){builder.OpenElement(seq++,"button");builder.AddAttribute(seq++,"class",css);builder.AddAttribute(seq++,"type","button");builder.AddAttribute(seq++,"title",text);builder.AddAttribute(seq++,"onclick",EventCallback.Factory.Create(this,action));builder.OpenElement(seq++,"i");builder.AddAttribute(seq++,"class",icon);builder.CloseElement();if(text!="حذف")builder.AddContent(seq++," "+text);builder.CloseElement();}
-    private void AddAsyncButton(RenderTreeBuilder builder,ref int seq,string css,string icon,string text,Func<Task> action){builder.OpenElement(seq++,"button");builder.AddAttribute(seq++,"class",css);builder.AddAttribute(seq++,"type","button");builder.AddAttribute(seq++,"title",text);builder.AddAttribute(seq++,"onclick",EventCallback.Factory.Create(this,action));builder.OpenElement(seq++,"i");builder.AddAttribute(seq++,"class",icon);builder.CloseElement();if(text!="حذف")builder.AddContent(seq++," "+text);builder.CloseElement();}
-    private sealed record PositionRow(Guid Id,string Name,Guid? ParentPositionId,string? EmployeeName){public bool IsOccupied=>!string.IsNullOrWhiteSpace(EmployeeName);}
+            if (!_treeInitialized)
+            {
+                CollapseAll();
+                _treeInitialized = true;
+            }
+            else
+            {
+                _collapsedNodeIds.RemoveWhere(id => !_positions.Any(x => x.Id == id));
+            }
+
+            if (_selectedPositionId is Guid selected)
+                await LoadSelectedAssignmentAsync(selected);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadSelectedAssignmentAsync(Guid positionId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _selectedPositionEmployeeName = await db.EmployeePositions.AsNoTracking()
+            .Where(x => x.PositionId == positionId && x.EndedAt == null)
+            .Select(x => (string?)x.Employee.FullName)
+            .FirstOrDefaultAsync();
+    }
+
+    private bool HasChildren(Guid positionId) => _positions.Any(x => x.ParentPositionId == positionId);
+    private bool IsExpanded(Guid positionId) => !_collapsedNodeIds.Contains(positionId);
+
+    private void ToggleNode(Guid positionId)
+    {
+        if (!_collapsedNodeIds.Add(positionId))
+            _collapsedNodeIds.Remove(positionId);
+    }
+
+    private void ExpandAll() => _collapsedNodeIds.Clear();
+
+    private void CollapseAll()
+    {
+        _collapsedNodeIds.Clear();
+        foreach (var position in _positions.Where(x => HasChildren(x.Id)))
+            _collapsedNodeIds.Add(position.Id);
+    }
+
+    private void BeginCreateRoot()
+    {
+        _editingId = null;
+        _name = "";
+        _parentPositionId = null;
+        _parentPositionName = "";
+    }
+
+    private void BeginCreateChild(Guid parentId)
+    {
+        _editingId = null;
+        _name = "";
+        _parentPositionId = parentId;
+        _parentPositionName = _positions.FirstOrDefault(x => x.Id == parentId)?.Name ?? "";
+        _collapsedNodeIds.Remove(parentId);
+    }
+
+    private void Edit(Guid id)
+    {
+        var p = _positions.Single(x => x.Id == id);
+        _editingId = id;
+        _name = p.Name;
+        _parentPositionId = p.ParentPositionId;
+        _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" : "";
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _name = "";
+        _parentPositionId = null;
+        _parentPositionName = "";
+    }
+
+    private Task ParentChanged(Guid? id)
+    {
+        _parentPositionId = id;
+        _parentPositionName = id is Guid value ? _positions.FirstOrDefault(x => x.Id == value)?.Name ?? "" : "";
+        return Task.CompletedTask;
+    }
+
+    private Task EmployeeChanged(Guid? id)
+    {
+        _employeeToAssign = id;
+        _employeeToAssignName = "";
+        return Task.CompletedTask;
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchParentPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, _editingId, ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchAssignableEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct);
+
+    private async Task Save()
+    {
+        var name = _name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            AppState.AddToast("نام سمت الزامی است.", ToastLevel.Error);
+            return;
+        }
+
+        if (_editingId is Guid id && _parentPositionId == id)
+        {
+            AppState.AddToast("یک سمت نمی‌تواند بالادست خودش باشد.", ToastLevel.Error);
+            return;
+        }
+
+        if (_editingId is Guid editing && _parentPositionId is Guid parent && IsDescendantOf(parent, editing))
+        {
+            AppState.AddToast("یک سمت نمی‌تواند زیرمجموعه یکی از فرزندان خودش قرار بگیرد.", ToastLevel.Error);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Positions.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty)))
+        {
+            AppState.AddToast("سمتی با این نام قبلاً ثبت شده است.", ToastLevel.Error);
+            return;
+        }
+
+        if (_editingId is Guid eid)
+        {
+            var p = await db.Positions.SingleAsync(x => x.Id == eid);
+            p.Rename(name);
+            p.ChangeParent(_parentPositionId);
+            AppState.AddToast("سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
+        }
+        else
+        {
+            db.Positions.Add(new Position(name, _parentPositionId));
+            AppState.AddToast("سمت جدید ایجاد شد.", ToastLevel.Success);
+        }
+
+        await db.SaveChangesAsync();
+        CancelEdit();
+        await LoadAsync();
+    }
+
+    private async Task SelectPosition(Guid id)
+    {
+        _selectedPositionId = id;
+        _employeeToAssign = null;
+        _employeeToAssignName = "";
+        await LoadSelectedAssignmentAsync(id);
+    }
+
+    private void ClearSelection()
+    {
+        _selectedPositionId = null;
+        _employeeToAssign = null;
+        _employeeToAssignName = "";
+        _selectedPositionEmployeeName = null;
+    }
+
+    private async Task AssignEmployee()
+    {
+        if (_selectedPositionId is not Guid positionId || _employeeToAssign is not Guid employeeId)
+            return;
+
+        _savingAssignment = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var owner = await db.EmployeePositions.AsNoTracking()
+                .Where(x => x.PositionId == positionId && x.EndedAt == null)
+                .Select(x => (string?)x.Employee.FullName)
+                .FirstOrDefaultAsync();
+
+            if (owner is not null)
+            {
+                AppState.AddToast($"این سمت در حال حاضر به «{owner}» تخصیص داده شده است.", ToastLevel.Error);
+                return;
+            }
+
+            var employee = await db.Employees.SingleAsync(x => x.Id == employeeId);
+            if (!employee.IsActive || employee.IsAdmin)
+            {
+                AppState.AddToast("فقط کارمند فعال قابل تخصیص به سمت است.", ToastLevel.Error);
+                return;
+            }
+
+            var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId);
+            if (link is null)
+                db.EmployeePositions.Add(new EmployeePosition(employeeId, positionId));
+            else
+                link.Reactivate();
+
+            employee.SetLastActivePosition(positionId);
+
+            try
+            {
+                await db.SaveChangesAsync();
+                AppState.AddToast("کارمند به سمت تخصیص یافت.", ToastLevel.Success);
+            }
+            catch (DbUpdateException)
+            {
+                AppState.AddToast("این سمت هم‌زمان توسط کارمند دیگری تخصیص داده شد.", ToastLevel.Error);
+            }
+
+            _employeeToAssign = null;
+            _employeeToAssignName = "";
+            await LoadAsync();
+        }
+        finally
+        {
+            _savingAssignment = false;
+        }
+    }
+
+    private async Task FreePosition(Guid positionId)
+    {
+        if (_savingAssignment)
+            return;
+
+        _savingAssignment = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var assignment = await db.EmployeePositions.SingleOrDefaultAsync(x => x.PositionId == positionId && x.EndedAt == null);
+            if (assignment is null)
+            {
+                AppState.AddToast("این سمت در حال حاضر آزاد است.", ToastLevel.Error);
+                return;
+            }
+
+            var employee = await db.Employees.SingleAsync(x => x.Id == assignment.EmployeeId);
+            if (employee.LastActivePositionId == positionId)
+                employee.SetLastActivePosition(null);
+
+            assignment.End();
+            await db.SaveChangesAsync();
+            AppState.AddToast("سمت آزاد شد و اکنون قابل تخصیص است.", ToastLevel.Success);
+            await LoadAsync();
+        }
+        finally
+        {
+            _savingAssignment = false;
+        }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Positions.AnyAsync(x => x.ParentPositionId == id))
+        {
+            AppState.AddToast("سمتی که زیرمجموعه دارد قابل حذف نیست.", ToastLevel.Error);
+            return;
+        }
+
+        if (await db.EmployeePositions.AnyAsync(x => x.PositionId == id) || await db.UserPositionPermissions.AnyAsync(x => x.PositionId == id))
+        {
+            AppState.AddToast("این سمت دارای سابقه تخصیص یا مجوز است و قابل حذف نیست.", ToastLevel.Error);
+            return;
+        }
+
+        var p = await db.Positions.SingleAsync(x => x.Id == id);
+        db.Positions.Remove(p);
+        await db.SaveChangesAsync();
+        AppState.AddToast("سمت حذف شد.", ToastLevel.Success);
+        if (_selectedPositionId == id)
+            ClearSelection();
+        await LoadAsync();
+    }
+
+    private bool IsDescendantOf(Guid candidateId, Guid ancestorId)
+    {
+        var current = _positions.FirstOrDefault(x => x.Id == candidateId);
+        while (current?.ParentPositionId is Guid parentId)
+        {
+            if (parentId == ancestorId)
+                return true;
+            current = _positions.FirstOrDefault(x => x.Id == parentId);
+        }
+        return false;
+    }
+
+    private RenderFragment RenderNode(PositionRow position, int depth) => builder =>
+    {
+        var children = _positions.Where(x => x.ParentPositionId == position.Id).OrderBy(x => x.Name).ToList();
+        var hasChildren = children.Count > 0;
+        var expanded = IsExpanded(position.Id);
+        var s = 0;
+
+        builder.OpenElement(s++, "div");
+        builder.AddAttribute(s++, "class", "tree-node");
+        builder.AddAttribute(s++, "role", "treeitem");
+        if (hasChildren)
+            builder.AddAttribute(s++, "aria-expanded", expanded);
+
+        builder.OpenElement(s++, "div");
+        builder.AddAttribute(s++, "class", _selectedPositionId == position.Id ? "tree-item selected" : "tree-item");
+        builder.AddAttribute(s++, "style", $"--depth:{depth};");
+
+        if (hasChildren)
+        {
+            builder.OpenElement(s++, "button");
+            builder.AddAttribute(s++, "class", "tree-toggle");
+            builder.AddAttribute(s++, "type", "button");
+            builder.AddAttribute(s++, "title", expanded ? "بستن شاخه" : "باز کردن شاخه");
+            builder.AddAttribute(s++, "aria-label", expanded ? $"بستن {position.Name}" : $"باز کردن {position.Name}");
+            builder.AddAttribute(s++, "onclick", EventCallback.Factory.Create(this, () => ToggleNode(position.Id)));
+            builder.OpenElement(s++, "i");
+            builder.AddAttribute(s++, "class", expanded ? "bx bx-minus" : "bx bx-plus");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(s++, "span");
+            builder.AddAttribute(s++, "class", "tree-toggle-placeholder");
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(s++, "button");
+        builder.AddAttribute(s++, "class", "tree-main");
+        builder.AddAttribute(s++, "type", "button");
+        builder.AddAttribute(s++, "title", "مدیریت تخصیص این سمت");
+        builder.AddAttribute(s++, "onclick", EventCallback.Factory.Create(this, () => SelectPosition(position.Id)));
+
+        builder.OpenElement(s++, "span");
+        builder.AddAttribute(s++, "class", position.IsOccupied ? "tree-icon occupied" : "tree-icon free");
+        builder.OpenElement(s++, "i");
+        builder.AddAttribute(s++, "class", position.IsOccupied ? "bx bx-user" : "bx bx-briefcase");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(s++, "span");
+        builder.AddAttribute(s++, "class", "tree-text");
+        builder.OpenElement(s++, "strong");
+        builder.AddContent(s++, position.Name);
+        builder.CloseElement();
+        builder.OpenElement(s++, "small");
+        builder.AddContent(s++, position.IsOccupied ? $"کارمند: {position.EmployeeName}" : "سمت آزاد");
+        if (hasChildren)
+            builder.AddContent(s++, $" • {children.Count} زیرسمت");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(s++, "div");
+        builder.AddAttribute(s++, "class", "tree-actions");
+        AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-plus", "زیرسمت", () => BeginCreateChild(position.Id));
+        AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-edit-alt", "ویرایش", () => Edit(position.Id));
+        if (position.IsOccupied)
+            AddAsyncButton(builder, ref s, "btn btn-danger btn-sm", "bx bx-unlink", "آزاد", () => FreePosition(position.Id));
+        AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm icon-only", "bx bx-trash", "حذف", () => Delete(position.Id));
+        builder.CloseElement();
+        builder.CloseElement();
+
+        if (hasChildren && expanded)
+        {
+            builder.OpenElement(s++, "div");
+            builder.AddAttribute(s++, "class", "tree-children");
+            foreach (var child in children)
+                builder.AddContent(s++, RenderNode(child, depth + 1));
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private void AddButton(RenderTreeBuilder builder, ref int seq, string css, string icon, string text, Action action)
+    {
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "class", css);
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "title", text);
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, action));
+        builder.OpenElement(seq++, "i");
+        builder.AddAttribute(seq++, "class", icon);
+        builder.CloseElement();
+        if (text != "حذف")
+            builder.AddContent(seq++, " " + text);
+        builder.CloseElement();
+    }
+
+    private void AddAsyncButton(RenderTreeBuilder builder, ref int seq, string css, string icon, string text, Func<Task> action)
+    {
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "class", css);
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "title", text);
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, action));
+        builder.OpenElement(seq++, "i");
+        builder.AddAttribute(seq++, "class", icon);
+        builder.CloseElement();
+        if (text != "حذف")
+            builder.AddContent(seq++, " " + text);
+        builder.CloseElement();
+    }
+
+    private sealed record PositionRow(Guid Id, string Name, Guid? ParentPositionId, string? EmployeeName)
+    {
+        public bool IsOccupied => !string.IsNullOrWhiteSpace(EmployeeName);
+    }
 }
 
 <style>
-.positions-page{max-width:1500px;margin:0 auto}.positions-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}.section-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}.position-tree-card-wrap{min-height:480px}.position-tree{display:flex;flex-direction:column;gap:7px}.tree-node{position:relative}.tree-item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:62px;padding:8px 10px 8px calc(10px + var(--depth) * 24px);border:1px solid #eaecf0;border-radius:12px;background:#fff}.tree-item.selected{border-color:#98a2b3;box-shadow:0 0 0 2px rgba(16,24,40,.05)}.tree-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;background:none;border:0;text-align:right;cursor:pointer;color:inherit}.tree-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto}.tree-icon.free{background:#f2f4f7;color:#475467}.tree-icon.occupied{background:#ecfdf3;color:#027a48}.tree-text{display:flex;flex-direction:column;gap:3px;min-width:0}.tree-text strong{font-size:14px}.tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tree-actions{display:flex;gap:5px;flex:0 0 auto}.tree-children{display:flex;flex-direction:column;gap:7px;margin-top:7px;margin-right:26px;padding-right:12px;border-right:2px solid #eaecf0}.position-side-panel{position:sticky;top:16px}.rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}.rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}.rules-mini i{color:#027a48}.assignment-card{margin-top:16px}.current-assignment{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px;border:1px solid #d0d5dd;border-radius:12px;background:#f8fafc}.current-icon{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:#ecfdf3;color:#027a48;font-size:21px}.current-main{display:flex;flex-direction:column;gap:2px}.assignment-empty{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #d0d5dd;border-radius:12px;color:#475467}.assignment-empty>i{font-size:25px}.assignment-empty div{display:flex;flex-direction:column;gap:2px}.assignment-empty span{font-size:12px;color:#667085}.assignment-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:12px}.eyebrow{font-size:11px;font-weight:700;color:#667085;margin-bottom:3px}.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:220px;color:#667085}.empty-icon{font-size:34px}.icon-only{width:32px;padding:6px}.form-actions{display:flex;gap:8px;flex-wrap:wrap}.btn-sm{padding:7px 10px;font-size:12px}
+.positions-page{max-width:1500px;margin:0 auto}
+.positions-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:14px}
+.positions-tree-toolbar{align-items:flex-start}
+.tree-toolbar-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-start}
+.position-tree-card-wrap{min-height:480px}
+.tree-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 12px;padding:8px 10px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:#667085;font-size:11px}
+.tree-summary span{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#fff;border:1px solid #eaecf0}
+.position-tree{display:flex;flex-direction:column;gap:6px}
+.tree-node{position:relative}
+.tree-item{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:54px;padding:6px 8px;border:1px solid #eaecf0;border-radius:10px;background:#fff;transition:border-color .12s,box-shadow .12s,background .12s}
+.tree-item:hover{border-color:#d0d5dd;background:#fcfcfd}
+.tree-item.selected{border-color:#98a2b3;box-shadow:0 0 0 2px rgba(16,24,40,.05);background:#f8fafc}
+.tree-toggle{width:28px;height:28px;padding:0;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
+.tree-toggle:hover{background:#f2f4f7}
+.tree-toggle i{font-size:17px}
+.tree-toggle-placeholder{width:28px;flex:0 0 auto}
+.tree-main{display:flex;align-items:center;gap:9px;min-width:0;flex:1;background:none;border:0;text-align:right;cursor:pointer;color:inherit;padding:0}
+.tree-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto}
+.tree-icon.free{background:#f2f4f7;color:#475467}
+.tree-icon.occupied{background:#ecfdf3;color:#027a48}
+.tree-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tree-text strong{font-size:13px;line-height:1.4}
+.tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+.tree-actions{display:flex;gap:4px;flex:0 0 auto}
+.tree-actions .btn-sm{padding:5px 7px;font-size:11px}
+.tree-children{display:flex;flex-direction:column;gap:6px;margin-top:6px;margin-right:18px;padding-right:11px;border-right:2px solid #eaecf0}
+.position-side-panel{position:sticky;top:16px}
+.rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
+.rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}
+.rules-mini i{color:#027a48}
+.assignment-card{margin-top:16px}
+.current-assignment{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px;border:1px solid #d0d5dd;border-radius:12px;background:#f8fafc}
+.current-icon{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:#ecfdf3;color:#027a48;font-size:21px}
+.current-main{display:flex;flex-direction:column;gap:2px}
+.assignment-empty{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #d0d5dd;border-radius:12px;color:#475467}
+.assignment-empty>i{font-size:25px}
+.assignment-empty div{display:flex;flex-direction:column;gap:2px}
+.assignment-empty span{font-size:12px;color:#667085}
+.assignment-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:12px}
+.eyebrow{font-size:11px;font-weight:700;color:#667085;margin-bottom:3px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:220px;color:#667085}
+.empty-icon{font-size:34px}
+.icon-only{width:32px;padding:6px}
+.form-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn-sm{padding:7px 10px;font-size:12px}
+@media (max-width:900px){.positions-layout{grid-template-columns:1fr}.position-side-panel{position:static}.positions-tree-toolbar{flex-direction:column}.tree-toolbar-actions{width:100%}.tree-item{padding-right:calc(6px + var(--depth) * 16px)}.tree-actions .btn-sm:not(.icon-only){font-size:0;width:30px;height:30px;padding:5px}.tree-actions .btn-sm:not(.icon-only) i{font-size:16px}.assignment-form{grid-template-columns:1fr}.current-assignment{grid-template-columns:auto 1fr}.current-assignment .btn{grid-column:1/-1;width:100%}}
 </style>
