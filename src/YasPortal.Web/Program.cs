@@ -206,10 +206,16 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     var returnUrl = form["returnUrl"].ToString();
     if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId)) return Results.Redirect("/my-positions");
 
-    var validPosition = await db.EmployeePositions.AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null);
-    if (!validPosition) return Results.Redirect("/my-positions");
-    var employee = await db.Employees.SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
+    // The domain method validates against Employee.Positions, so the aggregate must
+    // be loaded with its active assignments before changing the last active position.
+    var employee = await db.Employees
+        .Include(x => x.Positions)
+        .SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
     if (employee is null) return Results.Redirect("/login");
+
+    if (!employee.Positions.Any(x => x.PositionId == positionId && x.EndedAt == null))
+        return Results.Redirect("/my-positions");
+
     employee.SetLastActivePosition(positionId);
     await db.SaveChangesAsync();
 
@@ -237,8 +243,6 @@ static bool IsSafeLocalReturnUrl(string? returnUrl)
     if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith("/", StringComparison.Ordinal))
         return false;
 
-    // Reject protocol-relative URLs such as //evil.example, which start with '/'
-    // but would be interpreted as an external host by a redirect response.
     if (returnUrl.StartsWith("//", StringComparison.Ordinal))
         return false;
 
