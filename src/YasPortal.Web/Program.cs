@@ -221,7 +221,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
 
-    if (returnUrl.StartsWith('/') && Uri.TryCreate(returnUrl, UriKind.Relative, out var relativeUri) && !relativeUri.IsAbsoluteUri)
+    if (IsSafeLocalReturnUrl(returnUrl))
         return Results.Redirect(returnUrl);
     return Results.Redirect("/my-positions");
 });
@@ -235,3 +235,16 @@ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery
 
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
+
+static bool IsSafeLocalReturnUrl(string? returnUrl)
+{
+    if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith('/', StringComparison.Ordinal))
+        return false;
+
+    // Reject protocol-relative URLs such as //evil.example, which start with '/'
+    // but would be interpreted as an external host by a redirect response.
+    if (returnUrl.StartsWith("//", StringComparison.Ordinal))
+        return false;
+
+    return Uri.TryCreate(returnUrl, UriKind.Relative, out var uri) && !uri.IsAbsoluteUri;
+}
