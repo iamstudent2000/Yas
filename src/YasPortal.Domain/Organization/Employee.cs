@@ -67,15 +67,13 @@ public sealed class Employee
     public void Activate() => IsActive = true;
 
     /// <summary>
-    /// Deactivating an employee immediately ends every active position assignment and
-    /// clears the last-position preference. An inactive employee must never retain an
-    /// active organizational assignment.
+    /// Deactivating an employee immediately ends every active position assignment
+    /// and clears the last-position preference. The operation is intentionally
+    /// idempotent so it also repairs stale state on an already inactive employee.
+    /// Reactivation never restores old assignments automatically.
     /// </summary>
     public void Deactivate()
     {
-        if (!IsActive)
-            return;
-
         IsActive = false;
         LastActivePositionId = null;
 
