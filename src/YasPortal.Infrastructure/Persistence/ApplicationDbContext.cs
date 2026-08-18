@@ -23,6 +23,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        ChangeTracker.DetectChanges();
         ValidateBusinessInvariants();
         CaptureAssignmentHistory();
         return base.SaveChanges(acceptAllChangesOnSuccess);
@@ -30,6 +31,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        ChangeTracker.DetectChanges();
         await ValidateBusinessInvariantsAsync(cancellationToken);
         await CaptureAssignmentHistoryAsync(cancellationToken);
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
