@@ -52,118 +52,21 @@
     private List<AuditRow> _rows = [];
     private AuditRow? _selected;
     private string _employeeSearch = ""; private string _positionSearch = ""; private string _entityType = ""; private string _action = "";
-    private DateTime? _fromDate; private DateTime? _toDate; private int _page = 1; private int _pageSize = 200; private int _totalCount; private bool _loading;
+    private DateTime? _fromDate = DateTime.Today; private DateTime? _toDate = DateTime.Today; private int _page = 1; private int _pageSize = 200; private int _totalCount; private bool _loading;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
-
-    protected override async Task OnInitializedAsync()
-    {
-        var today = DateTime.Today;
-        _fromDate = today;
-        _toDate = today;
-        await SearchAsync();
-    }
-
-    private async Task SearchAsync()
-    {
-        _loading = true;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var query = db.AuditEntries.AsNoTracking().AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(_entityType))
-                query = query.Where(x => x.EntityType.Contains(_entityType.Trim()));
-
-            if (!string.IsNullOrWhiteSpace(_action))
-                query = query.Where(x => x.Action == _action);
-
-            if (_fromDate.HasValue)
-            {
-                var from = DateTime.SpecifyKind(_fromDate.Value.Date, DateTimeKind.Local).ToUniversalTime();
-                query = query.Where(x => x.OccurredAtUtc >= from);
-            }
-
-            if (_toDate.HasValue)
-            {
-                var to = DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime();
-                query = query.Where(x => x.OccurredAtUtc < to);
-            }
-
-            var employeeSearch = _employeeSearch.Trim();
-            if (!string.IsNullOrWhiteSpace(employeeSearch))
-            {
-                query = query.Where(x => x.EmployeeId.HasValue && db.Employees.Any(e => e.Id == x.EmployeeId.Value && e.FullName.Contains(employeeSearch)));
-            }
-
-            var positionSearch = _positionSearch.Trim();
-            if (!string.IsNullOrWhiteSpace(positionSearch))
-            {
-                query = query.Where(x => x.ActivePositionId.HasValue && db.Positions.Any(p => p.Id == x.ActivePositionId.Value && p.Name.Contains(positionSearch)));
-            }
-
-            query = query.OrderByDescending(x => x.OccurredAtUtc).ThenByDescending(x => x.Id);
-
-            _totalCount = await query.CountAsync();
-            if (_page > TotalPages)
-                _page = TotalPages;
-
-            var pageEntries = await query
-                .Skip((_page - 1) * _pageSize)
-                .Take(_pageSize)
-                .ToListAsync();
-
-            var employeeIds = pageEntries.Where(x => x.EmployeeId.HasValue).Select(x => x.EmployeeId!.Value).Distinct().ToList();
-            var positionIds = pageEntries.Where(x => x.ActivePositionId.HasValue).Select(x => x.ActivePositionId!.Value).Distinct().ToList();
-
-            var employees = employeeIds.Count == 0
-                ? new Dictionary<Guid, string>()
-                : await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
-
-            var positions = positionIds.Count == 0
-                ? new Dictionary<Guid, string>()
-                : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
-
-            _rows = pageEntries.Select(x => new AuditRow(
-                x.Id,
-                x.OccurredAtUtc,
-                x.EmployeeId,
-                x.ActivePositionId,
-                x.EmployeeId.HasValue && employees.TryGetValue(x.EmployeeId.Value, out var employeeName) ? employeeName : null,
-                x.ActivePositionId.HasValue && positions.TryGetValue(x.ActivePositionId.Value, out var positionName) ? positionName : null,
-                x.Action,
-                x.EntityType,
-                x.EntityId,
-                x.BeforeJson,
-                x.AfterJson)).ToList();
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private async Task PageSizeChangedAsync() { _page = 1; await SearchAsync(); }
-    private async Task ClearFiltersAsync() { _employeeSearch = ""; _positionSearch = ""; _entityType = ""; _action = ""; _fromDate = null; _toDate = null; _page = 1; await SearchAsync(); }
-    private async Task RemoveFromDateAsync() { _fromDate = null; _page = 1; await SearchAsync(); }
-    private async Task RemoveToDateAsync() { _toDate = null; _page = 1; await SearchAsync(); }
-    private async Task GoToPageAsync(int p) { _page = p; await SearchAsync(); }
-    private async Task PreviousPageAsync() { if (_page > 1) { _page--; await SearchAsync(); } }
-    private async Task NextPageAsync() { if (_page < TotalPages) { _page++; await SearchAsync(); } }
-    private IEnumerable<int> GetPageNumbers() { var s = Math.Max(1, _page - 2); var e = Math.Min(TotalPages, s + 4); s = Math.Max(1, e - 4); return Enumerable.Range(s, e - s + 1); }
-    private void ShowDetails(AuditRow r) => _selected = r;
-    private void CloseDetails() => _selected = null;
-    private static string GetActionText(string a) => a switch { "Created" => "ایجاد", "Updated" => "ویرایش", "Deleted" => "حذف", _ => a };
-    private static string GetActionClass(string a) => a switch { "Created" => "audit-created", "Deleted" => "audit-deleted", _ => "audit-updated" };
-    private static string GetActionIcon(string a) => a switch { "Created" => "bx-plus", "Deleted" => "bx-trash", _ => "bx-edit-alt" };
-    private static string GetEntityText(string e) => e switch { "Permission" => "مجوز", "Employee" => "کارمند", "Position" => "سمت", "Organization" => "سازمان", "EmployeePosition" => "تخصیص سمت", "PermissionGroup" => "گروه مجوز", _ => e };
-    private static string ToPersianDate(DateTime date) { var pc = new System.Globalization.PersianCalendar(); return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}"); }
-    private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
-    private static RenderFragment RenderJson(string? json) => builder => { if (string.IsNullOrWhiteSpace(json)) { builder.AddMarkupContent(0, "<div class='no-change'>بدون تغییر</div>"); return; } try { using var doc = JsonDocument.Parse(json); var i = 0; builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-properties"); foreach (var p in doc.RootElement.EnumerateObject()) { builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-property"); builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-key"); builder.AddContent(i++, GetPropertyText(p.Name)); builder.CloseElement(); builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-value"); builder.AddContent(i++, FormatJsonValue(p.Value)); builder.CloseElement(); builder.CloseElement(); } builder.CloseElement(); } catch { builder.AddMarkupContent(0, $"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>"); } };
-    private static string GetPropertyText(string n) => n switch { "Id" => "شناسه", "Code" => "کد", "Name" => "نام", "FullName" => "نام و نام خانوادگی", "Username" => "نام کاربری", "IsActive" => "فعال", "OrganizationId" => "سازمان", "PositionId" => "سمت", "EmployeeId" => "کارمند", "StartedAt" => "تاریخ شروع", "EndedAt" => "تاریخ پایان", _ => n };
-    private static string FormatJsonValue(JsonElement v) => v.ValueKind switch { JsonValueKind.Null => "-", JsonValueKind.True => "بله", JsonValueKind.False => "خیر", JsonValueKind.String => v.GetString() ?? "-", _ => v.ToString() };
-    private sealed record AuditRow(Guid Id, DateTime OccurredAtUtc, Guid? EmployeeId, Guid? ActivePositionId, string? EmployeeName, string? PositionName, string Action, string EntityType, string? EntityId, string? BeforeJson, string? AfterJson);
+    protected override async Task OnInitializedAsync() => await SearchAsync();
+    private async Task SearchAsync(){_loading=true;try{await using var db=await DbFactory.CreateDbContextAsync();var query=db.AuditEntries.AsNoTracking().AsQueryable();if(!string.IsNullOrWhiteSpace(_entityType))query=query.Where(x=>x.EntityType.Contains(_entityType.Trim()));if(!string.IsNullOrWhiteSpace(_action))query=query.Where(x=>x.Action==_action);if(_fromDate.HasValue){var from=DateTime.SpecifyKind(_fromDate.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}if(_toDate.HasValue){var to=DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}var et=_employeeSearch.Trim();var pt=_positionSearch.Trim();if(!string.IsNullOrWhiteSpace(et))query=query.Where(x=>x.EmployeeId.HasValue&&db.Employees.Any(e=>e.Id==x.EmployeeId&&e.FullName.Contains(et)));if(!string.IsNullOrWhiteSpace(pt))query=query.Where(x=>x.ActivePositionId.HasValue&&db.Positions.Any(p=>p.Id==x.ActivePositionId&&p.Name.Contains(pt)));_totalCount=await query.CountAsync();if(_page>TotalPages)_page=TotalPages;var pageEntries=await query.OrderByDescending(x=>x.OccurredAtUtc).Skip((_page-1)*_pageSize).Take(_pageSize).ToListAsync();var eids=pageEntries.Where(x=>x.EmployeeId.HasValue).Select(x=>x.EmployeeId!.Value).Distinct().ToList();var pids=pageEntries.Where(x=>x.ActivePositionId.HasValue).Select(x=>x.ActivePositionId!.Value).Distinct().ToList();var employees=await db.Employees.AsNoTracking().Where(x=>eids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.FullName);var positions=await db.Positions.AsNoTracking().Where(x=>pids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name);_rows=pageEntries.Select(x=>new AuditRow(x.Id,x.OccurredAtUtc,x.EmployeeId,x.ActivePositionId,x.EmployeeId is Guid ei&&employees.TryGetValue(ei,out var en)?en:null,x.ActivePositionId is Guid pi&&positions.TryGetValue(pi,out var pn)?pn:null,x.Action,x.EntityType,x.EntityId,x.BeforeJson,x.AfterJson)).ToList();}finally{_loading=false;}}
+    private async Task PageSizeChangedAsync(){_page=1;await SearchAsync();} private async Task ClearFiltersAsync(){_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=DateTime.Today;_toDate=DateTime.Today;_page=1;await SearchAsync();} private async Task RemoveFromDateAsync(){_fromDate=null;_page=1;await SearchAsync();} private async Task RemoveToDateAsync(){_toDate=null;_page=1;await SearchAsync();} private async Task GoToPageAsync(int p){_page=p;await SearchAsync();} private async Task PreviousPageAsync(){if(_page>1){_page--;await SearchAsync();}} private async Task NextPageAsync(){if(_page<TotalPages){_page++;await SearchAsync();}}
+    private IEnumerable<int> GetPageNumbers(){var s=Math.Max(1,_page-2);var e=Math.Min(TotalPages,s+4);s=Math.Max(1,e-4);return Enumerable.Range(s,e-s+1);} private void ShowDetails(AuditRow r)=>_selected=r; private void CloseDetails()=>_selected=null;
+    private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a}; private static string GetActionClass(string a)=>a switch{"Created"=>"audit-created","Deleted"=>"audit-deleted",_=>"audit-updated"}; private static string GetActionIcon(string a)=>a switch{"Created"=>"bx-plus","Deleted"=>"bx-trash",_=>"bx-edit-alt"}; private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز",_=>e};
+    private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");} private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
+    private static RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='no-change'>بدون تغییر</div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","json-property");builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","json-value");builder.AddContent(i++,FormatJsonValue(p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>");}};
+    private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n}; private static string FormatJsonValue(JsonElement v)=>v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",JsonValueKind.String=>v.GetString()??"-",_=>v.ToString()};
+    private sealed record AuditRow(Guid Id,DateTime OccurredAtUtc,Guid? EmployeeId,Guid? ActivePositionId,string? EmployeeName,string? PositionName,string Action,string EntityType,string? EntityId,string? BeforeJson,string? AfterJson);
 }
 
 <style>
-.audit-filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:12px;align-items:end;margin-bottom:12px}.filter-field label,.page-size label{display:block;font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600}.audit-filter-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;padding-top:2px}.active-filters{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:center}.filter-chip{display:inline-flex;align-items:center;gap:5px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:999px;padding:4px 9px;font-size:11px}.filter-chip button{border:0;background:transparent;color:#64748b;cursor:pointer;font-size:15px;line-height:1;padding:0}.filter-actions{display:flex;gap:8px;flex-shrink:0}.audit-result-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#64748b;font-size:12px}.page-size{display:flex;align-items:center;gap:8px}.page-size label{margin:0}.page-size select{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;background:#fff}.audit-table{table-layout:fixed;width:100%}.audit-table .col-time{width:105px}.audit-table .col-user{width:18%}.audit-table .col-position{width:17%}.audit-table .col-action{width:105px}.audit-table .col-entity{width:25%}.audit-table .col-details{width:150px}.audit-table th,.audit-table td{overflow:hidden}.audit-time{width:105px;white-space:nowrap}.audit-time small{display:block;color:#94a3b8;font-size:11px;margin-top:2px}.actor-cell{display:flex;align-items:center;gap:8px;min-width:0}.actor-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f5f9;color:#475569}.truncate{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell strong{display:block}.entity-cell small{display:block;color:#94a3b8;font-size:10px;direction:ltr;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.audit-action{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:600}.audit-created{background:#ecfdf5;color:#047857}.audit-updated{background:#eff6ff;color:#1d4ed8}.audit-deleted{background:#fef2f2;color:#b91c1c}.audit-details-btn{border:0;background:#f8fafc;color:#475569;border-radius:7px;padding:7px 9px;font-family:inherit;font-size:11px;cursor:pointer;white-space:nowrap}.audit-details-btn:hover{background:#eef2ff;color:#3730a3}.audit-pagination{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:18px}.page-numbers{display:flex;gap:4px}.page-btn,.page-number{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 9px;cursor:pointer;font-family:inherit;font-size:11px;color:#475569}.page-number.active{background:#2563eb;color:#fff;border-color:#2563eb}.page-btn:disabled{opacity:.45;cursor:not-allowed}.audit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:5000}.audit-modal{width:min(1000px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 25px 70px rgba(15,23,42,.28);padding:20px}.audit-modal-header{display:flex;justify-content:space-between;gap:20px}.audit-modal-kicker{font-size:11px;color:#94a3b8}.audit-modal-header h2{margin:3px 0;font-size:20px}.audit-modal-time{color:#64748b;font-size:12px}.audit-close{border:0;background:#f1f5f9;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:20px}.audit-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.audit-meta-card{padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}.audit-meta-card span{display:block;color:#64748b;font-size:11px;margin-bottom:6px}.audit-meta-card strong{display:block;font-size:13px}.audit-meta-card small{display:block;color:#94a3b8;font-size:10px;margin-top:4px;direction:ltr}.audit-changes{display:grid;grid-template-columns:1fr 40px 1fr;align-items:stretch;gap:8px}.change-panel{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.change-header{padding:9px 11px;background:#f8fafc;font-size:12px;font-weight:700}.change-body{padding:10px;min-height:120px}.change-arrow{display:flex;align-items:center;justify-content:center;color:#94a3b8}.json-properties{display:flex;flex-direction:column;gap:5px}.json-property{display:flex;justify-content:space-between;gap:12px;padding:6px 8px;background:#f8fafc;border-radius:6px}.json-key{color:#64748b;font-size:11px}.json-value{color:#1e293b;font-size:11px;word-break:break-word}.no-change{color:#94a3b8;font-size:12px}.json-fallback{white-space:pre-wrap;font-size:10px;direction:ltr;text-align:left}.audit-modal-footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px;direction:ltr}.audit-modal-footer .btn{direction:rtl}@media(max-width:1100px){.audit-filters{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.audit-filters{grid-template-columns:1fr}.audit-filter-footer{align-items:stretch;flex-direction:column}.filter-actions{justify-content:flex-end}.audit-meta-grid{grid-template-columns:1fr 1fr}.audit-changes{grid-template-columns:1fr}.change-arrow{display:none}}
+.audit-filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:12px;align-items:end;margin-bottom:12px}.filter-field label,.page-size label{display:block;font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600}.audit-filter-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;padding-top:2px}.active-filters{display:flex;flex-wrap:wrap;gap:6px;min-height:30px;align-items:center}.filter-chip{display:inline-flex;align-items:center;gap:5px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:999px;padding:4px 9px;font-size:11px}.filter-chip button{border:0;background:transparent;color:#64748b;cursor:pointer;font-size:15px;line-height:1;padding:0}.filter-actions{display:flex;gap:8px;flex-shrink:0}.audit-result-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#64748b;font-size:12px}.page-size{display:flex;align-items:center;gap:8px}.page-size label{margin:0}.page-size select{border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;background:#fff}.audit-table{table-layout:fixed;width:100%}.audit-table .col-time{width:105px}.audit-table .col-user{width:18%}.audit-table .col-position{width:17%}.audit-table .col-action{width:105px}.audit-table .col-entity{width:25%}.audit-table .col-details{width:150px}.audit-table th,.audit-table td{overflow:hidden}.audit-time{width:105px;white-space:nowrap}.audit-time small{display:block;color:#94a3b8;font-size:11px;margin-top:2px}.actor-cell{display:flex;align-items:center;gap:8px;min-width:0}.actor-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f5f9;color:#475569}.truncate{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-cell strong{display:block}.entity-cell small{display:block;color:#94a3b8;font-size:10px;direction:ltr;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.audit-action{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:600}.audit-created{background:#ecfdf5;color:#047857}.audit-updated{background:#eff6ff;color:#1d4ed8}.audit-deleted{background:#fef2f2;color:#b91c1c}.audit-details-btn{border:0;background:#f8fafc;color:#475569;border-radius:7px;padding:7px 9px;font-family:inherit;font-size:11px;cursor:pointer;white-space:nowrap}.audit-details-btn:hover{background:#eef2ff;color:#3730a3}.audit-pagination{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:18px}.page-numbers{display:flex;gap:4px}.page-btn,.page-number{border:1px solid #e2e8f0;background:#fff;border-radius:7px;padding:6px 9px;cursor:pointer;font-family:inherit;font-size:11px;color:#475569}.page-number.active{background:#2563eb;color:#fff;border-color:#2563eb}.page-btn:disabled{opacity:.45;cursor:not-allowed}.audit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:5000}.audit-modal{width:min(1000px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 25px 70px rgba(15,23,42,.28);padding:20px}.audit-modal-header{display:flex;justify-content:space-between;gap:20px}.audit-modal-kicker{font-size:11px;color:#94a3b8}.audit-modal-header h2{margin:3px 0;font-size:20px}.audit-modal-time{color:#64748b;font-size:12px}.audit-close{border:0;background:#f1f5f9;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:20px}.audit-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}.audit-meta-card{padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}.audit-meta-card span{display:block;color:#64748b;font-size:11px;margin-bottom:6px}.audit-meta-card strong{display:block;font-size:13px}.audit-meta-card small{display:block;color:#94a3b8;font-size:10px;margin-top:4px;direction:ltr}.audit-changes{display:grid;grid-template-columns:1fr 40px 1fr;align-items:stretch;gap:8px}.change-panel{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.change-header{padding:9px 11px;background:#f8fafc;font-size:12px;font-weight:700}.change-body{padding:10px;min-height:120px}.change-arrow{display:flex;align-items:center;justify-content:center;color:#94a3b8}.json-properties{display:flex;flex-direction:column;gap:5px}.json-property{display:flex;justify-content:space-between;gap:12px;padding:6px 8px;background:#f8fafc;border-radius:6px}.json-key{color:#64748b;font-size:11px}.json-value{color:#1e293b;font-size:11px;word-break:break-word}.no-change{color:#94a3b8;font-size:12px}.json-fallback{white-space:pre-wrap;font-size:10px;direction:ltr;text-align:left}.audit-modal-footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px;direction:ltr}.audit-modal-footer .btn{direction:rtl}
+@@media(max-width:1100px){.audit-filters{grid-template-columns:repeat(3,1fr)}}
+@@media(max-width:700px){.audit-filters{grid-template-columns:1fr}.audit-filter-footer{align-items:stretch;flex-direction:column}.filter-actions{justify-content:flex-end}.audit-meta-grid{grid-template-columns:1fr 1fr}.audit-changes{grid-template-columns:1fr}.change-arrow{display:none}}
 </style>
