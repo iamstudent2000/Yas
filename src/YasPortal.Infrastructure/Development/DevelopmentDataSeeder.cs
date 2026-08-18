@@ -69,7 +69,8 @@ public static class DevelopmentDataSeeder
             ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها"),
             ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها"),
             ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
-            ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها")
+            ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
+            ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها")
         };
 
         foreach (var permission in permissions.Values.ToList())
@@ -111,9 +112,6 @@ public static class DevelopmentDataSeeder
         foreach (var permission in permissions.Values)
             await EnsureDirectPermission(db, employees["admin"], permission, ct);
 
-        // Seeder order matters: every employee must be active before an active
-        // EmployeePosition is created. This also repairs old development databases
-        // where an employee was accidentally left inactive.
         foreach (var username in new[] { "employee", "hr", "manager", "finance" })
         {
             if (!employees[username].IsActive)
@@ -147,26 +145,21 @@ public static class DevelopmentDataSeeder
     {
         var existingForEmployee = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id, ct);
         if (existingForEmployee is not null && existingForEmployee.IsActive) return;
-
         var conflictingAssignments = await db.EmployeePositions.Where(x => x.PositionId == position.Id && x.EmployeeId != employee.Id && x.EndedAt == null).ToListAsync(ct);
         foreach (var assignment in conflictingAssignments) assignment.End();
         if (conflictingAssignments.Count > 0) await db.SaveChangesAsync(ct);
-
-        if (existingForEmployee is not null) existingForEmployee.Reactivate();
-        else db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
+        if (existingForEmployee is not null) existingForEmployee.Reactivate(); else db.EmployeePositions.Add(new EmployeePosition(employee.Id, position.Id));
         await db.SaveChangesAsync(ct);
     }
 
     private static async Task EnsureDirectPermission(ApplicationDbContext db, Employee employee, Permission permission, CancellationToken ct)
     {
-        if (!await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == permission.Id, ct))
-            db.EmployeePermissions.Add(new EmployeePermission(employee.Id, permission.Id));
+        if (!await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == permission.Id, ct)) db.EmployeePermissions.Add(new EmployeePermission(employee.Id, permission.Id));
     }
 
     private static async Task EnsurePermission(ApplicationDbContext db, Employee employee, Position position, Permission permission, CancellationToken ct)
     {
-        if (!await db.UserPositionPermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.PermissionId == permission.Id, ct))
-            db.UserPositionPermissions.Add(new UserPositionPermission(employee.Id, position.Id, permission.Id));
+        if (!await db.UserPositionPermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.PermissionId == permission.Id, ct)) db.UserPositionPermissions.Add(new UserPositionPermission(employee.Id, position.Id, permission.Id));
     }
 
     private static async Task Grant(ApplicationDbContext db, Employee employee, Position position, IReadOnlyDictionary<string, Permission> permissions, IEnumerable<string> codes, CancellationToken ct)
