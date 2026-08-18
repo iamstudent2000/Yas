@@ -3,7 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Auditing
 @using YasPortal.Infrastructure.Persistence
-@attribute [Authorize(Policy = "Admin.Access")]
+@attribute [Authorize(Policy = "Admin.AuditLog")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
