@@ -12,6 +12,7 @@ public sealed class AppState : IDisposable
     private bool _disposed;
 
     public event Action? OnChange;
+    public event Func<Task>? OnDataChanged;
 
     /// <summary>
     /// Newest toast is always first. A snapshot is returned so the renderer never
@@ -37,6 +38,34 @@ public sealed class AppState : IDisposable
         NotifyStateChanged();
     }
 
+    /// <summary>
+    /// Announces that application data changed during this Blazor circuit.
+    /// Pages/components that display mutable employee, position or organization
+    /// data can subscribe and reload their own view models without owning a
+    /// second copy of the business state.
+    /// </summary>
+    public async Task NotifyDataChangedAsync()
+    {
+        if (_disposed)
+            return;
+
+        var handlers = OnDataChanged;
+        if (handlers is null)
+            return;
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Func<Task>>())
+        {
+            try
+            {
+                await handler();
+            }
+            catch (ObjectDisposedException)
+            {
+                // A component can disappear between notification and callback.
+            }
+        }
+    }
+
     public void AddToast(string message, ToastLevel level = ToastLevel.Info, int durationMs = 4500)
     {
         if (_disposed || string.IsNullOrWhiteSpace(message))
@@ -52,12 +81,7 @@ public sealed class AppState : IDisposable
 
         lock (_sync)
         {
-            // Insert at index 0. The UI therefore has one deterministic rule:
-            // newest message is always rendered at the top of the stack.
             _toasts.Insert(0, toast);
-
-            // Every toast owns its own one-shot timer. Adding a second toast never
-            // replaces or resets the timer belonging to the first toast.
             _toastTimers[toast.Id] = new Timer(
                 static state =>
                 {
@@ -109,6 +133,7 @@ public sealed class AppState : IDisposable
 
             _disposed = true;
             OnChange = null;
+            OnDataChanged = null;
             _toasts.Clear();
             timers = _toastTimers.Values.ToArray();
             _toastTimers.Clear();
