@@ -1,9 +1,6 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
-@using YasPortal.Web.Services
 @inherits LayoutComponentBase
-@implements IDisposable
-@inject AppState AppState
 
 <div class="application-shell" dir="rtl">
     <header class="topbar">
@@ -63,32 +60,10 @@
             </Authorized>
         </AuthorizeView>
         <main class="content">
-            <div @key="_dataVersion">
-                @Body
-            </div>
+            @Body
         </main>
     </div>
 
     <YasPortal.Web.Components.AppNotifications />
     <script src="/js/admin-ui.js"></script>
 </div>
-
-@code {
-    private long _dataVersion;
-
-    protected override void OnInitialized()
-    {
-        AppState.OnDataChanged += HandleDataChangedAsync;
-    }
-
-    private async Task HandleDataChangedAsync()
-    {
-        _dataVersion++;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    public void Dispose()
-    {
-        AppState.OnDataChanged -= HandleDataChangedAsync;
-    }
-}
