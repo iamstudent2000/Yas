@@ -24,7 +24,7 @@
     else {
         <div class="data-table-wrap"><table class="data-table"><thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead><tbody>
         @foreach (var row in _rows) {
-            <tr @key="row.Id"><td>@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td>@(row.EmployeeName ?? "سیستم")</td><td>@(row.PositionName ?? "-")</td><td><span class="badge @GetActionClass(row.Action)">@GetActionText(row.Action)</span></td><td>@row.EntityType<br /><small class="muted-line">@row.EntityId</small></td><td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل</strong><pre>@(row.BeforeJson ?? "-")</pre><strong>بعد</strong><pre>@(row.AfterJson ?? "-")</pre></div></details></td></tr>
+            <tr @key="row.Id"><td>@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td>@row.EmployeeName</td><td>@row.PositionName</td><td><span class="badge @GetActionClass(row.Action)">@GetActionText(row.Action)</span></td><td>@row.EntityType<br /><small class="muted-line">@row.EntityId</small></td><td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل</strong><pre>@(row.BeforeJson ?? "-")</pre><strong>بعد</strong><pre>@(row.AfterJson ?? "-")</pre></div></details></td></tr>
         }
         </tbody></table></div>
     }
@@ -47,7 +47,7 @@
             var query = db.AuditEntries.AsNoTracking().OrderByDescending(x => x.OccurredAtUtc).AsQueryable();
             if (!string.IsNullOrWhiteSpace(_entityType)) query = query.Where(x => x.EntityType.Contains(_entityType.Trim()));
             if (!string.IsNullOrWhiteSpace(_action)) query = query.Where(x => x.Action == _action);
-            _rows = await query.Take(200).Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId, x.Employee == null ? null : x.Employee.FullName, x.ActivePosition == null ? null : x.ActivePosition.Name, x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToListAsync();
+            _rows = await query.Take(200).Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId, null, null, x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToListAsync();
         }
         finally { _loading = false; }
     }
