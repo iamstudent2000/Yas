@@ -3,6 +3,7 @@ namespace YasPortal.Domain.Organization;
 public sealed class Employee
 {
     private Employee() { }
+
     public Employee(string username, string fullName, Guid organizationId, bool isAdmin = false)
     {
         if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Username is required.", nameof(username));
@@ -48,14 +49,33 @@ public sealed class Employee
     }
 
     public void Activate() => IsActive = true;
-    public void Deactivate() => IsActive = false;
+
+    /// <summary>
+    /// Deactivating an employee immediately ends every active position assignment and
+    /// clears the last-position preference. An inactive employee must never retain an
+    /// active organizational assignment.
+    /// </summary>
+    public void Deactivate()
+    {
+        if (!IsActive)
+            return;
+
+        IsActive = false;
+        LastActivePositionId = null;
+
+        foreach (var position in Positions.Where(x => x.EndedAt is null))
+            position.End();
+    }
 }
 
 public sealed class EmployeePosition
 {
     private EmployeePosition() { }
+
     public EmployeePosition(Guid employeeId, Guid positionId)
     {
+        if (employeeId == Guid.Empty) throw new ArgumentException("Employee is required.", nameof(employeeId));
+        if (positionId == Guid.Empty) throw new ArgumentException("Position is required.", nameof(positionId));
         EmployeeId = employeeId;
         PositionId = positionId;
     }
@@ -66,6 +86,11 @@ public sealed class EmployeePosition
     public Position Position { get; private set; } = null!;
     public DateTime? EndedAt { get; private set; }
     public bool IsActive => EndedAt is null;
-    public void End() => EndedAt = DateTime.UtcNow;
-    public void Reactivate() => EndedAt = null;
+
+    public void End() => EndedAt ??= DateTime.UtcNow;
+
+    public void Reactivate()
+    {
+        EndedAt = null;
+    }
 }
