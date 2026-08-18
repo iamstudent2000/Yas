@@ -2,12 +2,13 @@
 
 <div class="pdp" dir="rtl">
     <button type="button" class="pdp-input" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@_open">
-        <span class="pdp-value">@(_selected.HasValue ? ToPersianDate(_selected.Value) : Placeholder)</span>
-        <span class="pdp-icon">📅</span>
+        <span>@(_selected.HasValue ? ToPersianDate(_selected.Value) : Placeholder)</span>
+        <span>📅</span>
     </button>
 
     @if (_open)
     {
+        <button type="button" class="pdp-backdrop" aria-label="بستن تقویم" @onclick="Close"></button>
         <div class="pdp-popover">
             <div class="pdp-header">
                 <button type="button" class="pdp-nav" @onclick="PreviousMonth" aria-label="ماه قبل">‹</button>
@@ -23,12 +24,15 @@
                                 <div class="pdp-options">
                                     @if (FilteredYears.Any())
                                     {
-                                        @foreach (var year in FilteredYears)
+                                        foreach (var year in FilteredYears)
                                         {
                                             <button type="button" class="pdp-option @(year == _displayYear ? "active" : "")" @onclick="() => SelectYear(year)">@ToPersianDigits(year.ToString())</button>
                                         }
                                     }
-                                    else { <div class="pdp-no-results">موردی یافت نشد</div> }
+                                    else
+                                    {
+                                        <div class="pdp-no-results">موردی یافت نشد</div>
+                                    }
                                 </div>
                             </div>
                         }
@@ -45,12 +49,15 @@
                                 <div class="pdp-options">
                                     @if (FilteredMonths.Any())
                                     {
-                                        @foreach (var month in FilteredMonths)
+                                        foreach (var month in FilteredMonths)
                                         {
                                             <button type="button" class="pdp-option @(month == _displayMonth ? "active" : "")" @onclick="() => SelectMonth(month)">@MonthNames[month - 1]</button>
                                         }
                                     }
-                                    else { <div class="pdp-no-results">موردی یافت نشد</div> }
+                                    else
+                                    {
+                                        <div class="pdp-no-results">موردی یافت نشد</div>
+                                    }
                                 </div>
                             </div>
                         }
@@ -60,18 +67,32 @@
             </div>
 
             <div class="pdp-weekdays">
-                @foreach (var day in Weekdays) { <span>@day</span> }
+                @foreach (var day in Weekdays)
+                {
+                    <span>@day</span>
+                }
             </div>
+
             <div class="pdp-grid">
                 @foreach (var cell in GetCells())
                 {
-                    if (cell.Day == 0) <span class="pdp-empty"></span>
-                    else <button type="button" class="pdp-day @(cell.IsSelected ? "selected" : "") @(cell.IsToday ? "today" : "")" @onclick="() => Select(cell.Day)">@ToPersianDigits(cell.Day.ToString())</button>
+                    if (cell.Day == 0)
+                    {
+                        <span class="pdp-empty"></span>
+                    }
+                    else
+                    {
+                        <button type="button" class="pdp-day @(cell.IsSelected ? "selected" : "") @(cell.IsToday ? "today" : "")" @onclick="() => Select(cell.Day)">@ToPersianDigits(cell.Day.ToString())</button>
+                    }
                 }
             </div>
+
             <div class="pdp-footer">
                 <button type="button" class="pdp-today" @onclick="GoToday">امروز</button>
-                @if (_selected.HasValue) { <button type="button" class="pdp-clear" @onclick="Clear">پاک کردن</button> }
+                @if (_selected.HasValue)
+                {
+                    <button type="button" class="pdp-clear" @onclick="Clear">پاک کردن</button>
+                }
             </div>
         </div>
     }
@@ -87,17 +108,33 @@
     private DateTime? _selected;
     private int _displayYear, _displayMonth;
     private readonly PersianCalendar _calendar = new();
+
     private static readonly string[] MonthNames = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
     private static readonly string[] Weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
     private IEnumerable<int> YearOptions => Enumerable.Range(1300, 151);
     private IEnumerable<int> FilteredYears => string.IsNullOrWhiteSpace(NormalizeDigits(_yearSearch.Trim())) ? YearOptions : YearOptions.Where(y => y.ToString().Contains(NormalizeDigits(_yearSearch.Trim())));
     private IEnumerable<int> FilteredMonths => string.IsNullOrWhiteSpace(_monthSearch.Trim()) ? Enumerable.Range(1, 12) : Enumerable.Range(1, 12).Where(m => MonthNames[m - 1].Contains(_monthSearch.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    protected override void OnInitialized() { SetDisplayDate(Value ?? DateTime.Now); _selected = Value; }
-    protected override void OnParametersSet() { if (Value != _selected) { _selected = Value; SetDisplayDate(Value ?? DateTime.Now); } EnsureDisplayDate(); }
+    protected override void OnInitialized()
+    {
+        SetDisplayDate(Value ?? DateTime.Now);
+        _selected = Value;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value != _selected)
+        {
+            _selected = Value;
+            SetDisplayDate(Value ?? DateTime.Now);
+        }
+        EnsureDisplayDate();
+    }
+
     private void SetDisplayDate(DateTime date) { _displayYear = _calendar.GetYear(date); _displayMonth = _calendar.GetMonth(date); }
     private void EnsureDisplayDate() { if (_displayYear < 1 || _displayMonth < 1 || _displayMonth > 12) SetDisplayDate(_selected ?? DateTime.Now); }
     private void Toggle() { EnsureDisplayDate(); _open = !_open; if (!_open) ClosePickers(); }
+    private void Close() { _open = false; ClosePickers(); }
     private void ClosePickers() { _yearPickerOpen = false; _monthPickerOpen = false; _yearSearch = _monthSearch = ""; }
     private void ToggleYearPicker() { _yearPickerOpen = !_yearPickerOpen; _monthPickerOpen = false; _yearSearch = ""; }
     private void ToggleMonthPicker() { _monthPickerOpen = !_monthPickerOpen; _yearPickerOpen = false; _monthSearch = ""; }
@@ -108,15 +145,32 @@
     private void PreviousMonth() { EnsureDisplayDate(); if (_displayMonth == 1) { if (_displayYear > 1) { _displayMonth = 12; _displayYear--; } } else _displayMonth--; }
     private void NextMonth() { EnsureDisplayDate(); if (_displayMonth == 12) { _displayMonth = 1; _displayYear++; } else _displayMonth++; }
     private void GoToday() { SetDisplayDate(DateTime.Now); ClosePickers(); }
-    private async Task Select(int day) { EnsureDisplayDate(); _selected = _calendar.ToDateTime(_displayYear, _displayMonth, day, 0, 0, 0, 0); _open = false; ClosePickers(); await ValueChanged.InvokeAsync(_selected); }
-    private async Task Clear() { _selected = null; _open = false; ClosePickers(); await ValueChanged.InvokeAsync(null); }
+    private async Task Select(int day) { EnsureDisplayDate(); _selected = _calendar.ToDateTime(_displayYear, _displayMonth, day, 0, 0, 0, 0); Close(); await ValueChanged.InvokeAsync(_selected); }
+    private async Task Clear() { _selected = null; Close(); await ValueChanged.InvokeAsync(null); }
     private string ToPersianDate(DateTime date) => ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
     private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
     private static string NormalizeDigits(string value) => value.Replace("۰", "0").Replace("۱", "1").Replace("۲", "2").Replace("۳", "3").Replace("۴", "4").Replace("۵", "5").Replace("۶", "6").Replace("۷", "7").Replace("۸", "8").Replace("۹", "9");
-    private IEnumerable<DayCell> GetCells() { EnsureDisplayDate(); var first = _calendar.ToDateTime(_displayYear, _displayMonth, 1, 0, 0, 0, 0); var offset = ((int)first.DayOfWeek + 1) % 7; var days = _calendar.GetDaysInMonth(_displayYear, _displayMonth); for (var i = 0; i < offset; i++) yield return new DayCell(0, false, false); var today = DateTime.Now; var ty = _calendar.GetYear(today); var tm = _calendar.GetMonth(today); var td = _calendar.GetDayOfMonth(today); for (var d = 1; d <= days; d++) { var date = _calendar.ToDateTime(_displayYear, _displayMonth, d, 0, 0, 0, 0); yield return new DayCell(d, _selected.HasValue && _selected.Value.Date == date.Date, ty == _displayYear && tm == _displayMonth && td == d); } }
+
+    private IEnumerable<DayCell> GetCells()
+    {
+        EnsureDisplayDate();
+        var first = _calendar.ToDateTime(_displayYear, _displayMonth, 1, 0, 0, 0, 0);
+        var offset = ((int)first.DayOfWeek + 1) % 7;
+        var days = _calendar.GetDaysInMonth(_displayYear, _displayMonth);
+        for (var i = 0; i < offset; i++) yield return new DayCell(0, false, false);
+
+        var today = DateTime.Now;
+        var ty = _calendar.GetYear(today); var tm = _calendar.GetMonth(today); var td = _calendar.GetDayOfMonth(today);
+        for (var d = 1; d <= days; d++)
+        {
+            var date = _calendar.ToDateTime(_displayYear, _displayMonth, d, 0, 0, 0, 0);
+            yield return new DayCell(d, _selected.HasValue && _selected.Value.Date == date.Date, ty == _displayYear && tm == _displayMonth && td == d);
+        }
+    }
+
     private sealed record DayCell(int Day, bool IsSelected, bool IsToday);
 }
 
 <style>
-.pdp{position:relative;width:100%;font-family:inherit}.pdp-input{width:100%;min-height:40px;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#334155;text-align:right}.pdp-input:hover{border-color:#94a3b8}.pdp-value{direction:rtl}.pdp-icon{font-size:16px}.pdp-popover{position:absolute;top:calc(100% + 7px);right:0;width:320px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:12px;z-index:3000}.pdp-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.pdp-nav{border:0;background:#f1f5f9;border-radius:8px;width:34px;height:36px;flex:0 0 34px;font-size:24px;cursor:pointer;color:#475569}.pdp-selectors{display:flex;align-items:center;gap:6px;flex:1}.pdp-picker{position:relative;flex:1}.pdp-select{min-width:0;width:100%;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:7px 8px;color:#334155;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;direction:rtl}.pdp-picker-button{display:flex;align-items:center;justify-content:space-between}.pdp-menu{position:absolute;top:calc(100% + 5px);right:0;width:180px;background:#fff;border:1px solid #dbe3ee;border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:7px;z-index:3010}.pdp-month-menu{width:190px}.pdp-search{width:100%;box-sizing:border-box;border:1px solid #dbe3ee;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;direction:rtl;outline:none}.pdp-search:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}.pdp-options{max-height:190px;overflow-y:auto;margin-top:6px}.pdp-option{display:block;width:100%;border:0;background:transparent;border-radius:7px;padding:7px 8px;text-align:right;direction:rtl;font-family:inherit;font-size:12px;cursor:pointer;color:#334155}.pdp-option:hover,.pdp-option.active{background:#eff6ff;color:#2563eb}.pdp-no-results{text-align:center;padding:14px 5px;color:#94a3b8;font-size:12px}.pdp-weekdays,.pdp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.pdp-weekdays{margin-bottom:4px}.pdp-weekdays span{font-size:11px;color:#94a3b8;font-weight:700;padding:5px 0}.pdp-day,.pdp-empty{height:34px}.pdp-day{border:0;background:transparent;border-radius:8px;cursor:pointer;color:#334155;font-family:inherit}.pdp-day:hover{background:#e2e8f0}.pdp-day.today{box-shadow:inset 0 0 0 1px #2563eb}.pdp-day.selected{background:#2563eb;color:#fff;font-weight:700}.pdp-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9}.pdp-today,.pdp-clear{border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}.pdp-today{color:#2563eb}.pdp-clear{color:#64748b}
+.pdp{position:relative;width:100%;font-family:inherit}.pdp-input{position:relative;z-index:3002;width:100%;min-height:40px;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#334155;text-align:right}.pdp-input:hover{border-color:#94a3b8}.pdp-value{direction:rtl}.pdp-icon{font-size:16px}.pdp-backdrop{position:fixed;inset:0;width:100%;height:100%;border:0;padding:0;margin:0;background:transparent;z-index:2990;cursor:default}.pdp-popover{position:absolute;top:calc(100% + 7px);right:0;width:320px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:12px;z-index:3001}.pdp-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.pdp-nav{border:0;background:#f1f5f9;border-radius:8px;width:34px;height:36px;flex:0 0 34px;font-size:24px;cursor:pointer;color:#475569}.pdp-selectors{display:flex;align-items:center;gap:6px;flex:1}.pdp-picker{position:relative;flex:1}.pdp-select{min-width:0;width:100%;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:7px 8px;color:#334155;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;direction:rtl}.pdp-picker-button{display:flex;align-items:center;justify-content:space-between}.pdp-menu{position:absolute;top:calc(100% + 5px);right:0;width:180px;background:#fff;border:1px solid #dbe3ee;border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.18);padding:7px;z-index:3010}.pdp-month-menu{width:190px}.pdp-search{width:100%;box-sizing:border-box;border:1px solid #dbe3ee;border-radius:7px;padding:7px 8px;font-family:inherit;font-size:12px;direction:rtl;outline:none}.pdp-search:focus{border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.1)}.pdp-options{max-height:190px;overflow-y:auto;margin-top:6px}.pdp-option{display:block;width:100%;border:0;background:transparent;border-radius:7px;padding:7px 8px;text-align:right;direction:rtl;font-family:inherit;font-size:12px;cursor:pointer;color:#334155}.pdp-option:hover,.pdp-option.active{background:#eff6ff;color:#2563eb}.pdp-no-results{text-align:center;padding:14px 5px;color:#94a3b8;font-size:12px}.pdp-weekdays,.pdp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.pdp-weekdays{margin-bottom:4px}.pdp-weekdays span{font-size:11px;color:#94a3b8;font-weight:700;padding:5px 0}.pdp-day,.pdp-empty{height:34px}.pdp-day{border:0;background:transparent;border-radius:8px;cursor:pointer;color:#334155;font-family:inherit}.pdp-day:hover{background:#e2e8f0}.pdp-day.today{box-shadow:inset 0 0 0 1px #2563eb}.pdp-day.selected{background:#2563eb;color:#fff;font-weight:700}.pdp-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9}.pdp-today,.pdp-clear{border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}.pdp-today{color:#2563eb}.pdp-clear{color:#64748b}
 </style>
