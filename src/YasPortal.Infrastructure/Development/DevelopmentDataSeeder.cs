@@ -62,15 +62,14 @@ public static class DevelopmentDataSeeder
             ["Employees.View"] = new Permission("Employees.View", "مشاهده کارکنان"),
             ["Employees.Manage"] = new Permission("Employees.Manage", "مدیریت کارکنان"),
             ["Organizations.View"] = new Permission("Organizations.View", "مشاهده سازمان‌ها"),
-            ["Organizations.Manage"] = new Permission("Organizations.Manage", "مدیریت سازمان‌ها"),
             ["Positions.View"] = new Permission("Positions.View", "مشاهده سمت‌ها"),
-            ["Positions.Manage"] = new Permission("Positions.Manage", "مدیریت سمت‌ها"),
             ["Permissions.View"] = new Permission("Permissions.View", "مشاهده مجوزها"),
-            ["Permissions.Manage"] = new Permission("Permissions.Manage", "مدیریت مجوزها"),
             ["Admin.Users"] = new Permission("Admin.Users", "مدیریت کاربران"),
             ["Admin.Positions"] = new Permission("Admin.Positions", "مدیریت سمت‌ها"),
             ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها"),
-            ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها")
+            ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها"),
+            ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
+            ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها")
         };
 
         foreach (var permission in permissions.Values.ToList())
