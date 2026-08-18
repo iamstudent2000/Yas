@@ -84,7 +84,9 @@ public sealed class PersistenceIntegrityTests
     [Fact]
     public async Task Assignment_history_is_closed_when_assignment_ends_even_when_history_was_not_preloaded()
     {
-        await using (var setup = CreateContext())
+        var databaseName = $"AssignmentHistory-{Guid.NewGuid()}";
+
+        await using (var setup = CreateContext(databaseName))
         {
             var organization = new Organization("Org");
             var employee = new Employee("employee", "Employee", organization.Id);
@@ -96,24 +98,24 @@ public sealed class PersistenceIntegrityTests
             await setup.SaveChangesAsync();
         }
 
-        await using (var db = CreateContext())
+        await using (var db = CreateContext(databaseName))
         {
             var assignment = await db.EmployeePositions.SingleAsync();
             assignment.End();
             await db.SaveChangesAsync();
         }
 
-        await using (var verify = CreateContext())
+        await using (var verify = CreateContext(databaseName))
         {
             var history = await verify.PositionAssignmentHistories.SingleAsync();
             Assert.NotNull(history.EndedAt);
         }
     }
 
-    private static ApplicationDbContext CreateContext()
+    private static ApplicationDbContext CreateContext(string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
             .Options;
         return new ApplicationDbContext(options);
     }
