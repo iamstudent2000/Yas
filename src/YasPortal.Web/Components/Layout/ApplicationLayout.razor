@@ -4,7 +4,7 @@
 
 <div class="application-shell" dir="rtl">
     <header class="topbar">
-        <a class="brand" href="/dashboard"><span class="brand-mark"><i class="bx bx-layer"></i></span><span>یاس پورتال</span></a>
+        <NavLink class="brand" href="/dashboard" Match="NavLinkMatch.All"><span class="brand-mark"><i class="bx bx-layer"></i></span><span>یاس پورتال</span></NavLink>
         <AuthorizeView>
             <Authorized Context="auth">
                 <div class="topbar-user">
@@ -14,7 +14,7 @@
                     <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
                 </div>
             </Authorized>
-            <NotAuthorized><a class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</a></NotAuthorized>
+            <NotAuthorized><NavLink class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</NavLink></NotAuthorized>
         </AuthorizeView>
     </header>
     <div class="application-body">
