@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
+@using YasPortal.Infrastructure.Authorization
 @using YasPortal.Infrastructure.Persistence
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
@@ -45,7 +46,7 @@ else if (_positions.Count == 1)
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
             return;
 
-        Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out _activePositionId);
+        Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out _activePositionId);
 
         await using var db = await DbFactory.CreateDbContextAsync();
         _positions = await db.EmployeePositions
@@ -55,6 +56,9 @@ else if (_positions.Count == 1)
             .Select(x => new PositionItem(x.PositionId, x.Position.Name))
             .ToListAsync();
 
+        // Never present an ended/non-assigned position as the active position. The
+        // permission checker independently rejects a stale claim until a new valid
+        // position is selected.
         if (_activePositionId == Guid.Empty || !_positions.Any(x => x.Id == _activePositionId))
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
