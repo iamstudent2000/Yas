@@ -47,7 +47,7 @@
 
     protected override void OnParametersSet()
     {
-        if (Value != _selected)
+        if (Value != _selected || _displayMonth is < 1 or > 12)
         {
             _selected = Value;
             var date = Value ?? DateTime.Now;
@@ -56,16 +56,83 @@
         }
     }
 
-    private void Toggle() => _open = !_open;
-    private void PreviousMonth(){ if (_displayMonth == 1) { _displayMonth=12; _displayYear--; } else _displayMonth--; }
-    private void NextMonth(){ if (_displayMonth == 12) { _displayMonth=1; _displayYear++; } else _displayMonth++; }
-    private async Task Select(int day){ _selected = _calendar.ToDateTime(_displayYear,_displayMonth,day,0,0,0,0); _open=false; await ValueChanged.InvokeAsync(_selected); }
-    private async Task Clear(){_selected=null;_open=false;await ValueChanged.InvokeAsync(null);}
-    private void GoToday(){var now=DateTime.Now;_displayYear=_calendar.GetYear(now);_displayMonth=_calendar.GetMonth(now);}
-    private string ToPersianDate(DateTime date)=>ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
-    private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
-    private IEnumerable<DayCell> GetCells(){var first=_calendar.ToDateTime(_displayYear,_displayMonth,1,0,0,0,0);var offset=((int)first.DayOfWeek+1)%7;var days=_calendar.GetDaysInMonth(_displayYear,_displayMonth);for(var i=0;i<offset;i++)yield return new DayCell(0,false,false);for(var d=1;d<=days;d++){var date=_calendar.ToDateTime(_displayYear,_displayMonth,d,0,0,0,0);yield return new DayCell(d,_selected.HasValue&&_selected.Value.Date==date.Date,_calendar.GetYear(DateTime.Now)==_displayYear&&_calendar.GetMonth(DateTime.Now)==_displayMonth&&_calendar.GetDayOfMonth(DateTime.Now)==d);}}
-    private sealed record DayCell(int Day,bool IsSelected,bool IsToday);
+    private void Toggle()
+    {
+        EnsureDisplayMonth();
+        _open = !_open;
+    }
+
+    private void EnsureDisplayMonth()
+    {
+        if (_displayMonth is >= 1 and <= 12)
+            return;
+
+        var date = _selected ?? DateTime.Now;
+        _displayYear = _calendar.GetYear(date);
+        _displayMonth = _calendar.GetMonth(date);
+    }
+
+    private void PreviousMonth()
+    {
+        EnsureDisplayMonth();
+        if (_displayMonth == 1) { _displayMonth = 12; _displayYear--; } else _displayMonth--;
+    }
+
+    private void NextMonth()
+    {
+        EnsureDisplayMonth();
+        if (_displayMonth == 12) { _displayMonth = 1; _displayYear++; } else _displayMonth++;
+    }
+
+    private async Task Select(int day)
+    {
+        EnsureDisplayMonth();
+        _selected = _calendar.ToDateTime(_displayYear, _displayMonth, day, 0, 0, 0, 0);
+        _open = false;
+        await ValueChanged.InvokeAsync(_selected);
+    }
+
+    private async Task Clear()
+    {
+        _selected = null;
+        _open = false;
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    private void GoToday()
+    {
+        var now = DateTime.Now;
+        _displayYear = _calendar.GetYear(now);
+        _displayMonth = _calendar.GetMonth(now);
+    }
+
+    private string ToPersianDate(DateTime date) => ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
+
+    private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
+
+    private IEnumerable<DayCell> GetCells()
+    {
+        EnsureDisplayMonth();
+        var first = _calendar.ToDateTime(_displayYear, _displayMonth, 1, 0, 0, 0, 0);
+        var offset = ((int)first.DayOfWeek + 1) % 7;
+        var days = _calendar.GetDaysInMonth(_displayYear, _displayMonth);
+
+        for (var i = 0; i < offset; i++)
+            yield return new DayCell(0, false, false);
+
+        for (var d = 1; d <= days; d++)
+        {
+            var date = _calendar.ToDateTime(_displayYear, _displayMonth, d, 0, 0, 0, 0);
+            yield return new DayCell(
+                d,
+                _selected.HasValue && _selected.Value.Date == date.Date,
+                _calendar.GetYear(DateTime.Now) == _displayYear &&
+                _calendar.GetMonth(DateTime.Now) == _displayMonth &&
+                _calendar.GetDayOfMonth(DateTime.Now) == d);
+        }
+    }
+
+    private sealed record DayCell(int Day, bool IsSelected, bool IsToday);
 }
 
 <style>
