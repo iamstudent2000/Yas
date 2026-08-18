@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Xunit;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Persistence;
 
