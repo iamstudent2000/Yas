@@ -1,0 +1,30 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+
+<div class="application-shell" dir="rtl">
+    <header class="topbar">
+        <a class="brand" href="/dashboard"><span class="brand-mark"><i class="bx bx-layer"></i></span><span>یاس پورتال</span></a>
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="topbar-user">
+                    <YasPortal.Web.Components.Shared.ActivePositionSelector />
+                    <span class="user-avatar"><i class="bx bx-user"></i></span>
+                    <div><strong>@auth.User.Identity?.Name</strong><small>حساب کاربری</small></div>
+                    <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
+                </div>
+            </Authorized>
+            <NotAuthorized><a class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</a></NotAuthorized>
+        </AuthorizeView>
+    </header>
+    <div class="application-body">
+        <AuthorizeView>
+            <Authorized>
+                <PersistentSidebar />
+            </Authorized>
+        </AuthorizeView>
+        <main class="content">
+            <Routes />
+        </main>
+    </div>
+    <YasPortal.Web.Components.AppNotifications />
+</div>
