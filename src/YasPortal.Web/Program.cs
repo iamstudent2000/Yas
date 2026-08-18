@@ -21,7 +21,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => { options.Cookie.Name = "YasPortal.Auth"; options.LoginPath = "/login"; options.AccessDeniedPath = "/access-denied"; options.ExpireTimeSpan = TimeSpan.FromHours(8); options.SlidingExpiration = true; });
 builder.Services.AddAuthorization(options =>
 {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory" })
+    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -111,7 +111,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     if (!employee.Positions.Any(x => x.PositionId == positionId && x.EndedAt == null)) return Results.Redirect("/my-positions");
     employee.SetLastActivePosition(positionId); await db.SaveChangesAsync();
     var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList(); claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, new ClaimsIdentity(http.User.Identity).AuthenticationType ?? CookieAuthenticationDefaults.AuthenticationScheme)));
     if (IsSafeLocalReturnUrl(returnUrl)) return Results.Redirect(returnUrl); return Results.Redirect("/my-positions");
 });
 
