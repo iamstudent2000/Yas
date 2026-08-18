@@ -3,7 +3,7 @@ using YasPortal.Application.Authorization;
 
 namespace YasPortal.Infrastructure.Authorization;
 
-public sealed class CurrentUser : ICurrentUser
+public sealed class CurrentUser(AuditActorContext auditActorContext) : ICurrentUser
 {
     public Guid? EmployeeId { get; private set; }
     public Guid? ActivePositionId { get; private set; }
@@ -14,6 +14,7 @@ public sealed class CurrentUser : ICurrentUser
         EmployeeId = TryGuid(principal.FindFirstValue(ClaimTypes.NameIdentifier));
         ActivePositionId = TryGuid(principal.FindFirstValue(AuthClaimNames.ActivePositionId));
         IsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdmin) && isAdmin;
+        auditActorContext.Set(EmployeeId, ActivePositionId, IsAdmin);
     }
 
     private static Guid? TryGuid(string? value) => Guid.TryParse(value, out var id) ? id : null;
