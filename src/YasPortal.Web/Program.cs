@@ -18,6 +18,7 @@ using YasPortal.Web.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => { options.Cookie.Name = "YasPortal.Auth"; options.LoginPath = "/login"; options.AccessDeniedPath = "/access-denied"; options.ExpireTimeSpan = TimeSpan.FromHours(8); options.SlidingExpiration = true; });
 builder.Services.AddAuthorization(options =>
 {
