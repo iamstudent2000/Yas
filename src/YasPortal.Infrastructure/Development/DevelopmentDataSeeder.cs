@@ -108,10 +108,20 @@ public static class DevelopmentDataSeeder
         }
         await db.SaveChangesAsync(ct);
 
-        // Administrators are not employees in the organizational hierarchy.
-        // They have direct Employee + Permission assignments and no position requirement.
         foreach (var permission in permissions.Values)
             await EnsureDirectPermission(db, employees["admin"], permission, ct);
+
+        // Seeder order matters: every employee must be active before an active
+        // EmployeePosition is created. This also repairs old development databases
+        // where an employee was accidentally left inactive.
+        foreach (var username in new[] { "employee", "hr", "manager", "finance" })
+        {
+            if (!employees[username].IsActive)
+            {
+                employees[username].Activate();
+                await db.SaveChangesAsync(ct);
+            }
+        }
 
         await EnsureEmployeePosition(db, employees["employee"], positions["کارمند"], ct);
         await EnsureEmployeePosition(db, employees["hr"], positions["مدیر منابع انسانی"], ct);
