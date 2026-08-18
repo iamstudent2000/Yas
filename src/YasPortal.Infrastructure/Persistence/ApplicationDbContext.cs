@@ -48,47 +48,112 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     private void ValidateEmployeeAssignments()
     {
-        foreach (var entry in ChangeTracker.Entries<EmployeePosition>())
+        var endingByPosition = ChangeTracker.Entries<EmployeePosition>()
+            .Where(x => x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified && x.Property(p => p.EndedAt).CurrentValue is not null)
+            .GroupBy(x => x.Entity.PositionId)
+            .ToDictionary(x => x.Key, x => x.Select(e => e.Entity.EmployeeId).ToHashSet());
+
+        var activeEntries = ChangeTracker.Entries<EmployeePosition>()
+            .Where(x => x.State == EntityState.Added ||
+                        (x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified && x.Property(p => p.EndedAt).CurrentValue is null))
+            .ToList();
+
+        foreach (var entry in activeEntries)
         {
-            if (entry.State == EntityState.Added ||
-                (entry.State == EntityState.Modified && entry.Property(x => x.EndedAt).IsModified && entry.Property(x => x.EndedAt).CurrentValue is null))
+            var employeeId = entry.Entity.EmployeeId;
+            var localEmployee = ChangeTracker.Entries<Employee>()
+                .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
+
+            if (localEmployee is not null)
             {
-                var employeeId = entry.Entity.EmployeeId;
-                var localEmployee = ChangeTracker.Entries<Employee>()
-                    .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
-
-                if (localEmployee is not null && !localEmployee.IsActive)
+                if (!localEmployee.IsActive)
                     throw new InvalidOperationException("An inactive employee cannot have an active position assignment.");
+            }
+            else if (!Employees.AsNoTracking().Any(x => x.Id == employeeId && x.IsActive))
+            {
+                throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
+            }
 
-                if (localEmployee is null && !Employees.AsNoTracking().Any(x => x.Id == employeeId && x.IsActive))
-                    throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
+            var localConflict = activeEntries.Any(other =>
+                !ReferenceEquals(other, entry) &&
+                other.Entity.PositionId == entry.Entity.PositionId &&
+                other.Entity.EmployeeId != entry.Entity.EmployeeId &&
+                !IsBeingEnded(other));
+
+            if (localConflict)
+                throw new InvalidOperationException("A position can have only one active employee.");
+
+            var endingEmployeeIds = endingByPosition.TryGetValue(entry.Entity.PositionId, out var ids)
+                ? ids
+                : [];
+
+            if (EmployeePositions.AsNoTracking().Any(x =>
+                    x.PositionId == entry.Entity.PositionId &&
+                    x.EndedAt == null &&
+                    x.EmployeeId != entry.Entity.EmployeeId &&
+                    !endingEmployeeIds.Contains(x.EmployeeId)))
+            {
+                throw new InvalidOperationException("A position can have only one active employee.");
             }
         }
     }
 
     private async Task ValidateEmployeeAssignmentsAsync(CancellationToken cancellationToken)
     {
-        foreach (var entry in ChangeTracker.Entries<EmployeePosition>())
-        {
-            if (entry.State == EntityState.Added ||
-                (entry.State == EntityState.Modified && entry.Property(x => x.EndedAt).IsModified && entry.Property(x => x.EndedAt).CurrentValue is null))
-            {
-                var employeeId = entry.Entity.EmployeeId;
-                var localEmployee = ChangeTracker.Entries<Employee>()
-                    .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
+        var endingByPosition = ChangeTracker.Entries<EmployeePosition>()
+            .Where(x => x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified && x.Property(p => p.EndedAt).CurrentValue is not null)
+            .GroupBy(x => x.Entity.PositionId)
+            .ToDictionary(x => x.Key, x => x.Select(e => e.Entity.EmployeeId).ToHashSet());
 
-                if (localEmployee is not null)
-                {
-                    if (!localEmployee.IsActive)
-                        throw new InvalidOperationException("An inactive employee cannot have an active position assignment.");
-                }
-                else if (!await Employees.AsNoTracking().AnyAsync(x => x.Id == employeeId && x.IsActive, cancellationToken))
-                {
-                    throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
-                }
+        var activeEntries = ChangeTracker.Entries<EmployeePosition>()
+            .Where(x => x.State == EntityState.Added ||
+                        (x.State == EntityState.Modified && x.Property(p => p.EndedAt).IsModified && x.Property(p => p.EndedAt).CurrentValue is null))
+            .ToList();
+
+        foreach (var entry in activeEntries)
+        {
+            var employeeId = entry.Entity.EmployeeId;
+            var localEmployee = ChangeTracker.Entries<Employee>()
+                .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
+
+            if (localEmployee is not null)
+            {
+                if (!localEmployee.IsActive)
+                    throw new InvalidOperationException("An inactive employee cannot have an active position assignment.");
+            }
+            else if (!await Employees.AsNoTracking().AnyAsync(x => x.Id == employeeId && x.IsActive, cancellationToken))
+            {
+                throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
+            }
+
+            var localConflict = activeEntries.Any(other =>
+                !ReferenceEquals(other, entry) &&
+                other.Entity.PositionId == entry.Entity.PositionId &&
+                other.Entity.EmployeeId != entry.Entity.EmployeeId &&
+                !IsBeingEnded(other));
+
+            if (localConflict)
+                throw new InvalidOperationException("A position can have only one active employee.");
+
+            var endingEmployeeIds = endingByPosition.TryGetValue(entry.Entity.PositionId, out var ids)
+                ? ids
+                : [];
+
+            if (await EmployeePositions.AsNoTracking().AnyAsync(x =>
+                    x.PositionId == entry.Entity.PositionId &&
+                    x.EndedAt == null &&
+                    x.EmployeeId != entry.Entity.EmployeeId &&
+                    !endingEmployeeIds.Contains(x.EmployeeId), cancellationToken))
+            {
+                throw new InvalidOperationException("A position can have only one active employee.");
             }
         }
     }
+
+    private static bool IsBeingEnded(EntityEntry<EmployeePosition> entry) =>
+        entry.State == EntityState.Modified &&
+        entry.Property(x => x.EndedAt).IsModified &&
+        entry.Property(x => x.EndedAt).CurrentValue is not null;
 
     private void ValidatePositionHierarchy()
     {
