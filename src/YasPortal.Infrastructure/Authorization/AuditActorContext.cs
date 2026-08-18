@@ -3,9 +3,10 @@ using Microsoft.AspNetCore.Http;
 
 namespace YasPortal.Infrastructure.Authorization;
 
-public sealed class AuditActorContext(IHttpContextAccessor httpContextAccessor)
+public sealed class AuditActorContext(IHttpContextAccessor? httpContextAccessor = null)
 {
     private static readonly AsyncLocal<AuditActor?> Current = new();
+    private readonly IHttpContextAccessor? _httpContextAccessor = httpContextAccessor;
 
     public AuditActor? Actor
     {
@@ -14,7 +15,7 @@ public sealed class AuditActorContext(IHttpContextAccessor httpContextAccessor)
             var actor = Current.Value;
             if (actor is not null) return actor;
 
-            var user = httpContextAccessor.HttpContext?.User;
+            var user = _httpContextAccessor?.HttpContext?.User;
             if (user?.Identity?.IsAuthenticated != true) return null;
 
             var employeeId = TryGuid(user.FindFirstValue(ClaimTypes.NameIdentifier));
