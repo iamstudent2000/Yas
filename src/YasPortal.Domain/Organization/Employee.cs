@@ -26,7 +26,7 @@ public sealed class Employee
 
     /// <summary>
     /// The position this employee last selected as their active position.
-    /// This is only a preference; the position must still have an active EmployeePosition assignment.
+    /// This is a preference; when set, it must refer to an active assignment.
     /// </summary>
     public Guid? LastActivePositionId { get; private set; }
 
@@ -34,7 +34,23 @@ public sealed class Employee
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
     public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
-    public void SetLastActivePosition(Guid? positionId) => LastActivePositionId = positionId;
+
+    public void SetLastActivePosition(Guid? positionId)
+    {
+        if (positionId is null)
+        {
+            LastActivePositionId = null;
+            return;
+        }
+
+        if (!IsActive)
+            throw new InvalidOperationException("An inactive employee cannot select an active position.");
+
+        if (!Positions.Any(x => x.PositionId == positionId.Value && x.EndedAt is null))
+            throw new InvalidOperationException("The selected position is not an active employee assignment.");
+
+        LastActivePositionId = positionId;
+    }
 
     public void SetFullName(string fullName)
     {
