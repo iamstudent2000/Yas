@@ -8,7 +8,8 @@ namespace YasPortal.Infrastructure.Authorization;
 
 public sealed class PermissionChecker(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
-    AuthenticationStateProvider authenticationStateProvider) : IPermissionChecker
+    AuthenticationStateProvider authenticationStateProvider,
+    CurrentUser? currentUser = null) : IPermissionChecker
 {
     public async Task<bool> HasPermissionAsync(string permissionCode, CancellationToken cancellationToken = default)
     {
@@ -18,6 +19,12 @@ public sealed class PermissionChecker(
 
     public async Task<bool> HasPermissionAsync(ClaimsPrincipal user, string permissionCode, CancellationToken cancellationToken = default)
     {
+        // Keep the scoped current-user context synchronized with the exact principal
+        // used for this authorization decision. This prevents services that consume
+        // ICurrentUser from retaining an old active-position value after a position
+        // switch or authentication-state change.
+        currentUser?.SetPrincipal(user);
+
         if (user.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(permissionCode))
             return false;
 
@@ -40,8 +47,6 @@ public sealed class PermissionChecker(
 
         if (employee.IsAdmin)
         {
-            // Admin permissions = direct employee permissions UNION permissions from
-            // groups assigned directly to the employee.
             return await db.EmployeePermissions.AnyAsync(
                        x => x.EmployeeId == employeeId && x.Permission.Code == permissionCode,
                        cancellationToken)
@@ -52,16 +57,16 @@ public sealed class PermissionChecker(
                        cancellationToken);
         }
 
+        // Admin permissions are never inherited from a user's position.
         if (permissionCode.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase))
             return false;
 
         if (!Guid.TryParse(user.FindFirst(AuthClaimNames.ActivePositionId)?.Value, out var positionId))
             return false;
 
-        // The active-position claim is mutable authentication state and can become stale
-        // when an administrator ends an assignment while the user is still logged in.
-        // A permission tied to an old position must never remain effective after that
-        // position is no longer actively assigned to the employee.
+        // The claim identifies the selected position, but the database is authoritative.
+        // If the assignment has ended, the old position's permissions immediately stop
+        // working even though the authentication cookie has not yet expired.
         var hasActivePosition = await db.EmployeePositions.AnyAsync(
             x => x.EmployeeId == employeeId && x.PositionId == positionId && x.EndedAt == null,
             cancellationToken);
@@ -69,7 +74,8 @@ public sealed class PermissionChecker(
         if (!hasActivePosition)
             return false;
 
-        // Employee+Position permissions = direct permissions UNION group permissions.
+        // Effective permissions are ONLY User + Active Position permissions:
+        // direct permissions UNION permissions supplied through position groups.
         return await db.UserPositionPermissions.AnyAsync(
                    x => x.EmployeeId == employeeId
                         && x.PositionId == positionId
