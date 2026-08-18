@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
@@ -148,10 +149,14 @@ public sealed class PermissionCheckerTests
 
     private sealed class PermissionFixture : IAsyncDisposable
     {
+        private readonly InMemoryDatabaseRoot _databaseRoot;
+
         public PermissionFixture(bool isAdmin = false)
         {
+            _databaseRoot = new InMemoryDatabaseRoot();
+            var databaseName = Guid.NewGuid().ToString();
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .UseInMemoryDatabase(databaseName, _databaseRoot)
                 .Options;
             Db = new ApplicationDbContext(options);
             var organization = new Organization("Test Organization");
@@ -161,7 +166,7 @@ public sealed class PermissionCheckerTests
             Db.Positions.Add(Position);
             Db.Employees.Add(Employee);
             Db.SaveChanges();
-            Checker = new PermissionChecker(new TestDbContextFactory(Db), new TestAuthenticationStateProvider());
+            Checker = new PermissionChecker(new TestDbContextFactory(options), new TestAuthenticationStateProvider());
         }
 
         public ApplicationDbContext Db { get; }
@@ -184,10 +189,11 @@ public sealed class PermissionCheckerTests
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
-    private sealed class TestDbContextFactory(ApplicationDbContext db) : IDbContextFactory<ApplicationDbContext>
+    private sealed class TestDbContextFactory(DbContextOptions<ApplicationDbContext> options) : IDbContextFactory<ApplicationDbContext>
     {
-        public ApplicationDbContext CreateDbContext() => db;
-        public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(db);
+        public ApplicationDbContext CreateDbContext() => new(options);
+        public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ApplicationDbContext(options));
     }
 
     private sealed class TestAuthenticationStateProvider : AuthenticationStateProvider
