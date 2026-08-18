@@ -24,7 +24,7 @@
     else {
         <div class="data-table-wrap"><table class="data-table"><thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead><tbody>
         @foreach (var row in _rows) {
-            <tr @key="row.Id"><td>@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td>@row.EmployeeName</td><td>@row.PositionName</td><td><span class="badge @GetActionClass(row.Action)">@GetActionText(row.Action)</span></td><td>@row.EntityType<br /><small class="muted-line">@row.EntityId</small></td><td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل</strong><pre>@(row.BeforeJson ?? "-")</pre><strong>بعد</strong><pre>@(row.AfterJson ?? "-")</pre></div></details></td></tr>
+            <tr @key="row.Id"><td>@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td>@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</td><td>@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</td><td><span class="badge @GetActionClass(row.Action)">@GetActionText(row.Action)</span></td><td>@row.EntityType<br /><small class="muted-line">@row.EntityId</small></td><td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل</strong><pre>@(row.BeforeJson ?? "-")</pre><strong>بعد</strong><pre>@(row.AfterJson ?? "-")</pre></div></details></td></tr>
         }
         </tbody></table></div>
     }
@@ -47,7 +47,12 @@
             var query = db.AuditEntries.AsNoTracking().OrderByDescending(x => x.OccurredAtUtc).AsQueryable();
             if (!string.IsNullOrWhiteSpace(_entityType)) query = query.Where(x => x.EntityType.Contains(_entityType.Trim()));
             if (!string.IsNullOrWhiteSpace(_action)) query = query.Where(x => x.Action == _action);
-            _rows = await query.Take(200).Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId, null, null, x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToListAsync();
+            var audits = await query.Take(200).ToListAsync();
+            var employeeIds = audits.Where(x => x.EmployeeId.HasValue).Select(x => x.EmployeeId!.Value).Distinct().ToList();
+            var positionIds = audits.Where(x => x.ActivePositionId.HasValue).Select(x => x.ActivePositionId!.Value).Distinct().ToList();
+            var employees = await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+            var positions = await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+            _rows = audits.Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId, x.EmployeeId is Guid employeeId && employees.TryGetValue(employeeId, out var employeeName) ? employeeName : null, x.ActivePositionId is Guid positionId && positions.TryGetValue(positionId, out var positionName) ? positionName : null, x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToList();
         }
         finally { _loading = false; }
     }
