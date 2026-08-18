@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 
-namespace YasPortal.Web.Components.Pages;
+namespace YasPortal.Web.Components.Pages.Admin;
 
 public partial class Positions
 {

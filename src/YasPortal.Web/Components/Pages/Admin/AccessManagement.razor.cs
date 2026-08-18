@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components;
 
-namespace YasPortal.Web.Components.Pages;
+namespace YasPortal.Web.Components.Pages.Admin;
 
 public partial class AccessManagement
 {
