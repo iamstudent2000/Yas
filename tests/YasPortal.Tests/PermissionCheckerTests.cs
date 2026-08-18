@@ -18,7 +18,9 @@ public sealed class PermissionCheckerTests
         var permission = new Permission("Requests.View", "View requests");
         fixture.Db.Permissions.Add(permission);
         fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, permission.Id));
-        fixture.Db.EmployeePositions.Add(new EmployeePosition(fixture.Employee.Id, fixture.Position.Id));
+        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
+        fixture.Employee.Positions.Add(assignment);
+        fixture.Db.EmployeePositions.Add(assignment);
         await fixture.Db.SaveChangesAsync();
 
         var employeePosition = await fixture.Db.EmployeePositions.SingleAsync();
@@ -37,7 +39,11 @@ public sealed class PermissionCheckerTests
         var permission = new Permission("Requests.View", "View requests");
         fixture.Db.Permissions.Add(permission);
         fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, permission.Id));
-        fixture.Db.EmployeePositions.Add(new EmployeePosition(fixture.Employee.Id, fixture.Position.Id));
+        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
+        fixture.Employee.Positions.Add(assignment);
+        fixture.Db.EmployeePositions.Add(assignment);
+        await fixture.Db.SaveChangesAsync();
+
         fixture.Employee.Deactivate();
         await fixture.Db.SaveChangesAsync();
 
