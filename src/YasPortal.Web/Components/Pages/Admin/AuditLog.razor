@@ -38,7 +38,7 @@
     @if (_loading) { <div class="empty-state">در حال بارگذاری...</div> }
     else if (_rows.Count == 0) { <div class="empty-state">رویدادی مطابق فیلترها پیدا نشد.</div> }
     else {
-        <div class="audit-result-info"><span>@_totalCount.ToString("N0") رویداد مطابق فیلترها</span><div class="page-size"><label>تعداد در صفحه</label><select @bind="_pageSize" @bind:after="PageSizeChangedAsync"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div></div>
+        <div class="audit-result-info"><span>@_totalCount.ToString("N0") رویداد مطابق فیلترها</span><div class="page-size"><label>تعداد در صفحه</label><select @bind="_pageSize" @bind:after="PageSizeChangedAsync"><option value="50">50</option><option value="100">100</option><option value="200">200</option></select></div></div>
         <div class="data-table-wrap"><table class="data-table audit-table"><colgroup><col class="col-time" /><col class="col-user" /><col class="col-position" /><col class="col-action" /><col class="col-entity" /><col class="col-details" /></colgroup><thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead><tbody>
         @foreach (var row in _rows) { <tr @key="row.Id"><td class="audit-time">@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd")<small>@row.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss")</small></td><td><div class="actor-cell"><span class="actor-avatar"><i class="bx bx-user"></i></span><span class="truncate">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td><td><span class="truncate">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td><td><span class="audit-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td><td><div class="entity-cell"><strong>@GetEntityText(row.EntityType)</strong><small title="@row.EntityId">@row.EntityId</small></div></td><td><button class="audit-details-btn" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> مشاهده جزئیات</button></td></tr> }
         </tbody></table></div>
@@ -52,17 +52,116 @@
     private List<AuditRow> _rows = [];
     private AuditRow? _selected;
     private string _employeeSearch = ""; private string _positionSearch = ""; private string _entityType = ""; private string _action = "";
-    private DateTime? _fromDate; private DateTime? _toDate; private int _page = 1; private int _pageSize = 25; private int _totalCount; private bool _loading;
+    private DateTime? _fromDate; private DateTime? _toDate; private int _page = 1; private int _pageSize = 200; private int _totalCount; private bool _loading;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
-    protected override async Task OnInitializedAsync() => await SearchAsync();
-    private async Task SearchAsync(){_loading=true;try{await using var db=await DbFactory.CreateDbContextAsync();var query=db.AuditEntries.AsNoTracking().AsQueryable();if(!string.IsNullOrWhiteSpace(_entityType))query=query.Where(x=>x.EntityType.Contains(_entityType.Trim()));if(!string.IsNullOrWhiteSpace(_action))query=query.Where(x=>x.Action==_action);if(_fromDate.HasValue){var from=DateTime.SpecifyKind(_fromDate.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}if(_toDate.HasValue){var to=DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}var all=await query.OrderByDescending(x=>x.OccurredAtUtc).ToListAsync();var eids=all.Where(x=>x.EmployeeId.HasValue).Select(x=>x.EmployeeId!.Value).Distinct().ToList();var pids=all.Where(x=>x.ActivePositionId.HasValue).Select(x=>x.ActivePositionId!.Value).Distinct().ToList();var employees=await db.Employees.AsNoTracking().Where(x=>eids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.FullName);var positions=await db.Positions.AsNoTracking().Where(x=>pids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name);var et=_employeeSearch.Trim();var pt=_positionSearch.Trim();var filtered=all.Where(x=>string.IsNullOrWhiteSpace(et)||(x.EmployeeId.HasValue&&employees.TryGetValue(x.EmployeeId.Value,out var n)&&n.Contains(et,StringComparison.OrdinalIgnoreCase))).Where(x=>string.IsNullOrWhiteSpace(pt)||(x.ActivePositionId.HasValue&&positions.TryGetValue(x.ActivePositionId.Value,out var n)&&n.Contains(pt,StringComparison.OrdinalIgnoreCase))).ToList();_totalCount=filtered.Count;if(_page>TotalPages)_page=TotalPages;_rows=filtered.Skip((_page-1)*_pageSize).Take(_pageSize).Select(x=>new AuditRow(x.Id,x.OccurredAtUtc,x.EmployeeId,x.ActivePositionId,x.EmployeeId is Guid ei&&employees.TryGetValue(ei,out var en)?en:null,x.ActivePositionId is Guid pi&&positions.TryGetValue(pi,out var pn)?pn:null,x.Action,x.EntityType,x.EntityId,x.BeforeJson,x.AfterJson)).ToList();}finally{_loading=false;}}
-    private async Task PageSizeChangedAsync(){_page=1;await SearchAsync();} private async Task ClearFiltersAsync(){_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;await SearchAsync();} private async Task RemoveFromDateAsync(){_fromDate=null;_page=1;await SearchAsync();} private async Task RemoveToDateAsync(){_toDate=null;_page=1;await SearchAsync();} private async Task GoToPageAsync(int p){_page=p;await SearchAsync();} private async Task PreviousPageAsync(){if(_page>1){_page--;await SearchAsync();}} private async Task NextPageAsync(){if(_page<TotalPages){_page++;await SearchAsync();}}
-    private IEnumerable<int> GetPageNumbers(){var s=Math.Max(1,_page-2);var e=Math.Min(TotalPages,s+4);s=Math.Max(1,e-4);return Enumerable.Range(s,e-s+1);} private void ShowDetails(AuditRow r)=>_selected=r; private void CloseDetails()=>_selected=null;
-    private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a}; private static string GetActionClass(string a)=>a switch{"Created"=>"audit-created","Deleted"=>"audit-deleted",_=>"audit-updated"}; private static string GetActionIcon(string a)=>a switch{"Created"=>"bx-plus","Deleted"=>"bx-trash",_=>"bx-edit-alt"}; private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز",_=>e};
-    private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");} private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
-    private static RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='no-change'>بدون تغییر</div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","json-property");builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","json-value");builder.AddContent(i++,FormatJsonValue(p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>");}};
-    private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n}; private static string FormatJsonValue(JsonElement v)=>v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",JsonValueKind.String=>v.GetString()??"-",_=>v.ToString()};
-    private sealed record AuditRow(Guid Id,DateTime OccurredAtUtc,Guid? EmployeeId,Guid? ActivePositionId,string? EmployeeName,string? PositionName,string Action,string EntityType,string? EntityId,string? BeforeJson,string? AfterJson);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+        _fromDate = today;
+        _toDate = today;
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.AuditEntries.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(_entityType))
+                query = query.Where(x => x.EntityType.Contains(_entityType.Trim()));
+
+            if (!string.IsNullOrWhiteSpace(_action))
+                query = query.Where(x => x.Action == _action);
+
+            if (_fromDate.HasValue)
+            {
+                var from = DateTime.SpecifyKind(_fromDate.Value.Date, DateTimeKind.Local).ToUniversalTime();
+                query = query.Where(x => x.OccurredAtUtc >= from);
+            }
+
+            if (_toDate.HasValue)
+            {
+                var to = DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1), DateTimeKind.Local).ToUniversalTime();
+                query = query.Where(x => x.OccurredAtUtc < to);
+            }
+
+            var employeeSearch = _employeeSearch.Trim();
+            if (!string.IsNullOrWhiteSpace(employeeSearch))
+            {
+                query = query.Where(x => x.EmployeeId.HasValue && db.Employees.Any(e => e.Id == x.EmployeeId.Value && e.FullName.Contains(employeeSearch)));
+            }
+
+            var positionSearch = _positionSearch.Trim();
+            if (!string.IsNullOrWhiteSpace(positionSearch))
+            {
+                query = query.Where(x => x.ActivePositionId.HasValue && db.Positions.Any(p => p.Id == x.ActivePositionId.Value && p.Name.Contains(positionSearch)));
+            }
+
+            query = query.OrderByDescending(x => x.OccurredAtUtc).ThenByDescending(x => x.Id);
+
+            _totalCount = await query.CountAsync();
+            if (_page > TotalPages)
+                _page = TotalPages;
+
+            var pageEntries = await query
+                .Skip((_page - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToListAsync();
+
+            var employeeIds = pageEntries.Where(x => x.EmployeeId.HasValue).Select(x => x.EmployeeId!.Value).Distinct().ToList();
+            var positionIds = pageEntries.Where(x => x.ActivePositionId.HasValue).Select(x => x.ActivePositionId!.Value).Distinct().ToList();
+
+            var employees = employeeIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+            var positions = positionIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+
+            _rows = pageEntries.Select(x => new AuditRow(
+                x.Id,
+                x.OccurredAtUtc,
+                x.EmployeeId,
+                x.ActivePositionId,
+                x.EmployeeId.HasValue && employees.TryGetValue(x.EmployeeId.Value, out var employeeName) ? employeeName : null,
+                x.ActivePositionId.HasValue && positions.TryGetValue(x.ActivePositionId.Value, out var positionName) ? positionName : null,
+                x.Action,
+                x.EntityType,
+                x.EntityId,
+                x.BeforeJson,
+                x.AfterJson)).ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PageSizeChangedAsync() { _page = 1; await SearchAsync(); }
+    private async Task ClearFiltersAsync() { _employeeSearch = ""; _positionSearch = ""; _entityType = ""; _action = ""; _fromDate = null; _toDate = null; _page = 1; await SearchAsync(); }
+    private async Task RemoveFromDateAsync() { _fromDate = null; _page = 1; await SearchAsync(); }
+    private async Task RemoveToDateAsync() { _toDate = null; _page = 1; await SearchAsync(); }
+    private async Task GoToPageAsync(int p) { _page = p; await SearchAsync(); }
+    private async Task PreviousPageAsync() { if (_page > 1) { _page--; await SearchAsync(); } }
+    private async Task NextPageAsync() { if (_page < TotalPages) { _page++; await SearchAsync(); } }
+    private IEnumerable<int> GetPageNumbers() { var s = Math.Max(1, _page - 2); var e = Math.Min(TotalPages, s + 4); s = Math.Max(1, e - 4); return Enumerable.Range(s, e - s + 1); }
+    private void ShowDetails(AuditRow r) => _selected = r;
+    private void CloseDetails() => _selected = null;
+    private static string GetActionText(string a) => a switch { "Created" => "ایجاد", "Updated" => "ویرایش", "Deleted" => "حذف", _ => a };
+    private static string GetActionClass(string a) => a switch { "Created" => "audit-created", "Deleted" => "audit-deleted", _ => "audit-updated" };
+    private static string GetActionIcon(string a) => a switch { "Created" => "bx-plus", "Deleted" => "bx-trash", _ => "bx-edit-alt" };
+    private static string GetEntityText(string e) => e switch { "Permission" => "مجوز", "Employee" => "کارمند", "Position" => "سمت", "Organization" => "سازمان", "EmployeePosition" => "تخصیص سمت", "PermissionGroup" => "گروه مجوز", _ => e };
+    private static string ToPersianDate(DateTime date) { var pc = new System.Globalization.PersianCalendar(); return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}"); }
+    private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
+    private static RenderFragment RenderJson(string? json) => builder => { if (string.IsNullOrWhiteSpace(json)) { builder.AddMarkupContent(0, "<div class='no-change'>بدون تغییر</div>"); return; } try { using var doc = JsonDocument.Parse(json); var i = 0; builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-properties"); foreach (var p in doc.RootElement.EnumerateObject()) { builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-property"); builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-key"); builder.AddContent(i++, GetPropertyText(p.Name)); builder.CloseElement(); builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-value"); builder.AddContent(i++, FormatJsonValue(p.Value)); builder.CloseElement(); builder.CloseElement(); } builder.CloseElement(); } catch { builder.AddMarkupContent(0, $"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>"); } };
+    private static string GetPropertyText(string n) => n switch { "Id" => "شناسه", "Code" => "کد", "Name" => "نام", "FullName" => "نام و نام خانوادگی", "Username" => "نام کاربری", "IsActive" => "فعال", "OrganizationId" => "سازمان", "PositionId" => "سمت", "EmployeeId" => "کارمند", "StartedAt" => "تاریخ شروع", "EndedAt" => "تاریخ پایان", _ => n };
+    private static string FormatJsonValue(JsonElement v) => v.ValueKind switch { JsonValueKind.Null => "-", JsonValueKind.True => "بله", JsonValueKind.False => "خیر", JsonValueKind.String => v.GetString() ?? "-", _ => v.ToString() };
+    private sealed record AuditRow(Guid Id, DateTime OccurredAtUtc, Guid? EmployeeId, Guid? ActivePositionId, string? EmployeeName, string? PositionName, string Action, string EntityType, string? EntityId, string? BeforeJson, string? AfterJson);
 }
 
 <style>
