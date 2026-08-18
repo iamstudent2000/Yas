@@ -14,8 +14,8 @@ public sealed class PersistenceIntegrityTests
         var positionId = Guid.NewGuid();
         var employee = new Employee("employee", "Employee", organizationId);
         var assignment = new EmployeePosition(employee.Id, positionId);
-        employee.SetLastActivePosition(positionId);
         employee.Positions.Add(assignment);
+        employee.SetLastActivePosition(positionId);
 
         employee.Deactivate();
 
@@ -23,6 +23,37 @@ public sealed class PersistenceIntegrityTests
         Assert.Null(employee.LastActivePositionId);
         Assert.False(assignment.IsActive);
         Assert.NotNull(assignment.EndedAt);
+    }
+
+    [Fact]
+    public void Last_active_position_must_be_an_active_assignment()
+    {
+        var employee = new Employee("employee", "Employee", Guid.NewGuid());
+        var position = new Position("Position");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => employee.SetLastActivePosition(position.Id));
+        Assert.Contains("active employee assignment", exception.Message, StringComparison.OrdinalIgnoreCase);
+
+        var assignment = new EmployeePosition(employee.Id, position.Id);
+        employee.Positions.Add(assignment);
+        employee.SetLastActivePosition(position.Id);
+        Assert.Equal(position.Id, employee.LastActivePositionId);
+
+        assignment.End();
+        exception = Assert.Throws<InvalidOperationException>(() => employee.SetLastActivePosition(position.Id));
+        Assert.Contains("active employee assignment", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Inactive_employee_cannot_select_a_position()
+    {
+        var employee = new Employee("employee", "Employee", Guid.NewGuid());
+        var position = new Position("Position");
+        employee.Positions.Add(new EmployeePosition(employee.Id, position.Id));
+        employee.Deactivate();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => employee.SetLastActivePosition(position.Id));
+        Assert.Contains("inactive employee", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
