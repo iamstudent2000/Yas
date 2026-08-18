@@ -12,13 +12,13 @@
             <div class="pdp-header">
                 <button type="button" class="pdp-nav" @onclick="PreviousMonth" aria-label="ماه قبل">‹</button>
                 <div class="pdp-selectors">
-                    <select class="pdp-select pdp-year-select" value="@_displayYear" @onchange="ChangeYear">
+                    <select class="pdp-select pdp-year-select" @bind="_displayYear">
                         @foreach (var year in YearOptions)
                         {
                             <option value="@year">@ToPersianDigits(year.ToString())</option>
                         }
                     </select>
-                    <select class="pdp-select" value="@_displayMonth" @onchange="ChangeMonth">
+                    <select class="pdp-select" @bind="_displayMonth">
                         @for (var month = 1; month <= 12; month++)
                         {
                             <option value="@month">@MonthNames[month - 1]</option>
@@ -76,7 +76,7 @@
 
     private static readonly string[] Weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
 
-    private IEnumerable<int> YearOptions => Enumerable.Range(Math.Max(1, _displayYear - 50), 101);
+    private IEnumerable<int> YearOptions => Enumerable.Range(1300, 151);
 
     protected override void OnInitialized()
     {
@@ -142,18 +142,6 @@
         {
             _displayMonth++;
         }
-    }
-
-    private void ChangeYear(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var year) && year >= 1)
-            _displayYear = year;
-    }
-
-    private void ChangeMonth(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var month) && month is >= 1 and <= 12)
-            _displayMonth = month;
     }
 
     private void GoToday()
