@@ -36,10 +36,14 @@
                     <nav class="sidebar-nav">
                         <AuthorizeView Policy="Admin.Users" Context="usersAuth">
                             <NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Admin.Access" Context="accessAuth">
                             <NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="Admin.Positions" Context="positionsAuth">
                             <NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Admin.AssignmentHistory" Context="assignmentHistoryAuth">
                             <NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص سمت‌ها</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="Admin.Permissions" Context="permissionsAuth">
