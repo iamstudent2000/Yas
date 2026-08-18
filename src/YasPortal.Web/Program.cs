@@ -111,7 +111,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     if (!employee.Positions.Any(x => x.PositionId == positionId && x.EndedAt == null)) return Results.Redirect("/my-positions");
     employee.SetLastActivePosition(positionId); await db.SaveChangesAsync();
     var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList(); claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
-    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, new ClaimsIdentity(http.User.Identity).AuthenticationType ?? CookieAuthenticationDefaults.AuthenticationScheme)));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     if (IsSafeLocalReturnUrl(returnUrl)) return Results.Redirect(returnUrl); return Results.Redirect("/my-positions");
 });
 
