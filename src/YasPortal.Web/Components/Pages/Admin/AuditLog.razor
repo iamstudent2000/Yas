@@ -1,4 +1,5 @@
 @page "/admin/audit-log"
+@using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Auditing
@@ -24,14 +25,39 @@
     else {
         <div class="data-table-wrap"><table class="data-table"><thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead><tbody>
         @foreach (var row in _rows) {
-            <tr @key="row.Id"><td>@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td>@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</td><td>@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</td><td><span class="badge @GetActionClass(row.Action)">@GetActionText(row.Action)</span></td><td>@row.EntityType<br /><small class="muted-line">@row.EntityId</small></td><td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل</strong><pre>@(row.BeforeJson ?? "-")</pre><strong>بعد</strong><pre>@(row.AfterJson ?? "-")</pre></div></details></td></tr>
+            <tr @key="row.Id"><td class="audit-time">@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd")<small>@row.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss")</small></td><td><div class="actor-cell"><span class="actor-avatar"><i class="bx bx-user"></i></span><span>@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td><td>@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</td><td><span class="audit-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td><td><div class="entity-cell"><strong>@GetEntityText(row.EntityType)</strong><small>@row.EntityId</small></div></td><td><button class="audit-details-btn" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> مشاهده جزئیات</button></td></tr>
         }
         </tbody></table></div>
     }
 </section>
 
+@if (_selected is not null)
+{
+    <div class="audit-overlay" @onclick="CloseDetails">
+        <div class="audit-modal" dir="rtl" @onclick:stopPropagation="true">
+            <div class="audit-modal-header">
+                <div><div class="audit-modal-kicker">گزارش رویداد</div><h2>@GetActionText(_selected.Action) @GetEntityText(_selected.EntityType)</h2><div class="audit-modal-time"><i class="bx bx-time-five"></i>@_selected.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</div></div>
+                <button class="audit-close" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+            </div>
+            <div class="audit-meta-grid">
+                <div class="audit-meta-card"><span><i class="bx bx-user"></i> کاربر</span><strong>@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div>
+                <div class="audit-meta-card"><span><i class="bx bx-briefcase"></i> سمت فعال</span><strong>@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div>
+                <div class="audit-meta-card"><span><i class="bx bx-category"></i> موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small>@_selected.EntityId</small></div>
+                <div class="audit-meta-card"><span><i class="bx bx-bolt-circle"></i> عملیات</span><strong><span class="audit-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div>
+            </div>
+            <div class="audit-changes">
+                <div class="change-panel before"><div class="change-header"><span><i class="bx bx-history"></i> قبل از تغییر</span></div><div class="change-body">@RenderJson(_selected.BeforeJson)</div></div>
+                <div class="change-arrow"><i class="bx bx-left-arrow-alt"></i></div>
+                <div class="change-panel after"><div class="change-header"><span><i class="bx bx-check-circle"></i> بعد از تغییر</span></div><div class="change-body">@RenderJson(_selected.AfterJson)</div></div>
+            </div>
+            <div class="audit-modal-footer"><span>شناسه رویداد: @_selected.Id</span><button class="btn btn-secondary" @onclick="CloseDetails">بستن</button></div>
+        </div>
+    </div>
+}
+
 @code {
     private List<AuditRow> _rows = [];
+    private AuditRow? _selected;
     private string _entityType = "";
     private string _action = "";
     private bool _loading;
@@ -57,13 +83,42 @@
         finally { _loading = false; }
     }
 
+    private void ShowDetails(AuditRow row) => _selected = row;
+    private void CloseDetails() => _selected = null;
+
     private static string GetActionText(string action) => action switch { "Created" => "ایجاد", "Updated" => "ویرایش", "Deleted" => "حذف", _ => action };
-    private static string GetActionClass(string action) => action switch { "Created" => "badge-success", "Deleted" => "badge-danger", _ => "badge-muted" };
+    private static string GetActionClass(string action) => action switch { "Created" => "audit-created", "Deleted" => "audit-deleted", _ => "audit-updated" };
+    private static string GetActionIcon(string action) => action switch { "Created" => "bx-plus", "Deleted" => "bx-trash", _ => "bx-edit-alt" };
+    private static string GetEntityText(string entity) => entity switch { "Permission" => "مجوز", "Employee" => "کارمند", "Position" => "سمت", "Organization" => "سازمان", "EmployeePosition" => "تخصیص سمت", "PermissionGroup" => "گروه مجوز", _ => entity };
+
+    private static RenderFragment RenderJson(string? json) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(json)) { builder.AddMarkupContent(0, "<div class='no-change'>بدون تغییر</div>"); return; }
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var i = 0;
+            builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-properties");
+            foreach (var property in doc.RootElement.EnumerateObject())
+            {
+                builder.OpenElement(i++, "div"); builder.AddAttribute(i++, "class", "json-property");
+                builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-key"); builder.AddContent(i++, GetPropertyText(property.Name)); builder.CloseElement();
+                builder.OpenElement(i++, "span"); builder.AddAttribute(i++, "class", "json-value"); builder.AddContent(i++, FormatJsonValue(property.Value)); builder.CloseElement();
+                builder.CloseElement();
+            }
+            builder.CloseElement();
+        }
+        catch { builder.AddMarkupContent(0, $"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>"); }
+    };
+
+    private static string GetPropertyText(string name) => name switch { "Id" => "شناسه", "Code" => "کد", "Name" => "نام", "FullName" => "نام و نام خانوادگی", "Username" => "نام کاربری", "IsActive" => "فعال", "OrganizationId" => "سازمان", "PositionId" => "سمت", "EmployeeId" => "کارمند", "StartedAt" => "تاریخ شروع", "EndedAt" => "تاریخ پایان", _ => name };
+    private static string FormatJsonValue(JsonElement value) => value.ValueKind switch { JsonValueKind.Null => "-", JsonValueKind.True => "بله", JsonValueKind.False => "خیر", JsonValueKind.String => value.GetString() ?? "-", _ => value.ToString() };
 
     private sealed record AuditRow(Guid Id, DateTime OccurredAtUtc, Guid? EmployeeId, Guid? ActivePositionId, string? EmployeeName, string? PositionName, string Action, string EntityType, string? EntityId, string? BeforeJson, string? AfterJson);
 }
 
 <style>
-.audit-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px}.audit-toolbar .form-control{max-width:260px}.audit-json{margin-top:8px;min-width:320px;max-width:650px}.audit-json pre{white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;background:#f8fafc;padding:10px;border-radius:8px;font-size:11px;direction:ltr;text-align:left}.audit-json strong{display:block;margin-top:6px}details summary{cursor:pointer;color:#2563eb}
-@@media(max-width:700px){.audit-toolbar{flex-direction:column;align-items:stretch}.audit-toolbar .form-control{max-width:none}}
+.audit-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:18px}.audit-toolbar .form-control{max-width:260px}.audit-time{white-space:nowrap}.audit-time small{display:block;color:#94a3b8;font-size:11px;margin-top:2px}.actor-cell{display:flex;align-items:center;gap:8px}.actor-avatar{width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f5f9;color:#475569}.entity-cell strong{display:block}.entity-cell small{display:block;color:#94a3b8;font-size:10px;max-width:180px;overflow:hidden;text-overflow:ellipsis}.audit-action{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:600}.audit-created{background:#ecfdf5;color:#047857}.audit-updated{background:#eff6ff;color:#1d4ed8}.audit-deleted{background:#fef2f2;color:#b91c1c}.audit-details-btn{border:0;background:transparent;color:#2563eb;cursor:pointer;font-weight:600;padding:6px 4px}.audit-details-btn:hover{text-decoration:underline}
+.audit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px)}.audit-modal{width:min(1050px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.25);padding:24px}.audit-modal-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #e2e8f0;padding-bottom:18px}.audit-modal-kicker{font-size:12px;color:#64748b;margin-bottom:4px}.audit-modal h2{margin:0;font-size:21px;color:#0f172a}.audit-modal-time{margin-top:7px;color:#64748b;font-size:12px;display:flex;gap:5px;align-items:center}.audit-close{border:0;background:#f1f5f9;width:38px;height:38px;border-radius:10px;font-size:22px;color:#475569;cursor:pointer}.audit-close:hover{background:#e2e8f0}.audit-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.audit-meta-card{border:1px solid #e2e8f0;border-radius:12px;padding:13px;background:#f8fafc;min-width:0}.audit-meta-card span{display:block;color:#64748b;font-size:11px;margin-bottom:7px}.audit-meta-card strong{display:block;color:#0f172a;font-size:13px;overflow:hidden;text-overflow:ellipsis}.audit-meta-card small{display:block;color:#94a3b8;font-size:9px;overflow:hidden;text-overflow:ellipsis;margin-top:3px}.audit-changes{display:grid;grid-template-columns:1fr 42px 1fr;gap:12px;align-items:stretch}.change-panel{border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;min-width:0}.change-header{padding:11px 14px;font-size:13px;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0}.change-body{padding:8px;max-height:390px;overflow:auto}.json-properties{display:flex;flex-direction:column}.json-property{display:grid;grid-template-columns:minmax(110px,35%) 1fr;gap:10px;padding:10px 8px;border-bottom:1px solid #f1f5f9;font-size:12px}.json-property:last-child{border-bottom:0}.json-key{color:#64748b;font-weight:600}.json-value{color:#0f172a;word-break:break-word;direction:auto}.no-change{text-align:center;color:#94a3b8;padding:45px 10px;font-size:13px}.json-fallback{white-space:pre-wrap;direction:ltr;text-align:left;font-size:11px;margin:0;padding:10px;background:#f8fafc;border-radius:8px}.change-arrow{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:24px}.audit-modal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:14px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px}
+@@media(max-width:900px){.audit-meta-grid{grid-template-columns:repeat(2,1fr)}.audit-changes{grid-template-columns:1fr}.change-arrow{transform:rotate(-90deg);height:20px}}@@media(max-width:700px){.audit-toolbar{flex-direction:column;align-items:stretch}.audit-toolbar .form-control{max-width:none}.audit-overlay{padding:10px}.audit-modal{max-height:calc(100vh - 20px);padding:16px}.audit-meta-grid{grid-template-columns:1fr}.data-table-wrap{overflow-x:auto}}
 </style>
