@@ -1,0 +1,106 @@
+@page "/admin/audit-log"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Auditing
+@using YasPortal.Infrastructure.Persistence
+@attribute [Authorize(Policy = "Admin.Access")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
+
+<div class="page-header" dir="rtl">
+    <div>
+        <div class="page-subtitle">مدیریت سامانه / امنیت</div>
+        <h1 class="page-title">گزارش رویدادها</h1>
+        <p class="page-subtitle">ثبت تغییرات مهم سامانه همراه با کاربر و سمت فعال در زمان انجام عملیات.</p>
+    </div>
+</div>
+
+<section class="card" dir="rtl">
+    <div class="audit-toolbar">
+        <input class="form-control" placeholder="نوع موجودیت..." @bind="_entityType" @bind:event="oninput" />
+        <select class="form-control" @bind="_action">
+            <option value="">همه عملیات</option>
+            <option value="Created">ایجاد</option>
+            <option value="Updated">ویرایش</option>
+            <option value="Deleted">حذف</option>
+        </select>
+        <button class="btn btn-primary" @onclick="LoadAsync"><i class="bx bx-search"></i> جستجو</button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>
+    }
+    else if (_entries.Count == 0)
+    {
+        <div class="empty-state"><i class="bx bx-history"></i> هنوز رویدادی ثبت نشده است.</div>
+    }
+    else
+    {
+        <div class="data-table-wrap">
+            <table class="data-table">
+                <thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>شناسه</th><th>جزئیات</th></tr></thead>
+                <tbody>
+                @foreach (var entry in _entries)
+                {
+                    <tr @key="entry.Id">
+                        <td>@entry.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td>
+                        <td>@(entry.EmployeeName ?? entry.EmployeeId?.ToString() ?? "سیستم")</td>
+                        <td>@(entry.PositionName ?? entry.ActivePositionId?.ToString() ?? "-")</td>
+                        <td><span class="badge @GetActionClass(entry.Action)">@GetActionText(entry.Action)</span></td>
+                        <td>@entry.EntityType</td>
+                        <td><code>@entry.EntityId</code></td>
+                        <td><details><summary>مشاهده</summary><div class="audit-json"><strong>قبل:</strong><pre>@entry.BeforeJson</pre><strong>بعد:</strong><pre>@entry.AfterJson</pre></div></details></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private bool _loading;
+    private string _entityType = "";
+    private string _action = "";
+    private List<AuditRow> _entries = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.AuditEntries.AsNoTracking().AsQueryable();
+            if (!string.IsNullOrWhiteSpace(_entityType))
+                query = query.Where(x => x.EntityType.Contains(_entityType));
+            if (!string.IsNullOrWhiteSpace(_action))
+                query = query.Where(x => x.Action == _action);
+
+            var rows = await query.OrderByDescending(x => x.OccurredAtUtc).Take(200).ToListAsync();
+            var employeeIds = rows.Where(x => x.EmployeeId.HasValue).Select(x => x.EmployeeId!.Value).Distinct().ToList();
+            var positionIds = rows.Where(x => x.ActivePositionId.HasValue).Select(x => x.ActivePositionId!.Value).Distinct().ToList();
+            var employees = await db.Employees.AsNoTracking().Where(x => employeeIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+            var positions = await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+
+            _entries = rows.Select(x => new AuditRow(
+                x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId,
+                x.EmployeeId.HasValue && employees.TryGetValue(x.EmployeeId.Value, out var employeeName) ? employeeName : null,
+                x.ActivePositionId.HasValue && positions.TryGetValue(x.ActivePositionId.Value, out var positionName) ? positionName : null,
+                x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToList();
+        }
+        finally { _loading = false; }
+    }
+
+    private static string GetActionText(string action) => action switch { "Created" => "ایجاد", "Updated" => "ویرایش", "Deleted" => "حذف", _ => action };
+    private static string GetActionClass(string action) => action switch { "Created" => "badge-success", "Deleted" => "badge-danger", _ => "badge-muted" };
+
+    private sealed record AuditRow(Guid Id, DateTime OccurredAtUtc, Guid? EmployeeId, Guid? ActivePositionId, string? EmployeeName, string? PositionName, string Action, string EntityType, string? EntityId, string? BeforeJson, string? AfterJson);
+}
+
+<style>
+.audit-toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px}.audit-toolbar .form-control{max-width:260px}.audit-json{margin-top:8px;min-width:320px;max-width:650px}.audit-json pre{white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;background:#f8fafc;padding:10px;border-radius:8px;font-size:11px;direction:ltr;text-align:left}.audit-json strong{display:block;margin-top:6px}details summary{cursor:pointer;color:#2563eb}@media(max-width:700px){.audit-toolbar{flex-direction:column;align-items:stretch}.audit-toolbar .form-control{max-width:none}}
+</style>
