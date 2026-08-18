@@ -35,10 +35,11 @@ builder.Services.AddAuthorization(options =>
         "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject",
         "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep",
         "Employees.View", "Employees.Manage",
-        "Organizations.View", "Organizations.Manage",
-        "Positions.View", "Positions.Manage",
-        "Permissions.View", "Permissions.Manage",
-        "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations"
+        "Organizations.View",
+        "Positions.View",
+        "Permissions.View",
+        "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations",
+        "Admin.Access", "Admin.AssignmentHistory"
     })
     {
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
