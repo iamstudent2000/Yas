@@ -8,25 +8,45 @@
 
     @if (_open)
     {
-        <div class="pdp-popover" @onclick:stopPropagation="true">
+        <div class="pdp-popover">
             <div class="pdp-header">
-                <button type="button" class="pdp-nav" @onclick="PreviousMonth">‹</button>
-                <button type="button" class="pdp-month" @onclick="GoToday">@MonthNames[_displayMonth - 1] @ToPersianDigits(_displayYear.ToString())</button>
-                <button type="button" class="pdp-nav" @onclick="NextMonth">›</button>
+                <button type="button" class="pdp-nav" @onclick="PreviousMonth" aria-label="ماه قبل">‹</button>
+                <div class="pdp-month-title">
+                    <button type="button" class="pdp-month-part" @onclick="PreviousYear" aria-label="سال قبل">@ToPersianDigits(_displayYear.ToString())</button>
+                    <span>@MonthNames[_displayMonth - 1]</span>
+                </div>
+                <button type="button" class="pdp-nav" @onclick="NextMonth" aria-label="ماه بعد">›</button>
             </div>
+
+            <div class="pdp-year-nav">
+                <button type="button" @onclick="PreviousYear">سال قبل</button>
+                <button type="button" @onclick="GoToday">امروز</button>
+                <button type="button" @onclick="NextYear">سال بعد</button>
+            </div>
+
             <div class="pdp-weekdays">
                 @foreach (var day in Weekdays) { <span>@day</span> }
             </div>
             <div class="pdp-grid">
                 @foreach (var cell in GetCells())
                 {
-                    if (cell.Day == 0) { <span class="pdp-empty"></span> }
-                    else { <button type="button" class="pdp-day @(cell.IsSelected ? "selected" : "") @(cell.IsToday ? "today" : "")" @onclick="() => Select(cell.Day)">@ToPersianDigits(cell.Day.ToString())</button> }
+                    if (cell.Day == 0)
+                    {
+                        <span class="pdp-empty"></span>
+                    }
+                    else
+                    {
+                        <button type="button" class="pdp-day @(cell.IsSelected ? "selected" : "") @(cell.IsToday ? "today" : "")" @onclick="() => Select(cell.Day)">@ToPersianDigits(cell.Day.ToString())</button>
+                    }
                 }
             </div>
+
             <div class="pdp-footer">
                 <button type="button" class="pdp-today" @onclick="GoToday">امروز</button>
-                @if (_selected.HasValue) { <button type="button" class="pdp-clear" @onclick="Clear">پاک کردن</button> }
+                @if (_selected.HasValue)
+                {
+                    <button type="button" class="pdp-clear" @onclick="Clear">پاک کردن</button>
+                }
             </div>
         </div>
     }
@@ -42,51 +62,99 @@
     private int _displayYear;
     private int _displayMonth;
     private readonly PersianCalendar _calendar = new();
-    private static readonly string[] MonthNames = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+
+    private static readonly string[] MonthNames =
+    [
+        "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+        "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+    ];
+
     private static readonly string[] Weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+
+    protected override void OnInitialized()
+    {
+        SetDisplayDate(Value ?? DateTime.Now);
+        _selected = Value;
+    }
 
     protected override void OnParametersSet()
     {
-        if (Value != _selected || _displayMonth is < 1 or > 12)
+        if (Value != _selected)
         {
             _selected = Value;
-            var date = Value ?? DateTime.Now;
-            _displayYear = _calendar.GetYear(date);
-            _displayMonth = _calendar.GetMonth(date);
+            SetDisplayDate(Value ?? DateTime.Now);
         }
+
+        EnsureDisplayDate();
     }
 
-    private void Toggle()
+    private void SetDisplayDate(DateTime date)
     {
-        EnsureDisplayMonth();
-        _open = !_open;
-    }
-
-    private void EnsureDisplayMonth()
-    {
-        if (_displayMonth is >= 1 and <= 12)
-            return;
-
-        var date = _selected ?? DateTime.Now;
         _displayYear = _calendar.GetYear(date);
         _displayMonth = _calendar.GetMonth(date);
     }
 
+    private void EnsureDisplayDate()
+    {
+        if (_displayYear < 1 || _displayMonth < 1 || _displayMonth > 12)
+            SetDisplayDate(_selected ?? DateTime.Now);
+    }
+
+    private void Toggle()
+    {
+        EnsureDisplayDate();
+        _open = !_open;
+    }
+
     private void PreviousMonth()
     {
-        EnsureDisplayMonth();
-        if (_displayMonth == 1) { _displayMonth = 12; _displayYear--; } else _displayMonth--;
+        EnsureDisplayDate();
+        if (_displayMonth == 1)
+        {
+            _displayMonth = 12;
+            _displayYear--;
+        }
+        else
+        {
+            _displayMonth--;
+        }
     }
 
     private void NextMonth()
     {
-        EnsureDisplayMonth();
-        if (_displayMonth == 12) { _displayMonth = 1; _displayYear++; } else _displayMonth++;
+        EnsureDisplayDate();
+        if (_displayMonth == 12)
+        {
+            _displayMonth = 1;
+            _displayYear++;
+        }
+        else
+        {
+            _displayMonth++;
+        }
+    }
+
+    private void PreviousYear()
+    {
+        EnsureDisplayDate();
+        if (_displayYear > 1)
+            _displayYear--;
+    }
+
+    private void NextYear()
+    {
+        EnsureDisplayDate();
+        _displayYear++;
+    }
+
+    private void GoToday()
+    {
+        SetDisplayDate(DateTime.Now);
     }
 
     private async Task Select(int day)
     {
-        EnsureDisplayMonth();
+        EnsureDisplayDate();
         _selected = _calendar.ToDateTime(_displayYear, _displayMonth, day, 0, 0, 0, 0);
         _open = false;
         await ValueChanged.InvokeAsync(_selected);
@@ -99,20 +167,17 @@
         await ValueChanged.InvokeAsync(null);
     }
 
-    private void GoToday()
-    {
-        var now = DateTime.Now;
-        _displayYear = _calendar.GetYear(now);
-        _displayMonth = _calendar.GetMonth(now);
-    }
+    private string ToPersianDate(DateTime date) =>
+        ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
 
-    private string ToPersianDate(DateTime date) => ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
-
-    private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
+    private static string ToPersianDigits(string value) =>
+        value.Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴")
+             .Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
 
     private IEnumerable<DayCell> GetCells()
     {
-        EnsureDisplayMonth();
+        EnsureDisplayDate();
+
         var first = _calendar.ToDateTime(_displayYear, _displayMonth, 1, 0, 0, 0, 0);
         var offset = ((int)first.DayOfWeek + 1) % 7;
         var days = _calendar.GetDaysInMonth(_displayYear, _displayMonth);
@@ -120,15 +185,18 @@
         for (var i = 0; i < offset; i++)
             yield return new DayCell(0, false, false);
 
+        var today = DateTime.Now;
+        var todayYear = _calendar.GetYear(today);
+        var todayMonth = _calendar.GetMonth(today);
+        var todayDay = _calendar.GetDayOfMonth(today);
+
         for (var d = 1; d <= days; d++)
         {
             var date = _calendar.ToDateTime(_displayYear, _displayMonth, d, 0, 0, 0, 0);
             yield return new DayCell(
                 d,
                 _selected.HasValue && _selected.Value.Date == date.Date,
-                _calendar.GetYear(DateTime.Now) == _displayYear &&
-                _calendar.GetMonth(DateTime.Now) == _displayMonth &&
-                _calendar.GetDayOfMonth(DateTime.Now) == d);
+                todayYear == _displayYear && todayMonth == _displayMonth && todayDay == d);
         }
     }
 
@@ -136,5 +204,5 @@
 }
 
 <style>
-.pdp{position:relative;width:100%;font-family:inherit}.pdp-input{width:100%;min-height:40px;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#334155;text-align:right}.pdp-input:hover{border-color:#94a3b8}.pdp-value{direction:rtl}.pdp-icon{font-size:16px}.pdp-popover{position:absolute;top:calc(100% + 7px);right:0;width:300px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:12px;z-index:3000}.pdp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.pdp-nav{border:0;background:#f1f5f9;border-radius:8px;width:34px;height:34px;font-size:24px;cursor:pointer;color:#475569}.pdp-month{border:0;background:transparent;font-weight:700;color:#0f172a;cursor:pointer}.pdp-weekdays,.pdp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.pdp-weekdays{margin-bottom:4px}.pdp-weekdays span{font-size:11px;color:#94a3b8;font-weight:700;padding:5px 0}.pdp-day,.pdp-empty{height:34px}.pdp-day{border:0;background:transparent;border-radius:8px;cursor:pointer;color:#334155;font-family:inherit}.pdp-day:hover{background:#e2e8f0}.pdp-day.today{box-shadow:inset 0 0 0 1px #2563eb}.pdp-day.selected{background:#2563eb;color:#fff;font-weight:700}.pdp-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9}.pdp-today,.pdp-clear{border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}.pdp-today{color:#2563eb}.pdp-clear{color:#64748b}
+.pdp{position:relative;width:100%;font-family:inherit}.pdp-input{width:100%;min-height:40px;border:1px solid #dbe3ee;border-radius:8px;background:#fff;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#334155;text-align:right}.pdp-input:hover{border-color:#94a3b8}.pdp-value{direction:rtl}.pdp-icon{font-size:16px}.pdp-popover{position:absolute;top:calc(100% + 7px);right:0;width:310px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:12px;z-index:3000}.pdp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.pdp-nav{border:0;background:#f1f5f9;border-radius:8px;width:36px;height:36px;font-size:24px;cursor:pointer;color:#475569}.pdp-month-title{display:flex;align-items:center;gap:5px;font-weight:700;color:#0f172a}.pdp-month-part{border:0;background:transparent;font:inherit;color:#2563eb;cursor:pointer}.pdp-year-nav{display:flex;justify-content:center;gap:6px;margin-bottom:9px}.pdp-year-nav button{border:0;background:#f8fafc;color:#64748b;border-radius:7px;padding:4px 8px;font:inherit;font-size:11px;cursor:pointer}.pdp-year-nav button:hover{background:#e2e8f0;color:#334155}.pdp-weekdays,.pdp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}.pdp-weekdays{margin-bottom:4px}.pdp-weekdays span{font-size:11px;color:#94a3b8;font-weight:700;padding:5px 0}.pdp-day,.pdp-empty{height:34px}.pdp-day{border:0;background:transparent;border-radius:8px;cursor:pointer;color:#334155;font-family:inherit}.pdp-day:hover{background:#e2e8f0}.pdp-day.today{box-shadow:inset 0 0 0 1px #2563eb}.pdp-day.selected{background:#2563eb;color:#fff;font-weight:700}.pdp-footer{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9}.pdp-today,.pdp-clear{border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600}.pdp-today{color:#2563eb}.pdp-clear{color:#64748b}
 </style>
