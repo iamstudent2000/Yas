@@ -284,15 +284,15 @@
             var p = await db.Positions.SingleAsync(x => x.Id == eid);
             p.Rename(name);
             p.ChangeParent(_parentPositionId);
-            AppState.AddToast("سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
         }
         else
         {
             db.Positions.Add(new Position(name, _parentPositionId));
-            AppState.AddToast("سمت جدید ایجاد شد.", ToastLevel.Success);
         }
 
         await db.SaveChangesAsync();
+        await AppState.NotifyDataChangedAsync();
+        AppState.AddToast(_editingId is null ? "سمت جدید ایجاد شد." : "سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
         CancelEdit();
         await LoadAsync();
     }
@@ -351,11 +351,13 @@
             try
             {
                 await db.SaveChangesAsync();
+                await AppState.NotifyDataChangedAsync();
                 AppState.AddToast("کارمند به سمت تخصیص یافت.", ToastLevel.Success);
             }
             catch (DbUpdateException)
             {
                 AppState.AddToast("این سمت هم‌زمان توسط کارمند دیگری تخصیص داده شد.", ToastLevel.Error);
+                return;
             }
 
             _employeeToAssign = null;
@@ -390,6 +392,7 @@
 
             assignment.End();
             await db.SaveChangesAsync();
+            await AppState.NotifyDataChangedAsync();
             AppState.AddToast("سمت آزاد شد و اکنون قابل تخصیص است.", ToastLevel.Success);
             await LoadAsync();
         }
@@ -417,6 +420,7 @@
         var p = await db.Positions.SingleAsync(x => x.Id == id);
         db.Positions.Remove(p);
         await db.SaveChangesAsync();
+        await AppState.NotifyDataChangedAsync();
         AppState.AddToast("سمت حذف شد.", ToastLevel.Success);
         if (_selectedPositionId == id)
             ClearSelection();
