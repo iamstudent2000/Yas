@@ -9,11 +9,7 @@
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
 
 <div class="page-header" dir="rtl">
-    <div>
-        <div class="page-subtitle">مدیریت سامانه / گزارش رویدادها</div>
-        <h1 class="page-title">گزارش رویدادها</h1>
-        <p class="page-subtitle">تغییرات مهم سامانه همراه با کاربر و سمت فعال ثبت می‌شوند.</p>
-    </div>
+    <div><div class="page-subtitle">مدیریت سامانه / گزارش رویدادها</div><h1 class="page-title">گزارش رویدادها</h1><p class="page-subtitle">تغییرات مهم سامانه همراه با کاربر و سمت فعال ثبت می‌شوند.</p></div>
     <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
 </div>
 
@@ -23,82 +19,26 @@
         <div class="filter-field"><label>سمت فعال</label><input class="form-control" placeholder="نام سمت..." @bind="_positionSearch" /></div>
         <div class="filter-field"><label>موجودیت</label><input class="form-control" placeholder="مثلاً Permission" @bind="_entityType" /></div>
         <div class="filter-field"><label>عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
-        <div class="filter-field"><label>از تاریخ</label><input class="form-control" type="date" @bind="_fromDate" /></div>
-        <div class="filter-field"><label>تا تاریخ</label><input class="form-control" type="date" @bind="_toDate" /></div>
-        <div class="filter-actions">
-            <button class="btn btn-primary" @onclick="SearchAsync"><i class="bx bx-search"></i> جستجو</button>
-            <button class="btn btn-secondary" @onclick="ClearFiltersAsync"><i class="bx bx-reset"></i> پاک کردن</button>
-        </div>
+        <div class="filter-field"><label>از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
+        <div class="filter-field"><label>تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
+        <div class="filter-actions"><button class="btn btn-primary" @onclick="SearchAsync"><i class="bx bx-search"></i> جستجو</button><button class="btn btn-secondary" @onclick="ClearFiltersAsync"><i class="bx bx-reset"></i> پاک کردن</button></div>
     </div>
 
-    @if (_loading)
-    {
-        <div class="empty-state">در حال بارگذاری...</div>
-    }
-    else if (_rows.Count == 0)
-    {
-        <div class="empty-state">رویدادی مطابق فیلترها پیدا نشد.</div>
-    }
-    else
-    {
-        <div class="audit-result-info">
-            <span>@_totalCount.ToString("N0") رویداد</span>
-            <div class="page-size"><label>تعداد در صفحه</label><select @bind="_pageSize" @bind:after="PageSizeChangedAsync"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div>
-        </div>
-        <div class="data-table-wrap">
-            <table class="data-table audit-table">
-                <colgroup><col class="col-time" /><col class="col-user" /><col class="col-position" /><col class="col-action" /><col class="col-entity" /><col class="col-details" /></colgroup>
-                <thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead>
-                <tbody>
-                @foreach (var row in _rows)
-                {
-                    <tr @key="row.Id">
-                        <td class="audit-time">@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd")<small>@row.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss")</small></td>
-                        <td><div class="actor-cell"><span class="actor-avatar"><i class="bx bx-user"></i></span><span class="truncate">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
-                        <td><span class="truncate">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
-                        <td><span class="audit-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
-                        <td><div class="entity-cell"><strong>@GetEntityText(row.EntityType)</strong><small title="@row.EntityId">@row.EntityId</small></div></td>
-                        <td><button class="audit-details-btn" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> مشاهده جزئیات</button></td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        <div class="audit-pagination">
-            <button class="page-btn" disabled="@(_page <= 1)" @onclick="PreviousPageAsync"><i class="bx bx-chevron-right"></i> قبلی</button>
-            <div class="page-numbers">
-                @foreach (var pageNumber in GetPageNumbers())
-                {
-                    <button class="page-number @(pageNumber == _page ? "active" : "")" @onclick="() => GoToPageAsync(pageNumber)">@(pageNumber)</button>
-                }
-            </div>
-            <button class="page-btn" disabled="@(_page >= TotalPages)" @onclick="NextPageAsync">بعدی <i class="bx bx-chevron-left"></i></button>
-        </div>
+    @if (_loading) { <div class="empty-state">در حال بارگذاری...</div> }
+    else if (_rows.Count == 0) { <div class="empty-state">رویدادی مطابق فیلترها پیدا نشد.</div> }
+    else {
+        <div class="audit-result-info"><span>@_totalCount.ToString("N0") رویداد</span><div class="page-size"><label>تعداد در صفحه</label><select @bind="_pageSize" @bind:after="PageSizeChangedAsync"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div></div>
+        <div class="data-table-wrap"><table class="data-table audit-table"><colgroup><col class="col-time" /><col class="col-user" /><col class="col-position" /><col class="col-action" /><col class="col-entity" /><col class="col-details" /></colgroup><thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead><tbody>
+        @foreach (var row in _rows) {
+            <tr @key="row.Id"><td class="audit-time">@row.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd")<small>@row.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss")</small></td><td><div class="actor-cell"><span class="actor-avatar"><i class="bx bx-user"></i></span><span class="truncate">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td><td><span class="truncate">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td><td><span class="audit-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td><td><div class="entity-cell"><strong>@GetEntityText(row.EntityType)</strong><small title="@row.EntityId">@row.EntityId</small></div></td><td><button class="audit-details-btn" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> مشاهده جزئیات</button></td></tr>
+        }
+        </tbody></table></div>
+        <div class="audit-pagination"><button class="page-btn" disabled="@(_page <= 1)" @onclick="PreviousPageAsync"><i class="bx bx-chevron-right"></i> قبلی</button><div class="page-numbers">@foreach (var pageNumber in GetPageNumbers()) { <button class="page-number @(pageNumber == _page ? "active" : "")" @onclick="() => GoToPageAsync(pageNumber)">@(pageNumber)</button> }</div><button class="page-btn" disabled="@(_page >= TotalPages)" @onclick="NextPageAsync">بعدی <i class="bx bx-chevron-left"></i></button></div>
     }
 </section>
 
-@if (_selected is not null)
-{
-    <div class="audit-overlay" @onclick="CloseDetails">
-        <div class="audit-modal" dir="rtl" @onclick:stopPropagation="true">
-            <div class="audit-modal-header">
-                <div><div class="audit-modal-kicker">گزارش رویداد</div><h2>@GetActionText(_selected.Action) @GetEntityText(_selected.EntityType)</h2><div class="audit-modal-time"><i class="bx bx-time-five"></i>@_selected.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</div></div>
-                <button class="audit-close" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
-            </div>
-            <div class="audit-meta-grid">
-                <div class="audit-meta-card"><span><i class="bx bx-user"></i> کاربر</span><strong>@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div>
-                <div class="audit-meta-card"><span><i class="bx bx-briefcase"></i> سمت فعال</span><strong>@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div>
-                <div class="audit-meta-card"><span><i class="bx bx-category"></i> موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small>@_selected.EntityId</small></div>
-                <div class="audit-meta-card"><span><i class="bx bx-bolt-circle"></i> عملیات</span><strong><span class="audit-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div>
-            </div>
-            <div class="audit-changes">
-                <div class="change-panel"><div class="change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="change-body">@RenderJson(_selected.BeforeJson)</div></div>
-                <div class="change-arrow"><i class="bx bx-left-arrow-alt"></i></div>
-                <div class="change-panel"><div class="change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="change-body">@RenderJson(_selected.AfterJson)</div></div>
-            </div>
-            <div class="audit-modal-footer"><span>شناسه رویداد: @_selected.Id</span><button class="btn btn-secondary" @onclick="CloseDetails">بستن</button></div>
-        </div>
-    </div>
+@if (_selected is not null) {
+    <div class="audit-overlay" @onclick="CloseDetails"><div class="audit-modal" dir="rtl" @onclick:stopPropagation="true"><div class="audit-modal-header"><div><div class="audit-modal-kicker">گزارش رویداد</div><h2>@GetActionText(_selected.Action) @GetEntityText(_selected.EntityType)</h2><div class="audit-modal-time"><i class="bx bx-time-five"></i>@_selected.OccurredAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</div></div><button class="audit-close" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button></div><div class="audit-meta-grid"><div class="audit-meta-card"><span><i class="bx bx-user"></i> کاربر</span><strong>@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="audit-meta-card"><span><i class="bx bx-briefcase"></i> سمت فعال</span><strong>@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="audit-meta-card"><span><i class="bx bx-category"></i> موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small>@_selected.EntityId</small></div><div class="audit-meta-card"><span><i class="bx bx-bolt-circle"></i> عملیات</span><strong><span class="audit-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div><div class="audit-changes"><div class="change-panel"><div class="change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="change-body">@RenderJson(_selected.BeforeJson)</div></div><div class="change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="change-panel"><div class="change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="change-body">@RenderJson(_selected.AfterJson)</div></div></div><div class="audit-modal-footer"><span>شناسه رویداد: @_selected.Id</span><button class="btn btn-secondary" @onclick="CloseDetails">بستن</button></div></div></div>
 }
 
 @code {
@@ -137,18 +77,10 @@
             var positions = await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
             var employeeTerm = _employeeSearch.Trim();
             var positionTerm = _positionSearch.Trim();
-            var filtered = allFiltered
-                .Where(x => string.IsNullOrWhiteSpace(employeeTerm) || (x.EmployeeId.HasValue && employees.TryGetValue(x.EmployeeId.Value, out var employeeName) && employeeName.Contains(employeeTerm, StringComparison.OrdinalIgnoreCase)))
-                .Where(x => string.IsNullOrWhiteSpace(positionTerm) || (x.ActivePositionId.HasValue && positions.TryGetValue(x.ActivePositionId.Value, out var positionName) && positionName.Contains(positionTerm, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-
+            var filtered = allFiltered.Where(x => string.IsNullOrWhiteSpace(employeeTerm) || (x.EmployeeId.HasValue && employees.TryGetValue(x.EmployeeId.Value, out var employeeName) && employeeName.Contains(employeeTerm, StringComparison.OrdinalIgnoreCase))).Where(x => string.IsNullOrWhiteSpace(positionTerm) || (x.ActivePositionId.HasValue && positions.TryGetValue(x.ActivePositionId.Value, out var positionName) && positionName.Contains(positionTerm, StringComparison.OrdinalIgnoreCase))).ToList();
             _totalCount = filtered.Count;
             if (_page > TotalPages) _page = TotalPages;
-            _rows = filtered.Skip((_page - 1) * _pageSize).Take(_pageSize)
-                .Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId,
-                    x.EmployeeId is Guid employeeId && employees.TryGetValue(employeeId, out var employeeName) ? employeeName : null,
-                    x.ActivePositionId is Guid positionId && positions.TryGetValue(positionId, out var positionName) ? positionName : null,
-                    x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToList();
+            _rows = filtered.Skip((_page - 1) * _pageSize).Take(_pageSize).Select(x => new AuditRow(x.Id, x.OccurredAtUtc, x.EmployeeId, x.ActivePositionId, x.EmployeeId is Guid employeeId && employees.TryGetValue(employeeId, out var employeeName) ? employeeName : null, x.ActivePositionId is Guid positionId && positions.TryGetValue(positionId, out var positionName) ? positionName : null, x.Action, x.EntityType, x.EntityId, x.BeforeJson, x.AfterJson)).ToList();
         }
         finally { _loading = false; }
     }
@@ -165,26 +97,7 @@
     private static string GetActionClass(string action) => action switch { "Created" => "audit-created", "Deleted" => "audit-deleted", _ => "audit-updated" };
     private static string GetActionIcon(string action) => action switch { "Created" => "bx-plus", "Deleted" => "bx-trash", _ => "bx-edit-alt" };
     private static string GetEntityText(string entity) => entity switch { "Permission" => "مجوز", "Employee" => "کارمند", "Position" => "سمت", "Organization" => "سازمان", "EmployeePosition" => "تخصیص سمت", "PermissionGroup" => "گروه مجوز", _ => entity };
-
-    private static RenderFragment RenderJson(string? json) => builder =>
-    {
-        if (string.IsNullOrWhiteSpace(json)) { builder.AddMarkupContent(0, "<div class='no-change'>بدون تغییر</div>"); return; }
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var seq = 0;
-            builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "json-properties");
-            foreach (var property in doc.RootElement.EnumerateObject())
-            {
-                builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "json-property");
-                builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "json-key"); builder.AddContent(seq++, GetPropertyText(property.Name)); builder.CloseElement();
-                builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "json-value"); builder.AddContent(seq++, FormatJsonValue(property.Value)); builder.CloseElement();
-                builder.CloseElement();
-            }
-            builder.CloseElement();
-        }
-        catch { builder.AddMarkupContent(0, $"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>"); }
-    };
+    private static RenderFragment RenderJson(string? json) => builder => { if (string.IsNullOrWhiteSpace(json)) { builder.AddMarkupContent(0, "<div class='no-change'>بدون تغییر</div>"); return; } try { using var doc = JsonDocument.Parse(json); var seq = 0; builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "json-properties"); foreach (var property in doc.RootElement.EnumerateObject()) { builder.OpenElement(seq++, "div"); builder.AddAttribute(seq++, "class", "json-property"); builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "json-key"); builder.AddContent(seq++, GetPropertyText(property.Name)); builder.CloseElement(); builder.OpenElement(seq++, "span"); builder.AddAttribute(seq++, "class", "json-value"); builder.AddContent(seq++, FormatJsonValue(property.Value)); builder.CloseElement(); builder.CloseElement(); } builder.CloseElement(); } catch { builder.AddMarkupContent(0, $"<pre class='json-fallback'>{System.Net.WebUtility.HtmlEncode(json)}</pre>"); } };
     private static string GetPropertyText(string name) => name switch { "Id" => "شناسه", "Code" => "کد", "Name" => "نام", "FullName" => "نام و نام خانوادگی", "Username" => "نام کاربری", "IsActive" => "فعال", "OrganizationId" => "سازمان", "PositionId" => "سمت", "EmployeeId" => "کارمند", "StartedAt" => "تاریخ شروع", "EndedAt" => "تاریخ پایان", _ => name };
     private static string FormatJsonValue(JsonElement value) => value.ValueKind switch { JsonValueKind.Null => "-", JsonValueKind.True => "بله", JsonValueKind.False => "خیر", JsonValueKind.String => value.GetString() ?? "-", _ => value.ToString() };
     private sealed record AuditRow(Guid Id, DateTime OccurredAtUtc, Guid? EmployeeId, Guid? ActivePositionId, string? EmployeeName, string? PositionName, string Action, string EntityType, string? EntityId, string? BeforeJson, string? AfterJson);
