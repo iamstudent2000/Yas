@@ -22,14 +22,130 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        ValidateBusinessInvariants();
         CaptureAssignmentHistory();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        await ValidateBusinessInvariantsAsync(cancellationToken);
         await CaptureAssignmentHistoryAsync(cancellationToken);
         return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void ValidateBusinessInvariants()
+    {
+        ValidateEmployeeAssignments();
+        ValidatePositionHierarchy();
+    }
+
+    private async Task ValidateBusinessInvariantsAsync(CancellationToken cancellationToken)
+    {
+        await ValidateEmployeeAssignmentsAsync(cancellationToken);
+        await ValidatePositionHierarchyAsync(cancellationToken);
+    }
+
+    private void ValidateEmployeeAssignments()
+    {
+        foreach (var entry in ChangeTracker.Entries<EmployeePosition>())
+        {
+            if (entry.State == EntityState.Added ||
+                (entry.State == EntityState.Modified && entry.Property(x => x.EndedAt).IsModified && entry.Property(x => x.EndedAt).CurrentValue is null))
+            {
+                var employeeId = entry.Entity.EmployeeId;
+                var localEmployee = ChangeTracker.Entries<Employee>()
+                    .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
+
+                if (localEmployee is not null && !localEmployee.IsActive)
+                    throw new InvalidOperationException("An inactive employee cannot have an active position assignment.");
+
+                if (localEmployee is null && !Employees.AsNoTracking().Any(x => x.Id == employeeId && x.IsActive))
+                    throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
+            }
+        }
+    }
+
+    private async Task ValidateEmployeeAssignmentsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var entry in ChangeTracker.Entries<EmployeePosition>())
+        {
+            if (entry.State == EntityState.Added ||
+                (entry.State == EntityState.Modified && entry.Property(x => x.EndedAt).IsModified && entry.Property(x => x.EndedAt).CurrentValue is null))
+            {
+                var employeeId = entry.Entity.EmployeeId;
+                var localEmployee = ChangeTracker.Entries<Employee>()
+                    .FirstOrDefault(x => x.Entity.Id == employeeId)?.Entity;
+
+                if (localEmployee is not null)
+                {
+                    if (!localEmployee.IsActive)
+                        throw new InvalidOperationException("An inactive employee cannot have an active position assignment.");
+                }
+                else if (!await Employees.AsNoTracking().AnyAsync(x => x.Id == employeeId && x.IsActive, cancellationToken))
+                {
+                    throw new InvalidOperationException("An inactive or unknown employee cannot have an active position assignment.");
+                }
+            }
+        }
+    }
+
+    private void ValidatePositionHierarchy()
+    {
+        if (!ChangeTracker.Entries<Position>().Any(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            return;
+
+        var parents = Positions.AsNoTracking()
+            .Select(x => new { x.Id, x.ParentPositionId })
+            .ToDictionary(x => x.Id, x => x.ParentPositionId);
+
+        ApplyTrackedPositionChanges(parents);
+        ValidateHierarchyGraph(parents);
+    }
+
+    private async Task ValidatePositionHierarchyAsync(CancellationToken cancellationToken)
+    {
+        if (!ChangeTracker.Entries<Position>().Any(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            return;
+
+        var parents = await Positions.AsNoTracking()
+            .Select(x => new { x.Id, x.ParentPositionId })
+            .ToDictionaryAsync(x => x.Id, x => x.ParentPositionId, cancellationToken);
+
+        ApplyTrackedPositionChanges(parents);
+        ValidateHierarchyGraph(parents);
+    }
+
+    private void ApplyTrackedPositionChanges(Dictionary<Guid, Guid?> parents)
+    {
+        foreach (var entry in ChangeTracker.Entries<Position>())
+        {
+            if (entry.State == EntityState.Deleted)
+            {
+                parents.Remove(entry.Entity.Id);
+                continue;
+            }
+
+            parents[entry.Entity.Id] = entry.Entity.ParentPositionId;
+        }
+    }
+
+    private static void ValidateHierarchyGraph(IReadOnlyDictionary<Guid, Guid?> parents)
+    {
+        foreach (var start in parents.Keys)
+        {
+            var visited = new HashSet<Guid>();
+            var current = (Guid?)start;
+
+            while (current is Guid positionId)
+            {
+                if (!visited.Add(positionId))
+                    throw new InvalidOperationException("The position hierarchy contains a cycle.");
+
+                if (!parents.TryGetValue(positionId, out current))
+                    break;
+            }
+        }
     }
 
     private void CaptureAssignmentHistory()
@@ -50,10 +166,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             if (originalEndedAt is null && currentEndedAt is not null)
             {
                 var activeHistory = PositionAssignmentHistories.Local
-                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null);
+                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null)
+                    ?? PositionAssignmentHistories
+                        .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null);
 
-                if (activeHistory is not null)
-                    activeHistory.End(currentEndedAt);
+                activeHistory?.End(currentEndedAt.Value);
             }
             else if (originalEndedAt is not null && currentEndedAt is null)
             {
@@ -81,12 +198,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             if (originalEndedAt is null && currentEndedAt is not null)
             {
                 var activeHistory = PositionAssignmentHistories.Local
-                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null);
+                    .FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null)
+                    ?? await PositionAssignmentHistories
+                        .FirstOrDefaultAsync(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null, cancellationToken);
 
-                activeHistory ??= await PositionAssignmentHistories
-                    .FirstOrDefaultAsync(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null, cancellationToken);
-
-                activeHistory?.End(currentEndedAt);
+                activeHistory?.End(currentEndedAt.Value);
             }
             else if (originalEndedAt is not null && currentEndedAt is null)
             {
