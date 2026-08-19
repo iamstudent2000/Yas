@@ -32,30 +32,32 @@
         <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-layer"></i></span><div><small>استفاده در گروه‌ها</small><strong>@_groupMembershipCount</strong></div></div>
     </div>
 
-    <div class="permission-admin-layout">
-        <section class="card permission-form-card">
-            <div class="card-heading">
-                <div class="card-heading-icon"><i class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
+    <div class="admin-split">
+        <section class="card admin-split-card">
+            <div class="admin-card-heading">
+                <div class="admin-card-heading-icon"><i class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
                 <div><h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2><p class="muted">کد فنی یکتا و نام نمایشی قابل فهم وارد کنید.</p></div>
             </div>
-            <label class="form-label">نام مجوز</label>
-            <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
-            <label class="form-label">کد فنی مجوز</label>
-            <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve" dir="ltr" />
-            <div class="form-hint"><i class="bx bx-info-circle"></i><span>کد فنی در این صفحه نمایش داده می‌شود و برای شناسایی دقیق مجوز استفاده می‌شود.</span></div>
-            <div class="form-actions">
-                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد مجوز" : "ذخیره تغییرات")</button>
-                @if (_editingId is not null) { <button class="btn btn-secondary" @onclick="Cancel">انصراف</button> }
+            <div class="admin-form-body">
+                <label class="form-label">نام مجوز</label>
+                <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
+                <label class="form-label">کد فنی مجوز</label>
+                <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve" dir="ltr" />
+                <div class="admin-form-hint"><i class="bx bx-info-circle"></i><span>کد فنی در این صفحه نمایش داده می‌شود و برای شناسایی دقیق مجوز استفاده می‌شود.</span></div>
+                <div class="form-actions" style="margin-top:14px">
+                    <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد مجوز" : "ذخیره تغییرات")</button>
+                    @if (_editingId is not null) { <button class="btn btn-secondary" @onclick="Cancel">انصراف</button> }
+                </div>
             </div>
         </section>
 
-        <section class="card permission-list-card">
-            <div class="card-toolbar">
+        <section class="card admin-split-card">
+            <div class="admin-list-head">
                 <div><h2 class="section-title">فهرست مجوزها</h2><p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p></div>
                 <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput" @onkeyup="SearchChanged" /></div>
             </div>
-            <div class="permission-filter-row">
-                <span class="result-count">@_totalCount مجوز</span>
+            <div class="admin-list-filter">
+                <span class="admin-result-count">@_totalCount مجوز</span>
                 <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
                     <option value="">همه</option><option value="used">در حال استفاده</option><option value="unused">بدون استفاده</option>
                 </select>
@@ -63,91 +65,91 @@
 
             @if (_loading)
             {
-                <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
+                <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
             }
             else if (_permissions.Count == 0)
             {
-                <div class="empty-state"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا فیلتر را تغییر دهید.</span></div>
+                <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا فیلتر را تغییر دهید.</span></div>
             }
             else
             {
-                <div class="permission-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
+                <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
                 @foreach (var x in _permissions)
                 {
                     var isExpanded = _expandedPermissionId == x.Id;
                     var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
-                    <div class="permission-entry" @key="x.Id">
-                        <div class="permission-row">
-                            <div class="permission-identity">
-                                <div class="permission-avatar"><i class="bx bx-key"></i></div>
-                                <div class="permission-text">
+                    <div @key="x.Id">
+                        <div class="admin-list-row">
+                            <div class="admin-list-primary">
+                                <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
+                                <div class="admin-list-text">
                                     <strong>@x.Name</strong>
                                     <span>@PermissionCategory(x.Code)</span>
-                                    <code class="permission-code" dir="ltr">@x.Code</code>
+                                    <code class="admin-code" dir="ltr">@x.Code</code>
                                 </div>
                             </div>
-                            <div class="permission-usage">
-                                <span class="usage-pill"><i class="bx bx-user-check"></i>@x.DirectAssignmentCount مستقیم</span>
-                                <span class="usage-pill"><i class="bx bx-layer"></i>@x.GroupMembershipCount گروه</span>
+                            <div class="admin-list-meta">
+                                <span class="admin-pill"><i class="bx bx-user-check"></i>@x.DirectAssignmentCount مستقیم</span>
+                                <span class="admin-pill"><i class="bx bx-layer"></i>@x.GroupMembershipCount گروه</span>
                             </div>
-                            <div class="permission-row-actions">
+                            <div class="admin-list-actions">
                                 <button class="btn btn-primary btn-sm" @onclick="() => ToggleUsage(x.Id)"><i class="bx @(isExpanded ? "bx-chevron-up" : "bx-show")"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")</button>
                                 <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i> ویرایش</button>
                                 @if (!used) { <button class="btn btn-danger btn-sm" @onclick="() => Delete(x.Id)"><i class="bx bx-trash"></i></button> }
-                                else { <button class="btn btn-disabled btn-sm" disabled title="مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button> }
+                                else { <button class="btn btn-secondary btn-sm admin-disabled" disabled title="مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button> }
                             </div>
                         </div>
 
                         @if (isExpanded)
                         {
-                            <div class="permission-details">
+                            <div class="admin-detail">
                                 @if (_usageLoading)
                                 {
-                                    <div class="details-loading"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری جزئیات...</div>
+                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری جزئیات...</span></div>
                                 }
                                 else if (_usage is null)
                                 {
-                                    <div class="details-empty">اطلاعات مصرف این مجوز پیدا نشد.</div>
+                                    <div class="admin-empty" style="min-height:100px"><span>اطلاعات مصرف این مجوز پیدا نشد.</span></div>
                                 }
                                 else
                                 {
-                                    <div class="details-header">
+                                    <div class="admin-detail-header">
                                         <div><strong>ردیابی استفاده از مجوز</strong><span>@_usage.PermissionName</span></div>
-                                        <code dir="ltr">@_usage.PermissionCode</code>
+                                        <code class="admin-code" dir="ltr">@_usage.PermissionCode</code>
                                     </div>
-                                    <div class="details-grid">
-                                        <div class="details-panel">
-                                            <div class="details-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
+                                    <div class="admin-detail-grid">
+                                        <div class="admin-detail-panel">
+                                            <div class="admin-detail-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
                                             @if (_usage.DirectAssignments.Count == 0)
                                             {
-                                                <div class="details-empty">این مجوز مستقیماً به هیچ کاربری تخصیص داده نشده است.</div>
+                                                <div class="admin-empty" style="min-height:100px"><span>این مجوز مستقیماً به هیچ کاربری تخصیص داده نشده است.</span></div>
                                             }
                                             else
                                             {
                                                 @foreach (var d in _usage.DirectAssignments)
                                                 {
-                                                    <div class="usage-person">
-                                                        <div class="usage-person-icon"><i class="bx bx-user"></i></div>
-                                                        <div class="usage-person-main"><strong>@d.EmployeeName</strong><span dir="ltr">@d.Username</span></div>
-                                                        <div class="usage-person-source"><span>@d.Source</span>@if (d.PositionName is not null) { <small>@d.PositionName</small> }</div>
+                                                    <div class="admin-detail-item">
+                                                        <div class="admin-detail-item-icon"><i class="bx bx-user"></i></div>
+                                                        <div class="admin-detail-item-main"><strong>@d.EmployeeName</strong><span dir="ltr">@d.Username</span></div>
+                                                        <div class="admin-detail-item-side"><span>@d.Source</span>@if (d.PositionName is not null) { <small>@d.PositionName</small> }</div>
                                                     </div>
                                                 }
                                             }
                                         </div>
-                                        <div class="details-panel">
-                                            <div class="details-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این مجوز</strong><span>@_usage.Groups.Count</span></div>
+                                        <div class="admin-detail-panel">
+                                            <div class="admin-detail-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این مجوز</strong><span>@_usage.Groups.Count</span></div>
                                             @if (_usage.Groups.Count == 0)
                                             {
-                                                <div class="details-empty">هیچ گروهی این مجوز را شامل نمی‌شود.</div>
+                                                <div class="admin-empty" style="min-height:100px"><span>هیچ گروهی این مجوز را شامل نمی‌شود.</span></div>
                                             }
                                             else
                                             {
                                                 @foreach (var g in _usage.Groups)
                                                 {
-                                                    <div class="usage-group">
-                                                        <div class="usage-group-icon"><i class="bx bx-layer"></i></div>
-                                                        <div class="usage-group-main"><strong>@g.GroupName</strong>@if (!string.IsNullOrWhiteSpace(g.Description)) { <span>@g.Description</span> }</div>
-                                                        <div class="usage-group-meta"><span>@g.PermissionCount مجوز</span><span>@g.AssignedEmployeeCount تخصیص</span></div>
+                                                    <div class="admin-detail-item">
+                                                        <div class="admin-detail-item-icon"><i class="bx bx-layer"></i></div>
+                                                        <div class="admin-detail-item-main"><strong>@g.GroupName</strong>@if (!string.IsNullOrWhiteSpace(g.Description)) { <span>@g.Description</span> }</div>
+                                                        <div class="admin-detail-item-side"><span>@g.PermissionCount مجوز</span><span>@g.AssignedEmployeeCount تخصیص</span></div>
                                                     </div>
                                                 }
                                             }
@@ -163,12 +165,8 @@
         </section>
     </div>
 
-    <section class="card permission-model-note"><div class="model-icon"><i class="bx bx-shield-quarter"></i></div><div><strong>مدل دسترسی یاس پورتال</strong><p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های اختصاص‌یافته.</p></div></section>
+    <section class="card admin-note"><div class="admin-note-icon"><i class="bx bx-shield-quarter"></i></div><div><strong>مدل دسترسی یاس پورتال</strong><p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های اختصاص‌یافته.</p></div></section>
 </div>
-
-<style>
-.permission-code{display:block;margin-top:.35rem;padding:.28rem .55rem;width:max-content;max-width:100%;border:1px solid #dfe3e8;border-radius:.4rem;background:#f7f8fa;font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;font-size:.8rem;font-weight:600;line-height:1.3;color:#495057;direction:ltr;text-align:left;unicode-bidi:plaintext;word-break:break-all}.permission-table-head{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(180px,.7fr) minmax(250px,auto);gap:1rem;padding:.7rem 1rem;background:#f7f8fa;border:1px solid #e7eaee;border-radius:.55rem;font-size:.78rem;font-weight:700;color:#6c757d}.permission-entry{border-bottom:1px solid #edf0f2}.permission-row{display:grid;grid-template-columns:minmax(260px,1.4fr) minmax(180px,.7fr) minmax(250px,auto);gap:1rem;align-items:center;padding:1rem}.permission-row:hover{background:#fbfcfd}.permission-identity{display:flex;gap:.75rem;align-items:flex-start;min-width:0}.permission-avatar{width:2.4rem;height:2.4rem;flex:0 0 2.4rem;display:grid;place-items:center;border-radius:.6rem;background:#eef3ff;color:#3457d5}.permission-text{min-width:0}.permission-text strong{display:block;font-size:.95rem}.permission-text span{display:block;margin-top:.2rem;color:#7a818a;font-size:.78rem}.permission-usage{display:flex;flex-wrap:wrap;gap:.4rem}.usage-pill{display:inline-flex;align-items:center;gap:.3rem;padding:.32rem .55rem;border:1px solid #e5e8ec;border-radius:999px;background:#fff;font-size:.76rem;white-space:nowrap}.permission-row-actions{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:.4rem}.permission-details{margin:0 1rem 1rem;padding:1rem;border:1px solid #e2e6eb;border-radius:.7rem;background:#fafbfc}.details-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-bottom:.8rem;margin-bottom:.9rem;border-bottom:1px solid #e6e9ed}.details-header strong{display:block}.details-header span{display:block;margin-top:.2rem;color:#747b84;font-size:.8rem}.details-header code{padding:.3rem .5rem;border-radius:.35rem;background:#eef0f3}.details-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.details-panel{min-width:0;border:1px solid #e3e7eb;border-radius:.6rem;background:#fff;overflow:hidden}.details-panel-title{display:flex;align-items:center;gap:.45rem;padding:.7rem .8rem;background:#f5f7f9;border-bottom:1px solid #e3e7eb}.details-panel-title i{font-size:1.1rem}.details-panel-title span{margin-right:auto;min-width:1.5rem;text-align:center;padding:.15rem .4rem;border-radius:999px;background:#e1e5ea;font-size:.72rem}.usage-person,.usage-group{display:flex;align-items:center;gap:.65rem;padding:.65rem .8rem;border-bottom:1px solid #eef0f2}.usage-person:last-child,.usage-group:last-child{border-bottom:0}.usage-person-icon,.usage-group-icon{width:2rem;height:2rem;flex:0 0 2rem;display:grid;place-items:center;border-radius:.45rem;background:#f0f2f5}.usage-person-main,.usage-group-main{min-width:0;flex:1}.usage-person-main strong,.usage-group-main strong{display:block;font-size:.83rem}.usage-person-main span,.usage-group-main span{display:block;color:#7b8189;font-size:.72rem}.usage-person-source{display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;font-size:.7rem;color:#69717b}.usage-person-source small{color:#343a40;font-weight:600}.usage-group-meta{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;font-size:.68rem;color:#69717b;white-space:nowrap}.details-empty,.details-loading{padding:1.2rem;text-align:center;color:#777;font-size:.82rem}.details-loading{display:flex;justify-content:center;gap:.45rem}.permission-admin-layout{align-items:start}.permission-model-note{display:flex;gap:1rem;align-items:flex-start;margin-top:1rem}.permission-model-note .model-icon{flex:0 0 auto}.permission-model-note p{margin:.25rem 0 0}.btn-disabled{opacity:.55}
-</style>
 
 @code {
     private List<AdminQueryService.PermissionPageRow> _permissions = [];
