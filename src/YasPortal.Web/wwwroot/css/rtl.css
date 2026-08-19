@@ -1,41 +1,79 @@
-/* YasPortal - global RTL system */
+/* YasPortal - complete application RTL layout */
+html {
+    direction: rtl;
+}
+
 html,
 body {
     direction: rtl;
     text-align: right;
 }
 
-body,
-button,
-input,
-textarea,
-select,
-option {
-    font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+body {
+    overflow-x: hidden;
 }
 
 .application-shell {
     direction: rtl;
     text-align: right;
+    min-height: 100vh;
+}
+
+/* Global shell: navigation on the right, content on the left. */
+.topbar {
+    direction: rtl;
+}
+
+.topbar .brand {
+    order: 2;
+}
+
+.topbar > .topbar-user,
+.topbar > form,
+.topbar > .btn,
+.topbar > .icon-button {
+    order: 1;
 }
 
 .application-body {
     direction: rtl;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: stretch;
+    text-align: right;
 }
 
-/* The sidebar belongs on the right in RTL layouts. */
 .sidebar {
+    order: 1;
     border-left: 0 !important;
     border-right: 1px solid #e6ebf2 !important;
 }
 
-.content,
-main {
+.content {
+    order: 2;
     direction: rtl;
+    text-align: right;
+    min-width: 0;
+}
+
+/* Navigation */
+.sidebar-nav,
+.sidebar-nav a,
+.sidebar-footer {
+    direction: rtl;
+}
+
+.sidebar-nav a {
+    flex-direction: row;
     text-align: right;
 }
 
-/* RTL flex/grid defaults */
+.sidebar-nav a i {
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+}
+
+/* Headers and toolbars */
 .page-header,
 .admin-page-header,
 .admin-toolbar,
@@ -44,48 +82,49 @@ main {
     direction: rtl;
 }
 
-.topbar,
-.topbar-user,
-.sidebar-nav a,
-.sidebar-footer,
+.page-header,
+.admin-page-header {
+    text-align: right;
+}
+
+.admin-page-header__actions,
 .admin-toolbar__actions,
 .admin-toolbar__meta,
 .admin-pagination__pages,
-.admin-page-size,
-.admin-page-header__actions,
-.btn,
-.icon-button {
+.admin-page-size {
     direction: rtl;
 }
 
-/* Form controls */
+/* Forms */
+input,
+textarea,
+select,
+option,
+button,
+.form-control,
+.form-label,
+.admin-filter,
+.admin-filter input,
+.admin-filter select,
+.admin-page-size select {
+    direction: rtl;
+}
+
 input,
 textarea,
 select,
 .form-control,
 .admin-filter input,
-.admin-filter select,
-.admin-page-size select {
-    direction: rtl;
+.admin-filter select {
     text-align: right;
 }
 
-/* Keep technical values readable LTR. */
-.ltr,
-[data-direction='ltr'],
-.code,
-.entity-id,
-.permission-code,
-.guid,
-.url,
-input[type='email'],
-input[type='url'] {
+input[type="checkbox"],
+input[type="radio"] {
     direction: ltr;
-    text-align: left;
-    unicode-bidi: plaintext;
 }
 
-/* Tables are RTL; technical columns can opt into LTR above. */
+/* Tables */
 .data-table,
 .admin-table {
     direction: rtl;
@@ -98,27 +137,20 @@ input[type='url'] {
     text-align: right;
 }
 
-/* Dialogs, popovers and panels inherit the application direction. */
+/* Dialogs, panels, popovers, menus */
 .modal,
 .modal-dialog,
 .modal-content,
 .dialog,
 .popover,
 .dropdown-menu,
-[role='dialog'],
-[role='menu'] {
+[role="dialog"],
+[role="menu"] {
     direction: rtl;
     text-align: right;
 }
 
-/* Keep navigation arrows/icons visually sensible in RTL. */
-.sidebar-nav a i,
-.btn i,
-.icon-button i {
-    flex: 0 0 auto;
-}
-
-/* Searchable/select widgets */
+/* Search/select/date components */
 .searchable-select,
 .searchable-select-menu,
 .searchable-select-dropdown,
@@ -127,7 +159,30 @@ input[type='url'] {
     text-align: right;
 }
 
-/* Toast/notification content */
+/* Keep technical identifiers and inherently LTR values readable. */
+.ltr,
+[data-direction="ltr"],
+.code,
+.entity-id,
+.permission-code,
+.guid,
+.url,
+.email,
+input[type="email"],
+input[type="url"] {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: plaintext;
+}
+
+/* Keep action/icon ordering predictable in RTL without mirroring icon glyphs. */
+.btn,
+.icon-button,
+.admin-action {
+    direction: rtl;
+}
+
+/* Notifications */
 .app-notification,
 .notification,
 .toast {
@@ -135,11 +190,42 @@ input[type='url'] {
     text-align: right;
 }
 
-/* Mobile sidebar stays RTL as well. */
+/* Login and other standalone pages */
+.login-page,
+.login-card,
+.login-form {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Responsive: preserve the RTL shell when the sidebar becomes a top navigation. */
 @media (max-width: 850px) {
+    .application-body {
+        display: block;
+    }
+
     .sidebar {
+        width: 100%;
         border-right: 0 !important;
         border-left: 0 !important;
         border-bottom: 1px solid #e6ebf2 !important;
     }
+
+    .sidebar-nav {
+        direction: rtl;
+    }
+}
+
+/* Prevent browser defaults from reintroducing LTR layout in common controls. */
+[dir="rtl"] {
+    direction: rtl;
+}
+
+[dir="rtl"] table {
+    direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+    text-align: right;
 }
