@@ -5,56 +5,80 @@ window.activePositionDropdown = (() => {
     let escapeHandler = null;
     let portal = null;
     let source = null;
+    let triggerElement = null;
+
+    function setImportant(element, property, value) {
+        element.style.setProperty(property, value, 'important');
+    }
 
     function position(trigger, dropdown) {
-        if (!trigger || !dropdown) return;
+        if (!trigger || !dropdown || !dropdown.isConnected) return;
 
         const rect = trigger.getBoundingClientRect();
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
+        const viewportWidth = document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight;
         const margin = 8;
         const gap = 6;
-        const width = Math.min(Math.max(rect.width, 280), vw - margin * 2);
 
-        dropdown.style.width = `${width}px`;
-        dropdown.style.maxHeight = `${Math.max(160, vh - margin * 2)}px`;
-        dropdown.style.left = '0px';
-        dropdown.style.top = '0px';
-        dropdown.style.visibility = 'hidden';
+        const width = Math.min(Math.max(rect.width, 280), viewportWidth - (margin * 2));
 
-        const measured = dropdown.getBoundingClientRect();
-        const naturalHeight = Math.min(measured.height, 420);
-        const below = Math.max(0, vh - rect.bottom - margin);
-        const above = Math.max(0, rect.top - margin);
+        setImportant(dropdown, 'position', 'fixed');
+        setImportant(dropdown, 'display', 'block');
+        setImportant(dropdown, 'visibility', 'hidden');
+        setImportant(dropdown, 'width', `${Math.round(width)}px`);
+        setImportant(dropdown, 'left', '0px');
+        setImportant(dropdown, 'right', 'auto');
+        setImportant(dropdown, 'top', '0px');
+        setImportant(dropdown, 'bottom', 'auto');
+        setImportant(dropdown, 'margin', '0');
+        setImportant(dropdown, 'z-index', '2147483647');
+        setImportant(dropdown, 'max-width', `calc(100vw - ${margin * 2}px)`);
+        setImportant(dropdown, 'overflow', 'hidden');
+        setImportant(dropdown, 'transform', 'none');
+
+        const naturalHeight = Math.min(dropdown.scrollHeight || dropdown.getBoundingClientRect().height, 420);
+        const below = Math.max(0, viewportHeight - rect.bottom - margin - gap);
+        const above = Math.max(0, rect.top - margin - gap);
         const openAbove = below < naturalHeight && above > below;
-        const available = openAbove ? above : below;
-        const finalHeight = Math.max(120, Math.min(naturalHeight, available || naturalHeight));
+        const availableHeight = Math.max(120, openAbove ? above : below);
+        const finalHeight = Math.min(naturalHeight, availableHeight);
 
-        dropdown.style.maxHeight = `${finalHeight}px`;
-        dropdown.style.overflow = 'hidden';
+        setImportant(dropdown, 'height', 'auto');
+        setImportant(dropdown, 'max-height', `${Math.round(finalHeight)}px`);
 
         let top = openAbove
             ? rect.top - finalHeight - gap
             : rect.bottom + gap;
-        top = Math.max(margin, Math.min(top, vh - finalHeight - margin));
+
+        top = Math.max(margin, Math.min(top, viewportHeight - finalHeight - margin));
 
         let left = rect.right - width;
-        left = Math.max(margin, Math.min(left, vw - width - margin));
+        left = Math.max(margin, Math.min(left, viewportWidth - width - margin));
 
-        dropdown.style.left = `${Math.round(left)}px`;
-        dropdown.style.top = `${Math.round(top)}px`;
-        dropdown.style.visibility = 'visible';
+        setImportant(dropdown, 'left', `${Math.round(left)}px`);
+        setImportant(dropdown, 'top', `${Math.round(top)}px`);
+        setImportant(dropdown, 'visibility', 'visible');
     }
 
     function createPortal(sourceDropdown) {
         const clone = sourceDropdown.cloneNode(true);
-        clone.removeAttribute('style');
+
+        clone.removeAttribute('hidden');
         clone.classList.add('active-position-dropdown-portal');
-        clone.style.position = 'fixed';
-        clone.style.zIndex = '2147483647';
-        clone.style.display = 'block';
-        clone.style.visibility = 'hidden';
         clone.dataset.portalFor = 'active-position';
+
+        // The portal must not inherit the original dropdown's containing/overflow layout.
+        setImportant(clone, 'position', 'fixed');
+        setImportant(clone, 'display', 'block');
+        setImportant(clone, 'visibility', 'hidden');
+        setImportant(clone, 'z-index', '2147483647');
+        setImportant(clone, 'margin', '0');
+        setImportant(clone, 'transform', 'none');
+        setImportant(clone, 'inset', 'auto');
+        setImportant(clone, 'overflow', 'hidden');
+        setImportant(clone, 'box-sizing', 'border-box');
+
+        // Append directly to body. It is no longer a descendant of the header/section.
         document.body.appendChild(clone);
         return clone;
     }
@@ -74,21 +98,28 @@ window.activePositionDropdown = (() => {
 
     function start(trigger, dropdown, dotNetRef) {
         stop();
-        if (!trigger || !dropdown) return;
+        if (!trigger || !dropdown || !document.body) return;
 
+        triggerElement = trigger;
         source = dropdown;
-        source.style.display = 'none';
+        setImportant(source, 'display', 'none');
+
         portal = createPortal(source);
         bindOptionClicks(portal, source);
-        position(trigger, portal);
+        position(triggerElement, portal);
 
-        resizeHandler = () => position(trigger, portal);
-        scrollHandler = () => position(trigger, portal);
+        resizeHandler = () => position(triggerElement, portal);
+        scrollHandler = () => position(triggerElement, portal);
+
         escapeHandler = event => {
-            if (event.key === 'Escape') dotNetRef.invokeMethodAsync('CloseDropdown');
+            if (event.key === 'Escape') {
+                dotNetRef.invokeMethodAsync('CloseDropdown');
+            }
         };
+
         outsideHandler = event => {
-            if (!portal?.contains(event.target) && !trigger.contains(event.target)) {
+            const target = event.target;
+            if (!portal?.contains(target) && !triggerElement?.contains(target)) {
                 dotNetRef.invokeMethodAsync('CloseDropdown');
             }
         };
@@ -106,10 +137,11 @@ window.activePositionDropdown = (() => {
         if (outsideHandler) document.removeEventListener('pointerdown', outsideHandler, true);
 
         if (portal) portal.remove();
-        if (source) source.style.display = '';
+        if (source) source.style.removeProperty('display');
 
         portal = null;
         source = null;
+        triggerElement = null;
         resizeHandler = null;
         scrollHandler = null;
         escapeHandler = null;
