@@ -46,7 +46,7 @@
                 @if(_loading){<div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>}
                 else
                 {
-                    <table class="data-table"><thead><tr><th>کاربر</th><th>نوع</th><th>سازمان</th><th>سمت‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                    <table class="data-table data-table-bordered-rows"><thead><tr><th>کاربر</th><th>نوع</th><th>سازمان</th><th>سمت‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead>
                     <tbody>
                         @foreach(var x in _employees)
                         {
