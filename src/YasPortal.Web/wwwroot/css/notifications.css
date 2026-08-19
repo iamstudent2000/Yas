@@ -1,17 +1,15 @@
 .app-toast-container {
     position: fixed !important;
-    top: auto !important;
-    bottom: 16px !important;
-    left: 16px !important;
-    right: auto !important;
+    top: 82px !important;
+    right: 24px !important;
+    left: auto !important;
+    bottom: auto !important;
     z-index: 2147483000 !important;
-    width: min(360px, calc(100vw - 32px)) !important;
-    height: auto !important;
+    width: min(430px, calc(100vw - 32px)) !important;
     display: flex !important;
-    flex-direction: column-reverse !important;
+    flex-direction: column !important;
     align-items: stretch !important;
-    justify-content: flex-start !important;
-    gap: 9px !important;
+    gap: 10px !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
@@ -20,47 +18,50 @@
 }
 
 .app-toast-container > .app-toast {
-    position: static !important;
-    inset: auto !important;
-    top: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    order: 0 !important;
+    position: relative !important;
     display: flex !important;
-    flex: 0 0 auto !important;
-    align-self: stretch !important;
+    align-items: flex-start !important;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 64px !important;
-    height: auto !important;
-    max-height: none !important;
+    min-height: 78px !important;
     margin: 0 !important;
-    padding: 11px 12px !important;
+    padding: 14px 14px 14px 12px !important;
     box-sizing: border-box !important;
-    float: none !important;
-    clear: none !important;
     overflow: hidden !important;
     pointer-events: auto !important;
-    gap: 9px !important;
+    gap: 11px !important;
     background: #fff !important;
-    border: 1px solid #e4e7ec !important;
-    border-radius: 12px !important;
-    box-shadow: 0 10px 26px rgba(16, 24, 40, .15) !important;
-    color: #1f2937 !important;
+    border: 1px solid #dfe5ee !important;
+    border-radius: 14px !important;
+    box-shadow: 0 14px 34px rgba(16,24,40,.14), 0 2px 8px rgba(16,24,40,.06) !important;
+    color: #182230 !important;
     isolation: isolate;
-    animation: app-toast-in .18s ease-out;
+    animation: app-toast-in .22s ease-out;
 }
 
+.app-toast-container > .app-toast::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: 4px;
+    background: #98a2b3;
+}
+
+.app-toast-success::before { background: #12b76a !important; }
+.app-toast-info::before { background: #155eef !important; }
+.app-toast-warning::before { background: #f79009 !important; }
+.app-toast-error::before { background: #f04438 !important; }
+
 .app-toast-icon {
-    flex: 0 0 30px;
-    width: 30px;
-    height: 30px;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
     display: grid;
     place-items: center;
     align-self: flex-start;
-    border-radius: 9px;
-    font-size: 15px;
+    border-radius: 11px;
+    font-size: 20px;
 }
 
 .app-toast-success .app-toast-icon { background: #ecfdf3; color: #039855; }
@@ -72,41 +73,45 @@
     min-width: 0;
     flex: 1 1 auto;
     text-align: right;
-    overflow: hidden;
+    overflow: visible;
+    padding-top: 1px;
 }
 
 .app-toast-title {
-    font-size: 12px;
+    margin: 0 0 4px;
+    color: #1d2939;
+    font-size: 14px;
     font-weight: 800;
-    margin-bottom: 2px;
-    color: #344054;
     line-height: 1.45;
 }
 
 .app-toast-message {
-    font-size: 11.5px;
-    line-height: 1.55;
+    margin: 0;
     color: #667085;
-    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.7;
     overflow-wrap: anywhere;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
 }
 
 .app-toast-close {
-    flex: 0 0 24px;
-    width: 24px;
-    height: 24px;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    margin: -2px 0 0;
     border: 0;
     background: transparent;
     color: #98a2b3;
-    border-radius: 7px;
+    border-radius: 8px;
     display: grid;
     place-items: center;
     align-self: flex-start;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 18px;
+    transition: background .15s ease, color .15s ease;
 }
 
 .app-toast-close:hover {
@@ -115,24 +120,34 @@
 }
 
 .app-toast-close:focus-visible {
-    outline: 2px solid rgba(49, 87, 213, .28);
+    outline: 2px solid rgba(21,94,239,.35);
     outline-offset: 1px;
 }
 
 @keyframes app-toast-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translate3d(18px,-4px,0) scale(.98); }
+    to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
 }
 
 @media (max-width: 576px) {
     .app-toast-container {
-        bottom: 12px !important;
-        left: 12px !important;
-        width: calc(100vw - 24px) !important;
+        top: 70px !important;
+        right: 10px !important;
+        width: calc(100vw - 20px) !important;
     }
 
     .app-toast-container > .app-toast {
-        min-height: 58px !important;
-        padding: 9px 10px !important;
+        min-height: 70px !important;
+        padding: 12px 12px 12px 10px !important;
     }
+
+    .app-toast-icon {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
+        font-size: 18px;
+    }
+
+    .app-toast-title { font-size: 13px; }
+    .app-toast-message { font-size: 12px; }
 }
