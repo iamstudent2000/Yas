@@ -1,6 +1,9 @@
 /* YasPortal Admin UI — shared table variants */
 
-/* Use when each record should read as a separate, lightly bordered row. */
+/*
+   Bordered rows: each record reads as a separate row while retaining
+   the shared Admin table typography, spacing and action layout.
+*/
 .admin-table-bordered-rows,
 .data-table-bordered-rows {
     border-collapse: separate;
@@ -14,9 +17,16 @@
     padding: 7px 12px;
 }
 
-.admin-table-bordered-rows tbody tr,
-.data-table-bordered-rows tbody tr {
-    background: #fff;
+/* Explicit row striping. The cell background must be set here because
+   admin-ui.css also styles table cells directly. */
+.admin-table-bordered-rows tbody tr:nth-child(odd) td,
+.data-table-bordered-rows tbody tr:nth-child(odd) td {
+    background: #ffffff;
+}
+
+.admin-table-bordered-rows tbody tr:nth-child(even) td,
+.data-table-bordered-rows tbody tr:nth-child(even) td {
+    background: #f6f8fb;
 }
 
 .admin-table-bordered-rows tbody td,
@@ -40,13 +50,32 @@
 
 .admin-table-bordered-rows tbody tr:hover td,
 .data-table-bordered-rows tbody tr:hover td {
-    background: #fafcff;
+    background: #eef4ff;
     border-color: #d8e0e8;
 }
 
 .admin-table-bordered-rows tbody tr:last-child td,
 .data-table-bordered-rows tbody tr:last-child td {
     border-bottom: 1px solid #e5eaf0;
+}
+
+/* Keep action buttons on one line when the table has an action-cell. */
+.admin-table-bordered-rows .action-cell,
+.data-table-bordered-rows .action-cell {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.admin-table-bordered-rows .action-cell .btn,
+.admin-table-bordered-rows .action-cell .admin-btn,
+.data-table-bordered-rows .action-cell .btn,
+.data-table-bordered-rows .action-cell .admin-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 /* Compact bordered rows for assignment/list panels without a table header. */
@@ -62,9 +91,13 @@
     background: #fff;
 }
 
+.admin-bordered-list > *:nth-child(even) {
+    background: #f6f8fb;
+}
+
 .admin-bordered-list > *:hover {
     border-color: #d8e0e8;
-    background: #fafcff;
+    background: #eef4ff;
 }
 
 @media (max-width: 700px) {
