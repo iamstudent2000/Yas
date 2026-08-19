@@ -3,11 +3,14 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @using YasPortal.Infrastructure.Authorization
 @using YasPortal.Infrastructure.Persistence
+@implements IAsyncDisposable
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 <div class="active-position-picker" @onclick:stopPropagation="true">
     @if (_positions.Count > 1)
@@ -17,7 +20,8 @@
             <input type="hidden" name="returnUrl" value="@GetReturnUrl()" />
             <input type="hidden" name="positionId" value="@_activePositionId" />
 
-            <button type="button"
+            <button @ref="_trigger"
+                    type="button"
                     class="active-position-trigger"
                     aria-haspopup="listbox"
                     aria-expanded="@_open"
@@ -29,7 +33,7 @@
 
             @if (_open)
             {
-                <div class="active-position-dropdown" role="listbox">
+                <div @ref="_dropdown" class="active-position-dropdown" role="listbox">
                     <div class="active-position-dropdown-header">انتخاب سمت فعال</div>
                     <div class="active-position-options">
                         @foreach (var position in _positions)
@@ -69,6 +73,9 @@
     private List<PositionItem> _positions = [];
     private Guid _activePositionId;
     private bool _open;
+    private ElementReference _trigger;
+    private ElementReference _dropdown;
+    private DotNetObjectReference<ActivePositionSelector>? _dotNetRef;
 
     private string ActivePositionName =>
         _positions.FirstOrDefault(x => x.Id == _activePositionId)?.Name
@@ -97,18 +104,57 @@
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
 
-    private void ToggleDropdown() => _open = !_open;
+    private async Task ToggleDropdown()
+    {
+        _open = !_open;
 
-    private void SelectPosition(Guid positionId)
+        if (_open)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield();
+            await JS.InvokeVoidAsync("activePositionDropdown.start", _trigger, _dropdown, _dotNetRef);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("activePositionDropdown.stop");
+        }
+    }
+
+    private async Task SelectPosition(Guid positionId)
     {
         _activePositionId = positionId;
         _open = false;
+        await JS.InvokeVoidAsync("activePositionDropdown.stop");
+    }
+
+    [JSInvokable]
+    public async Task CloseDropdown()
+    {
+        if (!_open)
+            return;
+
+        _open = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private string GetReturnUrl()
     {
         var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         return string.IsNullOrWhiteSpace(relative) ? "/" : "/" + relative;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("activePositionDropdown.stop");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        _dotNetRef?.Dispose();
     }
 
     private sealed record PositionItem(Guid Id, string Name);
@@ -173,16 +219,17 @@
     .active-position-dropdown {
         position: fixed;
         z-index: 99999;
-        width: min(360px, 90vw);
-        max-height: min(420px, 70vh);
+        width: 320px;
+        max-width: calc(100vw - 16px);
+        max-height: calc(100vh - 16px);
         overflow: hidden;
-        margin-top: 6px;
         border: 1px solid #e4e7ec;
         border-radius: 12px;
         background: #fff;
         box-shadow: 0 18px 45px rgba(16,24,40,.18);
         direction: rtl;
         text-align: right;
+        visibility: hidden;
     }
 
     .active-position-dropdown-header {
