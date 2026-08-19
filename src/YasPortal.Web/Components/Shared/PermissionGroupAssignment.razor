@@ -34,11 +34,14 @@
         <div class="group-assignment-grid">
             @foreach (var group in FilteredGroups)
             {
-                <label class="group-assignment-card @(IsAssigned(group.Id) ? "assigned" : "")">
-                    <input type="checkbox" checked="@IsAssigned(group.Id)" disabled="@_saving" @onchange="e => ToggleGroup(group.Id, e.Value is bool value && value)" />
-                    <span class="group-check"></span>
-                    <span class="group-info"><strong>@group.Name</strong><small>@group.PermissionCount مجوز @(!string.IsNullOrWhiteSpace(group.Description) ? $" — {group.Description}" : "")</small></span>
-                    <span class="group-state">@(IsAssigned(group.Id) ? "فعال" : "اختصاص")</span>
+                var assigned = IsAssigned(group.Id);
+                <label class="group-tile @(assigned ? "selected" : "")">
+                    <input type="checkbox" checked="@assigned" disabled="@_saving" @onchange="e => ToggleGroup(group.Id, e.Value is bool value && value)" />
+                    <span class="tile-check"><i class="bx bx-check"></i></span>
+                    <span class="group-text">
+                        <strong>@group.Name</strong>
+                        <small>@group.PermissionCount مجوز @(!string.IsNullOrWhiteSpace(group.Description) ? $" — {group.Description}" : "")</small>
+                    </span>
                 </label>
             }
         </div>
@@ -145,5 +148,5 @@
 }
 
 <style>
-.permission-group-assignment{margin-top:18px;padding-top:16px;border-top:1px solid #eaecf0}.group-assignment-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.effective-permission-badge{white-space:nowrap;padding:7px 11px;border-radius:999px;background:#eef4ff;color:#175cd3;font-size:12px;font-weight:700}.group-search{display:flex;align-items:center;gap:8px;margin:12px 0}.group-search i{font-size:20px}.group-assignment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.group-assignment-card{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #eaecf0;border-radius:12px;cursor:pointer;background:#fff}.group-assignment-card.assigned{border-color:#84adff;background:#f5f8ff}.group-assignment-card input{margin:0}.group-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.group-info strong{overflow:hidden;text-overflow:ellipsis}.group-info small{color:#667085;line-height:1.6}.group-state{font-size:11px;color:#667085}.group-assignment-card.assigned .group-state{font-weight:700;color:#175cd3}@@media(max-width:900px){.group-assignment-grid{grid-template-columns:1fr}}
+.permission-group-assignment{margin-top:18px;padding-top:16px;border-top:1px solid #eaecf0}.group-assignment-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.effective-permission-badge{white-space:nowrap;padding:7px 11px;border-radius:999px;background:#eef4ff;color:#175cd3;font-size:12px;font-weight:700}.group-search{display:flex;align-items:center;gap:8px;margin:12px 0}.group-search i{font-size:20px}.group-assignment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.group-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.group-info strong{overflow:hidden;text-overflow:ellipsis}.group-info small{color:#667085;line-height:1.6}.group-state{font-size:11px;color:#667085}.group-assignment-card.assigned .group-state{font-weight:700;color:#175cd3}@@media(max-width:900px){.group-assignment-grid{grid-template-columns:1fr}}
 </style>
