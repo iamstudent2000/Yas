@@ -13,7 +13,8 @@
 
 <PageTitle>سازمان‌ها - یاس پورتال</PageTitle>
 
-<div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / سازمان‌ها</div><h1 class="page-title">مدیریت سازمان‌ها</h1><p class="page-subtitle">ایجاد سازمان، تغییر وضعیت و تعیین سازمان هر کارمند</p></div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
+<div class="admin-page" dir="rtl">
+    <div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / سازمان‌ها</div><h1 class="page-title">مدیریت سازمان‌ها</h1><p class="page-subtitle">ایجاد سازمان، تغییر وضعیت و تعیین سازمان هر کارمند</p></div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
 
 <div class="stat-grid"><div class="stat-card"><div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">کل سازمان‌ها</span><strong class="stat-value">@_organizationTotal</strong></div><div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">سازمان‌های فعال</span><strong class="stat-value">@_activeOrganizationCount</strong></div><div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کارکنان</span><strong class="stat-value">@_employeeTotal</strong></div></div>
 
@@ -32,6 +33,7 @@
     @if(_employeeLoading){<div class="empty-state">در حال بارگذاری...</div>}else{<div class="employee-list">@foreach(var employee in _employees){<div class="employee-row"><div class="employee-info"><div class="employee-avatar">@GetInitial(employee.FullName)</div><div><strong>@employee.FullName</strong><span>@employee.Username</span></div></div><ServerSearchableGuidSelect Value="@GetEmployeeOrganization(employee.Id)" ValueChanged="id=>ChangeEmployeeOrganization(employee.Id,id)" SearchAsync="SearchOrganizationsAsync" SelectedText="@employee.OrganizationName" Placeholder="انتخاب سازمان" SearchPlaceholder="نام سازمان..." /><span class="badge @(employee.IsActive?"badge-success":"badge-muted")">@(employee.IsActive?"فعال":"غیرفعال")</span></div>}</div>}
     <ServerPagination Page="@_employeePage" PageSize="@PageSize" TotalCount="@_employeeTotal" Busy="@_employeeLoading" PageChanged="EmployeePageChanged" />
 </section>
+</div>
 
 @code {
     private List<AdminQueryService.OrganizationPageRow> _organizations=[];
