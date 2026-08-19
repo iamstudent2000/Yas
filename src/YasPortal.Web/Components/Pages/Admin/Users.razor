@@ -15,69 +15,71 @@
 
 <PageTitle>کاربران - یاس پورتال</PageTitle>
 
-<div class="page-header" dir="rtl">
-    <div><div class="page-subtitle">مدیریت سامانه / کاربران</div><h1 class="page-title">کاربران و کارکنان</h1><p class="page-subtitle">حساب و اطلاعات کارکنان را مدیریت کنید. تخصیص سمت فقط در «مدیریت سمت‌ها» انجام می‌شود.</p></div>
-    <div class="form-actions"><a class="btn btn-primary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a><a class="btn btn-secondary" href="/admin/positions"><i class="bx bx-sitemap"></i> مدیریت سمت‌ها</a><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
+<div class="admin-page">
+    <div class="page-header">
+        <div><div class="page-subtitle">مدیریت سامانه / کاربران</div><h1 class="page-title">کاربران و کارکنان</h1><p class="page-subtitle">حساب و اطلاعات کارکنان را مدیریت کنید. تخصیص سمت فقط در «مدیریت سمت‌ها» انجام می‌شود.</p></div>
+        <div class="form-actions"><a class="btn btn-primary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a><a class="btn btn-secondary" href="/admin/positions"><i class="bx bx-sitemap"></i> مدیریت سمت‌ها</a><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
+    </div>
+
+    <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کاربران</span><strong class="stat-value">@_totalCount</strong></div>
+        <div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">کاربران فعال</span><strong class="stat-value">@_activeCount</strong></div>
+        <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield-quarter"></i></div><span class="stat-label">مدیر سامانه</span><strong class="stat-value">@_adminCount</strong></div>
+    </div>
+
+    <div class="admin-two-col">
+        <section class="card">
+            <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
+            <label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256" disabled="@(_editingId is not null)" />
+            <label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName" maxlength="256" />
+            <label class="form-label">سازمان</label>
+            <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged" SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName" Placeholder="سازمان را جستجو و انتخاب کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." />
+            <label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
+            <label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label>
+            <div class="help-text">مدیر سامانه <strong>سمت سازمانی لازم ندارد</strong>. دسترسی مدیر در «مدیریت دسترسی» حساب‌محور است.</div>
+            <div class="form-actions"><button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>@if(_editingId is not null){<button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>}</div>
+        </section>
+
+        <section class="card table-card">
+            <div class="table-toolbar"><div><h2 class="section-title">فهرست کاربران</h2><p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p></div><div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput" @onkeyup="SearchChanged" /></div></div>
+            <div class="data-table-wrap">
+                @if(_loading){<div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>}
+                else
+                {
+                    <table class="data-table"><thead><tr><th>کاربر</th><th>نوع</th><th>سازمان</th><th>سمت‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                    <tbody>
+                        @foreach(var x in _employees)
+                        {
+                            <tr @key="x.Id">
+                                <td><strong>@x.FullName</strong><small class="muted-line">@x.Username</small></td>
+                                <td><span class="badge @(x.IsAdmin?"badge-success":"badge-muted")">@(x.IsAdmin?"مدیر سامانه":"کارمند")</span></td>
+                                <td>@x.OrganizationName</td>
+                                <td>
+                                    @if(x.IsAdmin){<span class="badge badge-muted">نیاز ندارد</span>}
+                                    else if(x.ActivePositions is { Count: > 0 })
+                                    {
+                                        <div class="position-badge-list">
+                                            @foreach(var position in x.ActivePositions){<a class="badge badge-muted position-badge" href="@($"/admin/positions?employee={x.Id}&position={position.Id}")" title="مدیریت این سمت"><i class="bx bx-sitemap"></i><span>@position.Name</span></a>}
+                                        </div>
+                                        <small class="position-count">@x.ActivePositions.Count سمت فعال</small>
+                                    }
+                                    else{<span class="badge badge-muted">بدون سمت فعال</span>}
+                                </td>
+                                <td><span class="badge @(x.IsActive?"badge-success":"badge-muted")">@(x.IsActive?"فعال":"غیرفعال")</span></td>
+                                <td class="action-cell"><button class="btn btn-secondary btn-sm" @onclick="()=>BeginEdit(x)"><i class="bx bx-edit-alt"></i></button><button class="btn @(x.IsActive?"btn-danger":"btn-primary") btn-sm" @onclick="()=>ToggleEmployee(x.Id)"><i class="bx @(x.IsActive?"bx-user-x":"bx-user-check")"></i></button>@if(!x.IsAdmin){<a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i class="bx bx-sitemap"></i> سمت‌ها</a>}<a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id"><i class="bx bx-shield-quarter"></i> دسترسی</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                    </table>
+                    @if(_employees.Count==0){<div class="empty-state">کاربری مطابق جستجو پیدا نشد.</div>}
+                }
+            </div>
+            <ServerPagination Page="@_page" PageSize="@PageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" />
+        </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px" dir="rtl"><div class="stat-icon"><i class="bx bx-sitemap"></i></div><div><h2 class="section-title">تخصیص سمت متمرکز شد</h2><p class="page-subtitle">دیگر از صفحه کاربران سمت تخصیص یا آزاد نمی‌شود. برای مشاهده درخت، مالک فعلی و آزادسازی/تخصیص سمت به <strong>مدیریت سمت‌ها</strong> بروید.</p></div><a class="btn btn-primary" href="/admin/positions">باز کردن مدیریت سمت‌ها <i class="bx bx-left-arrow-alt"></i></a></section>
 </div>
-
-<div class="stat-grid" dir="rtl">
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کاربران</span><strong class="stat-value">@_totalCount</strong></div>
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">کاربران فعال</span><strong class="stat-value">@_activeCount</strong></div>
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield-quarter"></i></div><span class="stat-label">مدیر سامانه</span><strong class="stat-value">@_adminCount</strong></div>
-</div>
-
-<div class="admin-two-col" dir="rtl">
-    <section class="card">
-        <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
-        <label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256" disabled="@(_editingId is not null)" />
-        <label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName" maxlength="256" />
-        <label class="form-label">سازمان</label>
-        <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged" SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName" Placeholder="سازمان را جستجو و انتخاب کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." />
-        <label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
-        <label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label>
-        <div class="help-text">مدیر سامانه <strong>سمت سازمانی لازم ندارد</strong>. دسترسی مدیر در «مدیریت دسترسی» حساب‌محور است.</div>
-        <div class="form-actions"><button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>@if(_editingId is not null){<button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>}</div>
-    </section>
-
-    <section class="card table-card">
-        <div class="table-toolbar"><div><h2 class="section-title" style="margin:0">فهرست کاربران</h2><p class="muted" style="margin:4px 0 0">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p></div><div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput" @onkeyup="SearchChanged" /></div></div>
-        <div class="data-table-wrap">
-            @if(_loading){<div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>}
-            else
-            {
-                <table class="data-table"><thead><tr><th>کاربر</th><th>نوع</th><th>سازمان</th><th>سمت‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead>
-                <tbody>
-                    @foreach(var x in _employees)
-                    {
-                        <tr @key="x.Id">
-                            <td><strong>@x.FullName</strong><small class="muted-line">@x.Username</small></td>
-                            <td><span class="badge @(x.IsAdmin?"badge-success":"badge-muted")">@(x.IsAdmin?"مدیر سامانه":"کارمند")</span></td>
-                            <td>@x.OrganizationName</td>
-                            <td>
-                                @if(x.IsAdmin){<span class="badge badge-muted">نیاز ندارد</span>}
-                                else if(x.ActivePositions is { Count: > 0 })
-                                {
-                                    <div class="position-badge-list">
-                                        @foreach(var position in x.ActivePositions){<a class="position-badge" href="@($"/admin/positions?employee={x.Id}&position={position.Id}")" title="مدیریت این سمت"><i class="bx bx-sitemap"></i><span>@position.Name</span></a>}
-                                    </div>
-                                    <small class="position-count">@x.ActivePositions.Count سمت فعال</small>
-                                }
-                                else{<span class="badge badge-muted">بدون سمت فعال</span>}
-                            </td>
-                            <td><span class="badge @(x.IsActive?"badge-success":"badge-muted")">@(x.IsActive?"فعال":"غیرفعال")</span></td>
-                            <td class="action-cell"><button class="btn btn-secondary btn-sm" @onclick="()=>BeginEdit(x)"><i class="bx bx-edit-alt"></i></button><button class="btn @(x.IsActive?"btn-danger":"btn-primary") btn-sm" @onclick="()=>ToggleEmployee(x.Id)"><i class="bx @(x.IsActive?"bx-user-x":"bx-user-check")"></i></button>@if(!x.IsAdmin){<a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i class="bx bx-sitemap"></i> سمت‌ها</a>}<a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id"><i class="bx bx-shield-quarter"></i> دسترسی</a></td>
-                        </tr>
-                    }
-                </tbody>
-                </table>
-                @if(_employees.Count==0){<div class="empty-state">کاربری مطابق جستجو پیدا نشد.</div>}
-            }
-        </div>
-        <ServerPagination Page="@_page" PageSize="@PageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" />
-    </section>
-</div>
-
-<section class="card centralized-note" dir="rtl"><div class="note-icon"><i class="bx bx-sitemap"></i></div><div><h2 class="section-title" style="margin:0 0 4px">تخصیص سمت متمرکز شد</h2><p class="page-subtitle" style="margin:0">دیگر از صفحه کاربران سمت تخصیص یا آزاد نمی‌شود. برای مشاهده درخت، مالک فعلی و آزادسازی/تخصیص سمت به <strong>مدیریت سمت‌ها</strong> بروید.</p></div><a class="btn btn-primary" href="/admin/positions">باز کردن مدیریت سمت‌ها <i class="bx bx-left-arrow-alt"></i></a></section>
 
 @code {
     private List<AdminQueryService.EmployeePageRow> _employees=[];
@@ -117,7 +119,3 @@
         await LoadAsync();
     }
 }
-
-<style>
-.centralized-note{margin-top:16px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px}.note-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#f2f4f7;font-size:22px}.form-actions{display:flex;gap:8px;flex-wrap:wrap}.btn-sm{padding:7px 10px;font-size:12px}.action-cell{white-space:nowrap}.position-badge-list{display:flex;flex-wrap:wrap;gap:5px;min-width:180px;max-width:420px}.position-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid #e4e7ec;border-radius:999px;background:#f8fafc;color:inherit;text-decoration:none;font-size:12px;line-height:1.2;transition:.15s ease}.position-badge:hover{background:#eef4ff;border-color:#b7c9e8}.position-badge i{font-size:14px}.position-count{display:block;color:#667085;margin-top:5px;font-size:11px}@@media(max-width:1100px){.position-badge-list{max-width:280px}}@@media(max-width:900px){.centralized-note{grid-template-columns:1fr}.note-icon{display:none}.action-cell{white-space:normal}.position-badge-list{max-width:none}}
-</style>
