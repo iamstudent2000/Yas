@@ -10,13 +10,34 @@
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
-    <header class="admin-page-header">
-        <div class="admin-page-header__title"><h1><i class="bx bx-history"></i> گزارش رویدادها</h1><p>ثبت و بررسی تغییرات انجام‌شده در سامانه</p></div>
-        <div class="admin-page-header__actions"><span class="admin-chip"><i class="bx bx-time-five"></i> امروز: @ToPersianDate(DateTime.Today)</span><a class="admin-btn admin-btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a></div>
-    </header>
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / گزارش‌ها</div>
+            <h1 class="page-title"><i class="bx bx-history"></i> گزارش رویدادها</h1>
+            <p class="page-subtitle">ثبت و بررسی تغییرات انجام‌شده در سامانه</p>
+        </div>
+        <div class="form-actions">
+            <span class="badge badge-muted"><i class="bx bx-time-five"></i> امروز: @ToPersianDate(DateTime.Today)</span>
+            <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+        </div>
+    </div>
 
-    <section class="admin-card">
-        <div class="admin-card__header"><div><h2 class="admin-card__title">فیلتر گزارش‌ها</h2><p class="admin-card__subtitle">برای شروع، فیلترها را انتخاب کرده و «جستجو» را بزنید.</p></div>@if (_hasSearched){<span class="admin-chip"><i class="bx bx-data"></i> @ToPersianDigits(_totalCount.ToString("N0")) رویداد</span>}else{<span class="admin-chip"><i class="bx bx-search"></i> آماده جستجو</span>}</div>
+    <section class="card">
+        <div class="section-head">
+            <div>
+                <h2 class="section-title">فیلتر گزارش‌ها</h2>
+                <p class="muted">برای شروع، فیلترها را انتخاب کرده و «جستجو» را بزنید.</p>
+            </div>
+            @if (_hasSearched)
+            {
+                <span class="badge badge-muted"><i class="bx bx-data"></i> @ToPersianDigits(_totalCount.ToString("N0")) رویداد</span>
+            }
+            else
+            {
+                <span class="badge badge-muted"><i class="bx bx-search"></i> آماده جستجو</span>
+            }
+        </div>
+
         <div class="admin-filters">
             <div class="admin-filter"><label>کاربر</label><input class="form-control" placeholder="نام کاربر..." @bind="_employeeSearch" /></div>
             <div class="admin-filter"><label>سمت فعال</label><input class="form-control" placeholder="نام سمت..." @bind="_positionSearch" /></div>
@@ -26,33 +47,33 @@
             <div class="admin-filter"><label>تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
         </div>
 
-        <div class="admin-toolbar">
+        <div class="table-toolbar">
             <div class="admin-active-filters">
-                @if(_fromDate.HasValue){<span class="admin-chip">از @ToPersianDate(_fromDate.Value)</span>}
-                @if(_toDate.HasValue){<span class="admin-chip">تا @ToPersianDate(_toDate.Value)</span>}
-                @if(!string.IsNullOrWhiteSpace(_employeeSearch)){<span class="admin-chip">کاربر: @_employeeSearch</span>}
-                @if(!string.IsNullOrWhiteSpace(_positionSearch)){<span class="admin-chip">سمت: @_positionSearch</span>}
-                @if(!string.IsNullOrWhiteSpace(_entityType)){<span class="admin-chip">موجودیت: @_entityType</span>}
-                @if(!string.IsNullOrWhiteSpace(_action)){<span class="admin-chip">عملیات: @GetActionText(_action)</span>}
+                @if(_fromDate.HasValue){<span class="badge badge-muted">از @ToPersianDate(_fromDate.Value)</span>}
+                @if(_toDate.HasValue){<span class="badge badge-muted">تا @ToPersianDate(_toDate.Value)</span>}
+                @if(!string.IsNullOrWhiteSpace(_employeeSearch)){<span class="badge badge-muted">کاربر: @_employeeSearch</span>}
+                @if(!string.IsNullOrWhiteSpace(_positionSearch)){<span class="badge badge-muted">سمت: @_positionSearch</span>}
+                @if(!string.IsNullOrWhiteSpace(_entityType)){<span class="badge badge-muted">موجودیت: @_entityType</span>}
+                @if(!string.IsNullOrWhiteSpace(_action)){<span class="badge badge-muted">عملیات: @GetActionText(_action)</span>}
             </div>
-            <div class="admin-page-actions">
-                <button class="admin-btn admin-btn-primary" @onclick="SearchAsync" disabled="@_loading"><i class="bx bx-search"></i><span>جستجو</span></button>
-                <button class="admin-btn @(_loading ? "btn-danger" : "admin-btn-secondary")" @onclick="ClearOrCancelAsync"><i class="bx @(_loading ? "bx-x-circle" : "bx-eraser")"></i><span>@(_loading ? "لغو" : "پاک کردن فیلترها")</span></button>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SearchAsync" disabled="@_loading"><i class="bx bx-search"></i><span>جستجو</span></button>
+                <button class="btn @(_loading ? "btn-danger" : "btn-secondary")" @onclick="ClearOrCancelAsync"><i class="bx @(_loading ? "bx-x-circle" : "bx-eraser")"></i><span>@(_loading ? "لغو" : "پاک کردن فیلترها")</span></button>
             </div>
         </div>
 
         @if(!_hasSearched){
-            <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است.</span></div>
+            <div class="empty-state"><i class="bx bx-search-alt"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است.</span></div>
         }
         else if(_loading){
-            <div class="admin-loading"><div><div class="admin-spinner"></div><div>در حال بارگذاری گزارش‌ها...</div><small>می‌توانید هر زمان درخواست را لغو کنید.</small></div></div>
+            <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><strong>در حال بارگذاری گزارش‌ها...</strong><span>می‌توانید هر زمان درخواست را لغو کنید.</span></div>
         }
         else if(_rows.Count==0){
-            <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>رویدادی پیدا نشد</strong><span>فیلترها را تغییر دهید و دوباره جستجو کنید.</span></div>
+            <div class="empty-state"><i class="bx bx-search-alt"></i><strong>رویدادی پیدا نشد</strong><span>فیلترها را تغییر دهید و دوباره جستجو کنید.</span></div>
         }
         else{
-            <div class="admin-table-wrap">
-                <table class="admin-table">
+            <div class="data-table-wrap">
+                <table class="data-table data-table-bordered-rows">
                     <thead><tr><th>زمان</th><th>کاربر</th><th>سمت فعال</th><th>عملیات</th><th>موجودیت</th><th>جزئیات</th></tr></thead>
                     <tbody>
                     @foreach(var row in _rows){
@@ -63,7 +84,7 @@
                             <td><span class="admin-truncate" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
                             <td><div><strong>@GetEntityText(row.EntityType)</strong><small class="entity-id">@row.EntityId</small></div></td>
-                            <td><button type="button" class="admin-btn admin-btn-secondary btn-sm" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                            <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
                         </tr>
                     }
                     </tbody>
@@ -82,13 +103,13 @@
             <section class="admin-modal" dir="rtl" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
                 <header class="admin-modal-header">
                     <div><div class="muted">جزئیات رویداد</div><h2>@GetActionText(_selected.Action) · @GetEntityText(_selected.EntityType)</h2><div class="muted"><i class="bx bx-time-five"></i> @ToPersianDate(_selected.OccurredAtUtc.ToLocalTime()) @ToPersianDigits(_selected.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss"))</div></div>
-                    <button type="button" class="admin-btn admin-btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
                 </header>
                 <div class="admin-modal__body">
                     <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong>@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong>@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small class="entity-id">@_selected.EntityId</small></div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-body">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-body">@RenderJson(_selected.AfterJson)</div></div></div>
                 </div>
-                <footer class="admin-modal-footer"><span dir="ltr">@_selected.Id</span><button type="button" class="admin-btn admin-btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+                <footer class="admin-modal-footer"><span dir="ltr">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
             </section>
         </div>
     }
