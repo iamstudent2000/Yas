@@ -1,53 +1,38 @@
 /* YasPortal Admin UI consistency layer - RTL */
-.admin-page,.positions-page{direction:rtl;min-width:0;color:var(--admin-text,#172033)}
-.admin-page,.positions-page{max-width:100%;}
-.page-header{padding:18px 20px;margin:0 0 16px;border:1px solid #e5eaf0;border-radius:16px;background:linear-gradient(135deg,#fff 0%,#f8faff 100%);box-shadow:0 6px 24px rgba(16,24,40,.045)}
-.page-header .page-title{font-size:24px;letter-spacing:-.025em}
-.page-header .page-subtitle{font-size:11.5px}
-.page-header .form-actions{justify-content:flex-start}
-.page-header .btn{min-height:35px}
-.stat-grid,.admin-stat-grid{gap:10px;margin-bottom:16px}
-.stat-card,.admin-stat{min-height:72px;padding:12px 14px;border-radius:13px;transition:transform .15s,box-shadow .15s,border-color .15s}
-.stat-card:hover,.admin-stat:hover{transform:translateY(-1px);border-color:#d5ddef;box-shadow:0 8px 24px rgba(16,24,40,.06)}
-.positions-layout,.permission-admin-layout,.group-admin-layout,.admin-two-col{gap:14px}
-.card,.admin-card{border-radius:15px;box-shadow:0 6px 24px rgba(16,24,40,.045)}
-.section-head,.admin-toolbar,.card-toolbar,.table-toolbar{padding:13px 16px;background:#fff}
-.section-title{display:flex;align-items:center;gap:7px;margin:0}
-.section-title i{color:var(--admin-primary,#3157d5)}
-.tree-toolbar-actions,.form-actions,.admin-page-actions,.admin-filter-actions{gap:7px}
-.btn{border-radius:10px;min-height:35px;padding:8px 12px;font-size:11px;box-shadow:none}
-.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 5px 14px rgba(16,24,40,.08)}
-.btn-primary{box-shadow:0 4px 12px rgba(49,87,213,.14)}
-.btn-secondary{background:#fff}
-.btn-sm{min-height:30px;padding:6px 9px;border-radius:8px}
-.form-control{min-height:38px;border-radius:10px}
-.form-label{margin-top:12px}
-.position-side-panel{padding:18px;background:linear-gradient(180deg,#fff 0%,#fbfcff 100%)}
-.position-tree-card-wrap{overflow:visible}
-.positions-tree-toolbar{border-radius:15px 15px 0 0}
-.tree-summary{padding:9px 14px;background:#fbfcfe;border-bottom:1px solid #eef1f5}
-.tree-summary span{background:#fff;font-size:10px;padding:5px 9px}
-.position-tree{padding:10px 14px 16px}
-.rules-mini{margin-top:18px;padding:12px;border:1px solid #e8edf4;border-radius:11px;background:#f8fafc}
-.rules-mini>div{display:flex;align-items:flex-start;gap:7px;padding:5px 0;color:#667085;font-size:10.5px;line-height:1.7}
-.rules-mini i{color:#16845b;font-size:15px;flex:0 0 auto}
-.assignment-card{padding:0;overflow:hidden}
-.assignment-card>.section-head{padding:14px 16px}
-.assignment-card>.current-assignment,.assignment-card>.assignment-empty,.assignment-card>.assignment-form,.assignment-card>.help-text{margin-left:16px;margin-right:16px}
-.assignment-card>.current-assignment{margin-top:14px}
-.assignment-card>.assignment-form{margin-top:12px}
-.assignment-card>.help-text{display:block;margin-top:8px;margin-bottom:15px}
-.current-assignment{border-radius:11px}
-.assignment-empty{background:#fbfcfe}
-.admin-table th,.data-table th{font-size:10.5px;padding:10px 12px}
-.admin-table td,.data-table td{padding:10px 12px}
-.admin-pagination{background:#fbfcfe}
-.admin-filter-grid{gap:10px}
-.admin-filter-field label,.admin-page-size label{font-size:10.5px}
-.admin-filter-chips{padding-top:4px}
-.admin-chip{background:#f7f9fc;border-radius:8px;padding:5px 8px}
-.admin-modal{border-radius:16px}
-/* Consistent focus/keyboard treatment */
-.btn:focus-visible,.form-control:focus-visible,.icon-button:focus-visible{outline:3px solid rgba(49,87,213,.18);outline-offset:2px}
-@media(max-width:800px){.page-header{padding:15px;gap:13px}.page-header .form-actions{width:100%}.page-header .form-actions .btn{flex:1}.positions-layout{grid-template-columns:1fr}.stat-grid,.admin-stat-grid{grid-template-columns:1fr}.tree-toolbar-actions{width:100%}.tree-toolbar-actions .btn{flex:1}.assignment-card>.current-assignment,.assignment-card>.assignment-empty,.assignment-card>.assignment-form,.assignment-card>.help-text{margin-left:12px;margin-right:12px}}
-@media(max-width:520px){.page-header .page-title{font-size:21px}.page-header .form-actions{display:grid;grid-template-columns:1fr}.tree-toolbar-actions{display:grid;grid-template-columns:1fr 1fr}.tree-toolbar-actions .btn:last-child{grid-column:1/-1}.position-side-panel{padding:14px}}
+.positions-page{direction:rtl;max-width:100%;min-width:0;color:#172033;padding-bottom:24px}
+.positions-page .page-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:20px!important;margin:0 0 18px!important;padding:18px 20px!important;border:1px solid #e5eaf0!important;border-radius:16px!important;background:linear-gradient(135deg,#fff 0%,#f8faff 100%)!important;box-shadow:0 8px 28px rgba(16,24,40,.06)!important}
+.positions-page .page-title{font-size:24px!important;font-weight:800!important;letter-spacing:-.025em!important;margin:0!important}
+.positions-page .page-header .page-subtitle{font-size:11.5px!important}
+.positions-page .page-header .form-actions{display:flex!important;gap:7px!important;flex-wrap:wrap!important}
+.positions-page .stat-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;margin-bottom:16px!important}
+.positions-page .stat-card{min-height:78px!important;padding:13px 15px!important;border-radius:13px!important;background:#fff!important;border:1px solid #e5eaf0!important;box-shadow:0 5px 20px rgba(16,24,40,.045)!important;transition:transform .15s,box-shadow .15s,border-color .15s!important}
+.positions-page .stat-card:hover{transform:translateY(-2px)!important;border-color:#cfd8ed!important;box-shadow:0 10px 28px rgba(16,24,40,.08)!important}
+.positions-page .positions-layout{display:grid!important;grid-template-columns:minmax(0,1fr) 340px!important;gap:14px!important;align-items:start!important}
+.positions-page .card{border:1px solid #e5eaf0!important;border-radius:15px!important;box-shadow:0 7px 25px rgba(16,24,40,.05)!important;background:#fff!important}
+.positions-page .position-tree-card-wrap{overflow:visible!important;padding:0!important}
+.positions-page .positions-tree-toolbar{padding:14px 16px!important;background:#fff!important;border-bottom:1px solid #eef1f5!important;border-radius:15px 15px 0 0!important}
+.positions-page .section-title{font-size:15px!important;font-weight:800!important}
+.positions-page .tree-toolbar-actions{display:flex!important;gap:6px!important;flex-wrap:wrap!important}
+.positions-page .tree-toolbar-actions .btn,.positions-page .form-actions .btn{min-height:34px!important;border-radius:9px!important;padding:7px 11px!important}
+.positions-page .tree-summary{display:flex!important;flex-wrap:wrap!important;gap:6px!important;padding:10px 14px!important;background:#fafbfc!important;border-bottom:1px solid #eef1f5!important}
+.positions-page .tree-summary span{display:inline-flex!important;align-items:center!important;gap:5px!important;padding:5px 9px!important;border:1px solid #e1e7ef!important;border-radius:999px!important;background:#fff!important;color:#667085!important;font-size:9.5px!important}
+.positions-page .position-tree{padding:10px 14px 16px!important}
+.positions-page .position-side-panel{padding:17px!important;position:sticky;top:16px}
+.positions-page .position-side-panel .form-control{min-height:38px!important;border-radius:9px!important}
+.positions-page .rules-mini{margin-top:16px!important;padding:11px!important;border:1px solid #e7ecf3!important;border-radius:11px!important;background:#f8fafc!important}
+.positions-page .rules-mini>div{display:flex!important;align-items:flex-start!important;gap:7px!important;padding:5px 0!important;font-size:10.5px!important;line-height:1.7!important}
+.positions-page .rules-mini i{color:#16845b!important;font-size:15px!important}
+.positions-page .assignment-card{margin-top:14px!important;padding:0!important;overflow:hidden!important}
+.positions-page .assignment-card .section-head{padding:14px 16px!important;background:#fff!important}
+.positions-page .assignment-card .current-assignment,.positions-page .assignment-card .assignment-empty,.positions-page .assignment-card .assignment-form,.positions-page .assignment-card .help-text{margin-left:16px!important;margin-right:16px!important}
+.positions-page .assignment-card .current-assignment{margin-top:14px!important}
+.positions-page .assignment-card .assignment-form{margin-top:12px!important}
+.positions-page .assignment-card .help-text{display:block!important;margin-top:8px!important;margin-bottom:15px!important}
+.positions-page .current-assignment{border-radius:11px!important}
+.positions-page .assignment-empty{background:#fbfcfe!important;border-radius:11px!important}
+.positions-page .assignment-form{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important;align-items:center!important}
+.positions-page .btn{transition:transform .12s,box-shadow .15s,background .15s,border-color .15s!important}
+.positions-page .btn:hover:not(:disabled){transform:translateY(-1px)!important;box-shadow:0 5px 14px rgba(16,24,40,.08)!important}
+.positions-page .btn:focus-visible,.positions-page .form-control:focus-visible{outline:3px solid rgba(49,87,213,.18)!important;outline-offset:2px!important}
+@media(max-width:900px){.positions-page .positions-layout{grid-template-columns:1fr!important}.positions-page .position-side-panel{position:static!important}.positions-page .stat-grid{grid-template-columns:1fr!important}}
+@media(max-width:600px){.positions-page .page-header{align-items:stretch!important;padding:14px!important}.positions-page .page-header .form-actions,.positions-page .tree-toolbar-actions{width:100%!important}.positions-page .page-header .form-actions .btn,.positions-page .tree-toolbar-actions .btn{flex:1!important}.positions-page .assignment-form{grid-template-columns:1fr!important}.positions-page .assignment-card .current-assignment,.positions-page .assignment-card .assignment-empty,.positions-page .assignment-card .assignment-form,.positions-page .assignment-card .help-text{margin-left:12px!important;margin-right:12px!important}}
