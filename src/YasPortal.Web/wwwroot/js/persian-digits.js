@@ -13,7 +13,7 @@
     };
 
     const excluded = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'CODE', 'PRE']);
-    const scopeSelector = '.admin-page, .access-page, .positions-page';
+    const scopeSelector = '.admin-page, .access-page, .positions-page, .history-page';
 
     function normalizeTextNode(node) {
         const parent = node.parentElement;
