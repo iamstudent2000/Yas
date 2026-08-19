@@ -11,8 +11,8 @@
 @inject AdminQueryService AdminQueries
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
-<div class="access-page" dir="rtl">
-    <div class="page-header"><div><div class="page-subtitle">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
+<div class="admin-page access-page" dir="rtl">
+    <div class="page-header"><div><div class="page-kicker">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
     <section class="card access-selector"><div class="selector-title"><div class="step-number">۱</div><div><h2>موضوع دسترسی</h2><p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p></div></div><div class="selector-grid">
         <div><label class="form-label">کاربر</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><div class="selector-hint">جستجو مستقیماً روی پایگاه داده انجام می‌شود و فقط نتایج لازم برمی‌گردد.</div></div>
         @if(_selectedEmployee?.IsAdmin!=true){<div><label class="form-label">سمت</label><ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchEmployeePositionsAsync" SelectedText="@_positionName" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را تایپ کنید..." Disabled="@(_employeeId is null)" />@if(_employeeId is not null){<div class="selector-hint">فقط سمت‌های فعال همین کارمند قابل انتخاب است.</div>}</div>}
