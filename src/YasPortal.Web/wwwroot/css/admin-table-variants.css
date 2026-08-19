@@ -1,0 +1,80 @@
+/* YasPortal Admin UI — shared table variants */
+
+/* Use when each record should read as a separate, lightly bordered row. */
+.admin-table-bordered-rows,
+.data-table-bordered-rows {
+    border-collapse: separate;
+    border-spacing: 0 7px;
+}
+
+.admin-table-bordered-rows thead th,
+.data-table-bordered-rows thead th {
+    border-bottom: 0;
+    background: transparent;
+    padding: 7px 12px;
+}
+
+.admin-table-bordered-rows tbody tr,
+.data-table-bordered-rows tbody tr {
+    background: #fff;
+}
+
+.admin-table-bordered-rows tbody td,
+.data-table-bordered-rows tbody td {
+    border-top: 1px solid #e5eaf0;
+    border-bottom: 1px solid #e5eaf0;
+    padding: 12px;
+}
+
+.admin-table-bordered-rows tbody td:first-child,
+.data-table-bordered-rows tbody td:first-child {
+    border-right: 1px solid #e5eaf0;
+    border-radius: 0 10px 10px 0;
+}
+
+.admin-table-bordered-rows tbody td:last-child,
+.data-table-bordered-rows tbody td:last-child {
+    border-left: 1px solid #e5eaf0;
+    border-radius: 10px 0 0 10px;
+}
+
+.admin-table-bordered-rows tbody tr:hover td,
+.data-table-bordered-rows tbody tr:hover td {
+    background: #fafcff;
+    border-color: #d8e0e8;
+}
+
+.admin-table-bordered-rows tbody tr:last-child td,
+.data-table-bordered-rows tbody tr:last-child td {
+    border-bottom: 1px solid #e5eaf0;
+}
+
+/* Compact bordered rows for assignment/list panels without a table header. */
+.admin-bordered-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.admin-bordered-list > * {
+    border: 1px solid #e5eaf0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.admin-bordered-list > *:hover {
+    border-color: #d8e0e8;
+    background: #fafcff;
+}
+
+@media (max-width: 700px) {
+    .admin-table-bordered-rows,
+    .data-table-bordered-rows {
+        border-spacing: 0 5px;
+    }
+
+    .admin-table-bordered-rows tbody td,
+    .data-table-bordered-rows tbody td {
+        padding: 9px 10px;
+    }
+}
