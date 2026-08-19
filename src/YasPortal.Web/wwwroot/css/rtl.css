@@ -1,0 +1,145 @@
+/* YasPortal - global RTL system */
+html,
+body {
+    direction: rtl;
+    text-align: right;
+}
+
+body,
+button,
+input,
+textarea,
+select,
+option {
+    font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+}
+
+.application-shell {
+    direction: rtl;
+    text-align: right;
+}
+
+.application-body {
+    direction: rtl;
+}
+
+/* The sidebar belongs on the right in RTL layouts. */
+.sidebar {
+    border-left: 0 !important;
+    border-right: 1px solid #e6ebf2 !important;
+}
+
+.content,
+main {
+    direction: rtl;
+    text-align: right;
+}
+
+/* RTL flex/grid defaults */
+.page-header,
+.admin-page-header,
+.admin-toolbar,
+.admin-card__header,
+.admin-pagination {
+    direction: rtl;
+}
+
+.topbar,
+.topbar-user,
+.sidebar-nav a,
+.sidebar-footer,
+.admin-toolbar__actions,
+.admin-toolbar__meta,
+.admin-pagination__pages,
+.admin-page-size,
+.admin-page-header__actions,
+.btn,
+.icon-button {
+    direction: rtl;
+}
+
+/* Form controls */
+input,
+textarea,
+select,
+.form-control,
+.admin-filter input,
+.admin-filter select,
+.admin-page-size select {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Keep technical values readable LTR. */
+.ltr,
+[data-direction='ltr'],
+.code,
+.entity-id,
+.permission-code,
+.guid,
+.url,
+input[type='email'],
+input[type='url'] {
+    direction: ltr;
+    text-align: left;
+    unicode-bidi: plaintext;
+}
+
+/* Tables are RTL; technical columns can opt into LTR above. */
+.data-table,
+.admin-table {
+    direction: rtl;
+}
+
+.data-table th,
+.data-table td,
+.admin-table th,
+.admin-table td {
+    text-align: right;
+}
+
+/* Dialogs, popovers and panels inherit the application direction. */
+.modal,
+.modal-dialog,
+.modal-content,
+.dialog,
+.popover,
+.dropdown-menu,
+[role='dialog'],
+[role='menu'] {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Keep navigation arrows/icons visually sensible in RTL. */
+.sidebar-nav a i,
+.btn i,
+.icon-button i {
+    flex: 0 0 auto;
+}
+
+/* Searchable/select widgets */
+.searchable-select,
+.searchable-select-menu,
+.searchable-select-dropdown,
+.persian-date-picker {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Toast/notification content */
+.app-notification,
+.notification,
+.toast {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Mobile sidebar stays RTL as well. */
+@media (max-width: 850px) {
+    .sidebar {
+        border-right: 0 !important;
+        border-left: 0 !important;
+        border-bottom: 1px solid #e6ebf2 !important;
+    }
+}
