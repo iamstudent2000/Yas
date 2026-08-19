@@ -1,46 +1,53 @@
-window.serverLookupDropdown = {
-    position: function (trigger, menu) {
-        if (!trigger || !menu) return;
+window.serverLookupDropdown = (() => {
+    const handlers = new WeakMap();
+
+    function position(trigger, menu) {
+        if (!trigger || !menu || !document.body.contains(trigger) || !document.body.contains(menu)) return;
 
         const rect = trigger.getBoundingClientRect();
         const gap = 6;
-        const viewportPadding = 8;
-        const availableBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
-        const availableAbove = rect.top - gap - viewportPadding;
+        const padding = 8;
         const minHeight = 120;
         const preferredHeight = 320;
-
-        let openUp = false;
-        if (availableBelow < minHeight && availableAbove > availableBelow) {
-            openUp = true;
-        }
-
-        const height = Math.max(minHeight, Math.min(preferredHeight, openUp ? availableAbove : availableBelow));
-        const width = rect.width;
+        const availableBelow = Math.max(0, window.innerHeight - rect.bottom - gap - padding);
+        const availableAbove = Math.max(0, rect.top - gap - padding);
+        const openUp = availableBelow < minHeight && availableAbove > availableBelow;
+        const available = openUp ? availableAbove : availableBelow;
+        const height = Math.max(80, Math.min(preferredHeight, available));
+        const width = Math.min(rect.width, window.innerWidth - padding * 2);
+        const left = Math.max(padding, Math.min(rect.left, window.innerWidth - width - padding));
 
         menu.style.position = 'fixed';
         menu.style.zIndex = '2147483647';
         menu.style.width = `${width}px`;
-        menu.style.maxWidth = `calc(100vw - ${viewportPadding * 2}px)`;
+        menu.style.maxWidth = `calc(100vw - ${padding * 2}px)`;
         menu.style.maxHeight = `${height}px`;
         menu.style.right = 'auto';
-        menu.style.left = `${Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - width - viewportPadding))}px`;
+        menu.style.left = `${left}px`;
         menu.style.top = openUp
-            ? `${Math.max(viewportPadding, rect.top - height - gap)}px`
-            : `${Math.min(window.innerHeight - height - viewportPadding, rect.bottom + gap)}px`;
-
+            ? `${Math.max(padding, rect.top - height - gap)}px`
+            : `${Math.min(window.innerHeight - height - padding, rect.bottom + gap)}px`;
+        menu.style.bottom = 'auto';
         menu.dataset.openUp = openUp ? 'true' : 'false';
-    },
-
-    clear: function (menu) {
-        if (!menu) return;
-        menu.style.position = '';
-        menu.style.zIndex = '';
-        menu.style.width = '';
-        menu.style.maxWidth = '';
-        menu.style.maxHeight = '';
-        menu.style.right = '';
-        menu.style.left = '';
-        menu.style.top = '';
     }
-};
+
+    function attach(trigger, menu) {
+        if (!trigger || !menu) return;
+        detach(trigger, menu);
+        const reposition = () => position(trigger, menu);
+        window.addEventListener('resize', reposition, { passive: true });
+        window.addEventListener('scroll', reposition, { passive: true, capture: true });
+        handlers.set(menu, reposition);
+        reposition();
+    }
+
+    function detach(trigger, menu) {
+        const handler = handlers.get(menu);
+        if (!handler) return;
+        window.removeEventListener('resize', handler);
+        window.removeEventListener('scroll', handler, true);
+        handlers.delete(menu);
+    }
+
+    return { position, attach, detach };
+})();
