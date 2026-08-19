@@ -1,99 +1,62 @@
 /* YasPortal - complete application RTL layout */
-html {
-    direction: rtl;
-}
-
 html,
-body {
-    direction: rtl;
-    text-align: right;
-}
-
-body {
-    overflow-x: hidden;
-}
-
+body,
 .application-shell {
     direction: rtl;
     text-align: right;
-    min-height: 100vh;
 }
 
-/* Global shell: navigation on the right, content on the left. */
-.topbar {
-    direction: rtl;
-}
+body { overflow-x: hidden; }
 
-.topbar .brand {
-    order: 2;
-}
-
-.topbar > .topbar-user,
-.topbar > form,
-.topbar > .btn,
-.topbar > .icon-button {
-    order: 1;
-}
-
+/* The DOM order is Sidebar -> Content. With RTL direction, normal flex-row
+   places the first item on the right. Do not use row-reverse here. */
 .application-body {
     direction: rtl;
     display: flex;
-    flex-direction: row-reverse;
+    flex-direction: row;
     align-items: stretch;
     text-align: right;
 }
 
 .sidebar {
-    order: 1;
-    border-left: 0 !important;
-    border-right: 1px solid #e6ebf2 !important;
+    order: 0;
+    border-left: 1px solid #e6ebf2 !important;
+    border-right: 0 !important;
 }
 
 .content {
-    order: 2;
+    order: 0;
     direction: rtl;
     text-align: right;
     min-width: 0;
+    flex: 1 1 auto;
 }
+
+/* Top bar */
+.topbar { direction: rtl; }
+.topbar .brand { order: 0; }
+.topbar .topbar-user { order: 0; }
 
 /* Navigation */
 .sidebar-nav,
 .sidebar-nav a,
-.sidebar-footer {
-    direction: rtl;
-}
+.sidebar-footer { direction: rtl; }
+.sidebar-nav a { flex-direction: row; text-align: right; }
+.sidebar-nav a i { margin-inline: 0; }
 
-.sidebar-nav a {
-    flex-direction: row;
-    text-align: right;
-}
-
-.sidebar-nav a i {
-    margin-inline-start: 0;
-    margin-inline-end: 0;
-}
-
-/* Headers and toolbars */
+/* Page headers/toolbars */
 .page-header,
 .admin-page-header,
 .admin-toolbar,
 .admin-card__header,
-.admin-pagination {
-    direction: rtl;
-}
-
+.admin-pagination { direction: rtl; }
 .page-header,
-.admin-page-header {
-    text-align: right;
-}
-
+.admin-page-header { text-align: right; }
 .admin-page-header__actions,
 .admin-toolbar__actions,
 .admin-toolbar__meta,
 .admin-pagination__pages,
-.admin-page-size {
-    direction: rtl;
-}
+.admin-page-size { direction: rtl; }
 
 /* Forms */
 input,
@@ -106,38 +69,27 @@ button,
 .admin-filter,
 .admin-filter input,
 .admin-filter select,
-.admin-page-size select {
-    direction: rtl;
-}
+.admin-page-size select { direction: rtl; }
 
 input,
 textarea,
 select,
 .form-control,
 .admin-filter input,
-.admin-filter select {
-    text-align: right;
-}
+.admin-filter select { text-align: right; }
 
 input[type="checkbox"],
-input[type="radio"] {
-    direction: ltr;
-}
+input[type="radio"] { direction: ltr; }
 
 /* Tables */
 .data-table,
-.admin-table {
-    direction: rtl;
-}
-
+.admin-table { direction: rtl; }
 .data-table th,
 .data-table td,
 .admin-table th,
-.admin-table td {
-    text-align: right;
-}
+.admin-table td { text-align: right; }
 
-/* Dialogs, panels, popovers, menus */
+/* Dialogs / menus */
 .modal,
 .modal-dialog,
 .modal-content,
@@ -145,21 +97,15 @@ input[type="radio"] {
 .popover,
 .dropdown-menu,
 [role="dialog"],
-[role="menu"] {
-    direction: rtl;
-    text-align: right;
-}
+[role="menu"] { direction: rtl; text-align: right; }
 
 /* Search/select/date components */
 .searchable-select,
 .searchable-select-menu,
 .searchable-select-dropdown,
-.persian-date-picker {
-    direction: rtl;
-    text-align: right;
-}
+.persian-date-picker { direction: rtl; text-align: right; }
 
-/* Keep technical identifiers and inherently LTR values readable. */
+/* Technical values remain LTR. */
 .ltr,
 [data-direction="ltr"],
 .code,
@@ -175,57 +121,30 @@ input[type="url"] {
     unicode-bidi: plaintext;
 }
 
-/* Keep action/icon ordering predictable in RTL without mirroring icon glyphs. */
 .btn,
 .icon-button,
-.admin-action {
-    direction: rtl;
-}
+.admin-action { direction: rtl; }
 
-/* Notifications */
 .app-notification,
 .notification,
-.toast {
-    direction: rtl;
-    text-align: right;
-}
+.toast { direction: rtl; text-align: right; }
 
-/* Login and other standalone pages */
 .login-page,
 .login-card,
-.login-form {
-    direction: rtl;
-    text-align: right;
-}
+.login-form { direction: rtl; text-align: right; }
 
-/* Responsive: preserve the RTL shell when the sidebar becomes a top navigation. */
 @media (max-width: 850px) {
-    .application-body {
-        display: block;
-    }
-
+    .application-body { display: block; }
     .sidebar {
         width: 100%;
-        border-right: 0 !important;
         border-left: 0 !important;
+        border-right: 0 !important;
         border-bottom: 1px solid #e6ebf2 !important;
     }
-
-    .sidebar-nav {
-        direction: rtl;
-    }
+    .sidebar-nav { direction: rtl; }
 }
 
-/* Prevent browser defaults from reintroducing LTR layout in common controls. */
-[dir="rtl"] {
-    direction: rtl;
-}
-
-[dir="rtl"] table {
-    direction: rtl;
-}
-
+[dir="rtl"] { direction: rtl; }
+[dir="rtl"] table { direction: rtl; }
 [dir="rtl"] th,
-[dir="rtl"] td {
-    text-align: right;
-}
+[dir="rtl"] td { text-align: right; }
