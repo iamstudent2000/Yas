@@ -66,7 +66,7 @@
                                     else{<span class="badge badge-muted">بدون سمت فعال</span>}
                                 </td>
                                 <td><span class="badge @(x.IsActive?"badge-success":"badge-muted")">@(x.IsActive?"فعال":"غیرفعال")</span></td>
-                                <td class="action-cell"><button class="btn btn-secondary btn-sm" @onclick="()=>BeginEdit(x)"><i class="bx bx-edit-alt"></i></button><button class="btn @(x.IsActive?"btn-danger":"btn-primary") btn-sm" @onclick="()=>ToggleEmployee(x.Id)"><i class="bx @(x.IsActive?"bx-user-x":"bx-user-check")"></i></button>@if(!x.IsAdmin){<a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i class="bx bx-sitemap"></i> سمت‌ها</a>}<a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id"><i class="bx bx-shield-quarter"></i> دسترسی</a></td>
+                                <td class="action-cell"><button class="btn btn-secondary btn-sm" @onclick="()=>BeginEdit(x)" title="ویرایش"><i class="bx bx-edit-alt"></i></button><button class="btn @(x.IsActive?"btn-danger":"btn-primary") btn-sm" @onclick="()=>ToggleEmployee(x.Id)" title="@(x.IsActive?"غیرفعال کردن":"فعال کردن")"><i class="bx @(x.IsActive?"bx-user-x":"bx-user-check")"></i></button>@if(!x.IsAdmin){<a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i class="bx bx-sitemap"></i> سمت‌ها</a>}<a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id"><i class="bx bx-shield-quarter"></i> دسترسی</a></td>
                             </tr>
                         }
                     </tbody>
@@ -78,7 +78,7 @@
         </section>
     </div>
 
-    <section class="card" style="margin-top:16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px" dir="rtl"><div class="stat-icon"><i class="bx bx-sitemap"></i></div><div><h2 class="section-title">تخصیص سمت متمرکز شد</h2><p class="page-subtitle">دیگر از صفحه کاربران سمت تخصیص یا آزاد نمی‌شود. برای مشاهده درخت، مالک فعلی و آزادسازی/تخصیص سمت به <strong>مدیریت سمت‌ها</strong> بروید.</p></div><a class="btn btn-primary" href="/admin/positions">باز کردن مدیریت سمت‌ها <i class="bx bx-left-arrow-alt"></i></a></section>
+    <section class="card admin-notice-card" dir="rtl"><div class="stat-icon"><i class="bx bx-sitemap"></i></div><div><h2 class="section-title">تخصیص سمت متمرکز شد</h2><p class="page-subtitle">دیگر از صفحه کاربران سمت تخصیص یا آزاد نمی‌شود. برای مشاهده درخت، مالک فعلی و آزادسازی/تخصیص سمت به <strong>مدیریت سمت‌ها</strong> بروید.</p></div><a class="btn btn-primary" href="/admin/positions">باز کردن مدیریت سمت‌ها <i class="bx bx-left-arrow-alt"></i></a></section>
 </div>
 
 @code {
@@ -99,23 +99,5 @@
     private async Task LoadOrganizationIdAsync(Guid id){await using var db=await DbFactory.CreateDbContextAsync();var x=await db.Employees.AsNoTracking().Where(e=>e.Id==id).Select(e=>new{e.OrganizationId,e.Organization.Name}).SingleAsync();_organizationId=x.OrganizationId;_organizationName=x.Name;await InvokeAsync(StateHasChanged);}
     private void CancelEdit(){_editingId=null;_username=_fullName=_password=_organizationName="";_organizationId=null;_isAdmin=false;}
     private async Task SaveEmployee(){if(string.IsNullOrWhiteSpace(_username)||string.IsNullOrWhiteSpace(_fullName)||_organizationId is null){AppState.AddToast("نام کاربری، نام و سازمان الزامی است.",ToastLevel.Error);return;}await using var db=await DbFactory.CreateDbContextAsync();Employee employee;var wasAdmin=false;if(_editingId is Guid id){employee=await db.Employees.SingleAsync(x=>x.Id==id);wasAdmin=employee.IsAdmin;employee.SetFullName(_fullName);employee.ChangeOrganization(_organizationId.Value);employee.SetAdmin(_isAdmin);if(!string.IsNullOrWhiteSpace(_password))employee.SetPasswordHash(PasswordHasher.HashPassword(employee,_password));if(!wasAdmin&&_isAdmin){foreach(var a in await db.EmployeePositions.Where(x=>x.EmployeeId==id&&x.EndedAt==null).ToListAsync())a.End();employee.SetLastActivePosition(null);}}else{var username=_username.Trim();if(await db.Employees.AnyAsync(x=>x.Username==username)){AppState.AddToast("این نام کاربری قبلاً استفاده شده است.",ToastLevel.Error);return;}if(string.IsNullOrWhiteSpace(_password)){AppState.AddToast("برای کاربر جدید رمز عبور الزامی است.",ToastLevel.Error);return;}employee=new Employee(username,_fullName,_organizationId.Value,_isAdmin);employee.SetPasswordHash(PasswordHasher.HashPassword(employee,_password));db.Employees.Add(employee);}await db.SaveChangesAsync();AppState.AddToast(_editingId is null?"کاربر جدید ایجاد شد.":"کاربر ویرایش شد.",ToastLevel.Success);CancelEdit();await LoadAsync();}
-    private async Task ToggleEmployee(Guid id){
-        await using var db=await DbFactory.CreateDbContextAsync();
-        var employee=await db.Employees.SingleAsync(x=>x.Id==id);
-        if(employee.IsActive){
-            var activeAssignments=await db.EmployeePositions
-                .Where(x=>x.EmployeeId==id && x.EndedAt==null)
-                .ToListAsync();
-            foreach(var assignment in activeAssignments)
-                assignment.End();
-            employee.Deactivate();
-            employee.SetLastActivePosition(null);
-        }
-        else{
-            employee.Activate();
-        }
-        await db.SaveChangesAsync();
-        AppState.AddToast(employee.IsActive?"کاربر فعال شد.":"کاربر غیرفعال شد.",ToastLevel.Success);
-        await LoadAsync();
-    }
+    private async Task ToggleEmployee(Guid id){await using var db=await DbFactory.CreateDbContextAsync();var employee=await db.Employees.SingleAsync(x=>x.Id==id);if(employee.IsActive){var activeAssignments=await db.EmployeePositions.Where(x=>x.EmployeeId==id&&x.EndedAt==null).ToListAsync();foreach(var assignment in activeAssignments)assignment.End();employee.Deactivate();employee.SetLastActivePosition(null);}else{employee.Activate();}await db.SaveChangesAsync();AppState.AddToast(employee.IsActive?"کاربر فعال شد.":"کاربر غیرفعال شد.",ToastLevel.Success);await LoadAsync();}
 }
