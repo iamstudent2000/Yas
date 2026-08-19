@@ -20,12 +20,7 @@
             <input type="hidden" name="returnUrl" value="@GetReturnUrl()" />
             <input type="hidden" name="positionId" value="@_activePositionId" />
 
-            <button @ref="_trigger"
-                    type="button"
-                    class="active-position-trigger"
-                    aria-haspopup="listbox"
-                    aria-expanded="@_open"
-                    @onclick="ToggleDropdown">
+            <button @ref="_trigger" type="button" class="active-position-trigger" aria-haspopup="listbox" aria-expanded="@_open" @onclick="ToggleDropdown">
                 <i class="bx bx-briefcase-alt-2"></i>
                 <span class="active-position-value" title="@ActivePositionName">@ActivePositionName</span>
                 <i class="bx bx-chevron-down active-position-chevron"></i>
@@ -38,12 +33,8 @@
                     <div class="active-position-options">
                         @foreach (var position in _positions)
                         {
-                            <button type="button"
-                                    class="active-position-option @(position.Id == _activePositionId ? "selected" : "")"
-                                    @onclick="() => SelectPosition(position.Id)">
-                                <span class="position-option-icon">
-                                    <i class="bx bx-briefcase"></i>
-                                </span>
+                            <button type="button" class="active-position-option @(position.Id == _activePositionId ? "selected" : "")" @onclick="() => SelectPosition(position.Id)">
+                                <span class="position-option-icon"><i class="bx bx-briefcase"></i></span>
                                 <span class="position-option-text" title="@position.Name">@position.Name</span>
                                 @if (position.Id == _activePositionId)
                                 {
@@ -55,9 +46,7 @@
                 </div>
             }
 
-            <button type="submit" class="active-position-submit" title="تغییر سمت فعال" aria-label="تغییر سمت فعال">
-                <i class="bx bx-check"></i>
-            </button>
+            <button type="submit" class="active-position-submit" title="تغییر سمت فعال" aria-label="تغییر سمت فعال"><i class="bx bx-check"></i></button>
         </form>
     }
     else if (_positions.Count == 1)
@@ -77,24 +66,17 @@
     private ElementReference _dropdown;
     private DotNetObjectReference<ActivePositionSelector>? _dotNetRef;
 
-    private string ActivePositionName =>
-        _positions.FirstOrDefault(x => x.Id == _activePositionId)?.Name
-        ?? _positions.FirstOrDefault()?.Name
-        ?? "انتخاب سمت";
+    private string ActivePositionName => _positions.FirstOrDefault(x => x.Id == _activePositionId)?.Name ?? _positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
 
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
-
-        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
-            return;
-
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId)) return;
         Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out _activePositionId);
 
         await using var db = await DbFactory.CreateDbContextAsync();
-        _positions = await db.EmployeePositions
-            .AsNoTracking()
+        _positions = await db.EmployeePositions.AsNoTracking()
             .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
             .OrderBy(x => x.Position.Name)
             .Select(x => new PositionItem(x.PositionId, x.Position.Name))
@@ -107,7 +89,6 @@
     private async Task ToggleDropdown()
     {
         _open = !_open;
-
         if (_open)
         {
             _dotNetRef ??= DotNetObjectReference.Create(this);
@@ -131,10 +112,9 @@
     [JSInvokable]
     public async Task CloseDropdown()
     {
-        if (!_open)
-            return;
-
+        if (!_open) return;
         _open = false;
+        await JS.InvokeVoidAsync("activePositionDropdown.stop");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -146,14 +126,8 @@
 
     public async ValueTask DisposeAsync()
     {
-        try
-        {
-            await JS.InvokeVoidAsync("activePositionDropdown.stop");
-        }
-        catch (JSDisconnectedException)
-        {
-        }
-
+        try { await JS.InvokeVoidAsync("activePositionDropdown.stop"); }
+        catch (JSDisconnectedException) { }
         _dotNetRef?.Dispose();
     }
 
@@ -161,172 +135,26 @@
 }
 
 <style>
-    .active-position-picker {
-        position: relative;
-        z-index: 2000;
-        direction: rtl;
-    }
-
-    .active-position-form {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        width: min(320px, 32vw);
-        min-width: 220px;
-        direction: rtl;
-        position: relative;
-    }
-
-    .active-position-trigger {
-        flex: 1 1 auto;
-        min-width: 0;
-        width: 100%;
-        height: 38px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 11px;
-        border: 1px solid #d9e0ea;
-        border-radius: 10px;
-        background: #fff;
-        color: #344054;
-        font: inherit;
-        font-size: 12px;
-        cursor: pointer;
-        direction: rtl;
-        text-align: right;
-        transition: border-color .15s, box-shadow .15s;
-    }
-
-    .active-position-trigger:hover,
-    .active-position-trigger[aria-expanded="true"] {
-        border-color: #98a2b3;
-        box-shadow: 0 2px 8px rgba(16,24,40,.08);
-    }
-
-    .active-position-trigger > i:first-child { color: #2563eb; font-size: 17px; flex: 0 0 auto; }
-
-    .active-position-value {
-        min-width: 0;
-        flex: 1 1 auto;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .active-position-chevron { font-size: 18px; flex: 0 0 auto; color: #667085; }
-
-    .active-position-dropdown {
-        position: fixed;
-        z-index: 99999;
-        width: 320px;
-        max-width: calc(100vw - 16px);
-        max-height: calc(100vh - 16px);
-        overflow: hidden;
-        border: 1px solid #e4e7ec;
-        border-radius: 12px;
-        background: #fff;
-        box-shadow: 0 18px 45px rgba(16,24,40,.18);
-        direction: rtl;
-        text-align: right;
-        visibility: hidden;
-    }
-
-    .active-position-dropdown-header {
-        padding: 11px 14px;
-        border-bottom: 1px solid #eaecf0;
-        color: #667085;
-        font-size: 11px;
-        font-weight: 700;
-        background: #f8fafc;
-    }
-
-    .active-position-options {
-        max-height: 350px;
-        overflow-y: auto;
-        padding: 5px;
-    }
-
-    .active-position-option {
-        width: 100%;
-        min-height: 44px;
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        padding: 8px 9px;
-        border: 0;
-        border-radius: 8px;
-        background: transparent;
-        color: #344054;
-        font: inherit;
-        font-size: 12px;
-        text-align: right;
-        direction: rtl;
-        cursor: pointer;
-    }
-
-    .active-position-option:hover { background: #f2f4f7; }
-    .active-position-option.selected { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
-
-    .position-option-icon {
-        width: 30px;
-        height: 30px;
-        flex: 0 0 30px;
-        display: grid;
-        place-items: center;
-        border-radius: 7px;
-        background: #f2f4f7;
-        color: #667085;
-    }
-
-    .selected .position-option-icon { background: #dbeafe; color: #2563eb; }
-
-    .position-option-text {
-        min-width: 0;
-        flex: 1 1 auto;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .position-option-check { flex: 0 0 auto; color: #2563eb; font-size: 18px; }
-
-    .active-position-submit {
-        flex: 0 0 38px;
-        width: 38px;
-        height: 38px;
-        border: 0;
-        border-radius: 10px;
-        background: #2563eb;
-        color: #fff;
-        display: grid;
-        place-items: center;
-        cursor: pointer;
-    }
-
-    .active-position-submit:hover { background: #1d4ed8; }
-
-    .active-position-single {
-        display: flex;
-        align-items: center;
-        gap: 7px;
-        max-width: 320px;
-        padding: 0 11px;
-        height: 38px;
-        border: 1px solid #e4e7ec;
-        border-radius: 10px;
-        color: #475467;
-        font-size: 12px;
-        background: #f8fafc;
-        direction: rtl;
-    }
-
-    .active-position-single span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .active-position-single i { color: #2563eb; font-size: 17px; flex: 0 0 auto; }
+    .active-position-picker { position:relative; z-index:2000; direction:rtl; }
+    .active-position-form { display:flex; align-items:center; gap:6px; width:min(320px,32vw); min-width:220px; direction:rtl; position:relative; }
+    .active-position-trigger { flex:1 1 auto; min-width:0; width:100%; height:38px; display:flex; align-items:center; gap:8px; padding:0 11px; border:1px solid #d9e0ea; border-radius:10px; background:#fff; color:#344054; font:inherit; font-size:12px; cursor:pointer; direction:rtl; text-align:right; transition:border-color .15s,box-shadow .15s; }
+    .active-position-trigger:hover,.active-position-trigger[aria-expanded="true"] { border-color:#98a2b3; box-shadow:0 2px 8px rgba(16,24,40,.08); }
+    .active-position-trigger>i:first-child { color:#2563eb; font-size:17px; flex:0 0 auto; }
+    .active-position-value { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .active-position-chevron { font-size:18px; flex:0 0 auto; color:#667085; }
+    .active-position-dropdown { position:absolute; width:320px; max-width:calc(100vw - 16px); max-height:calc(100vh - 16px); overflow:hidden; border:1px solid #e4e7ec; border-radius:12px; background:#fff; box-shadow:0 18px 45px rgba(16,24,40,.18); direction:rtl; text-align:right; }
+    .active-position-dropdown-header { padding:11px 14px; border-bottom:1px solid #eaecf0; color:#667085; font-size:11px; font-weight:700; background:#f8fafc; }
+    .active-position-options { max-height:350px; overflow-y:auto; padding:5px; }
+    .active-position-option { width:100%; min-height:44px; display:flex; align-items:center; gap:9px; padding:8px 9px; border:0; border-radius:8px; background:transparent; color:#344054; font:inherit; font-size:12px; text-align:right; direction:rtl; cursor:pointer; }
+    .active-position-option:hover { background:#f2f4f7; }
+    .active-position-option.selected { background:#eff6ff; color:#1d4ed8; font-weight:600; }
+    .position-option-icon { width:30px; height:30px; flex:0 0 30px; display:grid; place-items:center; border-radius:7px; background:#f2f4f7; color:#667085; }
+    .selected .position-option-icon { background:#dbeafe; color:#2563eb; }
+    .position-option-text { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .position-option-check { flex:0 0 auto; color:#2563eb; font-size:18px; }
+    .active-position-submit { flex:0 0 38px; width:38px; height:38px; border:0; border-radius:10px; background:#2563eb; color:#fff; display:grid; place-items:center; cursor:pointer; }
+    .active-position-submit:hover { background:#1d4ed8; }
+    .active-position-single { display:flex; align-items:center; gap:7px; max-width:320px; padding:0 11px; height:38px; border:1px solid #e4e7ec; border-radius:10px; color:#475467; font-size:12px; background:#f8fafc; direction:rtl; }
+    .active-position-single span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .active-position-single i { color:#2563eb; font-size:17px; flex:0 0 auto; }
 </style>
