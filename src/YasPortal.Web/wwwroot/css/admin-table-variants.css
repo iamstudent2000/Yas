@@ -17,8 +17,6 @@
     padding: 7px 12px;
 }
 
-/* Explicit row striping. The cell background must be set here because
-   admin-ui.css also styles table cells directly. */
 .admin-table-bordered-rows tbody tr:nth-child(odd) td,
 .data-table-bordered-rows tbody tr:nth-child(odd) td {
     background: #ffffff;
@@ -59,7 +57,6 @@
     border-bottom: 1px solid #e5eaf0;
 }
 
-/* Keep action buttons on one line when the table has an action-cell. */
 .admin-table-bordered-rows .action-cell,
 .data-table-bordered-rows .action-cell {
     display: flex;
@@ -78,7 +75,6 @@
     white-space: nowrap;
 }
 
-/* Compact bordered rows for assignment/list panels without a table header. */
 .admin-bordered-list {
     display: flex;
     flex-direction: column;
@@ -98,6 +94,315 @@
 .admin-bordered-list > *:hover {
     border-color: #d8e0e8;
     background: #eef4ff;
+}
+
+/* Shared Access Management layout. These rules intentionally live here so
+   permission/group/effective lists stay consistent with the Admin UI. */
+.access-page .panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.access-page .panel-heading > div:first-child {
+    min-width: 0;
+}
+
+.access-page .panel-heading h2 {
+    margin: 2px 0 5px;
+}
+
+.access-page .panel-heading p {
+    margin: 0;
+    color: #667085;
+    font-size: 12px;
+}
+
+.access-page .filter-bar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.access-page .search-box {
+    position: relative;
+    min-width: 0;
+}
+
+.access-page .search-box > i {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #667085;
+    pointer-events: none;
+}
+
+.access-page .search-box input {
+    padding-right: 36px;
+}
+
+.access-page .small-search {
+    width: 230px;
+    flex: 0 0 230px;
+}
+
+.access-page .selection-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 9px 11px;
+    border: 1px solid #eef1f5;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.access-page .selection-toolbar > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.access-page .permission-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.access-page .permission-section {
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.access-page .permission-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+}
+
+.access-page .permission-section-heading > div {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.access-page .permission-section-heading span {
+    color: #667085;
+    font-size: 11px;
+}
+
+.access-page .permission-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+}
+
+.access-page .permission-tile,
+.access-page .group-tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.access-page .permission-tile:hover,
+.access-page .group-tile:hover {
+    border-color: #b8c5df;
+    background: #fbfcff;
+}
+
+.access-page .permission-tile.selected,
+.access-page .group-tile.selected {
+    border-color: #7f9cf5;
+    background: #eef3ff;
+}
+
+.access-page .permission-tile input,
+.access-page .group-tile input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.access-page .tile-check {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: transparent;
+    background: #fff;
+}
+
+.access-page .selected .tile-check {
+    border-color: #3157d5;
+    background: #3157d5;
+    color: #fff;
+}
+
+.access-page .tile-text,
+.access-page .group-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.access-page .tile-text strong,
+.access-page .group-text strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.access-page .group-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 520px;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.access-page .group-tile {
+    min-height: 58px;
+}
+
+.access-page .group-text small {
+    color: #667085;
+    font-size: 11px;
+}
+
+.access-page .effective-list {
+    max-height: 520px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 11px;
+}
+
+.access-page .effective-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 44px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.access-page .effective-row:last-child {
+    border-bottom: 0;
+}
+
+.access-page .effective-row > div:first-child {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.access-page .effective-row strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.access-page .source-badges {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+}
+
+.access-page .source-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 7px;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.access-page .source-badge.direct {
+    background: #eef3ff;
+    color: #3157d5;
+}
+
+.access-page .source-badge.group {
+    background: #f3edff;
+    color: #6d28d9;
+}
+
+.access-page .access-empty {
+    margin-top: 14px;
+}
+
+@media (max-width: 1100px) {
+    .access-page .permission-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .access-page .permission-grid,
+    .access-page .group-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .access-page .small-search {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+}
+
+@media (max-width: 560px) {
+    .access-page .filter-bar,
+    .access-page .permission-grid,
+    .access-page .group-list {
+        grid-template-columns: 1fr;
+    }
+
+    .access-page .selection-toolbar,
+    .access-page .panel-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .access-page .selection-toolbar > div {
+        width: 100%;
+    }
+
+    .access-page .selection-toolbar > div .btn {
+        flex: 1 1 0;
+    }
+
+    .access-page .effective-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 700px) {
