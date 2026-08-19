@@ -11,7 +11,7 @@
 @inject AdminQueryService AdminQueries
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
-<div class="admin-page access-page" dir="rtl">
+<div class="admin-page" dir="rtl">
     <div class="page-header"><div><div class="page-kicker">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
     <section class="card access-selector"><div class="selector-title"><div class="step-number">۱</div><div><h2>موضوع دسترسی</h2><p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p></div></div><div class="selector-grid">
         <div><label class="form-label">کاربر</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><div class="selector-hint">جستجو مستقیماً روی پایگاه داده انجام می‌شود و فقط نتایج لازم برمی‌گردد.</div></div>
