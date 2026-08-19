@@ -1,6 +1,6 @@
-/* YasPortal — Persian digit normalization for Admin UI.
-   Converts Latin/Arabic-Indic digits displayed as text into Persian digits.
-   Form controls, code/technical values, and editable fields are intentionally excluded.
+/* YasPortal — Persian digit normalization.
+   Converts displayed Latin/Arabic-Indic digits into Persian digits.
+   Editable fields and technical/code content remain untouched.
 */
 (function () {
     'use strict';
@@ -12,12 +12,18 @@
         '٥': '۵', '٦': '۶', '٧': '۷', '٨': '۸', '٩': '۹'
     };
 
-    const excluded = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'CODE', 'PRE']);
-    const scopeSelector = '.admin-page, .access-page, .positions-page, .history-page';
+    const excluded = new Set([
+        'SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION',
+        'CODE', 'PRE'
+    ]);
+
+    function shouldExclude(node) {
+        const parent = node.parentElement;
+        return !parent || excluded.has(parent.tagName) || !!parent.closest('[data-persian-digits="off"]');
+    }
 
     function normalizeTextNode(node) {
-        const parent = node.parentElement;
-        if (!parent || excluded.has(parent.tagName) || !parent.closest(scopeSelector)) return;
+        if (shouldExclude(node)) return;
 
         const value = node.nodeValue;
         if (!value || !/[0-9٠-٩]/.test(value)) return;
@@ -28,24 +34,21 @@
 
     function normalize(root) {
         if (!root) return;
+
         if (root.nodeType === Node.TEXT_NODE) {
             normalizeTextNode(root);
             return;
         }
+
         if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+        if (root.nodeType === Node.ELEMENT_NODE && excluded.has(root.tagName)) return;
+        if (root.closest && root.closest('[data-persian-digits="off"]')) return;
 
-        if (root.matches && root.matches(scopeSelector)) {
-            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-            const nodes = [];
-            let node;
-            while ((node = walker.nextNode())) nodes.push(node);
-            nodes.forEach(normalizeTextNode);
-            return;
-        }
-
-        if (root.querySelectorAll) {
-            root.querySelectorAll(scopeSelector).forEach(normalize);
-        }
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        let node;
+        while ((node = walker.nextNode())) nodes.push(node);
+        nodes.forEach(normalizeTextNode);
     }
 
     function start() {
@@ -61,7 +64,11 @@
             }
         });
 
-        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        });
     }
 
     if (document.readyState === 'loading') {
