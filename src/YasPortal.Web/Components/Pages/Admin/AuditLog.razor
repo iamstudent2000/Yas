@@ -60,7 +60,7 @@
                         <tr @key="row.Id">
                             <td class="date-cell"><strong>@ToPersianDate(local)</strong><small class="muted">@ToPersianDigits(local.ToString("HH:mm:ss"))</small></td>
                             <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
-                            <td><span class="admin-truncate" title="@(row.PositionName ?? "-)">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                            <td><span class="admin-truncate" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
                             <td><div><strong>@GetEntityText(row.EntityType)</strong><small class="entity-id">@row.EntityId</small></div></td>
                             <td><button type="button" class="admin-btn admin-btn-secondary btn-sm" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
