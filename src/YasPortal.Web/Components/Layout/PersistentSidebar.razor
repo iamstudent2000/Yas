@@ -1,6 +1,84 @@
 @using Microsoft.AspNetCore.Components.Authorization
 
+<style>
+    .sidebar-shell-toggle {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .sidebar-minimal-toggle {
+        width: 32px;
+        height: 32px;
+        margin: 0 0 12px auto;
+        border: 1px solid #e6ebf2;
+        border-radius: 9px;
+        background: #f8fafc;
+        color: #667085;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: .15s;
+    }
+
+    .sidebar-minimal-toggle:hover {
+        background: #eef4ff;
+        color: #155eef;
+    }
+
+    .sidebar-minimal-toggle .expanded-icon { display: inline; }
+    .sidebar-minimal-toggle .collapsed-icon { display: none; }
+
+    .sidebar-shell-toggle:checked ~ .sidebar {
+        width: 76px;
+        flex-basis: 76px;
+        padding-inline: 10px;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-section-title,
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a span,
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer div {
+        display: none;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a {
+        justify-content: center;
+        padding-inline: 8px;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a i {
+        width: auto;
+        font-size: 20px;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer {
+        justify-content: center;
+        padding: 10px;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle {
+        margin-inline: auto;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle .expanded-icon { display: none; }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle .collapsed-icon { display: inline; }
+
+    @media (max-width: 850px) {
+        .sidebar-shell-toggle,
+        .sidebar-minimal-toggle {
+            display: none;
+        }
+    }
+</style>
+
+<input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" />
+
 <aside class="sidebar">
+    <label class="sidebar-minimal-toggle" for="sidebar-minimal-toggle" title="تغییر وضعیت منو" aria-label="تغییر وضعیت منو">
+        <i class="bx bx-chevron-left expanded-icon"></i>
+        <i class="bx bx-chevron-right collapsed-icon"></i>
+    </label>
+
     <div class="sidebar-section-title">منوی اصلی</div>
     <nav class="sidebar-nav">
         <AuthorizeView Policy="Dashboard.View">
@@ -11,6 +89,7 @@
         </AuthorizeView>
         <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
     </nav>
+
     <div class="sidebar-section-title admin-title">مدیریت سامانه</div>
     <nav class="sidebar-nav">
         <AuthorizeView Policy="Admin.Users">
@@ -36,5 +115,6 @@
             <NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink>
         </AuthorizeView>
     </nav>
+
     <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
 </aside>
