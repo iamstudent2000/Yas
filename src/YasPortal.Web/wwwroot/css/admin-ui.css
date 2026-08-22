@@ -20,3 +20,31 @@
 @media(max-width:1100px){.positions-page .positions-layout,.organization-grid,.admin-two-col{grid-template-columns:1fr}.positions-page .position-side-panel{position:static}.access-columns{grid-template-columns:1fr}.admin-list-table-head,.admin-list-row{grid-template-columns:minmax(240px,1.4fr) minmax(160px,.8fr) minmax(210px,1fr)}.group-permission-editor .permission-choice-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.selector-grid{grid-template-columns:1fr}.permission-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-row{grid-template-columns:1fr}.positions-page .assignment-form{grid-template-columns:1fr}.admin-list-table-head{display:none}.admin-list-row{grid-template-columns:1fr;gap:9px;padding:12px}.admin-list-actions{justify-content:flex-start;flex-wrap:wrap}.admin-list-meta{order:2}.admin-list-actions{order:3}.admin-detail-grid{grid-template-columns:1fr}.admin-detail{margin-inline:10px}.group-permission-editor .permission-choice-grid-inner{grid-template-columns:1fr}.group-permission-editor .bulk-toolbar{align-items:flex-start;flex-direction:column}.subject-card{align-items:stretch;flex-direction:column;gap:10px}.subject-stats{width:100%}.subject-stats>div{flex:1;min-width:0}}
 @media(max-width:560px){.stat-grid,.admin-stat-grid,.permission-grid{grid-template-columns:1fr}.positions-page .current-assignment{grid-template-columns:1fr}.admin-list-actions .btn{min-height:34px}.admin-detail-item{grid-template-columns:auto minmax(0,1fr)}.admin-detail-item-side{grid-column:2;align-items:flex-start}.group-permission-editor .permission-choice-grid{padding:10px}.group-permission-editor .permission-choice-grid-inner{padding:8px}.subject-card{padding:11px 12px}.subject-stats>div{padding:6px 8px}.subject-stats strong{font-size:14px}}
+
+/* Audit log modal — RTL/Persian presentation */
+.admin-modal-overlay{direction:rtl;font-family:inherit}
+.admin-modal{direction:rtl;text-align:right;font-family:inherit;color:var(--admin-text);font-size:13px;line-height:1.8}
+.admin-modal,.admin-modal *{box-sizing:border-box}
+.admin-modal-header{direction:rtl;text-align:right;align-items:flex-start}
+.admin-modal-header>div:first-child{min-width:0;flex:1;text-align:right}
+.admin-modal-header h2{font-family:inherit;font-size:18px;line-height:1.7;font-weight:800;text-align:right}
+.admin-modal-header .muted{display:flex;align-items:center;justify-content:flex-start;gap:5px;font-family:inherit;font-size:11.5px;line-height:1.8;text-align:right}
+.admin-modal-header .btn{font-family:inherit}
+.admin-modal__body{direction:rtl;text-align:right;font-family:inherit}
+.admin-meta-grid{direction:rtl}
+.admin-meta-card{text-align:right;direction:rtl;font-family:inherit}
+.admin-meta-card>span{font-family:inherit;font-size:11px;line-height:1.7;text-align:right}
+.admin-meta-card>strong{font-family:inherit;font-size:12.5px;line-height:1.8;text-align:right}
+.admin-meta-card .entity-id{direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9.5px;line-height:1.5}
+.admin-changes{direction:rtl}
+.admin-change-panel{direction:rtl;text-align:right}
+.admin-change-header{direction:rtl;text-align:right;justify-content:flex-start;font-family:inherit;font-size:12px;line-height:1.8}
+.admin-change-header i{flex:0 0 26px}
+.admin-change-body{direction:ltr!important;text-align:left!important;font-family:ui-monospace,SFMono-Regular,Consolas,monospace!important;font-size:11px;line-height:1.9;unicode-bidi:plaintext;tab-size:2}
+.admin-change-arrow{direction:rtl}
+.admin-modal-footer{direction:rtl;text-align:right;font-family:inherit}
+.admin-modal-footer .btn{font-family:inherit;font-size:12px}
+.admin-modal-footer>span{direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.admin-modal .admin-action{font-family:inherit;font-size:11px;line-height:1.7}
+@media(max-width:900px){.admin-modal{font-size:12.5px}.admin-modal-header h2{font-size:17px}.admin-meta-card>strong{font-size:12px}.admin-change-header{font-size:11.5px}}
+@media(max-width:560px){.admin-modal{font-size:12.5px}.admin-modal-header h2{font-size:16px}.admin-modal-header .muted{font-size:11px}.admin-meta-card>strong{font-size:12px}.admin-change-header{font-size:11px}}
