@@ -82,6 +82,7 @@
 
   function paginate(container) {
     if (paged.has(container)) return;
+    if (container.closest('[data-no-auto-paginate]')) return;
     const initial=rows(container); if(initial.length<=PAGE_SIZE) return;
     paged.add(container);
     let page=1;
