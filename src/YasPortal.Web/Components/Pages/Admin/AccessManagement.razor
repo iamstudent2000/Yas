@@ -27,12 +27,14 @@
                     <div class="panel-step">۲ · مجوز مستقیم</div>
                     <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
                 </div>
-                <span class="lookup-note">@_permissionTotal مجوز</span>
+                <div class="panel-badges">
+                    <span class="badge badge-neutral">@_permissionTotal مجوز</span>
+                    <span class="badge badge-accent">@_directPermissionIds.Count انتخاب شده</span>
+                </div>
             </div>
             <div class="filter-bar">
                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput" @onkeyup="PermissionSearchChanged" /></div>
                 <div class="selection-toolbar">
-                    <span><strong>@_directPermissionIds.Count</strong> مجوز انتخاب شده</span>
                     <div><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectResultsAsync(true)">انتخاب نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectResultsAsync(false)">حذف نتایج</button></div>
                 </div>
             </div>
