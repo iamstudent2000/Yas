@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <style>
     .sidebar-shell-toggle { position:absolute; opacity:0; pointer-events:none; }
@@ -109,14 +110,14 @@
 
     protected override void OnParametersSet()
     {
-        var path = Navigation.Uri;
-        _accessExpanded = path.Contains("/admin/users", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/admin/access", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/admin/permissions", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/admin/permission-groups", StringComparison.OrdinalIgnoreCase);
-        _structureExpanded = path.Contains("/admin/positions", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/admin/organizations", StringComparison.OrdinalIgnoreCase)
-            || path.Contains("/admin/assignment-history", StringComparison.OrdinalIgnoreCase);
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        _accessExpanded = path.StartsWith("admin/users", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/access", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/permissions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/permission-groups", StringComparison.OrdinalIgnoreCase);
+        _structureExpanded = path.StartsWith("admin/positions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/organizations", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/assignment-history", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ToggleAccountGroup() => _accountExpanded = !_accountExpanded;
