@@ -23,6 +23,8 @@
     .sidebar-group-toggle .group-title { flex:1; font-weight:700; }
     .sidebar-group-toggle .group-chevron { font-size:15px; color:#98a2b3; transition:transform .15s; }
     .sidebar-group-toggle.expanded .group-chevron { transform:rotate(180deg); }
+    .sidebar-group-toggle.active-parent { background:#eef4ff; color:#155eef; }
+    .sidebar-group-toggle.active-parent i:first-child,.sidebar-group-toggle.active-parent .group-chevron { color:#155eef; }
     .sidebar-group-items { display:flex; flex-direction:column; gap:2px; margin:2px 0 5px; padding-right:25px; border-right:1px solid #e5e7eb; }
     .sidebar-group-items a { min-height:34px; }
     @@media (max-width:850px) { .sidebar-shell-toggle,.sidebar-floating-brand,.sidebar-brand { display:none; } .sidebar { visibility:visible; } }
@@ -54,7 +56,7 @@
         </div>
 
         <div class="sidebar-group">
-            <button type="button" class="sidebar-group-toggle @(_accessExpanded ? "expanded" : "")" @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
+            <button type="button" class="sidebar-group-toggle @(_accessExpanded ? "expanded" : "") @(_accessGroupActive ? "active-parent" : "")" @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
             @if (_accessExpanded)
             {
                 <div class="sidebar-group-items">
@@ -67,7 +69,7 @@
         </div>
 
         <div class="sidebar-group">
-            <button type="button" class="sidebar-group-toggle @(_structureExpanded ? "expanded" : "")" @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
+            <button type="button" class="sidebar-group-toggle @(_structureExpanded ? "expanded" : "") @(_structureGroupActive ? "active-parent" : "")" @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
             @if (_structureExpanded)
             {
                 <div class="sidebar-group-items">
@@ -91,6 +93,8 @@
     private bool _accountExpanded = true;
     private bool _accessExpanded;
     private bool _structureExpanded;
+    private bool _accessGroupActive;
+    private bool _structureGroupActive;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -101,23 +105,28 @@
             if (bool.TryParse(stored, out var minimal)) _isMinimal = minimal;
         }
         catch (InvalidOperationException) { }
-        finally
-        {
-            _stateLoaded = true;
-            StateHasChanged();
-        }
+        finally { _stateLoaded = true; StateHasChanged(); }
     }
 
     protected override void OnParametersSet()
     {
-        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
-        _accessExpanded = path.StartsWith("admin/users", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("admin/access", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("admin/permissions", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("admin/permission-groups", StringComparison.OrdinalIgnoreCase);
-        _structureExpanded = path.StartsWith("admin/positions", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("admin/organizations", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("admin/assignment-history", StringComparison.OrdinalIgnoreCase);
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
+        _accessGroupActive = path.Equals("admin/users", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/users/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("admin/access", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/access/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("admin/permissions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/permissions/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("admin/permission-groups", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/permission-groups/", StringComparison.OrdinalIgnoreCase);
+        _structureGroupActive = path.Equals("admin/positions", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/positions/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("admin/organizations", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/organizations/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("admin/assignment-history", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("admin/assignment-history/", StringComparison.OrdinalIgnoreCase);
+        _accessExpanded = _accessGroupActive;
+        _structureExpanded = _structureGroupActive;
     }
 
     private void ToggleAccountGroup() => _accountExpanded = !_accountExpanded;
@@ -128,7 +137,6 @@
     private async Task ShowSidebar() { _isMinimal = false; await PersistSidebarState(); }
     private async Task PersistSidebarState()
     {
-        try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant()); }
-        catch (InvalidOperationException) { }
+        try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant()); } catch (InvalidOperationException) { }
     }
 }
