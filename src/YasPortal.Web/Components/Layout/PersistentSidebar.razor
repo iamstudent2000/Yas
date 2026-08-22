@@ -41,43 +41,39 @@
         white-space: nowrap;
     }
 
-    /* The visual state is driven by the component state, not by the hidden checkbox. */
-    .sidebar.sidebar-minimal {
-        width: 76px;
-        flex-basis: 76px;
-        padding-inline: 10px;
-    }
-
-    .sidebar.sidebar-minimal .sidebar-brand {
-        justify-content: center;
-        margin-inline: 0;
-        padding-inline: 0;
-    }
-
-    .sidebar.sidebar-minimal .sidebar-brand .brand-text,
-    .sidebar.sidebar-minimal .sidebar-section-title,
-    .sidebar.sidebar-minimal .sidebar-nav a span,
-    .sidebar.sidebar-minimal .sidebar-footer div {
+    .sidebar.sidebar-hidden {
         display: none;
     }
 
-    .sidebar.sidebar-minimal .sidebar-nav a {
-        justify-content: center;
-        padding-inline: 8px;
+    .sidebar-floating-brand {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 1100;
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 11px;
+        background: #155eef;
+        color: #fff;
+        box-shadow: 0 6px 18px rgba(16,24,40,.16);
+        cursor: pointer;
+        transition: transform .15s, box-shadow .15s;
     }
 
-    .sidebar.sidebar-minimal .sidebar-nav a i {
-        width: auto;
-        font-size: 20px;
+    .sidebar-floating-brand:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 22px rgba(16,24,40,.2);
     }
 
-    .sidebar.sidebar-minimal .sidebar-footer {
-        justify-content: center;
-        padding: 10px;
-    }
+    .sidebar-floating-brand i { font-size: 21px; }
 
     @@media (max-width:850px) {
         .sidebar-shell-toggle,
+        .sidebar-floating-brand,
         .sidebar-brand { display: none; }
         .sidebar { visibility: visible; }
     }
@@ -89,11 +85,22 @@
        checked="@_isMinimal"
        @onchange="OnSidebarToggleChanged" />
 
-<aside class="sidebar @(_isMinimal ? "sidebar-minimal" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
+@if (_stateLoaded && _isMinimal)
+{
+    <button type="button"
+            class="sidebar-floating-brand"
+            title="نمایش منو"
+            aria-label="نمایش منو"
+            @onclick="ShowSidebar">
+        <i class="bx bx-layer"></i>
+    </button>
+}
+
+<aside class="sidebar @(_isMinimal ? "sidebar-hidden" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
     <label class="sidebar-brand"
            for="sidebar-minimal-toggle"
-           title="تغییر وضعیت منو"
-           aria-label="تغییر وضعیت منو">
+           title="مخفی کردن منو"
+           aria-label="مخفی کردن منو">
         <span class="brand-mark"><i class="bx bx-layer"></i></span>
         <span class="brand-text">یاس پورتال</span>
     </label>
@@ -168,7 +175,6 @@
         }
         catch (InvalidOperationException)
         {
-            // JS interop is unavailable during prerendering.
         }
         finally
         {
@@ -180,7 +186,17 @@
     private async Task OnSidebarToggleChanged(ChangeEventArgs args)
     {
         _isMinimal = args.Value is bool value && value;
+        await PersistSidebarState();
+    }
 
+    private async Task ShowSidebar()
+    {
+        _isMinimal = false;
+        await PersistSidebarState();
+    }
+
+    private async Task PersistSidebarState()
+    {
         try
         {
             await JS.InvokeVoidAsync(
@@ -190,7 +206,6 @@
         }
         catch (InvalidOperationException)
         {
-            // Ignore if JS interop is temporarily unavailable.
         }
     }
 }
