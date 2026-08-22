@@ -4,6 +4,8 @@
 
 <style>
     .sidebar-shell-toggle { position: absolute; opacity: 0; pointer-events: none; }
+    .sidebar { visibility:hidden; }
+    .sidebar.sidebar-state-ready { visibility:visible; }
     .sidebar-brand { display:flex; align-items:center; gap:10px; min-height:42px; margin:0 2px 18px; padding:2px 8px; border-radius:11px; color:#155eef; cursor:pointer; user-select:none; transition:.15s; }
     .sidebar-brand:hover { background:#f2f6ff; }
     .sidebar-brand .brand-mark { width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:grid; place-items:center; background:#155eef; color:#fff; box-shadow:0 4px 12px rgba(21,94,239,.18); }
@@ -17,12 +19,12 @@
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a { justify-content:center; padding-inline:8px; }
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a i { width:auto; font-size:20px; }
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer { justify-content:center; padding:10px; }
-    @@media (max-width:850px) { .sidebar-shell-toggle, .sidebar-brand { display:none; } }
+    @@media (max-width:850px) { .sidebar-shell-toggle, .sidebar-brand { display:none; } .sidebar { visibility:visible; } }
 </style>
 
 <input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@_isMinimal" @onchange="OnSidebarToggleChanged" />
 
-<aside class="sidebar">
+<aside class="sidebar @(_stateLoaded ? "sidebar-state-ready" : "")">
     <label class="sidebar-brand" for="sidebar-minimal-toggle" title="تغییر وضعیت منو" aria-label="تغییر وضعیت منو">
         <span class="brand-mark"><i class="bx bx-layer"></i></span>
         <span class="brand-text">یاس پورتال</span>
@@ -59,6 +61,7 @@
 @code {
     private const string StorageKey = "yasportal.sidebar.minimal";
     private bool _isMinimal;
+    private bool _stateLoaded;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -66,13 +69,17 @@
         try
         {
             var stored = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-            if (bool.TryParse(stored, out var minimal) && minimal != _isMinimal)
+            if (bool.TryParse(stored, out var minimal))
             {
                 _isMinimal = minimal;
-                StateHasChanged();
             }
         }
         catch (InvalidOperationException) { }
+        finally
+        {
+            _stateLoaded = true;
+            StateHasChanged();
+        }
     }
 
     private async Task OnSidebarToggleChanged(ChangeEventArgs args)
