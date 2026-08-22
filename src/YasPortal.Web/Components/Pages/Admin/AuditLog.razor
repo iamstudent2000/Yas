@@ -90,11 +90,7 @@
                     </tbody>
                 </table>
             </div>
-            <div class="admin-pagination">
-                <div class="admin-page-size"><span>نمایش</span><select @bind="_pageSize" @bind:after="PageSizeChangedAsync"><option value="20">۲۰</option><option value="50">۵۰</option><option value="100">۱۰۰</option><option value="200">۲۰۰</option></select><span>مورد</span></div>
-                <div class="admin-pagination__pages"><button class="admin-page-btn" disabled="@(_page<=1||_loading)" @onclick="PreviousPageAsync"><i class="bx bx-chevron-right"></i></button>@foreach(var p in GetPageNumbers()){<button class="admin-page-btn @(p==_page?"active":"")" disabled="@_loading" @onclick="() => GoToPageAsync(p)">@ToPersianDigits(p.ToString())</button>}<button class="admin-page-btn" disabled="@(_page>=TotalPages||_loading)" @onclick="NextPageAsync"><i class="bx bx-chevron-left"></i></button></div>
-                <span class="muted">صفحه @ToPersianDigits(_page.ToString()) از @ToPersianDigits(TotalPages.ToString())</span>
-            </div>
+            <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
         }
     </section>
 
@@ -156,11 +152,8 @@
         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
     }
     private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
-    private async Task PageSizeChangedAsync(){_page=1;if(_hasSearched)await LoadPageAsync(1);}
+    private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
-    private async Task PreviousPageAsync(){if(_page>1&&_hasSearched)await LoadPageAsync(_page-1);}
-    private async Task NextPageAsync(){if(_page<TotalPages&&_hasSearched)await LoadPageAsync(_page+1);}
-    private IEnumerable<int> GetPageNumbers(){var s=Math.Max(1,_page-2);var e=Math.Min(TotalPages,s+4);s=Math.Max(1,e-4);return Enumerable.Range(s,e-s+1);}
     private void ShowDetails(AuditRow r)=>_selected=r;private void CloseDetails()=>_selected=null;
     private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a};
     private static string GetActionClass(string a)=>a switch{"Created"=>"admin-action--success","Deleted"=>"admin-action--danger","Updated"=>"admin-action--warning",_=>"admin-action--neutral"};
