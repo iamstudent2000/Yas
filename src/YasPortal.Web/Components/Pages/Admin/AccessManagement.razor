@@ -28,7 +28,7 @@
                     <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
                     <p>مجوزهای اختصاصی این کاربر یا سمت.</p>
                 </div>
-                <div class="panel-badges"><span class="badge badge-muted"><i class="bx bx-list-ul"></i> @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i> @_directPermissionIds.Count انتخاب شده</span></div>
+                <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i> @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i> @_directPermissionIds.Count انتخاب شده</span></div>
             </div>
             <div class="filter-bar">
                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput" @onkeyup="PermissionSearchChanged" /></div>
