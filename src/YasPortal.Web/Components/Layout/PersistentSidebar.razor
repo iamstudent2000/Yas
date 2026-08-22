@@ -70,7 +70,7 @@
     protected override void OnInitialized()
     {
         Navigation.LocationChanged += OnLocationChanged;
-        UpdateNavigationState();
+        UpdateNavigationState(true);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -83,29 +83,35 @@
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        UpdateNavigationState();
+        UpdateNavigationState(false);
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private void UpdateNavigationState()
+    private void UpdateNavigationState(bool initializeExpansion)
     {
         var path = Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
-        _accessGroupActive = path.Equals("admin/users", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/users/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("admin/access", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/access/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("admin/permissions", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/permissions/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("admin/permission-groups", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/permission-groups/", StringComparison.OrdinalIgnoreCase);
-        _structureGroupActive = path.Equals("admin/positions", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/positions/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("admin/organizations", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/organizations/", StringComparison.OrdinalIgnoreCase)
-            || path.Equals("admin/assignment-history", StringComparison.OrdinalIgnoreCase) || path.StartsWith("admin/assignment-history/", StringComparison.OrdinalIgnoreCase);
-        _accessExpanded = _accessGroupActive;
-        _structureExpanded = _structureGroupActive;
+        _accessGroupActive = IsUnder(path, "admin/users") || IsUnder(path, "admin/access") || IsUnder(path, "admin/permissions") || IsUnder(path, "admin/permission-groups");
+        _structureGroupActive = IsUnder(path, "admin/positions") || IsUnder(path, "admin/organizations") || IsUnder(path, "admin/assignment-history");
+
+        if (initializeExpansion)
+        {
+            _accessExpanded = _accessGroupActive;
+            _structureExpanded = _structureGroupActive;
+        }
+        else
+        {
+            // Navigation must never collapse a group that contains the active page.
+            if (_accessGroupActive) _accessExpanded = true;
+            if (_structureGroupActive) _structureExpanded = true;
+        }
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    private static bool IsUnder(string path, string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
     private void ToggleAccountGroup() => _accountExpanded = !_accountExpanded;
     private void ToggleAccessGroup() => _accessExpanded = !_accessExpanded;
     private void ToggleStructureGroup() => _structureExpanded = !_structureExpanded;
     private async Task OnSidebarToggleChanged(ChangeEventArgs args) { _isMinimal = args.Value is bool value && value; await PersistSidebarState(); }
     private async Task ShowSidebar() { _isMinimal = false; await PersistSidebarState(); }
     private async Task PersistSidebarState() { try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant()); } catch (InvalidOperationException) { } }
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }
