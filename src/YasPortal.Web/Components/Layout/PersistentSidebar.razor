@@ -1,91 +1,26 @@
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 
 <style>
-    .sidebar-shell-toggle {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-    }
-
-    .sidebar-brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 42px;
-        margin: 0 2px 18px;
-        padding: 2px 8px;
-        border-radius: 11px;
-        color: #155eef;
-        cursor: pointer;
-        user-select: none;
-        transition: .15s;
-    }
-
-    .sidebar-brand:hover {
-        background: #f2f6ff;
-    }
-
-    .sidebar-brand .brand-mark {
-        width: 38px;
-        height: 38px;
-        flex: 0 0 38px;
-        border-radius: 11px;
-        display: grid;
-        place-items: center;
-        background: #155eef;
-        color: #fff;
-        box-shadow: 0 4px 12px rgba(21,94,239,.18);
-    }
-
-    .sidebar-brand .brand-text {
-        font-size: 18px;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar {
-        width: 76px;
-        flex-basis: 76px;
-        padding-inline: 10px;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-brand {
-        justify-content: center;
-        margin-inline: 0;
-        padding-inline: 0;
-    }
-
+    .sidebar-shell-toggle { position: absolute; opacity: 0; pointer-events: none; }
+    .sidebar-brand { display:flex; align-items:center; gap:10px; min-height:42px; margin:0 2px 18px; padding:2px 8px; border-radius:11px; color:#155eef; cursor:pointer; user-select:none; transition:.15s; }
+    .sidebar-brand:hover { background:#f2f6ff; }
+    .sidebar-brand .brand-mark { width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:grid; place-items:center; background:#155eef; color:#fff; box-shadow:0 4px 12px rgba(21,94,239,.18); }
+    .sidebar-brand .brand-text { font-size:18px; font-weight:800; white-space:nowrap; }
+    .sidebar-shell-toggle:checked ~ .sidebar { width:76px; flex-basis:76px; padding-inline:10px; }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-brand { justify-content:center; margin-inline:0; padding-inline:0; }
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-brand .brand-text,
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-section-title,
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a span,
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer div {
-        display: none;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a {
-        justify-content: center;
-        padding-inline: 8px;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a i {
-        width: auto;
-        font-size: 20px;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer {
-        justify-content: center;
-        padding: 10px;
-    }
-
-    @@media (max-width: 850px) {
-        .sidebar-shell-toggle,
-        .sidebar-brand {
-            display: none;
-        }
-    }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer div { display:none; }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a { justify-content:center; padding-inline:8px; }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a i { width:auto; font-size:20px; }
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer { justify-content:center; padding:10px; }
+    @@media (max-width:850px) { .sidebar-shell-toggle, .sidebar-brand { display:none; } }
 </style>
 
-<input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" />
+<input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@_isMinimal" @onchange="OnSidebarToggleChanged" />
 
 <aside class="sidebar">
     <label class="sidebar-brand" for="sidebar-minimal-toggle" title="تغییر وضعیت منو" aria-label="تغییر وضعیت منو">
@@ -106,29 +41,47 @@
 
     <div class="sidebar-section-title admin-title">مدیریت سامانه</div>
     <nav class="sidebar-nav">
-        <AuthorizeView Policy="Admin.Users">
-            <NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink>
-        </AuthorizeView>
-        <AuthorizeView Policy="Admin.Access">
-            <NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink>
-        </AuthorizeView>
-        <AuthorizeView Policy="Admin.Positions">
-            <NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink>
-        </AuthorizeView>
-        <AuthorizeView Policy="Admin.AssignmentHistory">
-            <NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص سمت‌ها</span></NavLink>
-        </AuthorizeView>
-        <AuthorizeView Policy="Admin.AuditLog">
-            <NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink>
-        </AuthorizeView>
+        <AuthorizeView Policy="Admin.Users"><NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink></AuthorizeView>
+        <AuthorizeView Policy="Admin.Access"><NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink></AuthorizeView>
+        <AuthorizeView Policy="Admin.Positions"><NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink></AuthorizeView>
+        <AuthorizeView Policy="Admin.AssignmentHistory"><NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص سمت‌ها</span></NavLink></AuthorizeView>
+        <AuthorizeView Policy="Admin.AuditLog"><NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink></AuthorizeView>
         <AuthorizeView Policy="Admin.Permissions">
             <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
             <NavLink href="/admin/permission-groups"><i class="bx bx-layer"></i><span>گروه‌های مجوز</span></NavLink>
         </AuthorizeView>
-        <AuthorizeView Policy="Admin.Organizations">
-            <NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink>
-        </AuthorizeView>
+        <AuthorizeView Policy="Admin.Organizations"><NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink></AuthorizeView>
     </nav>
 
     <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
 </aside>
+
+@code {
+    private const string StorageKey = "yasportal.sidebar.minimal";
+    private bool _isMinimal;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            if (bool.TryParse(stored, out var minimal) && minimal != _isMinimal)
+            {
+                _isMinimal = minimal;
+                StateHasChanged();
+            }
+        }
+        catch (InvalidOperationException) { }
+    }
+
+    private async Task OnSidebarToggleChanged(ChangeEventArgs args)
+    {
+        _isMinimal = args.Value is bool value && value;
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant());
+        }
+        catch (InvalidOperationException) { }
+    }
+}
