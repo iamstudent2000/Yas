@@ -7,27 +7,41 @@
         pointer-events: none;
     }
 
-    .sidebar-minimal-toggle {
-        width: 32px;
-        height: 32px;
-        margin: 0 0 12px auto;
-        border: 1px solid #e6ebf2;
-        border-radius: 9px;
-        background: #f8fafc;
-        color: #667085;
-        display: grid;
-        place-items: center;
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 42px;
+        margin: 0 2px 18px;
+        padding: 2px 8px;
+        border-radius: 11px;
+        color: #155eef;
         cursor: pointer;
+        user-select: none;
         transition: .15s;
     }
 
-    .sidebar-minimal-toggle:hover {
-        background: #eef4ff;
-        color: #155eef;
+    .sidebar-brand:hover {
+        background: #f2f6ff;
     }
 
-    .sidebar-minimal-toggle .expanded-icon { display: inline; }
-    .sidebar-minimal-toggle .collapsed-icon { display: none; }
+    .sidebar-brand .brand-mark {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: #155eef;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(21,94,239,.18);
+    }
+
+    .sidebar-brand .brand-text {
+        font-size: 18px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
 
     .sidebar-shell-toggle:checked ~ .sidebar {
         width: 76px;
@@ -35,6 +49,13 @@
         padding-inline: 10px;
     }
 
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-brand {
+        justify-content: center;
+        margin-inline: 0;
+        padding-inline: 0;
+    }
+
+    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-brand .brand-text,
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-section-title,
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-nav a span,
     .sidebar-shell-toggle:checked ~ .sidebar .sidebar-footer div {
@@ -56,16 +77,9 @@
         padding: 10px;
     }
 
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle {
-        margin-inline: auto;
-    }
-
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle .expanded-icon { display: none; }
-    .sidebar-shell-toggle:checked ~ .sidebar .sidebar-minimal-toggle .collapsed-icon { display: inline; }
-
     @@media (max-width: 850px) {
         .sidebar-shell-toggle,
-        .sidebar-minimal-toggle {
+        .sidebar-brand {
             display: none;
         }
     }
@@ -74,9 +88,9 @@
 <input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" />
 
 <aside class="sidebar">
-    <label class="sidebar-minimal-toggle" for="sidebar-minimal-toggle" title="تغییر وضعیت منو" aria-label="تغییر وضعیت منو">
-        <i class="bx bx-chevron-left expanded-icon"></i>
-        <i class="bx bx-chevron-right collapsed-icon"></i>
+    <label class="sidebar-brand" for="sidebar-minimal-toggle" title="تغییر وضعیت منو" aria-label="تغییر وضعیت منو">
+        <span class="brand-mark"><i class="bx bx-layer"></i></span>
+        <span class="brand-text">یاس پورتال</span>
     </label>
 
     <div class="sidebar-section-title">منوی اصلی</div>
