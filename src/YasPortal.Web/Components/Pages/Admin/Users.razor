@@ -74,7 +74,7 @@
                     @if(_employees.Count==0){<div class="empty-state">کاربری مطابق جستجو پیدا نشد.</div>}
                 }
             </div>
-            <ServerPagination Page="@_page" PageSize="@PageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" />
+            <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
         </section>
     </div>
 
@@ -86,13 +86,13 @@
     private Guid? _editingId,_organizationId;
     private string _username="",_fullName="",_password="",_organizationName="",_search="";
     private bool _isAdmin,_loading;
-    private int _page=1,_totalCount,_activeCount,_adminCount;
-    private const int PageSize=20;
+    private int _page=1,_pageSize=20,_totalCount,_activeCount,_adminCount;
 
     protected override async Task OnInitializedAsync()=>await LoadAsync();
-    private async Task LoadAsync(){_loading=true;try{var result=await AdminQueries.GetEmployeesAsync(_page,PageSize,_search);_employees=result.Items.ToList();_totalCount=result.TotalCount;await using var db=await DbFactory.CreateDbContextAsync();_activeCount=await db.Employees.CountAsync(x=>x.IsActive);_adminCount=await db.Employees.CountAsync(x=>x.IsAdmin);}finally{_loading=false;}}
+    private async Task LoadAsync(){_loading=true;try{var result=await AdminQueries.GetEmployeesAsync(_page,_pageSize,_search);_employees=result.Items.ToList();_totalCount=result.TotalCount;await using var db=await DbFactory.CreateDbContextAsync();_activeCount=await db.Employees.CountAsync(x=>x.IsActive);_adminCount=await db.Employees.CountAsync(x=>x.IsAdmin);}finally{_loading=false;}}
     private async Task SearchChanged(KeyboardEventArgs e){if(e.Key is "Enter" or "Tab"||_search.Length==0){_page=1;await LoadAsync();}}
     private async Task PageChanged(int page){_page=page;await LoadAsync();}
+    private async Task PageSizeChanged(int size){_pageSize=size;_page=1;await LoadAsync();}
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search,CancellationToken ct)=>AdminQueries.SearchOrganizationsAsync(search,true,ct);
     private Task OrganizationChanged(Guid? id){_organizationId=id;return Task.CompletedTask;}
     private void BeginEdit(AdminQueryService.EmployeePageRow x){_editingId=x.Id;_username=x.Username;_fullName=x.FullName;_organizationId=null;_organizationName=x.OrganizationName??"";_isAdmin=x.IsAdmin;_password="";_ = LoadOrganizationIdAsync(x.Id);}
