@@ -15,7 +15,7 @@
         top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - popupRect.height - VIEWPORT_MARGIN));
         let left = rect.right - width;
         left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - width - VIEWPORT_MARGIN));
-        popup.style.left = `${left}px`; popup.style.top = `${top}px`; popup.style.visibility = 'visible';
+        popup.style.left = `${left}px`; popup.style.top = `${top}px`; popup.style.visibility = 'visible'; popup.style.pointerEvents = 'auto';
     }
 
     function positionMenu(button, menu) {
@@ -32,7 +32,20 @@
         top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - menuRect.height - VIEWPORT_MARGIN));
         let left = rect.right - maxWidth;
         left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - maxWidth - VIEWPORT_MARGIN));
-        menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.visibility = 'visible';
+        menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.visibility = 'visible'; menu.style.pointerEvents = 'auto';
+    }
+
+    function hidePicker(container) {
+        container.querySelectorAll('.pdp-popover, .pdp-menu').forEach(element => {
+            element.style.visibility = 'hidden';
+            element.style.pointerEvents = 'none';
+        });
+    }
+
+    function closeAll(except = null) {
+        document.querySelectorAll('.pdp').forEach(container => {
+            if (container !== except) hidePicker(container);
+        });
     }
 
     function repositionAll() {
@@ -51,17 +64,21 @@
 
     function scheduleReposition() { requestAnimationFrame(repositionAll); }
 
-    function closeAll(event) {
-        if (event?.target?.closest('.pdp')) return;
-        document.querySelectorAll('.pdp-popover, .pdp-menu').forEach(element => {
-            element.style.visibility = 'hidden';
-            element.style.pointerEvents = 'none';
-        });
-    }
-
     document.addEventListener('click', event => {
-        closeAll(event);
-        if (event.target.closest('.pdp-input, .pdp-picker-button, .pdp-menu, .pdp-popover')) scheduleReposition();
+        const picker = event.target.closest('.pdp');
+        if (!picker) {
+            closeAll();
+            return;
+        }
+
+        const trigger = event.target.closest('.pdp-input, .pdp-picker-button');
+        if (trigger) {
+            closeAll(picker);
+            scheduleReposition();
+            return;
+        }
+
+        if (event.target.closest('.pdp-menu, .pdp-popover')) scheduleReposition();
     }, true);
 
     document.addEventListener('keydown', event => {
