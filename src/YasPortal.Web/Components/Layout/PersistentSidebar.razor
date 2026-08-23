@@ -53,8 +53,8 @@
         </div>
 
         <div class="sidebar-group">
-            <button type="button" class="sidebar-group-toggle" @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
-            <div class="sidebar-group-items">
+            <button type="button" class="sidebar-group-toggle @(_accessExpanded ? "expanded" : "")" @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
+            <div class="sidebar-group-items @(_accessExpanded ? "expanded" : "")">
                 <AuthorizeView Policy="Admin.Users"><NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.Access"><NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.Permissions"><NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink></AuthorizeView>
@@ -63,8 +63,8 @@
         </div>
 
         <div class="sidebar-group">
-            <button type="button" class="sidebar-group-toggle" @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
-            <div class="sidebar-group-items">
+            <button type="button" class="sidebar-group-toggle @(_structureExpanded ? "expanded" : "")" @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
+            <div class="sidebar-group-items @(_structureExpanded ? "expanded" : "")">
                 <AuthorizeView Policy="Admin.Positions"><NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.Organizations"><NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.AssignmentHistory"><NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص سمت‌ها</span></NavLink></AuthorizeView>
