@@ -5,7 +5,10 @@ namespace YasPortal.Web.Components.Pages.Admin;
 public partial class AccessManagement
 {
     [SupplyParameterFromQuery(Name = "employee")]
-    public Guid? EmployeeQuery { get; set; }
+    public Guid? EmployeeQuery
+    {
+        get; set;
+    }
 
     private Guid? _lastAppliedEmployeeQuery;
 

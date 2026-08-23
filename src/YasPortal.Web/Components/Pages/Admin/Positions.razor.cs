@@ -6,12 +6,18 @@ namespace YasPortal.Web.Components.Pages.Admin;
 public partial class Positions
 {
     [SupplyParameterFromQuery(Name = "employee")]
-    public Guid? EmployeeQuery { get; set; }
+    public Guid? EmployeeQuery
+    {
+        get; set;
+    }
 
     // Optional when an administrator wants to open one exact position for a user
     // who has more than one active position.
     [SupplyParameterFromQuery(Name = "position")]
-    public Guid? PositionQuery { get; set; }
+    public Guid? PositionQuery
+    {
+        get; set;
+    }
 
     private Guid? _lastAppliedEmployeeQuery;
     private Guid? _lastAppliedPositionQuery;
@@ -36,8 +42,7 @@ public partial class Positions
         var activeAssignments = await db.EmployeePositions
             .AsNoTracking()
             .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
-            .Select(x => new
-            {
+            .Select(x => new {
                 x.PositionId,
                 x.Employee.LastActivePositionId
             })

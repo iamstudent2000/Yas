@@ -2,13 +2,18 @@ namespace YasPortal.Domain.Organization;
 
 public sealed class Employee
 {
-    private Employee() { }
+    private Employee()
+    {
+    }
 
     public Employee(string username, string fullName, Guid organizationId, bool isAdmin = false)
     {
-        if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Username is required.", nameof(username));
-        if (string.IsNullOrWhiteSpace(fullName)) throw new ArgumentException("Full name is required.", nameof(fullName));
-        if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("Username is required.", nameof(username));
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException("Full name is required.", nameof(fullName));
+        if (organizationId == Guid.Empty)
+            throw new ArgumentException("Organization is required.", nameof(organizationId));
         Username = username.Trim();
         FullName = fullName.Trim();
         OrganizationId = organizationId;
@@ -18,17 +23,29 @@ public sealed class Employee
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string Username { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
-    public Guid OrganizationId { get; private set; }
+    public Guid OrganizationId
+    {
+        get; private set;
+    }
     public Organization Organization { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
-    public bool IsAdmin { get; private set; }
-    public string? PasswordHash { get; private set; }
+    public bool IsAdmin
+    {
+        get; private set;
+    }
+    public string? PasswordHash
+    {
+        get; private set;
+    }
 
     /// <summary>
     /// The position this employee last selected as their active position.
     /// This is a preference; when set, it must refer to an active assignment.
     /// </summary>
-    public Guid? LastActivePositionId { get; private set; }
+    public Guid? LastActivePositionId
+    {
+        get; private set;
+    }
 
     public ICollection<EmployeePosition> Positions { get; private set; } = new List<EmployeePosition>();
 
@@ -54,13 +71,15 @@ public sealed class Employee
 
     public void SetFullName(string fullName)
     {
-        if (string.IsNullOrWhiteSpace(fullName)) throw new ArgumentException("Full name is required.", nameof(fullName));
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException("Full name is required.", nameof(fullName));
         FullName = fullName.Trim();
     }
 
     public void ChangeOrganization(Guid organizationId)
     {
-        if (organizationId == Guid.Empty) throw new ArgumentException("Organization is required.", nameof(organizationId));
+        if (organizationId == Guid.Empty)
+            throw new ArgumentException("Organization is required.", nameof(organizationId));
         OrganizationId = organizationId;
     }
 
@@ -84,21 +103,34 @@ public sealed class Employee
 
 public sealed class EmployeePosition
 {
-    private EmployeePosition() { }
+    private EmployeePosition()
+    {
+    }
 
     public EmployeePosition(Guid employeeId, Guid positionId)
     {
-        if (employeeId == Guid.Empty) throw new ArgumentException("Employee is required.", nameof(employeeId));
-        if (positionId == Guid.Empty) throw new ArgumentException("Position is required.", nameof(positionId));
+        if (employeeId == Guid.Empty)
+            throw new ArgumentException("Employee is required.", nameof(employeeId));
+        if (positionId == Guid.Empty)
+            throw new ArgumentException("Position is required.", nameof(positionId));
         EmployeeId = employeeId;
         PositionId = positionId;
     }
 
-    public Guid EmployeeId { get; private set; }
-    public Guid PositionId { get; private set; }
+    public Guid EmployeeId
+    {
+        get; private set;
+    }
+    public Guid PositionId
+    {
+        get; private set;
+    }
     public Employee Employee { get; private set; } = null!;
     public Position Position { get; private set; } = null!;
-    public DateTime? EndedAt { get; private set; }
+    public DateTime? EndedAt
+    {
+        get; private set;
+    }
     public bool IsActive => EndedAt is null;
 
     public void End() => EndedAt ??= DateTime.UtcNow;

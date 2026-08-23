@@ -6,7 +6,9 @@ namespace YasPortal.Domain.Authorization;
 /// </summary>
 public sealed class EmployeePermission
 {
-    private EmployeePermission() { }
+    private EmployeePermission()
+    {
+    }
 
     public EmployeePermission(Guid employeeId, Guid permissionId)
     {
@@ -14,8 +16,14 @@ public sealed class EmployeePermission
         PermissionId = permissionId;
     }
 
-    public Guid EmployeeId { get; private set; }
-    public Guid PermissionId { get; private set; }
+    public Guid EmployeeId
+    {
+        get; private set;
+    }
+    public Guid PermissionId
+    {
+        get; private set;
+    }
 
     public YasPortal.Domain.Organization.Employee Employee { get; private set; } = null!;
     public Permission Permission { get; private set; } = null!;

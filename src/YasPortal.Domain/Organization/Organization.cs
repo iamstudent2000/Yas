@@ -2,7 +2,9 @@ namespace YasPortal.Domain.Organization;
 
 public sealed class Organization
 {
-    private Organization() { }
+    private Organization()
+    {
+    }
 
     public Organization(string name)
     {

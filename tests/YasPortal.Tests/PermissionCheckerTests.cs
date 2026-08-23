@@ -169,10 +169,22 @@ public sealed class PermissionCheckerTests
             Checker = new PermissionChecker(new TestDbContextFactory(options), new TestAuthenticationStateProvider());
         }
 
-        public ApplicationDbContext Db { get; }
-        public Employee Employee { get; }
-        public Position Position { get; }
-        public PermissionChecker Checker { get; }
+        public ApplicationDbContext Db
+        {
+            get;
+        }
+        public Employee Employee
+        {
+            get;
+        }
+        public Position Position
+        {
+            get;
+        }
+        public PermissionChecker Checker
+        {
+            get;
+        }
 
         public ClaimsPrincipal Principal(string? extraClaimType = null, string? extraClaimValue = null)
         {

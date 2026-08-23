@@ -13,53 +13,45 @@ namespace YasPortal.Infrastructure.Migrations
         {
             migrationBuilder.CreateTable(
                 name: "Organizations",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_Organizations", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
                 name: "PermissionGroups",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_PermissionGroups", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
                 name: "Permissions",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Code = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_Permissions", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
                 name: "Positions",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     ParentPositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_Positions", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Positions_Positions_ParentPositionId",
@@ -71,13 +63,11 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PermissionGroupPermissions",
-                columns: table => new
-                {
+                columns: table => new {
                     GroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PermissionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_PermissionGroupPermissions", x => new { x.GroupId, x.PermissionId });
                     table.ForeignKey(
                         name: "FK_PermissionGroupPermissions_PermissionGroups_GroupId",
@@ -95,8 +85,7 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Employees",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Username = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     FullName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
@@ -106,8 +95,7 @@ namespace YasPortal.Infrastructure.Migrations
                     PasswordHash = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
                     LastActivePositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_Employees", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Employees_Organizations_OrganizationId",
@@ -125,13 +113,11 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmployeePermissionGroups",
-                columns: table => new
-                {
+                columns: table => new {
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     GroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_EmployeePermissionGroups", x => new { x.EmployeeId, x.GroupId });
                     table.ForeignKey(
                         name: "FK_EmployeePermissionGroups_Employees_EmployeeId",
@@ -149,13 +135,11 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmployeePermissions",
-                columns: table => new
-                {
+                columns: table => new {
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PermissionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_EmployeePermissions", x => new { x.EmployeeId, x.PermissionId });
                     table.ForeignKey(
                         name: "FK_EmployeePermissions_Employees_EmployeeId",
@@ -173,14 +157,12 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmployeePositions",
-                columns: table => new
-                {
+                columns: table => new {
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     EndedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_EmployeePositions", x => new { x.EmployeeId, x.PositionId });
                     table.ForeignKey(
                         name: "FK_EmployeePositions_Employees_EmployeeId",
@@ -198,16 +180,14 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PositionAssignmentHistories",
-                columns: table => new
-                {
+                columns: table => new {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     StartedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     EndedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_PositionAssignmentHistories", x => x.Id);
                     table.ForeignKey(
                         name: "FK_PositionAssignmentHistories_Employees_EmployeeId",
@@ -225,14 +205,12 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "UserPositionPermissionGroups",
-                columns: table => new
-                {
+                columns: table => new {
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     GroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_UserPositionPermissionGroups", x => new { x.EmployeeId, x.PositionId, x.GroupId });
                     table.ForeignKey(
                         name: "FK_UserPositionPermissionGroups_Employees_EmployeeId",
@@ -256,14 +234,12 @@ namespace YasPortal.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "UserPositionPermissions",
-                columns: table => new
-                {
+                columns: table => new {
                     EmployeeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     PermissionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
-                constraints: table =>
-                {
+                constraints: table => {
                     table.PrimaryKey("PK_UserPositionPermissions", x => new { x.EmployeeId, x.PositionId, x.PermissionId });
                     table.ForeignKey(
                         name: "FK_UserPositionPermissions_Employees_EmployeeId",

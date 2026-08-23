@@ -2,7 +2,9 @@ namespace YasPortal.Domain.Organization;
 
 public sealed class Position
 {
-    private Position() { }
+    private Position()
+    {
+    }
 
     public Position(string name, Guid? parentPositionId = null)
     {
@@ -18,8 +20,14 @@ public sealed class Position
 
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string Name { get; private set; } = null!;
-    public Guid? ParentPositionId { get; private set; }
-    public Position? ParentPosition { get; private set; }
+    public Guid? ParentPositionId
+    {
+        get; private set;
+    }
+    public Position? ParentPosition
+    {
+        get; private set;
+    }
     public ICollection<Position> Children { get; private set; } = new List<Position>();
 
     public void Rename(string name)

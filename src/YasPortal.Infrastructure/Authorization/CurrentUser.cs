@@ -5,9 +5,18 @@ namespace YasPortal.Infrastructure.Authorization;
 
 public sealed class CurrentUser(AuditActorContext auditActorContext) : ICurrentUser
 {
-    public Guid? EmployeeId { get; private set; }
-    public Guid? ActivePositionId { get; private set; }
-    public bool IsAdmin { get; private set; }
+    public Guid? EmployeeId
+    {
+        get; private set;
+    }
+    public Guid? ActivePositionId
+    {
+        get; private set;
+    }
+    public bool IsAdmin
+    {
+        get; private set;
+    }
 
     public void SetPrincipal(ClaimsPrincipal principal)
     {

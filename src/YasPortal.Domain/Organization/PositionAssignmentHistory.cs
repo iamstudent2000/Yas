@@ -7,12 +7,16 @@ namespace YasPortal.Domain.Organization;
 /// </summary>
 public sealed class PositionAssignmentHistory
 {
-    private PositionAssignmentHistory() { }
+    private PositionAssignmentHistory()
+    {
+    }
 
     public PositionAssignmentHistory(Guid employeeId, Guid positionId, DateTime? startedAt = null)
     {
-        if (employeeId == Guid.Empty) throw new ArgumentException("Employee is required.", nameof(employeeId));
-        if (positionId == Guid.Empty) throw new ArgumentException("Position is required.", nameof(positionId));
+        if (employeeId == Guid.Empty)
+            throw new ArgumentException("Employee is required.", nameof(employeeId));
+        if (positionId == Guid.Empty)
+            throw new ArgumentException("Position is required.", nameof(positionId));
 
         Id = Guid.NewGuid();
         EmployeeId = employeeId;
@@ -20,11 +24,26 @@ public sealed class PositionAssignmentHistory
         StartedAt = startedAt ?? DateTime.UtcNow;
     }
 
-    public Guid Id { get; private set; }
-    public Guid EmployeeId { get; private set; }
-    public Guid PositionId { get; private set; }
-    public DateTime? StartedAt { get; private set; }
-    public DateTime? EndedAt { get; private set; }
+    public Guid Id
+    {
+        get; private set;
+    }
+    public Guid EmployeeId
+    {
+        get; private set;
+    }
+    public Guid PositionId
+    {
+        get; private set;
+    }
+    public DateTime? StartedAt
+    {
+        get; private set;
+    }
+    public DateTime? EndedAt
+    {
+        get; private set;
+    }
 
     public Employee Employee { get; private set; } = null!;
     public Position Position { get; private set; } = null!;

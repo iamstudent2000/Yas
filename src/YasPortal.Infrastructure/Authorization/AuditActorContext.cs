@@ -10,19 +10,21 @@ public sealed class AuditActorContext(IHttpContextAccessor? httpContextAccessor 
 
     public AuditActor? Actor
     {
-        get
-        {
+        get {
             var actor = Current.Value;
-            if (actor is not null) return actor;
+            if (actor is not null)
+                return actor;
 
             var user = _httpContextAccessor?.HttpContext?.User;
-            if (user?.Identity?.IsAuthenticated != true) return null;
+            if (user?.Identity?.IsAuthenticated != true)
+                return null;
 
             var employeeId = TryGuid(user.FindFirstValue(ClaimTypes.NameIdentifier));
             var activePositionId = TryGuid(user.FindFirstValue(AuthClaimNames.ActivePositionId));
             var isAdmin = bool.TryParse(user.FindFirstValue(AuthClaimNames.IsAdmin), out var admin) && admin;
 
-            if (employeeId is null && !isAdmin) return null;
+            if (employeeId is null && !isAdmin)
+                return null;
 
             actor = new AuditActor(employeeId, activePositionId, isAdmin);
             Current.Value = actor;

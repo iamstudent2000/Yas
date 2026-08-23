@@ -19,14 +19,16 @@ public sealed class AppState : IDisposable
     /// </summary>
     public IReadOnlyList<ToastMessage> Toasts
     {
-        get
-        {
+        get {
             lock (_sync)
                 return _toasts.ToArray();
         }
     }
 
-    public int UnreadNotificationCount { get; private set; }
+    public int UnreadNotificationCount
+    {
+        get; private set;
+    }
 
     public void SetUnreadNotificationCount(int count)
     {
@@ -59,8 +61,7 @@ public sealed class AppState : IDisposable
             // Every toast owns its own one-shot timer. Adding a second toast never
             // replaces or resets the timer belonging to the first toast.
             _toastTimers[toast.Id] = new Timer(
-                static state =>
-                {
+                static state => {
                     if (state is ToastRemovalState removal)
                         removal.AppState.RemoveToast(removal.Toast);
                 },
