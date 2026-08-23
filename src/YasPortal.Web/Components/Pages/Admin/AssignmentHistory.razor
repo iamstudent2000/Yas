@@ -11,239 +11,32 @@
 <PageTitle>سوابق تخصیص سمت‌ها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
-    <div class="page-header">
-        <div>
-            <div class="page-kicker">مدیریت سامانه / سمت‌ها / سوابق</div>
-            <h1 class="page-title">سوابق تخصیص سمت‌ها</h1>
-            <p class="page-subtitle">تاریخچه کامل حضور کارکنان در سمت‌ها؛ شامل تخصیص‌های قبلی، آزادسازی و تخصیص مجدد.</p>
-        </div>
-        <div class="admin-page-actions">
-            <a class="btn btn-secondary" href="/admin/positions"><i class="bx bx-sitemap"></i> مدیریت سمت‌ها</a>
-        </div>
-    </div>
-
-    <section class="card">
-        <div class="card-toolbar">
-            <div>
-                <h2 class="section-title"><i class="bx bx-filter-alt"></i> فیلتر سوابق</h2>
-                <p class="muted">برای دیتابیس‌های بزرگ فقط رکوردهای موردنیاز را دریافت کنید.</p>
-            </div>
-            <button class="btn btn-secondary btn-sm" @onclick="ResetFilters">پاک کردن فیلترها</button>
-        </div>
-        <div class="admin-filter-grid">
-            <div>
-                <label class="form-label">کارمند</label>
-                <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان" SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
-            </div>
-            <div>
-                <label class="form-label">سمت</label>
-                <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها" SearchPlaceholder="نام سمت را جستجو کنید..." />
-            </div>
-            <div>
-                <label class="form-label">وضعیت</label>
-                <select class="form-control" @bind="_status">
-                    <option value="all">همه سوابق</option>
-                    <option value="active">فقط تخصیص‌های فعال</option>
-                    <option value="ended">فقط سوابق پایان‌یافته</option>
-                </select>
-            </div>
-            <div>
-                <label class="form-label">عملیات</label>
-                <button class="btn btn-primary" disabled="@_loading" @onclick="LoadAsync"><i class="bx bx-search"></i> جستجو</button>
-            </div>
-        </div>
+    <div class="page-header"><div><div class="page-kicker">مدیریت سامانه / سمت‌ها / سوابق</div><h1 class="page-title">سوابق تخصیص سمت‌ها</h1><p class="page-subtitle">تاریخچه کامل حضور کارکنان در سمت‌ها؛ شامل تخصیص‌های قبلی، آزادسازی و تخصیص مجدد.</p></div><div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i class="bx bx-sitemap"></i> مدیریت سمت‌ها</a></div></div>
+    <section class="card"><div class="card-toolbar"><div><h2 class="section-title"><i class="bx bx-filter-alt"></i> فیلتر سوابق</h2><p class="muted">برای دیتابیس‌های بزرگ فقط رکوردهای موردنیاز را دریافت کنید.</p></div><button class="btn btn-secondary btn-sm" @onclick="ResetFilters">پاک کردن فیلترها</button></div><div class="admin-filter-grid"><div><label class="form-label">کارمند</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان" SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." /></div><div><label class="form-label">سمت</label><ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها" SearchPlaceholder="نام سمت را جستجو کنید..." /></div><div><label class="form-label">وضعیت</label><select class="form-control" @bind="_status"><option value="all">همه سوابق</option><option value="active">فقط تخصیص‌های فعال</option><option value="ended">فقط سوابق پایان‌یافته</option></select></div><div><label class="form-label">عملیات</label><button class="btn btn-primary" disabled="@_loading" @onclick="LoadAsync"><i class="bx bx-search"></i> جستجو</button></div></div></section>
+    <section class="card" style="margin-top:14px"><div class="card-toolbar"><div><h2 class="section-title"><i class="bx bx-history"></i> تاریخچه</h2><p class="muted">@_total رکورد</p></div></div>
+        @if (_loading){<div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری سوابق...</span></div>}
+        else if (_rows.Count == 0){<div class="empty-state"><i class="bx bx-history empty-icon"></i><strong>سابقه‌ای پیدا نشد</strong><span>فیلترها را تغییر دهید یا اولین تخصیص را از صفحه سمت‌ها انجام دهید.</span></div>}
+        else{<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>کارمند</th><th>سمت</th><th>شروع تخصیص</th><th>پایان تخصیص</th><th>وضعیت</th></tr></thead><tbody>@foreach(var row in _rows){<tr><td><div class="admin-list-primary"><span class="admin-list-avatar"><i class="bx bx-user"></i></span><span class="admin-list-text"><strong>@row.EmployeeName</strong><span>@row.Username</span></span></div></td><td><span class="position-badge"><i class="bx bx-briefcase"></i> @row.PositionName</span></td><td>@FormatDate(row.StartedAt)</td><td>@FormatDate(row.EndedAt)</td><td>@if(row.EndedAt is null){<span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>}else{<span class="badge badge-muted"><i class="bx bx-history"></i> پایان‌یافته</span>}</td></tr>}</tbody></table></div>}
+        <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_total" Busy="@_loading" PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
     </section>
-
-    <section class="card" style="margin-top:14px">
-        <div class="card-toolbar">
-            <div>
-                <h2 class="section-title"><i class="bx bx-history"></i> تاریخچه</h2>
-                <p class="muted">@_total رکورد</p>
-            </div>
-            <div class="form-actions">
-                <span class="muted">نمایش</span>
-                <select class="form-control" style="width:78px" @bind="_pageSize" @bind:after="ReloadFirstPageAsync">
-                    <option value="25">25</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                </select>
-                <span class="muted">رکورد</span>
-            </div>
-        </div>
-
-        @if (_loading)
-        {
-            <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری سوابق...</span></div>
-        }
-        else if (_rows.Count == 0)
-        {
-            <div class="empty-state"><i class="bx bx-history empty-icon"></i><strong>سابقه‌ای پیدا نشد</strong><span>فیلترها را تغییر دهید یا اولین تخصیص را از صفحه سمت‌ها انجام دهید.</span></div>
-        }
-        else
-        {
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>کارمند</th>
-                            <th>سمت</th>
-                            <th>شروع تخصیص</th>
-                            <th>پایان تخصیص</th>
-                            <th>وضعیت</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in _rows)
-                        {
-                            <tr>
-                                <td>
-                                    <div class="admin-list-primary">
-                                        <span class="admin-list-avatar"><i class="bx bx-user"></i></span>
-                                        <span class="admin-list-text"><strong>@row.EmployeeName</strong><span>@row.Username</span></span>
-                                    </div>
-                                </td>
-                                <td><span class="position-badge"><i class="bx bx-briefcase"></i> @row.PositionName</span></td>
-                                <td>@FormatDate(row.StartedAt)</td>
-                                <td>@FormatDate(row.EndedAt)</td>
-                                <td>
-                                    @if (row.EndedAt is null)
-                                    {
-                                        <span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge badge-muted"><i class="bx bx-history"></i> پایان‌یافته</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            @if (_totalPages > 1)
-            {
-                <div class="admin-pagination">
-                    <button class="btn btn-secondary btn-sm" disabled="@(_page <= 1)" @onclick="PreviousPage"><i class="bx bx-chevron-right"></i> قبلی</button>
-                    <span>صفحه @_page از @_totalPages</span>
-                    <button class="btn btn-secondary btn-sm" disabled="@(_page >= _totalPages)" @onclick="NextPage">بعدی <i class="bx bx-chevron-left"></i></button>
-                </div>
-            }
-        }
-    </section>
-
-    <section class="admin-two-col" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px">
-        <div class="admin-notice-card card"><i class="bx bx-user"></i><div><strong>سابقه کارکنان</strong><span>با انتخاب کارمند، تمام سمت‌هایی که در طول زمان داشته نمایش داده می‌شود.</span></div></div>
-        <div class="admin-notice-card card"><i class="bx bx-sitemap"></i><div><strong>سابقه سمت‌ها</strong><span>با انتخاب سمت، تمام کارکنانی که در آن سمت بوده‌اند نمایش داده می‌شود.</span></div></div>
-        <div class="admin-notice-card card"><i class="bx bx-shield-quarter"></i><div><strong>تخصیص فعال</strong><span>هر سمت همچنان فقط یک کارمند فعال دارد؛ سابقه فقط اطلاعات تاریخی را نگه می‌دارد.</span></div></div>
-    </section>
+    <section class="admin-two-col" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px"><div class="admin-notice-card card"><i class="bx bx-user"></i><div><strong>سابقه کارکنان</strong><span>با انتخاب کارمند، تمام سمت‌هایی که در طول زمان داشته نمایش داده می‌شود.</span></div></div><div class="admin-notice-card card"><i class="bx bx-sitemap"></i><div><strong>سابقه سمت‌ها</strong><span>با انتخاب سمت، تمام کارکنانی که در آن سمت بوده‌اند نمایش داده می‌شود.</span></div></div><div class="admin-notice-card card"><i class="bx bx-shield-quarter"></i><div><strong>تخصیص فعال</strong><span>هر سمت همچنان فقط یک کارمند فعال دارد؛ سابقه فقط اطلاعات تاریخی را نگه می‌دارد.</span></div></div></section>
 </div>
 
 @code {
-    private List<HistoryRow> _rows = [];
-    private Guid? _employeeId;
-    private Guid? _positionId;
-    private string _employeeName = "";
-    private string _positionName = "";
-    private string _status = "all";
-    private int _page = 1;
-    private int _pageSize = 50;
-    private int _total;
-    private int _totalPages = 1;
+    private List<HistoryRow> _rows=[];
+    private Guid? _employeeId,_positionId;
+    private string _employeeName="",_positionName="",_status="all";
+    private int _page=1,_pageSize=20,_total;
     private bool _loading;
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task LoadAsync()
-    {
-        _loading = true;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var query = db.PositionAssignmentHistories.AsNoTracking().AsQueryable();
-
-            if (_employeeId is Guid employeeId)
-                query = query.Where(x => x.EmployeeId == employeeId);
-            if (_positionId is Guid positionId)
-                query = query.Where(x => x.PositionId == positionId);
-            if (_status == "active")
-                query = query.Where(x => x.EndedAt == null);
-            else if (_status == "ended")
-                query = query.Where(x => x.EndedAt != null);
-
-            _total = await query.CountAsync();
-            _totalPages = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
-            _page = Math.Min(_page, _totalPages);
-
-            _rows = await query
-                .OrderByDescending(x => x.StartedAt ?? DateTime.MinValue)
-                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue)
-                .Skip((_page - 1) * _pageSize)
-                .Take(_pageSize)
-                .Select(x => new HistoryRow(
-                    x.Id,
-                    x.Employee.FullName,
-                    x.Employee.Username,
-                    x.Position.Name,
-                    x.StartedAt,
-                    x.EndedAt))
-                .ToListAsync();
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
-
-    private Task EmployeeChanged(Guid? id)
-    {
-        _employeeId = id;
-        _employeeName = id is null ? "" : _employeeName;
-        return Task.CompletedTask;
-    }
-
-    private Task PositionChanged(Guid? id)
-    {
-        _positionId = id;
-        _positionName = id is null ? "" : _positionName;
-        return Task.CompletedTask;
-    }
-
-    private async Task ResetFilters()
-    {
-        _employeeId = null;
-        _positionId = null;
-        _employeeName = "";
-        _positionName = "";
-        _status = "all";
-        _page = 1;
-        await LoadAsync();
-    }
-
-    private async Task ReloadFirstPageAsync()
-    {
-        _page = 1;
-        await LoadAsync();
-    }
-
-    private async Task PreviousPage()
-    {
-        if (_page <= 1) return;
-        _page--;
-        await LoadAsync();
-    }
-
-    private async Task NextPage()
-    {
-        if (_page >= _totalPages) return;
-        _page++;
-        await LoadAsync();
-    }
-
-    private static string FormatDate(DateTime? value) => value is null ? "—" : value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
-
-    private sealed record HistoryRow(Guid Id, string EmployeeName, string Username, string PositionName, DateTime? StartedAt, DateTime? EndedAt);
+    protected override async Task OnInitializedAsync()=>await LoadAsync();
+    private async Task LoadAsync(){_loading=true;try{await using var db=await DbFactory.CreateDbContextAsync();var query=db.PositionAssignmentHistories.AsNoTracking().AsQueryable();if(_employeeId is Guid employeeId)query=query.Where(x=>x.EmployeeId==employeeId);if(_positionId is Guid positionId)query=query.Where(x=>x.PositionId==positionId);if(_status=="active")query=query.Where(x=>x.EndedAt==null);else if(_status=="ended")query=query.Where(x=>x.EndedAt!=null);_total=await query.CountAsync();var totalPages=Math.Max(1,(int)Math.Ceiling(_total/(double)_pageSize));if(_page>totalPages)_page=totalPages;_rows=await query.OrderByDescending(x=>x.StartedAt??DateTime.MinValue).ThenByDescending(x=>x.EndedAt??DateTime.MaxValue).Skip((_page-1)*_pageSize).Take(_pageSize).Select(x=>new HistoryRow(x.Id,x.Employee.FullName,x.Employee.Username,x.Position.Name,x.StartedAt,x.EndedAt)).ToListAsync();}finally{_loading=false;}}
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search,CancellationToken ct)=>AdminQueries.SearchEmployeesAsync(search,ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search,CancellationToken ct)=>AdminQueries.SearchPositionsAsync(search,null,null,ct);
+    private Task EmployeeChanged(Guid? id){_employeeId=id;_page=1;return Task.CompletedTask;}
+    private Task PositionChanged(Guid? id){_positionId=id;_page=1;return Task.CompletedTask;}
+    private async Task ResetFilters(){_employeeId=null;_positionId=null;_employeeName="";_positionName="";_status="all";_page=1;await LoadAsync();}
+    private async Task PageChanged(int page){_page=page;await LoadAsync();}
+    private async Task PageSizeChanged(int size){_pageSize=size;_page=1;await LoadAsync();}
+    private static string FormatDate(DateTime? value)=>value is null?"—":value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+    private sealed record HistoryRow(Guid Id,string EmployeeName,string Username,string PositionName,DateTime? StartedAt,DateTime? EndedAt);
 }
