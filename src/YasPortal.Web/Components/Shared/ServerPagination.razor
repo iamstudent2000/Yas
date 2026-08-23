@@ -67,7 +67,7 @@
     [Parameter] public bool Busy { get; set; }
     [Parameter] public EventCallback<int> PageChanged { get; set; }
     [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
-    [Parameter] public IReadOnlyList<int> PageSizes { get; set; } = new[] { 20, 50, 100, 200 };
+    [Parameter] public IReadOnlyList<int> PageSizes { get; set; } = new[] { 5, 20, 50, 100, 200 };
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
     private IEnumerable<int> Pages => Enumerable.Range(Math.Max(1, Math.Min(Page - 2, Math.Max(1, TotalPages - 4))), Math.Min(TotalPages, 5));
@@ -88,7 +88,6 @@
 
 <style>
 .server-pagination{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 16px;margin-top:4px;border-top:1px solid #eef1f5;background:#fafbfc;direction:rtl}
-
 .server-pagination-size{display:flex;align-items:center;gap:8px;font-size:12px;color:#667085;white-space:nowrap}
 .server-pagination-size-wrap{position:relative;display:inline-flex;align-items:center}
 .server-pagination-size-select{appearance:none;-webkit-appearance:none;min-width:64px;height:34px;padding:0 26px 0 10px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:700;outline:none;cursor:pointer;transition:border-color .15s ease,box-shadow .15s ease}
@@ -96,28 +95,17 @@
 .server-pagination-size-select:focus{border-color:#3157d5;box-shadow:0 0 0 3px rgba(49,87,213,.12)}
 .server-pagination-size-select:disabled{opacity:.5;cursor:not-allowed}
 .server-pagination-size-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:14px;color:#98a2b3;pointer-events:none}
-
 .server-pagination-info{display:flex;align-items:baseline;gap:5px;font-size:12.5px;color:#475467;white-space:nowrap}
 .server-pagination-info strong{color:#172033;font-weight:800}
 .server-pagination-info-muted{color:#98a2b3}
-
 .server-pagination-buttons{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-
 .server-pagination-nav{display:grid;place-items:center;width:32px;height:32px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#475467;font-size:15px;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease}
 .server-pagination-nav:hover:not(:disabled){background:#eef4ff;border-color:#b8c9f5;color:#3157d5}
 .server-pagination-nav:disabled{opacity:.4;cursor:not-allowed}
-
 .server-pagination-page{min-width:32px;height:32px;padding:0 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:#475467;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}
 .server-pagination-page:hover:not(:disabled):not(.active){background:#f2f4f7;border-color:#e4e7ec}
 .server-pagination-page:disabled{cursor:not-allowed}
 .server-pagination-page.active{background:#3157d5;border-color:#3157d5;color:#fff;box-shadow:0 2px 6px rgba(49,87,213,.3)}
-
 .server-pagination-ellipsis{display:grid;place-items:center;width:24px;height:32px;color:#98a2b3;font-size:13px}
-
-@@media(max-width:700px){
-  .server-pagination{gap:12px;padding:12px}
-  .server-pagination-size{order:1;flex:1 1 auto}
-  .server-pagination-info{order:2;flex:1 1 auto;justify-content:flex-start}
-  .server-pagination-buttons{order:3;flex:1 1 100%;justify-content:center}
-}
+@@media(max-width:700px){.server-pagination{gap:12px;padding:12px}.server-pagination-size{order:1;flex:1 1 auto}.server-pagination-info{order:2;flex:1 1 auto;justify-content:flex-start}.server-pagination-buttons{order:3;flex:1 1 100%;justify-content:center}}
 </style>
