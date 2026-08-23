@@ -15,40 +15,37 @@
     .sidebar-floating-brand:hover { transform:translateY(-1px); box-shadow:0 8px 22px rgba(16,24,40,.2); }
     .sidebar-floating-brand i { font-size:21px; }
     :global(.shell-main:has(.sidebar-floating-brand)) .topbar { padding-right:72px; }
-
     .sidebar-group { margin-bottom:4px; }
-    .sidebar-group-toggle-input { position:absolute; opacity:0; pointer-events:none; }
-    .sidebar-group-toggle { width:100%; display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:9px; color:inherit; font:inherit; text-align:right; cursor:pointer; user-select:none; }
+    .sidebar-group-toggle { width:100%; display:flex; align-items:center; gap:9px; padding:9px 10px; border:0; border-radius:9px; background:transparent; color:inherit; font:inherit; text-align:right; cursor:pointer; }
     .sidebar-group-toggle:hover { background:#f6f8fb; }
     .sidebar-group-toggle i:first-child { width:20px; text-align:center; font-size:18px; color:#475467; }
     .sidebar-group-toggle .group-title { flex:1; font-weight:700; }
     .sidebar-group-toggle .group-chevron { font-size:15px; color:#98a2b3; transition:transform .15s; }
-    .sidebar-group-toggle-input:checked + .sidebar-group-toggle .group-chevron { transform:rotate(180deg); }
-
-    .sidebar-group-items { display:none; flex-direction:column; gap:2px; margin:2px 0 5px; padding-right:25px; border-right:1px solid #e5e7eb; }
-    .sidebar-group-toggle-input:checked ~ .sidebar-group-items { display:flex; }
-    .sidebar-group:has(.sidebar-group-items .active) .sidebar-group-toggle { background:#eef4ff; color:#155eef; }
-    .sidebar-group:has(.sidebar-group-items .active) .sidebar-group-toggle i:first-child,
-    .sidebar-group:has(.sidebar-group-items .active) .sidebar-group-toggle .group-chevron { color:#155eef; }
-    .sidebar-group:has(.sidebar-group-items .active) .sidebar-group-toggle-input:not(:checked) ~ .sidebar-group-items { display:flex; }
+    .sidebar-group-toggle.expanded .group-chevron { transform:rotate(180deg); }
+    .sidebar-group-toggle.active-parent { background:#eef4ff; color:#155eef; }
+    .sidebar-group-toggle.active-parent i:first-child,.sidebar-group-toggle.active-parent .group-chevron { color:#155eef; }
+    .sidebar-group-items { display:flex; flex-direction:column; gap:2px; margin:2px 0 5px; padding-right:25px; border-right:1px solid #e5e7eb; overflow:hidden; max-height:0; opacity:0; visibility:hidden; transition:max-height .12s ease,opacity .08s ease; }
+    .sidebar-group-items.expanded { max-height:500px; opacity:1; visibility:visible; }
     .sidebar-group-items a { min-height:34px; }
-
     @@media (max-width:850px) { .sidebar-shell-toggle,.sidebar-floating-brand,.sidebar-brand { display:none; } .sidebar { visibility:visible; } }
 </style>
 
 <input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@_isMinimal" @onchange="OnSidebarToggleChanged" />
+
 @if (_stateLoaded && _isMinimal)
 {
     <button type="button" class="sidebar-floating-brand" title="نمایش منو" aria-label="نمایش منو" @onclick="ShowSidebar"><i class="bx bx-layer"></i></button>
 }
 
 <aside class="sidebar @(_isMinimal ? "sidebar-hidden" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
-    <label class="sidebar-brand" for="sidebar-minimal-toggle" title="مخفی کردن منو" aria-label="مخفی کردن منو"><span class="brand-mark"><i class="bx bx-layer"></i></span><span class="brand-text">یاس پورتال</span></label>
+    <label class="sidebar-brand" for="sidebar-minimal-toggle" title="مخفی کردن منو" aria-label="مخفی کردن منو">
+        <span class="brand-mark"><i class="bx bx-layer"></i></span><span class="brand-text">یاس پورتال</span>
+    </label>
+
     <nav class="sidebar-nav">
         <div class="sidebar-group">
-            <input id="sidebar-group-account" class="sidebar-group-toggle-input" type="checkbox" checked />
-            <label for="sidebar-group-account" class="sidebar-group-toggle"><i class="bx bx-user-circle"></i><span class="group-title">حساب کاربری</span><i class="bx bx-chevron-down group-chevron"></i></label>
-            <div class="sidebar-group-items">
+            <button type="button" class="sidebar-group-toggle expanded"><i class="bx bx-user-circle"></i><span class="group-title">حساب کاربری</span><i class="bx bx-chevron-down group-chevron"></i></button>
+            <div class="sidebar-group-items expanded">
                 <AuthorizeView Policy="Dashboard.View"><NavLink href="/dashboard" Match="NavLinkMatch.All"><i class="bx bx-grid-alt"></i><span>داشبورد</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Profile.View"><NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink></AuthorizeView>
                 <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
@@ -56,8 +53,7 @@
         </div>
 
         <div class="sidebar-group">
-            <input id="sidebar-group-access" class="sidebar-group-toggle-input" type="checkbox" />
-            <label for="sidebar-group-access" class="sidebar-group-toggle"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></label>
+            <button type="button" class="sidebar-group-toggle" @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
             <div class="sidebar-group-items">
                 <AuthorizeView Policy="Admin.Users"><NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.Access"><NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink></AuthorizeView>
@@ -67,8 +63,7 @@
         </div>
 
         <div class="sidebar-group">
-            <input id="sidebar-group-structure" class="sidebar-group-toggle-input" type="checkbox" />
-            <label for="sidebar-group-structure" class="sidebar-group-toggle"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></label>
+            <button type="button" class="sidebar-group-toggle" @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
             <div class="sidebar-group-items">
                 <AuthorizeView Policy="Admin.Positions"><NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink></AuthorizeView>
                 <AuthorizeView Policy="Admin.Organizations"><NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink></AuthorizeView>
@@ -78,23 +73,59 @@
 
         <AuthorizeView Policy="Admin.AuditLog"><NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink></AuthorizeView>
     </nav>
+
     <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
 </aside>
 
 @code {
     private const string StorageKey = "yasportal.sidebar.minimal";
+    private const string ExpansionStorageKey = "yasportal.sidebar.groups";
     private bool _isMinimal;
     private bool _stateLoaded;
+    private bool _accessExpanded;
+    private bool _structureExpanded;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        try { var stored = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey); if (bool.TryParse(stored, out var minimal)) _isMinimal = minimal; }
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            if (bool.TryParse(stored, out var minimal)) _isMinimal = minimal;
+            var groups = await JS.InvokeAsync<string?>("localStorage.getItem", ExpansionStorageKey);
+            if (!string.IsNullOrWhiteSpace(groups))
+            {
+                var values = groups.Split('|');
+                _accessExpanded = values.Contains("access", StringComparer.OrdinalIgnoreCase);
+                _structureExpanded = values.Contains("structure", StringComparer.OrdinalIgnoreCase);
+            }
+        }
         catch (InvalidOperationException) { }
         finally { _stateLoaded = true; StateHasChanged(); }
     }
 
+    private async Task ToggleAccessGroup()
+    {
+        _accessExpanded = !_accessExpanded;
+        await PersistGroups();
+    }
+
+    private async Task ToggleStructureGroup()
+    {
+        _structureExpanded = !_structureExpanded;
+        await PersistGroups();
+    }
+
+    private async Task PersistGroups()
+    {
+        var value = string.Join('|', new[] { _accessExpanded ? "access" : null, _structureExpanded ? "structure" : null }.Where(x => x is not null));
+        try { await JS.InvokeVoidAsync("localStorage.setItem", ExpansionStorageKey, value); } catch (InvalidOperationException) { }
+    }
+
     private async Task OnSidebarToggleChanged(ChangeEventArgs args) { _isMinimal = args.Value is bool value && value; await PersistSidebarState(); }
     private async Task ShowSidebar() { _isMinimal = false; await PersistSidebarState(); }
-    private async Task PersistSidebarState() { try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant()); } catch (InvalidOperationException) { } }
+    private async Task PersistSidebarState()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _isMinimal.ToString().ToLowerInvariant()); } catch (InvalidOperationException) { }
+    }
 }
