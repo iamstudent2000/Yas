@@ -12,54 +12,395 @@
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
 <div class="admin-page" dir="rtl">
-    <div class="page-header"><div><div class="page-kicker">مدیریت سامانه / دسترسی</div><h1 class="page-title">مدیریت دسترسی</h1><p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p></div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a></div>
-    <section class="card access-selector"><div class="selector-title"><div class="step-number">۱</div><div><h2>موضوع دسترسی</h2><p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت مدیریت می‌شود.</p></div></div><div class="selector-grid">
-        <div><label class="form-label">کاربر</label><ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged" SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." /><div class="selector-hint">جستجو مستقیماً روی پایگاه داده انجام می‌شود و فقط نتایج لازم برمی‌گردد.</div></div>
-        @if(_selectedEmployee?.IsAdmin!=true){<div><label class="form-label">سمت</label><ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged" SearchAsync="SearchEmployeePositionsAsync" SelectedText="@_positionName" Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را تایپ کنید..." Disabled="@(_employeeId is null)" />@if(_employeeId is not null){<div class="selector-hint">فقط سمت‌های فعال همین کارمند قابل انتخاب است.</div>}</div>}
-    </div></section>
-    @if(_selectedEmployee is not null&&(_selectedEmployee.IsAdmin||_positionId is not null))
-    {
-        <section class="card subject-card"><div class="subject-main"><div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin?"bx-shield-quarter":"bx-user")"></i></div><div><strong>@_selectedEmployee.FullName</strong><span>@(_selectedEmployee.IsAdmin?"مدیر سامانه · حساب‌محور":$"کارمند · {_positionName}")</span></div></div><div class="subject-stats"><div><strong>@_assignedGroupIds.Count</strong><span>گروه</span></div><div><strong>@_directPermissionIds.Count</strong><span>مستقیم</span></div><div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div></div></section>
-        @if(!string.IsNullOrWhiteSpace(_statusMessage)){<div class="access-status">@_statusMessage</div>}
-        <section class="card access-panel">
-            <div class="panel-heading">
-                <div>
-                    <div class="panel-step">۲ · مجوز مستقیم</div>
-                    <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
-                    <p>مجوزهای اختصاصی این کاربر یا سمت.</p>
-                </div>
-                <div class="panel-heading-tools">
-                    <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i> @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i> @_directPermissionIds.Count انتخاب شده</span></div>
-                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput" @onkeyup="PermissionSearchChanged" /></div>
-                    <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving" @onclick="()=>SetDirectResultsAsync(false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / دسترسی</div>
+            <h1 class="page-title">مدیریت دسترسی</h1>
+            <p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p>
+        </div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
+    </div>
+    <section class="card access-selector">
+        <div class="selector-title">
+            <div class="step-number">۱</div>
+            <div>
+                <h2>موضوع دسترسی</h2>
+                <p>برای کارمند، دسترسی دقیقاً متعلق به <strong>کارمند + سمت</strong> است. مدیر سامانه مستقل از سمت
+                    مدیریت می‌شود.</p>
                 </div>
             </div>
-            @if(_permissionLoading){<div class="empty-state">در حال بارگذاری مجوزها...</div>}else if(_permissions.Count==0){<div class="empty-state">مجوزی پیدا نشد.</div>}else{<div class="permission-sections">@foreach(var area in _permissions.GroupBy(x=>PermissionArea(x.Code)).OrderBy(x=>x.Key)){<section class="permission-section"><div class="permission-section-heading"><div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span></div><div class="permission-grid">@foreach(var p in area){var selected=_directPermissionIds.Contains(p.Id);<label class="permission-choice permission-tile @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleDirectAsync(p.Id,e.Value is bool v&&v)" /><span class="choice-box"><i class="bx bx-check"></i></span><span class="choice-text"><strong>@p.Name</strong></span></label>}</div></section>}</div>}
+            <div class="selector-grid">
+                <div><label class="form-label">کاربر</label>
+                    <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
+                                                SearchAsync="SearchEmployeesAsync" Placeholder="کاربر را جستجو و انتخاب کنید..."
+                                                SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
+                    <div class="selector-hint">جستجو مستقیماً روی پایگاه داده انجام می‌شود و فقط نتایج لازم برمی‌گردد.</div>
+                </div>
+                @if (_selectedEmployee?.IsAdmin != true)
+                {
+                    <div><label class="form-label">سمت</label>
+                        <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged"
+                                                    SearchAsync="SearchEmployeePositionsAsync" SelectedText="@_positionName"
+                                                    Placeholder="سمت را جستجو و انتخاب کنید..." SearchPlaceholder="نام سمت را تایپ کنید..."
+                                                    Disabled="@(_employeeId is null)" />@if(_employeeId is not null){
+                        <div class="selector-hint">فقط
+                            سمت‌های فعال همین کارمند قابل انتخاب است.</div>
+                        }
+                    </div>
+                }
+            </div>
         </section>
-        <div class="access-columns"><section class="card access-panel"><div class="panel-heading"><div><div class="panel-step">۳ · گروه مجوز</div><h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2><p>همه گروه‌ها بدون صفحه‌بندی نمایش داده می‌شوند.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput" @onkeyup="GroupSearchChanged" /></div></div><div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span><span class="lookup-note">@_groupTotal گروه</span></div>@if(_groupLoading){<div class="empty-state">در حال جستجو...</div>}else if(_groups.Count==0){<div class="empty-state">گروهی پیدا نشد.</div>}else{<div class="group-list">@foreach(var group in _groups){var selected=_assignedGroupIds.Contains(group.Id);<label class="group-choice @(selected?"selected":"")"><input type="checkbox" checked="@selected" disabled="@_saving" @onchange="e=>ToggleGroupAsync(group.Id,e.Value is bool v&&v)" /><span class="choice-box"><i class="bx bx-check"></i></span><span class="choice-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز · @group.AssignmentCount تخصیص</small></span></label>}</div>}</section><section class="card access-panel effective-panel"><div class="panel-heading"><div><div class="panel-step">۴ · نتیجه</div><h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2><p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p></div><div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div></div><div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه: @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>@if(_effectivePermissions.Count==0){<div class="empty-state">هیچ مجوز نهایی وجود ندارد.</div>}else{<div class="effective-list">@foreach(var p in _effectivePermissions.Where(x=>string.IsNullOrWhiteSpace(_effectiveSearch)||x.Name.Contains(_effectiveSearch,StringComparison.OrdinalIgnoreCase))){<div class="effective-row"><div><i class="bx bx-check-circle"></i><strong>@p.Name</strong></div><div class="source-badges">@if(_directPermissionIds.Contains(p.Id)){<span class="source-badge direct">مستقیم</span>}@if(_effectiveViaGroupIds.Contains(p.Id)){<span class="source-badge group">گروه</span>}</div></div>}</div>}</section></div>
-    }
-    else{<section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>}
-</div>
+        @if (_selectedEmployee is not null && (_selectedEmployee.IsAdmin || _positionId is not null))
+        {
+            <section class="card subject-card">
+                <div class="subject-main">
+                    <div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin ? "bx-shield-quarter" : "bx-user")"></i>
+                    </div>
+                    <div><strong>@_selectedEmployee.FullName</strong><span>@(_selectedEmployee.IsAdmin ? "مدیر سامانه · حساب‌محور" : $"کارمند · {_positionName}")</span></div>
+                </div>
+                <div class="subject-stats">
+                    <div><strong>@_assignedGroupIds.Count</strong><span>گروه</span></div>
+                    <div><strong>@_directPermissionIds.Count</strong><span>مستقیم</span></div>
+                    <div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div>
+                </div>
+            </section>
+            @if (!string.IsNullOrWhiteSpace(_statusMessage))
+            {
+                <div class="access-status">@_statusMessage</div>
+            }
+            <section class="card access-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="panel-step">۲ · مجوز مستقیم</div>
+                        <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
+                        <p>مجوزهای اختصاصی این کاربر یا سمت.</p>
+                    </div>
+                    <div class="panel-heading-tools">
+                        <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i>
+                            @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i>
+                            @_directPermissionIds.Count انتخاب شده</span></div>
+                            <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                           placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput"
+                                                                                           @onkeyup="PermissionSearchChanged" /></div>
+                                <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                                                       @onclick="() => SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب
+                                    نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                                          @onclick="() => SetDirectResultsAsync(false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
+                                </div>
+                            </div>
+                            @if (_permissionLoading)
+                            {
+                                <div class="empty-state">در حال بارگذاری مجوزها...</div>
+                            }
+                            else if (_permissions.Count == 0)
+                            {
+                                <div class="empty-state">مجوزی پیدا نشد.</div>
+                            }
+                            else
+                            {
+
+                                <div class="permission-sections">@foreach(var area in
+                                    _permissions.GroupBy(x => PermissionArea(x.Code)).OrderBy(x => x.Key)){
+                                        <section class="permission-section">
+                                            <div class="permission-section-heading">
+                                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span
+                                                class="badge badge-muted">@area.Count() مجوز</span>
+                                            </div>
+                                            <div class="permission-grid">@foreach(var p in area){var
+                                                selected = _directPermissionIds.Contains(p.Id);
+                                                <label class="permission-choice permission-tile @(selected ? "selected" : "")"><input
+                                                    type="checkbox" checked="@selected" disabled="@_saving"
+                                                    @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
+                                                    class="choice-box"><i class="bx bx-check"></i></span><span
+                                                    class="choice-text"><strong>@p.Name</strong></span></label>
+                                                }
+                                            </div>
+                                        </section>
+                                    }
+                                </div>
+                            }
+                        </section>
+                        <div class="access-columns">
+                            <section class="card access-panel">
+                                <div class="panel-heading">
+                                    <div>
+                                        <div class="panel-step">۳ · گروه مجوز</div>
+                                        <h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2>
+                                        <p>همه گروه‌ها بدون صفحه‌بندی نمایش داده می‌شوند.</p>
+                                    </div>
+                                    <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                                placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
+                                                                                                                @onkeyup="GroupSearchChanged" /></div>
+                                    </div>
+                                    <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span><span
+                                        class="lookup-note">@_groupTotal گروه</span></div>@if(_groupLoading){
+                                        <div class="empty-state">در حال
+                                            جستجو...</div>
+                                        }else if (_groups.Count == 0)
+                                        {
+
+                                            <div class="empty-state">گروهی پیدا نشد.</div>
+                                        }
+                                        else
+                                        {
+
+                                            <div class="group-list">@foreach(var group in _groups){var
+                                                selected = _assignedGroupIds.Contains(group.Id);
+                                                <label class="group-choice @(selected ? "selected" : "")"><input type="checkbox" checked="@selected"
+                                                                                                                     disabled="@_saving" @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool v && v)" /><span
+                                                    class="choice-box"><i class="bx bx-check"></i></span><span
+                                                    class="choice-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز ·
+                                                    @group.AssignmentCount تخصیص</small></span></label>
+                                                }
+                                            </div>
+                                        }
+                                    </section>
+                                    <section class="card access-panel effective-panel">
+                                        <div class="panel-heading">
+                                            <div>
+                                                <div class="panel-step">۴ · نتیجه</div>
+                                                <h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2>
+                                                <p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p>
+                                            </div>
+                                            <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                                        placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div>
+                                            </div>
+                                            <div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه:
+                                                @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>
+                                                @if (_effectivePermissions.Count == 0)
+                                                {
+                                                    <div class="empty-state">هیچ مجوز نهایی وجود ندارد.</div>
+                                                }
+                                                else
+                                                {
+
+                                                    <div class="effective-list">@foreach(var p in
+                                                        _effectivePermissions.Where(x => string.IsNullOrWhiteSpace(_effectiveSearch) ||
+                x.Name.Contains(_effectiveSearch, StringComparison.OrdinalIgnoreCase))){
+                                                            <div class="effective-row">
+                                                                <div><i class="bx bx-check-circle"></i><strong>@p.Name</strong></div>
+                                                                <div class="source-badges">@if(_directPermissionIds.Contains(p.Id)){
+                                                                    <span class="source-badge direct">مستقیم</span>
+                                                                }
+                                                                @if (_effectiveViaGroupIds.Contains(p.Id))
+                                                                {
+                                                                    <span class="source-badge group">گروه</span>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </section>
+                                    </div>
+                                }
+    else
+                                {
+
+                                    <section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را
+                                        انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>
+                                    }
+                                </div>
 @code {
-    private Guid? _employeeId,_positionId; private AdminQueryService.EmployeeSummary? _selectedEmployee; private string _positionName="";
-    private HashSet<Guid> _assignedGroupIds=[],_directPermissionIds=[],_effectivePermissionIds=[],_effectiveViaGroupIds=[]; private List<AdminQueryService.PermissionPageRow> _permissions=[]; private List<AdminQueryService.PermissionGroupPageRow> _groups=[]; private List<EffectivePermission> _effectivePermissions=[];
-    private int _permissionTotal,_groupTotal; private string _permissionSearch="",_groupSearch="",_effectiveSearch=""; private string? _statusMessage; private bool _permissionLoading,_groupLoading,_saving;
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search,CancellationToken ct)=>AdminQueries.SearchEmployeesAsync(search,ct);
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeePositionsAsync(string search,CancellationToken ct)=>_employeeId is Guid id?AdminQueries.SearchPositionsAsync(search,id,null,ct):Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
-    private async Task EmployeeChanged(Guid? id){_statusMessage=null;_employeeId=id;_positionId=null;_positionName="";ClearAccessState();_selectedEmployee=id is Guid eid?await AdminQueries.GetEmployeeAsync(eid):null;if(_selectedEmployee is null)return;if(_selectedEmployee.IsAdmin){await LoadAdminAccessAsync(_selectedEmployee.Id);}else if(_selectedEmployee.LastActivePositionId is Guid pid){var positions=await AdminQueries.SearchPositionsAsync("",_selectedEmployee.Id,null);var selected=positions.FirstOrDefault(x=>x.Id==pid);if(selected is not null){_positionId=pid;_positionName=selected.Text;await LoadEmployeePositionAccessAsync(_selectedEmployee.Id,pid);}}await LoadPermissionResultsAsync();await LoadGroupListAsync();}
-    private async Task PositionChanged(Guid? id){_positionId=id;_positionName="";ClearAccessState();if(_selectedEmployee is null||_selectedEmployee.IsAdmin||id is null)return;var positions=await AdminQueries.SearchPositionsAsync("",_selectedEmployee.Id,null);_positionName=positions.FirstOrDefault(x=>x.Id==id)?.Text??"سمت";await LoadEmployeePositionAccessAsync(_selectedEmployee.Id,id.Value);await LoadPermissionResultsAsync();await LoadGroupListAsync();}
-    private async Task LoadAdminAccessAsync(Guid employeeId){await using var db=await DbFactory.CreateDbContextAsync();_directPermissionIds=await db.EmployeePermissions.AsNoTracking().Where(x=>x.EmployeeId==employeeId).Select(x=>x.PermissionId).ToHashSetAsync();_assignedGroupIds=await db.EmployeePermissionGroups.AsNoTracking().Where(x=>x.EmployeeId==employeeId).Select(x=>x.GroupId).ToHashSetAsync();await RebuildEffectiveAsync(db);}
-    private async Task LoadEmployeePositionAccessAsync(Guid employeeId,Guid positionId){await using var db=await DbFactory.CreateDbContextAsync();_directPermissionIds=await db.UserPositionPermissions.AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.PositionId==positionId).Select(x=>x.PermissionId).ToHashSetAsync();_assignedGroupIds=await db.UserPositionPermissionGroups.AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.PositionId==positionId).Select(x=>x.GroupId).ToHashSetAsync();await RebuildEffectiveAsync(db);}
-    private async Task RebuildEffectiveAsync(ApplicationDbContext db){var ids=_assignedGroupIds.Count==0?[]:await db.PermissionGroupPermissions.AsNoTracking().Where(x=>_assignedGroupIds.Contains(x.GroupId)).Select(x=>x.PermissionId).Distinct().ToListAsync();_effectiveViaGroupIds=ids.ToHashSet();_effectivePermissionIds=_directPermissionIds.Concat(ids).ToHashSet();_effectivePermissions=await db.Permissions.AsNoTracking().Where(x=>_effectivePermissionIds.Contains(x.Id)).OrderBy(x=>x.Name).Select(x=>new EffectivePermission(x.Id,x.Name)).ToListAsync();}
-    private async Task LoadPermissionResultsAsync(){if(_selectedEmployee is null)return;_permissionLoading=true;try{_permissions=(await AdminQueries.GetAllPermissionsAsync(_permissionSearch)).ToList();_permissionTotal=_permissions.Count;}finally{_permissionLoading=false;}}
-    private async Task LoadGroupListAsync(){if(_selectedEmployee is null)return;_groupLoading=true;try{_groups=(await AdminQueries.GetAllPermissionGroupsAsync(_groupSearch)).ToList();_groupTotal=_groups.Count;}finally{_groupLoading=false;}}
-    private async Task PermissionSearchChanged(KeyboardEventArgs e){if(e.Key is "Enter" or "Tab"||_permissionSearch.Length==0)await LoadPermissionResultsAsync();} private async Task GroupSearchChanged(KeyboardEventArgs e){if(e.Key is "Enter" or "Tab"||_groupSearch.Length==0)await LoadGroupListAsync();}
-    private async Task ToggleDirectAsync(Guid id,bool selected){if(selected)_directPermissionIds.Add(id);else _directPermissionIds.Remove(id);await PersistDirectAsync();}
-    private async Task SetDirectResultsAsync(bool selected){foreach(var p in _permissions){if(selected)_directPermissionIds.Add(p.Id);else _directPermissionIds.Remove(p.Id);}await PersistDirectAsync();}
-    private async Task PersistDirectAsync(){if(_selectedEmployee is null||(!_selectedEmployee.IsAdmin&&_positionId is null))return;_saving=true;try{await using var db=await DbFactory.CreateDbContextAsync();if(_selectedEmployee.IsAdmin){var old=await db.EmployeePermissions.Where(x=>x.EmployeeId==_selectedEmployee.Id).ToListAsync();db.EmployeePermissions.RemoveRange(old);db.EmployeePermissions.AddRange(_directPermissionIds.Select(id=>new EmployeePermission(_selectedEmployee.Id,id)));}else{var old=await db.UserPositionPermissions.Where(x=>x.EmployeeId==_selectedEmployee.Id&&x.PositionId==_positionId!.Value).ToListAsync();db.UserPositionPermissions.RemoveRange(old);db.UserPositionPermissions.AddRange(_directPermissionIds.Select(id=>new UserPositionPermission(_selectedEmployee.Id,_positionId!.Value,id)));}await db.SaveChangesAsync();await RebuildEffectiveAsync(db);_statusMessage="مجوزهای مستقیم ذخیره شد.";}finally{_saving=false;}}
-    private async Task ToggleGroupAsync(Guid id,bool selected){if(selected)_assignedGroupIds.Add(id);else _assignedGroupIds.Remove(id);await PersistGroupsAsync();}
-    private async Task PersistGroupsAsync(){if(_selectedEmployee is null||(!_selectedEmployee.IsAdmin&&_positionId is null))return;_saving=true;try{await using var db=await DbFactory.CreateDbContextAsync();if(_selectedEmployee.IsAdmin){var old=await db.EmployeePermissionGroups.Where(x=>x.EmployeeId==_selectedEmployee.Id).ToListAsync();db.EmployeePermissionGroups.RemoveRange(old);db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Select(id=>new EmployeePermissionGroup(_selectedEmployee.Id,id)));}else{var old=await db.UserPositionPermissionGroups.Where(x=>x.EmployeeId==_selectedEmployee.Id&&x.PositionId==_positionId!.Value).ToListAsync();db.UserPositionPermissionGroups.RemoveRange(old);db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Select(id=>new UserPositionPermissionGroup(_selectedEmployee.Id,_positionId!.Value,id)));}await db.SaveChangesAsync();await RebuildEffectiveAsync(db);_statusMessage="گروه‌های مجوز ذخیره شد.";}finally{_saving=false;}}
-    private void ClearAccessState(){_assignedGroupIds=[];_directPermissionIds=[];_effectivePermissionIds=[];_effectiveViaGroupIds=[];_effectivePermissions=[];}
-    private static string PermissionArea(string code)=>code.Split('.',2)[0] switch{"Dashboard"=>"داشبورد","Profile"=>"پروفایل","Requests"=>"درخواست‌ها","Workflow"=>"گردش کار","Employees"=>"کارکنان","Users"=>"کاربران","Organizations"=>"سازمان و ساختار","Positions"=>"سمت‌ها","Permissions"=>"مجوزها","Reports"=>"گزارش‌ها","Admin"=>"مدیریت سامانه",_=>code.Split('.',2)[0]};
-    private sealed record EffectivePermission(Guid Id,string Name);
+    private Guid? _employeeId, _positionId; private AdminQueryService.EmployeeSummary? _selectedEmployee; private string
+_positionName = "";
+    private HashSet<Guid> _assignedGroupIds = [], _directPermissionIds = [], _effectivePermissionIds = [],
+_effectiveViaGroupIds = [];
+    private List<AdminQueryService.PermissionPageRow> _permissions = []; private
+    List<AdminQueryService.PermissionGroupPageRow> _groups = []; private List<EffectivePermission> _effectivePermissions =
+[];
+    private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
+"";
+    private string? _statusMessage; private bool _permissionLoading, _groupLoading, _saving;
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
+ct) => AdminQueries.SearchEmployeesAsync(search, ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeePositionsAsync(string search, CancellationToken
+ct) => _employeeId is Guid
+id ? AdminQueries.SearchPositionsAsync(search, id, null, ct) :
+Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
+    private async Task EmployeeChanged(Guid?
+id)
+    {
+        _statusMessage = null; _employeeId = id; _positionId = null; _positionName = ""; ClearAccessState(); _selectedEmployee =
+id is Guid
+eid ? await AdminQueries.GetEmployeeAsync(eid) : null; if (_selectedEmployee is
+null) return; if (_selectedEmployee.IsAdmin) { await LoadAdminAccessAsync(_selectedEmployee.Id); }
+        else
+            if (_selectedEmployee.LastActivePositionId is Guid pid)
+            {
+                var positions = await
+            AdminQueries.SearchPositionsAsync("", _selectedEmployee.Id, null); var
+            selected = positions.FirstOrDefault(x => x.Id == pid); if (selected is not
+            null)
+                {
+                    _positionId = pid; _positionName = selected.Text; await
+            LoadEmployeePositionAccessAsync(_selectedEmployee.Id, pid);
+                }
+            }
+        await LoadPermissionResultsAsync(); await
+            LoadGroupListAsync();
+    }
+    private async Task PositionChanged(Guid? id)
+    {
+        _positionId = id; _positionName = ""; ClearAccessState(); if (_selectedEmployee is
+null || _selectedEmployee.IsAdmin || id is null) return; var positions = await
+AdminQueries.SearchPositionsAsync("", _selectedEmployee.Id, null); _positionName = positions.FirstOrDefault(x => x.Id ==
+id)?.Text ?? "سمت"; await
+LoadEmployeePositionAccessAsync(_selectedEmployee.Id, id.Value); await LoadPermissionResultsAsync(); await
+LoadGroupListAsync();
+    }
+    private async Task LoadAdminAccessAsync(Guid employeeId)
+    {
+        await using var db = await
+DbFactory.CreateDbContextAsync(); _directPermissionIds = await
+db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId).Select(x =>
+x.PermissionId).ToHashSetAsync(); _assignedGroupIds = await
+db.EmployeePermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employeeId).Select(x =>
+x.GroupId).ToHashSetAsync(); await
+RebuildEffectiveAsync(db);
+    }
+    private async Task LoadEmployeePositionAccessAsync(Guid employeeId, Guid positionId)
+    {
+        await using var db = await
+DbFactory.CreateDbContextAsync(); _directPermissionIds = await
+db.UserPositionPermissions.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.PositionId == positionId).Select(x
+=> x.PermissionId).ToHashSetAsync(); _assignedGroupIds = await
+db.UserPositionPermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employeeId && x.PositionId ==
+positionId).Select(x => x.GroupId).ToHashSetAsync(); await
+RebuildEffectiveAsync(db);
+    }
+    private async Task RebuildEffectiveAsync(ApplicationDbContext db)
+    {
+        var ids = _assignedGroupIds.Count == 0 ? [] : await
+db.PermissionGroupPermissions.AsNoTracking().Where(x => _assignedGroupIds.Contains(x.GroupId)).Select(x =>
+x.PermissionId).Distinct().ToListAsync(); _effectiveViaGroupIds = ids.ToHashSet(); _effectivePermissionIds =
+_directPermissionIds.Concat(ids).ToHashSet(); _effectivePermissions = await
+db.Permissions.AsNoTracking().Where(x => _effectivePermissionIds.Contains(x.Id)).OrderBy(x => x.Name).Select(x => new
+EffectivePermission(x.Id, x.Name)).ToListAsync();
+    }
+    private async Task LoadPermissionResultsAsync()
+    {
+        if (_selectedEmployee is
+null) return; _permissionLoading = true; try
+        {
+            _permissions = (await
+AdminQueries.GetAllPermissionsAsync(_permissionSearch)).ToList(); _permissionTotal = _permissions.Count;
+        }
+        finally { _permissionLoading = false; }
+    }
+    private async Task LoadGroupListAsync()
+    {
+        if (_selectedEmployee is null) return; _groupLoading = true; try
+        {
+            _groups = (await
+AdminQueries.GetAllPermissionGroupsAsync(_groupSearch)).ToList(); _groupTotal = _groups.Count;
+        }
+        finally { _groupLoading = false; }
+    }
+    private async Task PermissionSearchChanged(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or
+"Tab" || _permissionSearch.Length == 0) await LoadPermissionResultsAsync();
+    }
+    private async Task
+GroupSearchChanged(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "Tab" || _groupSearch.Length == 0) await
+LoadGroupListAsync();
+    }
+    private async Task ToggleDirectAsync(Guid id, bool selected)
+    {
+        if (selected) _directPermissionIds.Add(id);
+        else
+            _directPermissionIds.Remove(id); await PersistDirectAsync();
+    }
+    private async Task SetDirectResultsAsync(bool selected)
+    {
+        foreach (var p in
+_permissions) { if (selected) _directPermissionIds.Add(p.Id); else _directPermissionIds.Remove(p.Id); }
+        await
+PersistDirectAsync();
+    }
+    private async Task PersistDirectAsync()
+    {
+        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is
+null)) return; _saving = true; try
+        {
+            await using var db = await
+DbFactory.CreateDbContextAsync(); if (_selectedEmployee.IsAdmin)
+            {
+                var old = await
+db.EmployeePermissions.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
+                db.EmployeePermissions.RemoveRange(old); db.EmployeePermissions.AddRange(_directPermissionIds.Select(id => new
+                EmployeePermission(_selectedEmployee.Id, id)));
+            }
+            else
+            {
+                var old = await
+db.UserPositionPermissions.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId ==
+_positionId!.Value).ToListAsync(); db.UserPositionPermissions.RemoveRange(old);
+                db.UserPositionPermissions.AddRange(_directPermissionIds.Select(id => new
+                UserPositionPermission(_selectedEmployee.Id, _positionId!.Value, id)));
+            }
+            await db.SaveChangesAsync(); await
+RebuildEffectiveAsync(db); _statusMessage = "مجوزهای مستقیم ذخیره شد.";
+        }
+        finally { _saving = false; }
+    }
+    private async Task ToggleGroupAsync(Guid id, bool selected)
+    {
+        if (selected) _assignedGroupIds.Add(id);
+        else
+            _assignedGroupIds.Remove(id); await PersistGroupsAsync();
+    }
+    private async Task PersistGroupsAsync()
+    {
+        if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is
+null)) return; _saving = true; try
+        {
+            await using var db = await
+DbFactory.CreateDbContextAsync(); if (_selectedEmployee.IsAdmin)
+            {
+                var old = await
+db.EmployeePermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
+                db.EmployeePermissionGroups.RemoveRange(old); db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Select(id => new
+                EmployeePermissionGroup(_selectedEmployee.Id, id)));
+            }
+            else
+            {
+                var old = await
+db.UserPositionPermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId ==
+_positionId!.Value).ToListAsync(); db.UserPositionPermissionGroups.RemoveRange(old);
+                db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Select(id => new
+                UserPositionPermissionGroup(_selectedEmployee.Id, _positionId!.Value, id)));
+            }
+            await db.SaveChangesAsync(); await
+RebuildEffectiveAsync(db); _statusMessage = "گروه‌های مجوز ذخیره شد.";
+        }
+        finally { _saving = false; }
+    }
+    private void
+ClearAccessState()
+    {
+        _assignedGroupIds = []; _directPermissionIds = []; _effectivePermissionIds = []; _effectiveViaGroupIds = [];
+        _effectivePermissions = [];
+    }
+    private static string PermissionArea(string code) => code.Split('.', 2)[0]
+switch
+    {
+        "Dashboard" => "داشبورد",
+        "Profile" => "پروفایل",
+        "Requests" => "درخواست‌ها",
+        "Workflow" => "گردش کار",
+        "Employees" =>
+"کارکنان",
+        "Users" => "کاربران",
+        "Organizations" => "سازمان و ساختار",
+        "Positions" => "سمت‌ها",
+        "Permissions" =>
+"مجوزها",
+        "Reports" => "گزارش‌ها",
+        "Admin" => "مدیریت سامانه",
+        _ => code.Split('.', 2)[0]
+    };
+    private sealed record EffectivePermission(Guid Id, string Name);
 }
