@@ -13,7 +13,7 @@
 
 <PageTitle>مجوزها - یاس پورتال</PageTitle>
 
-<div class="admin-page" dir="rtl">
+<div class="admin-page">
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / کنترل دسترسی</div>
@@ -21,26 +21,32 @@
             <p class="page-subtitle">نام و کد فنی هر مجوز را ببینید و دقیقاً بررسی کنید چه کسی یا چه گروهی از آن استفاده
                 می‌کند.</p>
             </div>
-            <div class="admin-page-actions">
+            <div class="form-actions">
                 <a class="btn btn-primary" href="/admin/permission-groups"><i class="bx bx-layer"></i> گروه‌های مجوز</a>
                 <a class="btn btn-secondary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a>
             </div>
         </div>
 
-        <div class="admin-stat-grid">
-            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-key"></i></span>
-                <div><small>کل مجوزها</small><strong>@_totalCount</strong></div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <span class="stat-icon"><i class="bx bx-key"></i></span>
+                <span class="stat-label">کل مجوزها</span>
+                <strong class="stat-value">@_totalCount</strong>
             </div>
-            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-user-check"></i></span>
-                <div><small>تخصیص مستقیم</small><strong>@_directAssignmentCount</strong></div>
+            <div class="admin-stat">
+                <span  class="stat-icon"><i class="bx bx-user-check"></i></span>
+                <span  class="stat-label">تخصیص مستقیم</span>
+                <strong class="stat-value">@_directAssignmentCount</strong>
             </div>
-            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-layer"></i></span>
-                <div><small>استفاده در گروه‌ها</small><strong>@_groupMembershipCount</strong></div>
+            <div class="admin-stat">
+                <span class="admin-stat-icon"><i class="bx bx-layer"></i></span>
+                <span  class="stat-label">استفاده در گروه‌ها</span>
+                <strong class="stat-value">@_groupMembershipCount</strong>
             </div>
         </div>
 
-        <div class="admin-split">
-            <section class="card admin-split-card">
+        <div class="admin-two-col">
+            <section class="card">
                 <div class="admin-card-heading">
                     <div class="admin-card-heading-icon"><i
                         class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
