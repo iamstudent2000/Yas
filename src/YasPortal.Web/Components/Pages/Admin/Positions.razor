@@ -27,9 +27,18 @@
     </div>
 
     <div class="stat-grid">
-        <div class="stat-card"><div class="stat-icon"><i class="bx bx-sitemap"></i></div><span class="stat-label">کل سمت‌ها</span><strong class="stat-value">@_positions.Count</strong></div>
-        <div class="stat-card"><div class="stat-icon"><i class="bx bx-user-check"></i></div><span class="stat-label">دارای کارمند</span><strong class="stat-value">@_positions.Count(x => x.IsOccupied)</strong></div>
-        <div class="stat-card"><div class="stat-icon"><i class="bx bx-briefcase"></i></div><span class="stat-label">سمت آزاد</span><strong class="stat-value">@_positions.Count(x => !x.IsOccupied)</strong></div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bx bx-sitemap"></i></div><span class="stat-label">کل سمت‌ها</span><strong
+            class="stat-value">@_positions.Count</strong>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bx bx-user-check"></i></div><span class="stat-label">دارای
+            کارمند</span><strong class="stat-value">@_positions.Count(x => x.IsOccupied)</strong>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bx bx-briefcase"></i></div><span class="stat-label">سمت آزاد</span><strong
+            class="stat-value">@_positions.Count(x => !x.IsOccupied)</strong>
+        </div>
     </div>
 
     <div class="positions-layout">
@@ -37,96 +46,112 @@
             <div class="section-head positions-tree-toolbar">
                 <div>
                     <h2 class="section-title"><i class="bx bx-sitemap"></i> درخت سمت‌ها</h2>
-                    <p class="muted">روی نام سمت برای مدیریت تخصیص کلیک کنید. دکمه‌های <strong>+</strong> و <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
-                </div>
-                <div class="tree-toolbar-actions">
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i class="bx bx-chevrons-down"></i> باز کردن همه</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i class="bx bx-chevrons-up"></i> بستن همه</button>
-                    <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i class="bx bx-plus"></i> سمت ریشه</button>
-                </div>
-            </div>
+                    <p class="muted">روی نام سمت برای مدیریت تخصیص کلیک کنید. دکمه‌های <strong>+</strong> و
+                        <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
+                    </div>
+                    <div class="tree-toolbar-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
+                            class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i
+                                class="bx bx-chevrons-up"></i> بستن همه</button>
+                                <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i
+                                    class="bx bx-plus"></i> سمت ریشه</button>
+                                </div>
+                            </div>
 
-            @if (_loading)
-            {
-                <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>
-            }
-            else if (_positions.Count == 0)
-            {
-                <div class="empty-state"><i class="bx bx-sitemap empty-icon"></i><strong>سمتی ثبت نشده است</strong><span>اولین سمت ریشه را ایجاد کنید.</span></div>
-            }
+                            @if (_loading)
+                            {
+                                <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>
+                            }
+                            else if (_positions.Count == 0)
+                            {
+                                <div class="empty-state"><i class="bx bx-sitemap empty-icon"></i><strong>سمتی ثبت نشده
+                                    است</strong><span>اولین سمت ریشه را ایجاد کنید.</span></div>
+                                }
             else
-            {
-                <div class="tree-summary">
-                    <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
-                    <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
-                    <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id) && HasChildren(x.Id))</span>
-                </div>
-                <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
-                    @foreach (var root in Roots)
-                    {
-                        @RenderNode(root, 0)
-                    }
-                </div>
-            }
-        </section>
+                                {
+                                    <div class="tree-summary">
+                                        <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
+                                        <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
+                                        <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id)
+                                                                && HasChildren(x.Id))</span>
+                                        </div>
+                                        <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
+                                            @foreach (var root in Roots)
+                                            {
+                                                @RenderNode(root, 0)
+                                            }
+                                        </div>
+                                    }
+                                </section>
 
-        <section class="card position-side-panel">
-            <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
-            <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
-            <label class="form-label">نام سمت</label>
-            <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
-            <label class="form-label">سمت بالادست</label>
-            <ServerSearchableGuidSelect Value="@_parentPositionId" ValueChanged="ParentChanged" SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName" Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." />
-            <small class="help-text">بدون بالادست = سمت ریشه.</small>
-            <div class="form-actions">
-                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
-                @if (_editingId is not null)
-                {
-                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
-                }
-            </div>
-            <div class="rules-mini">
-                <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
-                <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
-                <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
-                <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
-            </div>
-        </section>
-    </div>
+                                <section class="card position-side-panel">
+                                    <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i>
+                                        @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
+                                        <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
+                                        <label class="form-label">نام سمت</label>
+                                        <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
+                                        <label class="form-label">سمت بالادست</label>
+                                        <ServerSearchableGuidSelect Value="@_parentPositionId" ValueChanged="ParentChanged"
+                                                                    SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName"
+                                                                    Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." />
+                                        <small class="help-text">بدون بالادست = سمت ریشه.</small>
+                                        <div class="form-actions">
+                                            <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
+                                            @if (_editingId is not null)
+                                            {
+                                                <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                                            }
+                                        </div>
+                                        <div class="rules-mini">
+                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
+                                        </div>
+                                    </section>
+                                </div>
 
-    @if (_selectedPositionId is Guid selectedPositionId)
-    {
-        <section class="card assignment-card">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">تخصیص کارمند</div>
-                    <h2 class="section-title" style="margin:0">@SelectedPositionName</h2>
-                    <p class="muted">هر سمت حداکثر یک کارمند فعال دارد.</p>
-                </div>
-                <button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button>
-            </div>
-            @if (_selectedPositionEmployeeName is not null)
-            {
-                <div class="current-assignment">
-                    <div class="current-icon"><i class="bx bx-user-check"></i></div>
-                    <div class="current-main"><span class="muted">کارمند فعلی</span><strong>@_selectedPositionEmployeeName</strong></div>
-                    <button class="btn btn-danger btn-sm" disabled="@_savingAssignment" @onclick="() => FreePosition(selectedPositionId)"><i class="bx bx-unlink"></i> آزاد کردن سمت</button>
-                </div>
-            }
+                                @if (_selectedPositionId is Guid selectedPositionId)
+                                {
+                                    <section class="card assignment-card">
+                                        <div class="section-head">
+                                            <div>
+                                                <div class="eyebrow">تخصیص کارمند</div>
+                                                <h2 class="section-title" style="margin:0">@SelectedPositionName</h2>
+                                                <p class="muted">هر سمت حداکثر یک کارمند فعال دارد.</p>
+                                            </div>
+                                            <button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button>
+                                        </div>
+                                        @if (_selectedPositionEmployeeName is not null)
+                                        {
+                                            <div class="current-assignment">
+                                                <div class="current-icon"><i class="bx bx-user-check"></i></div>
+                                                <div class="current-main"><span class="muted">کارمند
+                                                    فعلی</span><strong>@_selectedPositionEmployeeName</strong></div>
+                                                    <button class="btn btn-danger btn-sm" disabled="@_savingAssignment"
+                                                            @onclick="() => FreePosition(selectedPositionId)"><i class="bx bx-unlink"></i> آزاد کردن سمت</button>
+                                                </div>
+                                            }
             else
-            {
-                <div class="assignment-empty"><i class="bx bx-briefcase"></i><div><strong>این سمت آزاد است</strong><span>یک کارمند فعال را جستجو و تخصیص دهید.</span></div></div>
-                <div class="assignment-form">
-                    <ServerSearchableGuidSelect Value="@_employeeToAssign" ValueChanged="EmployeeChanged" SearchAsync="SearchAssignableEmployeesAsync" SelectedText="@_employeeToAssignName" Placeholder="کارمند را جستجو کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
-                    <button class="btn btn-primary" disabled="@(_savingAssignment || _employeeToAssign is null)" @onclick="AssignEmployee"><i class="bx bx-link"></i> تخصیص کارمند</button>
-                </div>
-                <div class="help-text">جستجو مستقیماً از SQL Server انجام می‌شود و فقط کارکنان فعال نمایش داده می‌شوند.</div>
-            }
-        </section>
+                                            {
+                                                <div class="assignment-empty"><i class="bx bx-briefcase"></i>
+                                                    <div><strong>این سمت آزاد است</strong><span>یک کارمند فعال را جستجو و تخصیص دهید.</span></div>
+                                                </div>
+                                                <div class="assignment-form">
+                                                    <ServerSearchableGuidSelect Value="@_employeeToAssign" ValueChanged="EmployeeChanged"
+                                                                                SearchAsync="SearchAssignableEmployeesAsync" SelectedText="@_employeeToAssignName"
+                                                                                Placeholder="کارمند را جستجو کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
+                                                    <button class="btn btn-primary" disabled="@(_savingAssignment || _employeeToAssign is null)"
+                                                            @onclick="AssignEmployee"><i class="bx bx-link"></i> تخصیص کارمند</button>
+                                                </div>
+                                                <div class="help-text">جستجو مستقیماً از SQL Server انجام می‌شود و فقط کارکنان فعال نمایش داده می‌شوند.</div>
+                                            }
+                                        </section>
 
-        <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
-    }
-</div>
+                                        <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
+                                    }
+                                </div>
 
 @code {
     private List<PositionRow> _positions = [];
@@ -137,7 +162,8 @@
     private bool _loading, _savingAssignment, _treeInitialized;
 
     private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null).OrderBy(x => x.Name);
-    private string SelectedPositionName => _selectedPositionId is Guid id ? _positions.FirstOrDefault(x => x.Id == id)?.Name ?? "سمت" : "سمت";
+    private string SelectedPositionName => _selectedPositionId is Guid id ? _positions.FirstOrDefault(x => x.Id == id)?.Name
+?? "سمت" : "سمت";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -151,7 +177,8 @@
                 x.Id,
                 x.Name,
                 x.ParentPositionId,
-                db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep => (string?)ep.Employee.FullName).FirstOrDefault()
+                db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep =>
+(string?)ep.Employee.FullName).FirstOrDefault()
             )).ToListAsync();
 
             if (!_treeInitialized)
@@ -223,7 +250,8 @@
         _editingId = id;
         _name = p.Name;
         _parentPositionId = p.ParentPositionId;
-        _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" : "";
+        _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" :
+"";
     }
 
     private void CancelEdit()
@@ -248,8 +276,10 @@
         return Task.CompletedTask;
     }
 
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchParentPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, _editingId, ct);
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchAssignableEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchParentPositionsAsync(string search, CancellationToken
+ct) => AdminQueries.SearchPositionsAsync(search, null, _editingId, ct);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchAssignableEmployeesAsync(string search,
+CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct);
 
     private async Task Save()
     {
@@ -340,7 +370,8 @@
                 return;
             }
 
-            var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId);
+            var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId ==
+positionId);
             if (link is null)
                 db.EmployeePositions.Add(new EmployeePosition(employeeId, positionId));
             else
@@ -408,7 +439,8 @@
             return;
         }
 
-        if (await db.EmployeePositions.AnyAsync(x => x.PositionId == id) || await db.UserPositionPermissions.AnyAsync(x => x.PositionId == id))
+        if (await db.EmployeePositions.AnyAsync(x => x.PositionId == id) || await db.UserPositionPermissions.AnyAsync(x =>
+x.PositionId == id))
         {
             AppState.AddToast("این سمت دارای سابقه تخصیص یا مجوز است و قابل حذف نیست.", ToastLevel.Error);
             return;
@@ -535,7 +567,8 @@
         builder.CloseElement();
     }
 
-    private void AddAsyncButton(RenderTreeBuilder builder, ref int seq, string css, string icon, string text, Func<Task> action)
+    private void AddAsyncButton(RenderTreeBuilder builder, ref int seq, string css, string icon, string text, Func<Task>
+action)
     {
         builder.OpenElement(seq++, "button");
         builder.AddAttribute(seq++, "class", css);

@@ -11,46 +11,50 @@
             <h3 class="sub-title" style="margin:0"><i class="bx bx-layer"></i> گروه‌های مجوز</h3>
             @if (IsAdmin)
             {
-                <p class="help-text">این گروه‌ها مستقیماً به مدیر سامانه اختصاص داده می‌شوند و به هیچ سمت سازمانی وابسته نیستند.</p>
-            }
+                <p class="help-text">این گروه‌ها مستقیماً به مدیر سامانه اختصاص داده می‌شوند و به هیچ سمت سازمانی وابسته
+                    نیستند.</p>
+                }
             else if (PositionId == Guid.Empty)
-            {
-                <p class="help-text">برای مدیریت گروه‌ها ابتدا یک سمت فعال را انتخاب کنید.</p>
-            }
-            else
-            {
-                <p class="help-text">گروه‌ها فقط مجوز اضافه می‌کنند. مجوز نهایی این ترکیب = مجوزهای مستقیم + مجوزهای همه گروه‌ها.</p>
-            }
-        </div>
-        @if (CanAssign)
-        {
-            <span class="effective-permission-badge">@_effectivePermissionCount مجوز نهایی</span>
-        }
-    </div>
+                {
+                    <p class="help-text">برای مدیریت گروه‌ها ابتدا یک سمت فعال را انتخاب کنید.</p>
+                }
+                else
+                {
+                    <p class="help-text">گروه‌ها فقط مجوز اضافه می‌کنند. مجوز نهایی این ترکیب = مجوزهای مستقیم + مجوزهای همه
+                        گروه‌ها.</p>
+                    }
+                </div>
+                @if (CanAssign)
+                {
+                    <span class="effective-permission-badge">@_effectivePermissionCount مجوز نهایی</span>
+                }
+            </div>
 
-    @if (CanAssign)
-    {
-        <div class="group-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..." @bind="_search" @bind:event="oninput" /></div>
-        <div class="group-assignment-grid">
-            @foreach (var group in FilteredGroups)
+            @if (CanAssign)
             {
-                var assigned = IsAssigned(group.Id);
-                <label class="group-tile @(assigned ? "selected" : "")">
-                    <input type="checkbox" checked="@assigned" disabled="@_saving" @onchange="e => ToggleGroup(group.Id, e.Value is bool value && value)" />
-                    <span class="tile-check"><i class="bx bx-check"></i></span>
-                    <span class="group-text">
-                        <strong>@group.Name</strong>
-                        <small>@group.PermissionCount مجوز @(!string.IsNullOrWhiteSpace(group.Description) ? $" — {group.Description}" : "")</small>
-                    </span>
-                </label>
-            }
-        </div>
-        @if (FilteredGroups.Count == 0)
-        {
-            <div class="empty-state">گروه مجوزی تعریف نشده است. از «مدیریت سامانه ← گروه‌های مجوز» یک گروه بسازید.</div>
-        }
-    }
-</section>
+                <div class="group-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..."
+                                                                                 @bind="_search" @bind:event="oninput" /></div>
+                    <div class="group-assignment-grid">
+                        @foreach (var group in FilteredGroups)
+                        {
+                            var assigned = IsAssigned(group.Id);
+                            <label class="group-tile @(assigned ? "selected" : "")">
+                                <input type="checkbox" checked="@assigned" disabled="@_saving"
+                                       @onchange="e => ToggleGroup(group.Id, e.Value is bool value && value)" />
+                                <span class="tile-check"><i class="bx bx-check"></i></span>
+                                <span class="group-text">
+                                    <strong>@group.Name</strong>
+                                    <small>@group.PermissionCount مجوز @(!string.IsNullOrWhiteSpace(group.Description) ? $" —         {group.Description}" : "")</small>
+                                </span>
+                            </label>
+                        }
+                    </div>
+                    @if (FilteredGroups.Count == 0)
+                    {
+                        <div class="empty-state">گروه مجوزی تعریف نشده است. از «مدیریت سامانه ← گروه‌های مجوز» یک گروه بسازید.</div>
+                    }
+                }
+            </section>
 
 @code {
     [Parameter] public Guid EmployeeId { get; set; }
@@ -66,7 +70,8 @@
     private bool CanAssign => EmployeeId != Guid.Empty && (IsAdmin || PositionId != Guid.Empty);
 
     private IReadOnlyList<GroupRow> FilteredGroups => _groups
-        .Where(x => string.IsNullOrWhiteSpace(_search) || x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || (x.Description?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(x => string.IsNullOrWhiteSpace(_search) || x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+(x.Description?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))
         .ToList();
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
@@ -89,17 +94,22 @@
             .ToListAsync();
 
         _assignedGroupIds = IsAdmin
-            ? await db.EmployeePermissionGroups.AsNoTracking().Where(x => x.EmployeeId == EmployeeId).Select(x => x.GroupId).ToHashSetAsync()
-            : await db.UserPositionPermissionGroups.AsNoTracking().Where(x => x.EmployeeId == EmployeeId && x.PositionId == PositionId).Select(x => x.GroupId).ToHashSetAsync();
+            ? await db.EmployeePermissionGroups.AsNoTracking().Where(x => x.EmployeeId == EmployeeId).Select(x =>
+x.GroupId).ToHashSetAsync()
+            : await db.UserPositionPermissionGroups.AsNoTracking().Where(x => x.EmployeeId == EmployeeId && x.PositionId ==
+PositionId).Select(x => x.GroupId).ToHashSetAsync();
 
         var directIds = IsAdmin
-            ? await db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == EmployeeId).Select(x => x.PermissionId).ToListAsync()
-            : await db.UserPositionPermissions.AsNoTracking().Where(x => x.EmployeeId == EmployeeId && x.PositionId == PositionId).Select(x => x.PermissionId).ToListAsync();
+            ? await db.EmployeePermissions.AsNoTracking().Where(x => x.EmployeeId == EmployeeId).Select(x =>
+x.PermissionId).ToListAsync()
+            : await db.UserPositionPermissions.AsNoTracking().Where(x => x.EmployeeId == EmployeeId && x.PositionId ==
+PositionId).Select(x => x.PermissionId).ToListAsync();
 
         var groupIds = _assignedGroupIds.ToList();
         var groupPermissionIds = groupIds.Count == 0
             ? []
-            : await db.PermissionGroupPermissions.AsNoTracking().Where(x => groupIds.Contains(x.GroupId)).Select(x => x.PermissionId).ToListAsync();
+            : await db.PermissionGroupPermissions.AsNoTracking().Where(x => groupIds.Contains(x.GroupId)).Select(x =>
+x.PermissionId).ToListAsync();
         _effectivePermissionCount = directIds.Concat(groupPermissionIds).Distinct().Count();
     }
 
@@ -112,22 +122,26 @@
             await using var db = await DbFactory.CreateDbContextAsync();
             if (IsAdmin)
             {
-                var link = await db.EmployeePermissionGroups.SingleOrDefaultAsync(x => x.EmployeeId == EmployeeId && x.GroupId == groupId);
+                var link = await db.EmployeePermissionGroups.SingleOrDefaultAsync(x => x.EmployeeId == EmployeeId && x.GroupId ==
+groupId);
                 if (assign && link is null) db.EmployeePermissionGroups.Add(new EmployeePermissionGroup(EmployeeId, groupId));
                 else if (!assign && link is not null) db.EmployeePermissionGroups.Remove(link);
                 else return;
             }
             else
             {
-                if (!await db.EmployeePositions.AnyAsync(x => x.EmployeeId == EmployeeId && x.PositionId == PositionId && x.EndedAt == null))
+                if (!await db.EmployeePositions.AnyAsync(x => x.EmployeeId == EmployeeId && x.PositionId == PositionId && x.EndedAt ==
+null))
                 {
                     AppState.AddToast("این سمت دیگر فعال نیست.", ToastLevel.Error);
                     await LoadAsync();
                     return;
                 }
 
-                var link = await db.UserPositionPermissionGroups.SingleOrDefaultAsync(x => x.EmployeeId == EmployeeId && x.PositionId == PositionId && x.GroupId == groupId);
-                if (assign && link is null) db.UserPositionPermissionGroups.Add(new UserPositionPermissionGroup(EmployeeId, PositionId, groupId));
+                var link = await db.UserPositionPermissionGroups.SingleOrDefaultAsync(x => x.EmployeeId == EmployeeId && x.PositionId ==
+PositionId && x.GroupId == groupId);
+                if (assign && link is null) db.UserPositionPermissionGroups.Add(new UserPositionPermissionGroup(EmployeeId, PositionId,
+groupId));
                 else if (!assign && link is not null) db.UserPositionPermissionGroups.Remove(link);
                 else return;
             }
@@ -148,5 +162,77 @@
 }
 
 <style>
-.permission-group-assignment{margin-top:18px;padding-top:16px;border-top:1px solid #eaecf0}.group-assignment-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.effective-permission-badge{white-space:nowrap;padding:7px 11px;border-radius:999px;background:#eef4ff;color:#175cd3;font-size:12px;font-weight:700}.group-search{display:flex;align-items:center;gap:8px;margin:12px 0}.group-search i{font-size:20px}.group-assignment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.group-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.group-info strong{overflow:hidden;text-overflow:ellipsis}.group-info small{color:#667085;line-height:1.6}.group-state{font-size:11px;color:#667085}.group-assignment-card.assigned .group-state{font-weight:700;color:#175cd3}@@media(max-width:900px){.group-assignment-grid{grid-template-columns:1fr}}
+    .permission-group-assignment {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid #eaecf0
+    }
+
+    .group-assignment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px
+    }
+
+    .effective-permission-badge {
+        white-space: nowrap;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: #eef4ff;
+        color: #175cd3;
+        font-size: 12px;
+        font-weight: 700
+    }
+
+    .group-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0
+    }
+
+    .group-search i {
+        font-size: 20px
+    }
+
+    .group-assignment-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px
+    }
+
+    .group-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+        flex: 1
+    }
+
+    .group-info strong {
+        overflow: hidden;
+        text-overflow: ellipsis
+    }
+
+    .group-info small {
+        color: #667085;
+        line-height: 1.6
+    }
+
+    .group-state {
+        font-size: 11px;
+        color: #667085
+    }
+
+    .group-assignment-card.assigned .group-state {
+        font-weight: 700;
+        color: #175cd3
+    }
+
+    @@media(max-width:900px) {
+        .group-assignment-grid {
+            grid-template-columns: 1fr
+        }
+    }
 </style>

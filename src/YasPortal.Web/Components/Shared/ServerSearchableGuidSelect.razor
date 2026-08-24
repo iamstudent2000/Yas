@@ -5,49 +5,58 @@
 @inject IJSRuntime JS
 
 <div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
-    <button @ref="_trigger" type="button" class="server-lookup-trigger form-control" disabled="@Disabled" @onclick="ToggleAsync">
-        <span class="server-lookup-value">@(string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ?? Placeholder) : SelectedText)</span>
-        <i class="bx bx-chevron-down"></i>
-    </button>
-    @if (_open && !Disabled)
-    {
-        <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
-        <div @ref="_menu" class="server-lookup-menu">
-            <div class="server-lookup-search">
-                <i class="bx bx-search"></i>
-                <input @ref="_input" value="@_search" @oninput="SearchInputChanged" @onkeydown="HandleKeyDown" placeholder="@SearchPlaceholder" autocomplete="off" />
-            </div>
-            @if (_loading)
-            {
-                <div class="server-lookup-empty"><i class="bx bx-loader-alt bx-spin"></i> در حال جستجو...</div>
-            }
-            else if (_options.Count == 0)
-            {
-                <div class="server-lookup-empty">نتیجه‌ای پیدا نشد.</div>
-            }
-            else
-            {
-                <div class="server-lookup-results">
-                    @foreach (var option in _options)
-                    {
-                        <button type="button" class="server-lookup-option @(option.Id == Value ? "selected" : "")" @onclick="() => SelectAsync(option)">
-                            <span>@option.Text</span>
-                            @if (option.Id == Value)
-                            {
-                                <i class="bx bx-check"></i>
-                            }
-                        </button>
-                    }
+    <button @ref="_trigger" type="button" class="server-lookup-trigger form-control" disabled="@Disabled"
+            @onclick="ToggleAsync">
+        <span class="server-lookup-value">@(string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ??
+                        Placeholder) : SelectedText)</span>
+            <i class="bx bx-chevron-down"></i>
+        </button>
+        @if (_open && !Disabled)
+        {
+            <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
+            <div @ref="_menu" class="server-lookup-menu">
+                <div class="server-lookup-search">
+                    <i class="bx bx-search"></i>
+                    <input @ref="_input" value="@_search" @oninput="SearchInputChanged" @onkeydown="HandleKeyDown"
+                           placeholder="@SearchPlaceholder" autocomplete="off" />
                 </div>
-            }
-        </div>
-    }
-</div>
+                @if (_loading)
+                {
+                    <div class="server-lookup-empty"><i class="bx bx-loader-alt bx-spin"></i> در حال جستجو...</div>
+                }
+                else if (_options.Count == 0)
+                {
+                    <div class="server-lookup-empty">نتیجه‌ای پیدا نشد.</div>
+                }
+                else
+                {
+                    <div class="server-lookup-results">
+                        @foreach (var option in _options)
+                        {
+                            <button type="button" class="server-lookup-option @(option.Id == Value ? "selected" : "")"
+                                    @onclick="() => SelectAsync(option)">
+                                <span>@option.Text</span>
+                                @if (option.Id == Value)
+                                {
+                                    <i class="bx bx-check"></i>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
 
 @code {
     [Parameter] public Guid? Value { get; set; }
     [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
-    [Parameter] public Func<string, CancellationToken, Task<IReadOnlyList<AdminQueryService.LookupItem>>> SearchAsync { get; set; } = default!;
+    [Parameter]
+    public Func<string, CancellationToken, Task<IReadOnlyList<AdminQueryService.LookupItem>>> SearchAsync
+    {
+        get;
+        set;
+    } = default!;
     [Parameter] public string Placeholder { get; set; } = "انتخاب کنید...";
     [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
     [Parameter] public string? SelectedText { get; set; }
@@ -201,18 +210,125 @@
 }
 
 <style>
-.server-lookup{position:relative;width:100%;min-width:0}
-.server-lookup-trigger{display:flex;align-items:center;justify-content:space-between;text-align:right;min-height:42px;cursor:pointer;direction:rtl}
-.server-lookup.disabled{opacity:.65}
-.server-lookup-value{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.server-lookup-backdrop{position:fixed;inset:0;width:100vw;height:100vh;padding:0;margin:0;border:0;background:transparent;z-index:2147483646;cursor:default}
-.server-lookup-menu{position:fixed!important;z-index:2147483647!important;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:12px;box-shadow:0 18px 45px rgba(0,0,0,.18);overflow:hidden;direction:rtl;min-width:180px}
-.server-lookup-search{display:flex;align-items:center;gap:8px;padding:9px;border-bottom:1px solid var(--border,#e5e7eb);background:var(--surface,#fff);position:sticky;top:0;z-index:1}
-.server-lookup-search i{color:#667085;flex:0 0 auto}
-.server-lookup-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;padding:5px;text-align:right;font:inherit}
-.server-lookup-results{max-height:260px;overflow-y:auto;overflow-x:hidden;padding:5px}
-.server-lookup-option{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;padding:9px 10px;border-radius:8px;text-align:right;cursor:pointer;font:inherit;direction:rtl}
-.server-lookup-option:hover,.server-lookup-option.selected{background:rgba(37,99,235,.08)}
-.server-lookup-option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.server-lookup-empty{padding:18px;text-align:center;color:#667085;font-size:12px}
+    .server-lookup {
+        position: relative;
+        width: 100%;
+        min-width: 0
+    }
+
+    .server-lookup-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: right;
+        min-height: 42px;
+        cursor: pointer;
+        direction: rtl
+    }
+
+    .server-lookup.disabled {
+        opacity: .65
+    }
+
+    .server-lookup-value {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0
+    }
+
+    .server-lookup-backdrop {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background: transparent;
+        z-index: 2147483646;
+        cursor: default
+    }
+
+    .server-lookup-menu {
+        position: fixed !important;
+        z-index: 2147483647 !important;
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 12px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, .18);
+        overflow: hidden;
+        direction: rtl;
+        min-width: 180px
+    }
+
+    .server-lookup-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        background: var(--surface, #fff);
+        position: sticky;
+        top: 0;
+        z-index: 1
+    }
+
+    .server-lookup-search i {
+        color: #667085;
+        flex: 0 0 auto
+    }
+
+    .server-lookup-search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        padding: 5px;
+        text-align: right;
+        font: inherit
+    }
+
+    .server-lookup-results {
+        max-height: 260px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 5px
+    }
+
+    .server-lookup-option {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 0;
+        background: transparent;
+        padding: 9px 10px;
+        border-radius: 8px;
+        text-align: right;
+        cursor: pointer;
+        font: inherit;
+        direction: rtl
+    }
+
+    .server-lookup-option:hover,
+    .server-lookup-option.selected {
+        background: rgba(37, 99, 235, .08)
+    }
+
+    .server-lookup-option span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0
+    }
+
+    .server-lookup-empty {
+        padding: 18px;
+        text-align: center;
+        color: #667085;
+        font-size: 12px
+    }
 </style>

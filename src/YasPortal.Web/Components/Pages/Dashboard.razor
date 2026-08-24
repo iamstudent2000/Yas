@@ -10,27 +10,47 @@
         <div class="page-header">
             <div>
                 <h1 class="page-title">داشبورد</h1>
-                <p class="page-subtitle">@((auth.User.HasClaim("yas_is_admin", "True")) ? "مدیریت و نظارت بر سامانه" : $"خوش آمدید، {auth.User.Identity?.Name}")</p>
+                <p class="page-subtitle">@((auth.User.HasClaim("yas_is_admin", "True")) ? "مدیریت و نظارت بر سامانه" :
+                                        $"خوش آمدید، {auth.User.Identity?.Name}")</p>
+                </div>
+                <span class="badge badge-success"><i class="bx bx-check-circle"></i> حساب فعال</span>
             </div>
-            <span class="badge badge-success"><i class="bx bx-check-circle"></i> حساب فعال</span>
-        </div>
 
-        <div class="stat-grid">
-            <div class="stat-card"><div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">حساب کاربری</span><strong class="stat-value">@auth.User.Identity?.Name</strong></div>
-            <div class="stat-card"><div class="stat-icon"><i class="bx bx-id-card"></i></div><span class="stat-label">سمت فعال</span><strong class="stat-value">@(auth.User.FindFirst("yas_active_position_name")?.Value ?? "انتخاب نشده")</strong></div>
-            <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield-check"></i></div><span class="stat-label">سطح دسترسی</span><strong class="stat-value">@(auth.User.HasClaim("yas_is_admin", "True") ? "مدیریت سامانه" : "کاربر سامانه")</strong></div>
-        </div>
-
-        <section class="card">
-            <h2 class="section-title">دسترسی سریع</h2>
             <div class="stat-grid">
-                <a class="stat-card" href="/my-profile"><div class="stat-icon"><i class="bx bx-user-circle"></i></div><strong>پروفایل من</strong><span class="stat-label">مشاهده اطلاعات حساب و سازمان</span></a>
-                <a class="stat-card" href="/my-positions"><div class="stat-icon"><i class="bx bx-id-card"></i></div><strong>سمت‌های من</strong><span class="stat-label">انتخاب سمت فعال</span></a>
-                @if (auth.User.HasClaim("yas_is_admin", "True"))
-                {
-                    <a class="stat-card" href="/admin/organizations"><div class="stat-icon"><i class="bx bx-buildings"></i></div><strong>سازمان‌ها</strong><span class="stat-label">مدیریت ساختار سازمانی</span></a>
-                }
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">حساب
+                    کاربری</span><strong class="stat-value">@auth.User.Identity?.Name</strong>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="bx bx-id-card"></i></div><span class="stat-label">سمت
+                    فعال</span><strong class="stat-value">@(auth.User.FindFirst("yas_active_position_name")?.Value ??
+                                       "انتخاب نشده")</strong>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="bx bx-shield-check"></i></div><span class="stat-label">سطح
+                    دسترسی</span><strong class="stat-value">@(auth.User.HasClaim("yas_is_admin", "True") ? "مدیریت سامانه" : "کاربر سامانه")</strong>
+                </div>
             </div>
-        </section>
-    </Authorized>
-</AuthorizeView>
+
+            <section class="card">
+                <h2 class="section-title">دسترسی سریع</h2>
+                <div class="stat-grid">
+                    <a class="stat-card" href="/my-profile">
+                        <div class="stat-icon"><i class="bx bx-user-circle"></i></div><strong>پروفایل من</strong><span
+                        class="stat-label">مشاهده اطلاعات حساب و سازمان</span>
+                    </a>
+                    <a class="stat-card" href="/my-positions">
+                        <div class="stat-icon"><i class="bx bx-id-card"></i></div><strong>سمت‌های من</strong><span
+                        class="stat-label">انتخاب سمت فعال</span>
+                    </a>
+                    @if (auth.User.HasClaim("yas_is_admin", "True"))
+                    {
+                        <a class="stat-card" href="/admin/organizations">
+                            <div class="stat-icon"><i class="bx bx-buildings"></i></div><strong>سازمان‌ها</strong><span
+                            class="stat-label">مدیریت ساختار سازمانی</span>
+                        </a>
+                    }
+                </div>
+            </section>
+        </Authorized>
+    </AuthorizeView>

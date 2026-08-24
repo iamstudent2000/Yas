@@ -11,21 +11,38 @@
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
 <div class="page-header">
-    <div><h1 class="page-title">پروفایل من</h1><p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p></div>
+    <div>
+        <h1 class="page-title">پروفایل من</h1>
+        <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
+    </div>
     <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
 </div>
 
 <div class="stat-grid">
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">نام و نام خانوادگی</span><strong class="stat-value">@FullName</strong></div>
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-at"></i></div><span class="stat-label">نام کاربری</span><strong class="stat-value">@Username</strong></div>
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">سازمان</span><strong class="stat-value">@OrganizationName</strong></div>
-    <div class="stat-card"><div class="stat-icon"><i class="bx bx-shield"></i></div><span class="stat-label">نوع حساب</span><strong class="stat-value">@AccountType</strong></div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">نام و نام خانوادگی</span><strong
+        class="stat-value">@FullName</strong>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="bx bx-at"></i></div><span class="stat-label">نام کاربری</span><strong
+        class="stat-value">@Username</strong>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">سازمان</span><strong
+        class="stat-value">@OrganizationName</strong>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="bx bx-shield"></i></div><span class="stat-label">نوع حساب</span><strong
+        class="stat-value">@AccountType</strong>
+    </div>
 </div>
 
 <section class="card">
     <h2 class="section-title">وضعیت سازمان</h2>
-    <div class="profile-status"><span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")"><i class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i> سازمان @OrganizationStatus</span><span>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود.</span></div>
-</section>
+    <div class="profile-status"><span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")"><i
+        class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i> سازمان
+        @OrganizationStatus</span><span>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود.</span></div>
+    </section>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
@@ -42,7 +59,8 @@
         Username = user.Identity?.Name ?? "کاربر";
         AccountType = user.HasClaim("yas_is_admin", "True") ? "مدیر سیستم" : "کاربر عادی";
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId)) return;
-        var employee = await Db.Employees.AsNoTracking().Include(x => x.Organization).SingleOrDefaultAsync(x => x.Id == employeeId);
+        var employee = await Db.Employees.AsNoTracking().Include(x => x.Organization).SingleOrDefaultAsync(x => x.Id ==
+employeeId);
         if (employee is null) return;
         FullName = employee.FullName;
         OrganizationName = employee.Organization.Name;

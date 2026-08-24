@@ -25,468 +25,444 @@ namespace YasPortal.Infrastructure.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b =>
-                {
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b => {
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PermissionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("EmployeeId", "PermissionId");
+                b.HasKey("EmployeeId", "PermissionId");
 
-                    b.HasIndex("PermissionId");
+                b.HasIndex("PermissionId");
 
-                    b.ToTable("EmployeePermissions");
-                });
+                b.ToTable("EmployeePermissions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b =>
-                {
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b => {
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("GroupId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("EmployeeId", "GroupId");
+                b.HasKey("EmployeeId", "GroupId");
 
-                    b.HasIndex("GroupId");
+                b.HasIndex("GroupId");
 
-                    b.ToTable("EmployeePermissionGroups");
-                });
+                b.ToTable("EmployeePermissionGroups");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.Permission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.Permission", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                b.Property<string>("Code")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(300)
+                    .HasColumnType("nvarchar(300)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
+                b.HasIndex("Code")
+                    .IsUnique();
 
-                    b.ToTable("Permissions");
-                });
+                b.ToTable("Permissions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroup", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroup", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                b.Property<string>("Description")
+                    .HasMaxLength(500)
+                    .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                b.HasIndex("Name")
+                    .IsUnique();
 
-                    b.ToTable("PermissionGroups");
-                });
+                b.ToTable("PermissionGroups");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b =>
-                {
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b => {
+                b.Property<Guid>("GroupId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PermissionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("GroupId", "PermissionId");
+                b.HasKey("GroupId", "PermissionId");
 
-                    b.HasIndex("PermissionId");
+                b.HasIndex("PermissionId");
 
-                    b.ToTable("PermissionGroupPermissions");
-                });
+                b.ToTable("PermissionGroupPermissions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b =>
-                {
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b => {
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PermissionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PermissionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("EmployeeId", "PositionId", "PermissionId");
+                b.HasKey("EmployeeId", "PositionId", "PermissionId");
 
-                    b.HasIndex("PermissionId");
+                b.HasIndex("PermissionId");
 
-                    b.HasIndex("PositionId");
+                b.HasIndex("PositionId");
 
-                    b.ToTable("UserPositionPermissions");
-                });
+                b.ToTable("UserPositionPermissions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b =>
-                {
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b => {
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("GroupId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("GroupId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("EmployeeId", "PositionId", "GroupId");
+                b.HasKey("EmployeeId", "PositionId", "GroupId");
 
-                    b.HasIndex("GroupId");
+                b.HasIndex("GroupId");
 
-                    b.HasIndex("PositionId");
+                b.HasIndex("PositionId");
 
-                    b.ToTable("UserPositionPermissionGroups");
-                });
+                b.ToTable("UserPositionPermissionGroups");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                b.Property<string>("FullName")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("nvarchar(256)");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsActive")
+                    .HasColumnType("bit");
 
-                    b.Property<bool>("IsAdmin")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsAdmin")
+                    .HasColumnType("bit");
 
-                    b.Property<Guid?>("LastActivePositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("LastActivePositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("OrganizationId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("OrganizationId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("PasswordHash")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                b.Property<string>("PasswordHash")
+                    .HasMaxLength(512)
+                    .HasColumnType("nvarchar(512)");
 
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                b.Property<string>("Username")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("nvarchar(256)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("LastActivePositionId");
+                b.HasIndex("LastActivePositionId");
 
-                    b.HasIndex("OrganizationId");
+                b.HasIndex("OrganizationId");
 
-                    b.HasIndex("Username")
-                        .IsUnique();
+                b.HasIndex("Username")
+                    .IsUnique();
 
-                    b.ToTable("Employees");
-                });
+                b.ToTable("Employees");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b =>
-                {
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b => {
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime?>("EndedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("EmployeeId", "PositionId");
+                b.HasKey("EmployeeId", "PositionId");
 
-                    b.HasIndex("PositionId")
-                        .IsUnique()
-                        .HasFilter("[EndedAt] IS NULL");
+                b.HasIndex("PositionId")
+                    .IsUnique()
+                    .HasFilter("[EndedAt] IS NULL");
 
-                    b.ToTable("EmployeePositions");
-                });
+                b.ToTable("EmployeePositions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsActive")
+                    .HasColumnType("bit");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                b.HasIndex("Name")
+                    .IsUnique();
 
-                    b.ToTable("Organizations");
-                });
+                b.ToTable("Organizations");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid?>("ParentPositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("ParentPositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                b.HasIndex("Name")
+                    .IsUnique();
 
-                    b.HasIndex("ParentPositionId");
+                b.HasIndex("ParentPositionId");
 
-                    b.ToTable("Positions");
-                });
+                b.ToTable("Positions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b => {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("EmployeeId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("EmployeeId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime?>("EndedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("PositionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("PositionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("StartedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime?>("StartedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("PositionId")
-                        .IsUnique()
-                        .HasFilter("[EndedAt] IS NULL");
+                b.HasIndex("PositionId")
+                    .IsUnique()
+                    .HasFilter("[EndedAt] IS NULL");
 
-                    b.HasIndex("EmployeeId", "StartedAt");
+                b.HasIndex("EmployeeId", "StartedAt");
 
-                    b.HasIndex("PositionId", "StartedAt");
+                b.HasIndex("PositionId", "StartedAt");
 
-                    b.ToTable("PositionAssignmentHistories");
-                });
+                b.ToTable("PositionAssignmentHistories");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany()
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
-                        .WithMany()
-                        .HasForeignKey("PermissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
+                    .WithMany()
+                    .HasForeignKey("PermissionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Permission");
-                });
+                b.Navigation("Permission");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany()
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
+                    .WithMany()
+                    .HasForeignKey("GroupId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Group");
-                });
+                b.Navigation("Group");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b => {
+                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
+                    .WithMany()
+                    .HasForeignKey("GroupId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
-                        .WithMany()
-                        .HasForeignKey("PermissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
+                    .WithMany()
+                    .HasForeignKey("PermissionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Group");
+                b.Navigation("Group");
 
-                    b.Navigation("Permission");
-                });
+                b.Navigation("Permission");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany()
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
-                        .WithMany()
-                        .HasForeignKey("PermissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
+                    .WithMany()
+                    .HasForeignKey("PermissionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Organization.Position", "Position")
-                        .WithMany()
-                        .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
+                    .WithMany()
+                    .HasForeignKey("PositionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Permission");
+                b.Navigation("Permission");
 
-                    b.Navigation("Position");
-                });
+                b.Navigation("Position");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany()
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
+                    .WithMany()
+                    .HasForeignKey("GroupId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Organization.Position", "Position")
-                        .WithMany()
-                        .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
+                    .WithMany()
+                    .HasForeignKey("PositionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Group");
+                b.Navigation("Group");
 
-                    b.Navigation("Position");
-                });
+                b.Navigation("Position");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Position", null)
-                        .WithMany()
-                        .HasForeignKey("LastActivePositionId")
-                        .OnDelete(DeleteBehavior.SetNull);
+            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
+                b.HasOne("YasPortal.Domain.Organization.Position", null)
+                    .WithMany()
+                    .HasForeignKey("LastActivePositionId")
+                    .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("YasPortal.Domain.Organization.Organization", "Organization")
-                        .WithMany("Employees")
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Organization.Organization", "Organization")
+                    .WithMany("Employees")
+                    .HasForeignKey("OrganizationId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
-                    b.Navigation("Organization");
-                });
+                b.Navigation("Organization");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany("Positions")
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany("Positions")
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Organization.Position", "Position")
-                        .WithMany()
-                        .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
+                    .WithMany()
+                    .HasForeignKey("PositionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Position");
-                });
+                b.Navigation("Position");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Position", "ParentPosition")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentPositionId")
-                        .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
+                b.HasOne("YasPortal.Domain.Organization.Position", "ParentPosition")
+                    .WithMany("Children")
+                    .HasForeignKey("ParentPositionId")
+                    .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("ParentPosition");
-                });
+                b.Navigation("ParentPosition");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b =>
-                {
-                    b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b => {
+                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
+                    .WithMany()
+                    .HasForeignKey("EmployeeId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("YasPortal.Domain.Organization.Position", "Position")
-                        .WithMany()
-                        .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
+                    .WithMany()
+                    .HasForeignKey("PositionId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
 
-                    b.Navigation("Employee");
+                b.Navigation("Employee");
 
-                    b.Navigation("Position");
-                });
+                b.Navigation("Position");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b =>
-                {
-                    b.Navigation("Positions");
-                });
+            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
+                b.Navigation("Positions");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b =>
-                {
-                    b.Navigation("Employees");
-                });
+            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b => {
+                b.Navigation("Employees");
+            });
 
-            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b =>
-                {
-                    b.Navigation("Children");
-                });
+            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
+                b.Navigation("Children");
+            });
 #pragma warning restore 612, 618
         }
     }

@@ -16,7 +16,7 @@
             <span>مورد</span>
         </div>
         <span class="server-pagination-info"><strong>@ToPersianDigits((((Page - 1) * PageSize) +
-                                    1).ToString())–@ToPersianDigits(Math.Min(Page * PageSize, TotalCount).ToString())</strong><span
+                                                1).ToString())–@ToPersianDigits(Math.Min(Page * PageSize, TotalCount).ToString())</strong><span
             class="server-pagination-info-muted">از @ToPersianDigits(TotalCount.ToString("N0"))</span></span>
             @if (TotalPages > 1)
             {

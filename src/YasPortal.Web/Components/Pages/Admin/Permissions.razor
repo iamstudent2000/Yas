@@ -18,171 +18,213 @@
         <div>
             <div class="page-kicker">مدیریت سامانه / کنترل دسترسی</div>
             <h1 class="page-title">مجوزها</h1>
-            <p class="page-subtitle">نام و کد فنی هر مجوز را ببینید و دقیقاً بررسی کنید چه کسی یا چه گروهی از آن استفاده می‌کند.</p>
+            <p class="page-subtitle">نام و کد فنی هر مجوز را ببینید و دقیقاً بررسی کنید چه کسی یا چه گروهی از آن استفاده
+                می‌کند.</p>
+            </div>
+            <div class="admin-page-actions">
+                <a class="btn btn-primary" href="/admin/permission-groups"><i class="bx bx-layer"></i> گروه‌های مجوز</a>
+                <a class="btn btn-secondary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a>
+            </div>
         </div>
-        <div class="admin-page-actions">
-            <a class="btn btn-primary" href="/admin/permission-groups"><i class="bx bx-layer"></i> گروه‌های مجوز</a>
-            <a class="btn btn-secondary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a>
+
+        <div class="admin-stat-grid">
+            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-key"></i></span>
+                <div><small>کل مجوزها</small><strong>@_totalCount</strong></div>
+            </div>
+            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-user-check"></i></span>
+                <div><small>تخصیص مستقیم</small><strong>@_directAssignmentCount</strong></div>
+            </div>
+            <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-layer"></i></span>
+                <div><small>استفاده در گروه‌ها</small><strong>@_groupMembershipCount</strong></div>
+            </div>
         </div>
-    </div>
 
-    <div class="admin-stat-grid">
-        <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-key"></i></span><div><small>کل مجوزها</small><strong>@_totalCount</strong></div></div>
-        <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-user-check"></i></span><div><small>تخصیص مستقیم</small><strong>@_directAssignmentCount</strong></div></div>
-        <div class="admin-stat"><span class="admin-stat-icon"><i class="bx bx-layer"></i></span><div><small>استفاده در گروه‌ها</small><strong>@_groupMembershipCount</strong></div></div>
-    </div>
-
-    <div class="admin-split">
-        <section class="card admin-split-card">
-            <div class="admin-card-heading">
-                <div class="admin-card-heading-icon"><i class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
-                <div><h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2><p class="muted">کد فنی یکتا و نام نمایشی قابل فهم وارد کنید.</p></div>
-            </div>
-            <div class="admin-form-body">
-                <label class="form-label">نام مجوز</label>
-                <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
-                <label class="form-label">کد فنی مجوز</label>
-                <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve" dir="ltr" />
-                <div class="admin-form-hint"><i class="bx bx-info-circle"></i><span>کد فنی در این صفحه نمایش داده می‌شود و برای شناسایی دقیق مجوز استفاده می‌شود.</span></div>
-                <div class="form-actions" style="margin-top:14px">
-                    <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد مجوز" : "ذخیره تغییرات")</button>
-                    @if (_editingId is not null)
-                    {
-                        <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
-                    }
-                </div>
-            </div>
-        </section>
-
-        <section class="card admin-split-card">
-            <div class="admin-list-head">
-                <div><h2 class="section-title">فهرست مجوزها</h2><p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p></div>
-                <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput" @onkeyup="SearchChanged" /></div>
-            </div>
-            <div class="admin-list-filter">
-                <span class="admin-result-count">@_totalCount مجوز</span>
-                <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
-                    <option value="">همه</option>
-                    <option value="used">در حال استفاده</option>
-                    <option value="unused">بدون استفاده</option>
-                </select>
-            </div>
-
-            @if (_loading)
-            {
-                <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
-            }
-            else if (_permissions.Count == 0)
-            {
-                <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا فیلتر را تغییر دهید.</span></div>
-            }
-            else
-            {
-                <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
-                @foreach (var x in _permissions)
-                {
-                    var isExpanded = _expandedPermissionId == x.Id;
-                    var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
-                    <div @key="x.Id">
-                        <div class="admin-list-row">
-                            <div class="admin-list-primary">
-                                <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
-                                <div class="admin-list-text">
-                                    <strong>@x.Name</strong>
-                                    <span>@PermissionCategory(x.Code)</span>
-                                    <code class="admin-code" dir="ltr">@x.Code</code>
+        <div class="admin-split">
+            <section class="card admin-split-card">
+                <div class="admin-card-heading">
+                    <div class="admin-card-heading-icon"><i
+                        class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
+                        <div>
+                            <h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2>
+                            <p class="muted">کد فنی یکتا و نام نمایشی قابل فهم وارد کنید.</p>
+                        </div>
+                    </div>
+                    <div class="admin-form-body">
+                        <label class="form-label">نام مجوز</label>
+                        <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
+                        <label class="form-label">کد فنی مجوز</label>
+                        <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve"
+                               dir="ltr" />
+                        <div class="admin-form-hint"><i class="bx bx-info-circle"></i><span>کد فنی در این صفحه نمایش داده می‌شود
+                            و برای شناسایی دقیق مجوز استفاده می‌شود.</span></div>
+                            <div class="form-actions" style="margin-top:14px">
+                                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ?
+                                                         "ایجاد مجوز" : "ذخیره تغییرات")</button>
+                                    @if (_editingId is not null)
+                                    {
+                                        <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
+                                    }
                                 </div>
                             </div>
-                            <div class="admin-list-meta">
-                                <span class="admin-pill"><i class="bx bx-user-check"></i>@x.DirectAssignmentCount مستقیم</span>
-                                <span class="admin-pill"><i class="bx bx-layer"></i>@x.GroupMembershipCount گروه</span>
-                            </div>
-                            <div class="admin-list-actions">
-                                <button class="btn btn-primary btn-sm" @onclick="() => ToggleUsage(x.Id)">
-                                    <i class="bx @(isExpanded ? "bx-chevron-up" : "bx-show")"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")
-                                </button>
-                                <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i> ویرایش</button>
-                                @if (!used)
-                                {
-                                    <button class="btn btn-danger btn-sm" @onclick="() => Delete(x.Id)"><i class="bx bx-trash"></i></button>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-secondary btn-sm admin-disabled" disabled title="مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button>
-                                }
-                            </div>
-                        </div>
+                        </section>
 
-                        @if (isExpanded)
-                        {
-                            <div class="admin-detail">
-                                @if (_usageLoading)
+                        <section class="card admin-split-card">
+                            <div class="admin-list-head">
+                                <div>
+                                    <h2 class="section-title">فهرست مجوزها</h2>
+                                    <p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p>
+                                </div>
+                                <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                   placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
+                                                                                                   @onkeyup="SearchChanged" /></div>
+                                </div>
+                                <div class="admin-list-filter">
+                                    <span class="admin-result-count">@_totalCount مجوز</span>
+                                    <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
+                                        <option value="">همه</option>
+                                        <option value="used">در حال استفاده</option>
+                                        <option value="unused">بدون استفاده</option>
+                                    </select>
+                                </div>
+
+                                @if (_loading)
                                 {
-                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری جزئیات...</span></div>
+                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
                                 }
+                                else if (_permissions.Count == 0)
+                                {
+                                    <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا
+                                        فیلتر را تغییر دهید.</span></div>
+                                    }
+            else
+                                    {
+                                        <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
+                                        @foreach (var x in _permissions)
+                                        {
+                                            var isExpanded = _expandedPermissionId == x.Id;
+                                            var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
+                                            <div @key="x.Id">
+                                                <div class="admin-list-row">
+                                                    <div class="admin-list-primary">
+                                                        <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
+                                                        <div class="admin-list-text">
+                                                            <strong>@x.Name</strong>
+                                                            <span>@PermissionCategory(x.Code)</span>
+                                                            <code class="admin-code" dir="ltr">@x.Code</code>
+                                                        </div>
+                                                    </div>
+                                                    <div class="admin-list-meta">
+                                                        <span class="admin-pill"><i class="bx bx-user-check"></i>@x.DirectAssignmentCount مستقیم</span>
+                                                        <span class="admin-pill"><i class="bx bx-layer"></i>@x.GroupMembershipCount گروه</span>
+                                                    </div>
+                                                    <div class="admin-list-actions">
+                                                        <button class="btn btn-primary btn-sm" @onclick="() => ToggleUsage(x.Id)">
+                                                            <i class="bx @(isExpanded ? "bx-chevron-up" : "bx-show")"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")
+                                                        </button>
+                                                        <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i>
+                                                            ویرایش</button>
+                                                            @if (!used)
+                                                            {
+                                                                <button class="btn btn-danger btn-sm" @onclick="() => Delete(x.Id)"><i
+                                                                    class="bx bx-trash"></i></button>
+                                                                }
+                                else
+                                                                {
+                                                                    <button class="btn btn-secondary btn-sm admin-disabled" disabled
+                                                                            title="مجوز در حال استفاده است"><i class="bx bx-lock-alt"></i></button>
+                                                                }
+                                                            </div>
+                                                        </div>
+
+                                                        @if (isExpanded)
+                                                        {
+                                                            <div class="admin-detail">
+                                                                @if (_usageLoading)
+                                                                {
+                                                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری
+                                                                        جزئیات...</span></div>
+                                                                    }
                                 else if (_usage is null)
-                                {
-                                    <div class="admin-empty" style="min-height:100px"><span>اطلاعات مصرف این مجوز پیدا نشد.</span></div>
-                                }
-                                else
-                                {
-                                    <div class="admin-detail-header">
-                                        <div><strong>ردیابی استفاده از مجوز</strong><span>@_usage.PermissionName</span></div>
-                                        <code class="admin-code" dir="ltr">@_usage.PermissionCode</code>
-                                    </div>
-                                    <div class="admin-detail-grid">
-                                        <div class="admin-detail-panel">
-                                            <div class="admin-detail-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
-                                            @if (_usage.DirectAssignments.Count == 0)
-                                            {
-                                                <div class="admin-empty" style="min-height:100px"><span>این مجوز مستقیماً به هیچ کاربری تخصیص داده نشده است.</span></div>
-                                            }
+                                                                    {
+                                                                        <div class="admin-empty" style="min-height:100px"><span>اطلاعات مصرف این مجوز پیدا نشد.</span></div>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <div class="admin-detail-header">
+                                                                            <div><strong>ردیابی استفاده از مجوز</strong><span>@_usage.PermissionName</span></div>
+                                                                            <code class="admin-code" dir="ltr">@_usage.PermissionCode</code>
+                                                                        </div>
+                                                                        <div class="admin-detail-grid">
+                                                                            <div class="admin-detail-panel">
+                                                                                <div class="admin-detail-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص
+                                                                                    مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
+                                                                                    @if (_usage.DirectAssignments.Count == 0)
+                                                                                    {
+                                                                                        <div class="admin-empty" style="min-height:100px"><span>این مجوز مستقیماً به هیچ کاربری
+                                                                                            تخصیص داده نشده است.</span></div>
+                                                                                        }
                                             else
-                                            {
-                                                @foreach (var d in _usage.DirectAssignments)
-                                                {
-                                                    <div class="admin-detail-item">
-                                                        <div class="admin-detail-item-icon"><i class="bx bx-user"></i></div>
-                                                        <div class="admin-detail-item-main"><strong>@d.EmployeeName</strong><span dir="ltr">@d.Username</span></div>
-                                                        <div class="admin-detail-item-side"><span>@d.Source</span>@if (d.PositionName is not null){<small>@d.PositionName</small>}</div>
-                                                    </div>
-                                                }
-                                            }
-                                        </div>
-                                        <div class="admin-detail-panel">
-                                            <div class="admin-detail-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این مجوز</strong><span>@_usage.Groups.Count</span></div>
-                                            @if (_usage.Groups.Count == 0)
-                                            {
-                                                <div class="admin-empty" style="min-height:100px"><span>هیچ گروهی این مجوز را شامل نمی‌شود.</span></div>
-                                            }
+                                                                                        {
+                                                                                            @foreach (var d in _usage.DirectAssignments)
+                                                                                            {
+                                                                                                <div class="admin-detail-item">
+                                                                                                    <div class="admin-detail-item-icon"><i class="bx bx-user"></i></div>
+                                                                                                    <div class="admin-detail-item-main"><strong>@d.EmployeeName</strong><span
+                                                                                                        dir="ltr">@d.Username</span></div>
+                                                                                                        <div class="admin-detail-item-side"><span>@d.Source</span>@if (d.PositionName is not
+                                                                                                            null){
+                                                                                                                <small>@d.PositionName</small>
+                                                                                                            }
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                }
+                                                                                            }
+                                                                                        </div>
+                                                                                        <div class="admin-detail-panel">
+                                                                                            <div class="admin-detail-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این
+                                                                                                مجوز</strong><span>@_usage.Groups.Count</span></div>
+                                                                                                @if (_usage.Groups.Count == 0)
+                                                                                                {
+                                                                                                    <div class="admin-empty" style="min-height:100px"><span>هیچ گروهی این مجوز را شامل
+                                                                                                        نمی‌شود.</span></div>
+                                                                                                    }
                                             else
-                                            {
-                                                @foreach (var g in _usage.Groups)
-                                                {
-                                                    <div class="admin-detail-item">
-                                                        <div class="admin-detail-item-icon"><i class="bx bx-layer"></i></div>
-                                                        <div class="admin-detail-item-main"><strong>@g.GroupName</strong>@if (!string.IsNullOrWhiteSpace(g.Description)){<span>@g.Description</span>}</div>
-                                                        <div class="admin-detail-item-side"><span>@g.PermissionCount مجوز</span><span>@g.AssignedEmployeeCount تخصیص</span></div>
-                                                    </div>
-                                                }
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-                <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
-            }
-        </section>
-    </div>
+                                                                                                    {
+                                                                                                        @foreach (var g in _usage.Groups)
+                                                                                                        {
+                                                                                                            <div class="admin-detail-item">
+                                                                                                                <div class="admin-detail-item-icon"><i class="bx bx-layer"></i></div>
+                                                                                                                <div class="admin-detail-item-main"><strong>@g.GroupName</strong>@if
+                                                                                                                    (!string.IsNullOrWhiteSpace(g.Description)){
+                                                                                                                        <span>@g.Description</span>
+                                                                                                                    }
+                                                                                                                </div>
+                                                                                                                <div class="admin-detail-item-side"><span>@g.PermissionCount
+                                                                                                                    مجوز</span><span>@g.AssignedEmployeeCount تخصیص</span></div>
+                                                                                                                </div>
+                                                                                                            }
+                                                                                                        }
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            }
+                                                                                        </div>
+                                                                                    }
+                                                                                </div>
+                                                                            }
+                                                                            <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading"
+                                                                                              PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
+                                                                        }
+                                                                    </section>
+                                                                </div>
 
-    <section class="card admin-note">
-        <div class="admin-note-icon"><i class="bx bx-shield-quarter"></i></div>
-        <div><strong>مدل دسترسی یاس پورتال</strong><p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های اختصاص‌یافته.</p></div>
-    </section>
-</div>
+                                                                <section class="card admin-note">
+                                                                    <div class="admin-note-icon"><i class="bx bx-shield-quarter"></i></div>
+                                                                    <div><strong>مدل دسترسی یاس پورتال</strong>
+                                                                        <p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های
+                                                                            اختصاص‌یافته.</p>
+                                                                        </div>
+                                                                    </section>
+                                                                </div>
 
 @code {
     private List<AdminQueryService.PermissionPageRow> _permissions = [];
@@ -258,8 +300,14 @@
 
     private static string PermissionCategory(string code) => code.Split('.', 2)[0] switch
     {
-        "Dashboard" => "داشبورد", "Profile" => "پروفایل", "Requests" => "درخواست‌ها و گردش‌کار", "Employees" => "کارکنان",
-        "Organizations" => "سازمان‌ها", "Positions" => "سمت‌ها", "Permissions" => "مجوزها", "Admin" => "مدیریت سامانه",
+        "Dashboard" => "داشبورد",
+        "Profile" => "پروفایل",
+        "Requests" => "درخواست‌ها و گردش‌کار",
+        "Employees" => "کارکنان",
+        "Organizations" => "سازمان‌ها",
+        "Positions" => "سمت‌ها",
+        "Permissions" => "مجوزها",
+        "Admin" => "مدیریت سامانه",
         _ => code.Split('.', 2)[0]
     };
 
@@ -269,13 +317,19 @@
     private async Task Save()
     {
         var code = _code.Trim(); var name = _name.Trim();
-        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name)) { AppState.AddToast("نام و کد مجوز الزامی است.", ToastLevel.Error); return; }
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+        {
+            AppState.AddToast("نام و کد مجوز الزامی است.",
+ToastLevel.Error); return;
+        }
         await using var db = await DbFactory.CreateDbContextAsync();
         if (await db.Permissions.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("این کد مجوز قبلاً ثبت شده است.", ToastLevel.Error); return; }
         if (_editingId is Guid id)
         {
             var permission = await db.Permissions.SingleAsync(x => x.Id == id);
-            if (permission.Code != code && (await db.UserPositionPermissions.AnyAsync(x => x.PermissionId == id) || await db.EmployeePermissions.AnyAsync(x => x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.PermissionId == id))) { AppState.AddToast("کد مجوزِ در حال استفاده قابل تغییر نیست.", ToastLevel.Error); return; }
+            if (permission.Code != code && (await db.UserPositionPermissions.AnyAsync(x => x.PermissionId == id) || await
+db.EmployeePermissions.AnyAsync(x => x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x =>
+x.PermissionId == id))) { AppState.AddToast("کد مجوزِ در حال استفاده قابل تغییر نیست.", ToastLevel.Error); return; }
             permission.Rename(code, name); AppState.AddToast("مجوز ویرایش شد.", ToastLevel.Success);
         }
         else { db.Permissions.Add(new Permission(code, name)); AppState.AddToast("مجوز جدید ایجاد شد.", ToastLevel.Success); }
@@ -285,7 +339,11 @@
     private async Task Delete(Guid id)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        if (await db.UserPositionPermissions.AnyAsync(x => x.PermissionId == id) || await db.EmployeePermissions.AnyAsync(x => x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.PermissionId == id)) { AppState.AddToast("این مجوز در حال استفاده است و قابل حذف نیست.", ToastLevel.Error); return; }
+        if (await db.UserPositionPermissions.AnyAsync(x => x.PermissionId == id) || await db.EmployeePermissions.AnyAsync(x =>
+x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.PermissionId == id))
+        {
+            AppState.AddToast("این مجوز در حال استفاده است و قابل حذف نیست.", ToastLevel.Error); return;
+        }
         db.Permissions.Remove(await db.Permissions.SingleAsync(x => x.Id == id));
         await db.SaveChangesAsync(); AppState.AddToast("مجوز حذف شد.", ToastLevel.Success);
         if (_page > 1 && _permissions.Count == 1) _page--;
