@@ -48,12 +48,12 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                 </div>
             </section>
             <section class="card table-card">
-                <div class="table-toolbar">
+                <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0">فهرست سازمان‌ها</h2>
                         <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
                     </div>
-                    <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control"
+                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                        placeholder="نام سازمان..." @bind="_organizationSearch" @bind:event="oninput"
                                                                                        @onkeyup="OrganizationSearchChanged" /></div>
                     </div>
@@ -121,9 +121,9 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                         <p class="page-subtitle">کارمند را جستجو کنید؛ فقط صفحه جاری از کارکنان به مرورگر ارسال می‌شود.</p>
                     </div>
                 </div>
-                <div class="table-toolbar">
+                <div class="card-toolbar">
                     <div></div>
-                    <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control"
+                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                        placeholder="نام یا نام کاربری کارمند..." @bind="_employeeSearch" @bind:event="oninput"
                                                                                        @onkeyup="EmployeeSearchChanged" /></div>
                     </div>

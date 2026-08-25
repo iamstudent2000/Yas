@@ -23,7 +23,7 @@
     </div>
 
     <section class="card">
-        <div class="section-head">
+        <div class="card-toolbar">
             <div>
                 <h2 class="section-title">فیلتر گزارش‌ها</h2>
                 <p class="muted">برای شروع، فیلترها را انتخاب کرده و «جستجو» را بزنید.</p>
@@ -47,7 +47,7 @@
             <div class="admin-filter"><label>تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
         </div>
 
-        <div class="table-toolbar">
+        <div class="card-toolbar">
             <div class="admin-active-filters">
                 @if(_fromDate.HasValue){<span class="badge badge-muted">از @ToPersianDate(_fromDate.Value)</span>}
                 @if(_toDate.HasValue){<span class="badge badge-muted">تا @ToPersianDate(_toDate.Value)</span>}

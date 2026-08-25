@@ -48,7 +48,7 @@
                             <h2 class="section-title">گروه‌ها</h2>
                             <p class="muted">@_groupTotal گروه</p>
                         </div>
-                        <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control"
+                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                            placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
                                                                                            @onkeyup="GroupSearchChanged" /></div>
                         </div>@if(_groupLoading){
@@ -105,7 +105,7 @@
                 </div>
             </div>
             <div class="editor-tools">
-                <div class="toolbar-search"><i class="bx bx-search"></i><input class="form-control"
+                <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
                                                                                    @onkeyup="PermissionSearchChanged" /></div><label class="only-selected"><input type="checkbox"
                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
