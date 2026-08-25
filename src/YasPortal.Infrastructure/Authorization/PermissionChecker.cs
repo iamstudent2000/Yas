@@ -18,8 +18,6 @@ public sealed class PermissionChecker(
     private DateTime _snapshotExpiresAtUtc;
     private readonly SemaphoreSlim _snapshotLock = new(1, 1);
 
-    // Keep the snapshot short-lived so changes made by an administrator are picked up
-    // without turning the scoped cache into a long-lived authorization decision.
     private static readonly TimeSpan SnapshotLifetime = TimeSpan.FromSeconds(5);
 
     public async Task<bool> HasPermissionAsync(string permissionCode, CancellationToken cancellationToken = default)
@@ -76,8 +74,6 @@ public sealed class PermissionChecker(
 
             await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-            // The employee status/admin state is still read from the database. It is
-            // never trusted from the authentication cookie for the authorization result.
             var employee = await db.Employees
                 .AsNoTracking()
                 .Where(x => x.Id == employeeId)
@@ -87,33 +83,24 @@ public sealed class PermissionChecker(
             if (employee is null || !employee.IsActive)
             {
                 return StoreSnapshot(employeeId, positionId, principalIsAdmin,
-                    new AuthorizationSnapshot(false, false, false, []), now);
+                    new AuthorizationSnapshot(false, false, false, new HashSet<string>(StringComparer.OrdinalIgnoreCase)), now);
             }
 
-            // The database remains authoritative for admin state. The principal's admin
-            // claim is used only as part of the cache key, so an old claim can never grant
-            // admin access by itself.
             var isAdmin = employee.IsAdmin;
 
             if (isAdmin)
             {
-                // Direct employee permissions and employee permission groups are loaded
-                // together into one in-memory set. All later checks use this set.
                 var permissions = await LoadEmployeePermissionsAsync(db, employeeId, cancellationToken);
                 return StoreSnapshot(employeeId, positionId, principalIsAdmin,
                     new AuthorizationSnapshot(true, true, true, permissions), now);
             }
 
-            // Admin permissions are never inherited from a user's position.
             if (positionId is null || positionId == Guid.Empty)
             {
                 return StoreSnapshot(employeeId, positionId, principalIsAdmin,
-                    new AuthorizationSnapshot(true, false, false, []), now);
+                    new AuthorizationSnapshot(true, false, false, new HashSet<string>(StringComparer.OrdinalIgnoreCase)), now);
             }
 
-            // Validate the selected position and load all effective User + Position
-            // permissions in one query. This replaces a database round-trip for every
-            // individual permission check.
             var permissionsForPosition = await db.UserPositionPermissions
                 .AsNoTracking()
                 .Where(x => x.EmployeeId == employeeId
@@ -138,9 +125,6 @@ public sealed class PermissionChecker(
                     .Select(gp => gp.Permission.Code))
                 .ToListAsync(cancellationToken);
 
-            // The assignment validation is represented by the same active-position
-            // predicate used by both permission queries. If there are no permissions,
-            // we still need to distinguish an invalid position from a valid position.
             var hasActivePosition = await db.EmployeePositions
                 .AsNoTracking()
                 .AnyAsync(x => x.EmployeeId == employeeId
