@@ -51,27 +51,29 @@
 
             <button type="submit" class="active-position-submit" title="تغییر سمت فعال" aria-label="تغییر سمت فعال"><i
                 class="bx bx-check"></i></button>
-            </form>
-        }
+        </form>
+    }
     else if (_positions.Count == 1)
-        {
-            <div class="active-position-single">
-                <i class="bx bx-briefcase-alt-2"></i>
-                <span title="@_positions[0].Name">@_positions[0].Name</span>
-            </div>
-        }
-    </div>
+    {
+        <div class="active-position-single">
+            <i class="bx bx-briefcase-alt-2"></i>
+            <span title="@_positions[0].Name">@_positions[0].Name</span>
+        </div>
+    }
+</div>
 
 @code {
     private List<PositionItem> _positions = [];
     private Guid _activePositionId;
     private bool _open;
+    private bool _jsReady;
+    private bool _disposed;
     private ElementReference _trigger;
     private ElementReference _dropdown;
     private DotNetObjectReference<ActivePositionSelector>? _dotNetRef;
 
     private string ActivePositionName => _positions.FirstOrDefault(x => x.Id == _activePositionId)?.Name ??
-_positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
+        _positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
 
     protected override async Task OnInitializedAsync()
     {
@@ -91,36 +93,73 @@ _positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
 
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            _jsReady = true;
+
+        return Task.CompletedTask;
+    }
+
     private async Task ToggleDropdown()
     {
+        if (_disposed || !_jsReady)
+            return;
+
         _open = !_open;
         if (_open)
         {
             _dotNetRef ??= DotNetObjectReference.Create(this);
             await InvokeAsync(StateHasChanged);
             await Task.Yield();
+            if (_disposed || !_jsReady)
+                return;
             await JS.InvokeVoidAsync("activePositionDropdown.start", _trigger, _dropdown, _dotNetRef);
         }
         else
         {
-            await JS.InvokeVoidAsync("activePositionDropdown.stop");
+            await StopDropdownAsync();
         }
     }
 
     private async Task SelectPosition(Guid positionId)
     {
+        if (_disposed)
+            return;
+
         _activePositionId = positionId;
         _open = false;
-        await JS.InvokeVoidAsync("activePositionDropdown.stop");
+        await StopDropdownAsync();
     }
 
     [JSInvokable]
     public async Task CloseDropdown()
     {
-        if (!_open) return;
+        if (_disposed || !_open)
+            return;
+
         _open = false;
-        await JS.InvokeVoidAsync("activePositionDropdown.stop");
+        await StopDropdownAsync();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StopDropdownAsync()
+    {
+        if (!_jsReady || _disposed)
+            return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("activePositionDropdown.stop");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The Blazor circuit has already disconnected; no JS cleanup is possible.
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop can be unavailable during prerendering/disposal.
+        }
     }
 
     private string GetReturnUrl()
@@ -131,9 +170,30 @@ _positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
 
     public async ValueTask DisposeAsync()
     {
-        try { await JS.InvokeVoidAsync("activePositionDropdown.stop"); }
-        catch (JSDisconnectedException) { }
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _open = false;
+
+        if (_jsReady)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("activePositionDropdown.stop");
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is already disconnected.
+            }
+            catch (InvalidOperationException)
+            {
+                // JS interop is unavailable during static rendering/disposal.
+            }
+        }
+
         _dotNetRef?.Dispose();
+        _dotNetRef = null;
     }
 
     private sealed record PositionItem(Guid Id, string Name);
