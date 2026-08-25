@@ -33,4 +33,5 @@ public static class AuthClaimNames
 {
     public const string ActivePositionId = "yas_active_position_id";
     public const string IsAdmin = "yas_is_admin";
+    public const string Permission = "yas_permission";
 }
