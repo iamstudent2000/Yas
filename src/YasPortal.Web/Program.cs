@@ -95,6 +95,7 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         return Results.Redirect("/login?error=1");
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
+
     Guid? activePositionId = null;
     if (!employee.IsAdmin)
     {
@@ -103,12 +104,22 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         if (activePositionId is null)
             return Results.Redirect("/login?error=no-position");
     }
+
     if (employee.LastActivePositionId != activePositionId)
         employee.SetLastActivePosition(activePositionId);
     await db.SaveChangesAsync();
-    var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, employee.Id.ToString()), new(ClaimTypes.Name, employee.Username), new(AuthClaimNames.IsAdmin, employee.IsAdmin.ToString()) };
+
+    var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, activePositionId, employee.IsAdmin);
+    var claims = new List<Claim>
+    {
+        new(ClaimTypes.NameIdentifier, employee.Id.ToString()),
+        new(ClaimTypes.Name, employee.Username),
+        new(AuthClaimNames.IsAdmin, employee.IsAdmin.ToString())
+    };
     if (activePositionId is Guid positionId)
         claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+    claims.AddRange(permissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
+
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     return Results.Redirect("/");
 });
@@ -123,15 +134,25 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     var returnUrl = form["returnUrl"].ToString();
     if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
         return Results.Redirect("/my-positions");
+
     var employee = await db.Employees.Include(x => x.Positions).SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
     if (employee is null)
         return Results.Redirect("/login");
     if (!employee.Positions.Any(x => x.PositionId == positionId && x.EndedAt == null))
         return Results.Redirect("/my-positions");
+
     employee.SetLastActivePosition(positionId);
     await db.SaveChangesAsync();
-    var claims = http.User.Claims.Where(c => c.Type != AuthClaimNames.ActivePositionId).ToList();
+
+    // Rebuild the snapshot for the newly selected position. Old permission claims
+    // are explicitly removed so permissions from the previous position cannot leak.
+    var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, positionId, isAdmin: false);
+    var claims = http.User.Claims
+        .Where(c => c.Type != AuthClaimNames.ActivePositionId && c.Type != AuthClaimNames.Permission)
+        .ToList();
     claims.Add(new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()));
+    claims.AddRange(permissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
+
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
     if (IsSafeLocalReturnUrl(returnUrl))
         return Results.Redirect(returnUrl);
@@ -141,6 +162,61 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) => { await antiforgery.ValidateRequestAsync(http); await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect("/login"); });
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
+
+static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
+    ApplicationDbContext db,
+    Guid employeeId,
+    Guid? positionId,
+    bool isAdmin,
+    CancellationToken cancellationToken = default)
+{
+    List<string> permissions;
+
+    if (isAdmin)
+    {
+        // Admin is not a special full-access bypass. Admin access is still exactly
+        // the direct/group permissions assigned to the employee.
+        permissions = await db.EmployeePermissions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .Select(x => x.Permission.Code)
+            .ToListAsync(cancellationToken);
+
+        var grouped = await db.EmployeePermissionGroups
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId)
+            .SelectMany(x => db.PermissionGroupPermissions
+                .Where(gp => gp.GroupId == x.GroupId)
+                .Select(gp => gp.Permission.Code))
+            .ToListAsync(cancellationToken);
+
+        permissions.AddRange(grouped);
+    }
+    else
+    {
+        if (positionId is null || positionId == Guid.Empty)
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Normal users get permissions only from User + currently selected Position.
+        permissions = await db.UserPositionPermissions
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.PositionId == positionId.Value)
+            .Select(x => x.Permission.Code)
+            .ToListAsync(cancellationToken);
+
+        var grouped = await db.UserPositionPermissionGroups
+            .AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.PositionId == positionId.Value)
+            .SelectMany(x => db.PermissionGroupPermissions
+                .Where(gp => gp.GroupId == x.GroupId)
+                .Select(gp => gp.Permission.Code))
+            .ToListAsync(cancellationToken);
+
+        permissions.AddRange(grouped);
+    }
+
+    return permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
+}
 
 static bool IsSafeLocalReturnUrl(string? returnUrl)
 {
