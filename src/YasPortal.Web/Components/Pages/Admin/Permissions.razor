@@ -75,23 +75,22 @@
                         </section>
 
                         <section class="card">
-                            <div class="admin-list-head">
+                            <div class="card-toolbar">
                                 <div>
-                                    <h2 class="section-title">فهرست مجوزها</h2>
+                                    <h2 class="section-title">فهرست مجوزها <span class="badge badge-muted">@_totalCount مجوز</span></h2>
                                     <p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p>
                                 </div>
-                                <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                                   placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
-                                                                                                   @onkeyup="SearchChanged" /></div>
-                                </div>
-                                <div class="admin-list-filter">
-                                    <span class="admin-result-count">@_totalCount مجوز</span>
+                                <div class="toolbar-tools">
                                     <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
                                         <option value="">همه</option>
                                         <option value="used">در حال استفاده</option>
                                         <option value="unused">بدون استفاده</option>
                                     </select>
+                                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                       placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
+                                                                                                       @onkeyup="SearchChanged" /></div>
                                 </div>
+                            </div>
 
                                 @if (_loading)
                                 {
