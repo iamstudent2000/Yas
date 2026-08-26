@@ -1,0 +1,92 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index c1d06a4..fceb1de 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -10,7 +10,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <base href="/" />
+     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+-    <link rel="stylesheet" href="css/app.css?v=20260826-1" />
++    <link rel="stylesheet" href="css/app.css?v=20260826-2" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+     <HeadOutlet @rendermode="InteractiveServer" />
+ </head>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index 89ab3ef..357fc6d 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -29,18 +29,18 @@
+ 
+         <div class="stat-grid">
+             <div class="stat-card">
+-                <span class="stat-icon"><i class="bx bx-key"></i></span>
++                <div class="stat-icon"><i class="bx bx-key"></i></div>
+                 <span class="stat-label">کل مجوزها</span>
+                 <strong class="stat-value">@_totalCount</strong>
+             </div>
+-            <div class="admin-stat">
+-                <span  class="stat-icon"><i class="bx bx-user-check"></i></span>
+-                <span  class="stat-label">تخصیص مستقیم</span>
++            <div class="stat-card">
++                <div class="stat-icon"><i class="bx bx-user-check"></i></div>
++                <span class="stat-label">تخصیص مستقیم</span>
+                 <strong class="stat-value">@_directAssignmentCount</strong>
+             </div>
+-            <div class="admin-stat">
+-                <span class="admin-stat-icon"><i class="bx bx-layer"></i></span>
+-                <span  class="stat-label">استفاده در گروه‌ها</span>
++            <div class="stat-card">
++                <div class="stat-icon"><i class="bx bx-layer"></i></div>
++                <span class="stat-label">استفاده در گروه‌ها</span>
+                 <strong class="stat-value">@_groupMembershipCount</strong>
+             </div>
+         </div>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index 1170f22..bfea020 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -13,7 +13,7 @@
+ 
+ <PageTitle>سمت‌ها - یاس پورتال</PageTitle>
+ 
+-<div dir="rtl" class="positions-page">
++<div dir="rtl" class="positions-page admin-page">
+     <div class="page-header">
+         <div>
+             <div class="page-subtitle">مدیریت سامانه / سمت‌ها</div>
+diff --git a/src/YasPortal.Web/wwwroot/css/app.css b/src/YasPortal.Web/wwwroot/css/app.css
+index 83c8016..7bd152a 100644
+--- a/src/YasPortal.Web/wwwroot/css/app.css
++++ b/src/YasPortal.Web/wwwroot/css/app.css
+@@ -391,12 +391,9 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-page .card-title { font-size:13px; }
+ .admin-page .muted,
+ .admin-page .help-text { font-size:10.5px; line-height:1.6; }
+-.admin-page .stat-grid,
+-.admin-page .admin-stat-grid { gap:7px; margin-bottom:10px; }
+-.admin-page .stat-card,
+-.admin-page .admin-stat { min-height:62px; padding:9px 11px; gap:8px; border-radius:10px; }
+-.admin-page .stat-icon,
+-.admin-page .admin-stat-icon { width:32px; height:32px; flex-basis:32px; font-size:16px; border-radius:8px; }
++.admin-page .stat-grid { gap:7px; margin-bottom:10px; }
++.admin-page .stat-card { min-height:62px; padding:9px 11px; gap:8px; border-radius:10px; }
++.admin-page .stat-icon { width:32px; height:32px; flex-basis:32px; font-size:16px; border-radius:8px; }
+ .admin-page .admin-filter-grid,
+ .admin-page .admin-filters { gap:7px; padding:9px 11px; }
+ .admin-page .form-label { margin-bottom:4px; font-size:10.5px; }
+@@ -587,7 +584,6 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .tree-text strong{font-size:13px;line-height:1.4}
+ .tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+ .tree-actions{display:flex;gap:4px;flex:0 0 auto}
+-.tree-actions .btn-sm{padding:5px 7px;font-size:11px}
+ .tree-children{display:flex;flex-direction:column;gap:6px;margin-top:6px;margin-right:18px;padding-right:11px;border-right:2px solid #eaecf0}
+ .position-side-panel{position:sticky;top:16px}
+ .rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
+@@ -607,7 +603,6 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .empty-icon{font-size:34px}
+ .icon-only{width:32px;padding:6px}
+ .form-actions{display:flex;gap:8px;flex-wrap:wrap}
+-.btn-sm{padding:7px 10px;font-size:12px}
+ @media (max-width:900px){.positions-layout{grid-template-columns:1fr}.position-side-panel{position:static}.positions-tree-toolbar{flex-direction:column}.tree-toolbar-actions{width:100%}.tree-item{padding-right:calc(6px + var(--depth) * 16px)}.tree-actions .btn-sm:not(.icon-only){font-size:0;width:30px;height:30px;padding:5px}.tree-actions .btn-sm:not(.icon-only) i{font-size:16px}.assignment-form{grid-template-columns:1fr}.current-assignment{grid-template-columns:auto 1fr}.current-assignment .btn{grid-column:1/-1;width:100%}}
+ 
+ 
