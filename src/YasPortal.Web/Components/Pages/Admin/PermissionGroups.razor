@@ -94,23 +94,21 @@
 </div>
 @if (_selectedGroupId is Guid gid)
 {
-    <section class="card group-permission-editor">
-        <div class="editor-topbar">
-            <div class="editor-title">
-                <div class="card-heading-icon"><i class="bx bx-lock-open-alt"></i></div>
-                <div>
-                    <div class="page-kicker">گروه انتخاب‌شده</div>
-                    <h2 class="section-title">@SelectedGroupName</h2>
-                    <p class="muted">@_selectedPermissionIds.Count مجوز انتخاب شده از @_permissionTotal مجوز.</p>
-                </div>
+    <section class="card access-panel group-permission-editor">
+        <div class="panel-heading">
+            <div>
+                <div class="panel-step">گروه انتخاب‌شده</div>
+                <h2><i class="bx bx-lock-open-alt"></i> @SelectedGroupName</h2>
+                <p>@_selectedPermissionIds.Count مجوز انتخاب شده از @_permissionTotal مجوز.</p>
             </div>
-            <div class="editor-tools">
+            <div class="panel-heading-tools">
                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
-                                                                                   @onkeyup="PermissionSearchChanged" /></div><label class="only-selected"><input type="checkbox"
+                                                                                   @onkeyup="PermissionSearchChanged" /></div>
+                <label class="only-selected"><input type="checkbox"
                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
-                </div>
-            </div>@if(_permissionLoading){
+            </div>
+        </div>@if(_permissionLoading){
             <div class="empty-state">در حال بارگذاری مجوزها...</div>
         }else
             if (_permissions.Count == 0)
@@ -121,20 +119,22 @@
             else
             {
 
-                <div class="permission-choice-grid">@foreach(var area in
+                <div class="permission-sections">@foreach(var area in
                     _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key)){
-                        <div class="permission-category">
-                            <div class="permission-category-title"><strong>@area.Key</strong><span>@area.Count() مجوز</span></div>
-                            <div class="permission-choice-grid-inner">@foreach(var permission in area){var
+                        <section class="permission-section">
+                            <div class="permission-section-heading">
+                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span>
+                            </div>
+                            <div class="permission-grid">@foreach(var permission in area){var
                                 granted = _selectedPermissionIds.Contains(permission.Id);
-                                <label class="permission-choice @(granted ? "selected" : "")"><input type="checkbox"
+                                <label class="permission-choice permission-tile @(granted ? "selected" : "")"><input type="checkbox"
                                                                                                          checked="@granted" disabled="@_saving"
                                                                                                          @onchange="e => ToggleGroupPermission(gid, permission.Id, e.Value is bool v && v)" /><span
                                     class="choice-box"><i class="bx bx-check"></i></span><span
                                     class="choice-text"><strong>@permission.Name</strong></span></label>
                                 }
                             </div>
-                        </div>
+                        </section>
                     }
                 </div>
             }
