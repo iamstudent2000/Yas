@@ -342,8 +342,10 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
 .admin-page .selection-toolbar > div { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; }
 .admin-page .permission-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; align-items:start; }
 .admin-page .permission-section { overflow:hidden; border:1px solid #e5e7eb; border-radius:9px; background:#fff; }
-.admin-page .permission-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-bottom:1px solid #e5e7eb; background:#f8fafc; }
-.admin-page .permission-section-heading > div { display:flex; align-items:center; gap:6px; }
+.admin-page .permission-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-bottom:1px solid var(--admin-border, #e5e7eb); background:#f8fafc; }
+.admin-page .permission-section-heading > div { display:flex; align-items:center; gap:8px; }
+.admin-page .permission-section-heading > div i { width:26px; height:26px; flex:0 0 26px; border-radius:8px; background:var(--admin-primary-soft, #eef3ff); color:var(--admin-primary, #3157d5); display:grid; place-items:center; font-size:14px; }
+.admin-page .permission-section-heading > div strong { font-size:12.5px; color:var(--admin-text, #172033); }
 .admin-page .permission-section-heading span { color:#667085; font-size:10px; }
 .admin-page .permission-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; padding:7px; }
 .admin-page .permission-tile,
@@ -489,28 +491,28 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
 .admin-page .permission-choice,
 .admin-page .group-choice {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr);
     align-items: center;
     gap: 8px;
     min-width: 0;
-    padding: 8px 9px;
-    border: 1px solid #e5e7eb;
-    border-radius: 9px;
-    background: #fff;
+    padding: 10px 12px;
+    border: 1px solid var(--admin-border, #e5e7eb);
+    border-radius: 10px;
+    background: var(--admin-surface, #fff);
     cursor: pointer;
     transition: border-color .12s ease, background .12s ease;
 }
 
 .admin-page .permission-choice:hover,
 .admin-page .group-choice:hover {
-    border-color: #b9c6e6;
+    border-color: var(--admin-border-strong, #d8e0e8);
     background: #fafcff;
 }
 
 .admin-page .permission-choice.selected,
 .admin-page .group-choice.selected {
-    border-color: #91a9ed;
-    background: #eef3ff;
+    border-color: transparent;
+    background: var(--admin-primary-soft, #eef3ff);
 }
 
 .admin-page .permission-choice input,
@@ -521,14 +523,15 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
 }
 
 .admin-page .choice-box {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     display: grid;
     place-items: center;
-    border: 1px solid #d0d5dd;
-    border-radius: 6px;
+    border: 1.5px solid var(--admin-border-strong, #d0d5dd);
+    border-radius: 5px;
     color: transparent;
-    background: #fff;
+    background: transparent;
+    flex: 0 0 18px;
 }
 
 .admin-page .selected .choice-box {
@@ -538,7 +541,7 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
 }
 
 .admin-page .choice-box i {
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .admin-page .choice-text {
@@ -552,6 +555,14 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--admin-text, #172033);
+}
+
+.admin-page .selected .choice-text strong {
+    font-weight: 600;
+    color: var(--admin-primary, #3157d5);
 }
 
 
