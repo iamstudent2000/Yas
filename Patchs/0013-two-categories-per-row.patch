@@ -1,0 +1,34 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 109a242..31343a4 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -10,7 +10,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <base href="/" />
+     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+-    <link rel="stylesheet" href="css/app.css?v=20260826-5" />
++    <link rel="stylesheet" href="css/app.css?v=20260826-6" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+     <HeadOutlet @rendermode="InteractiveServer" />
+ </head>
+diff --git a/src/YasPortal.Web/wwwroot/css/app.css b/src/YasPortal.Web/wwwroot/css/app.css
+index 73019fb..c400eb6 100644
+--- a/src/YasPortal.Web/wwwroot/css/app.css
++++ b/src/YasPortal.Web/wwwroot/css/app.css
+@@ -340,7 +340,7 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-page .small-search { width:230px; flex:0 0 230px; }
+ .admin-page .selection-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; padding:7px 10px; border:1px solid #eef1f5; border-radius:8px; background:#f8fafc; }
+ .admin-page .selection-toolbar > div { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; }
+-.admin-page .permission-sections { display:flex; flex-direction:column; gap:8px; }
++.admin-page .permission-sections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; align-items:start; }
+ .admin-page .permission-section { overflow:hidden; border:1px solid #e5e7eb; border-radius:9px; background:#fff; }
+ .admin-page .permission-section-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-bottom:1px solid #e5e7eb; background:#f8fafc; }
+ .admin-page .permission-section-heading > div { display:flex; align-items:center; gap:6px; }
+@@ -463,6 +463,7 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-page .admin-detail-item-icon { width:26px; height:26px; border-radius:7px; }
+ 
+ @media (max-width:900px) {
++    .admin-page .permission-sections { grid-template-columns:1fr; }
+     .admin-page .small-search { width:100%; flex:1 1 100%; }
+ }
+ @media (max-width:700px) {
