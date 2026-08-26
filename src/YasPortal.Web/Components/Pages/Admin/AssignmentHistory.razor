@@ -26,27 +26,36 @@
                 <div>
                     <h2 class="section-title"><i class="bx bx-filter-alt"></i> فیلتر سوابق</h2>
                     <p class="muted">برای دیتابیس‌های بزرگ فقط رکوردهای موردنیاز را دریافت کنید.</p>
-                </div><button class="btn btn-secondary btn-sm" @onclick="ResetFilters">پاک کردن فیلترها</button>
+                </div>
             </div>
-            <div class="admin-filter-grid">
-                <div><label class="form-label">کارمند</label>
+            <div class="admin-filters">
+                <div class="admin-filter"><label class="form-label">کارمند</label>
                     <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
                                                 SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان"
                                                 SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
                 </div>
-                <div><label class="form-label">سمت</label>
+                <div class="admin-filter"><label class="form-label">سمت</label>
                     <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged"
                                                 SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها"
                                                 SearchPlaceholder="نام سمت را جستجو کنید..." />
                 </div>
-                <div><label class="form-label">وضعیت</label><select class="form-control" @bind="_status">
+                <div class="admin-filter"><label class="form-label">وضعیت</label><select class="form-control" @bind="_status">
                     <option value="all">همه سوابق</option>
                     <option value="active">فقط تخصیص‌های فعال</option>
                     <option value="ended">فقط سوابق پایان‌یافته</option>
                 </select></div>
-                <div><label class="form-label">عملیات</label><button class="btn btn-primary" disabled="@_loading"
-                                                                         @onclick="LoadAsync"><i class="bx bx-search"></i> جستجو</button></div>
+            </div>
+            <div class="card-toolbar">
+                <div class="admin-active-filters">
+                    @if(!string.IsNullOrWhiteSpace(_employeeName)){<span class="badge badge-muted">کارمند: @_employeeName</span>}
+                    @if(!string.IsNullOrWhiteSpace(_positionName)){<span class="badge badge-muted">سمت: @_positionName</span>}
+                    @if(_status != "all"){<span class="badge badge-muted">وضعیت: @(_status == "active" ? "فقط فعال" : "فقط پایان‌یافته")</span>}
                 </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" disabled="@_loading" @onclick="LoadAsync"><i class="bx bx-search"></i><span>جستجو</span></button>
+                    <button class="btn btn-secondary" @onclick="ResetFilters"><i class="bx bx-eraser"></i><span>پاک کردن فیلترها</span></button>
+                </div>
+            </div>
             </section>
             <section class="card" style="margin-top:14px">
                 <div class="card-toolbar">

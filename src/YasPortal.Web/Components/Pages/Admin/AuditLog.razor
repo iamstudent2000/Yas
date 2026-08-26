@@ -39,12 +39,12 @@
         </div>
 
         <div class="admin-filters">
-            <div class="admin-filter"><label>کاربر</label><input class="form-control" placeholder="نام کاربر..." @bind="_employeeSearch" /></div>
-            <div class="admin-filter"><label>سمت فعال</label><input class="form-control" placeholder="نام سمت..." @bind="_positionSearch" /></div>
-            <div class="admin-filter"><label>موجودیت</label><input class="form-control" placeholder="مثلاً Permission" @bind="_entityType" /></div>
-            <div class="admin-filter"><label>عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
-            <div class="admin-filter"><label>از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
-            <div class="admin-filter"><label>تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
+            <div class="admin-filter"><label class="form-label">کاربر</label><input class="form-control" placeholder="نام کاربر..." @bind="_employeeSearch" /></div>
+            <div class="admin-filter"><label class="form-label">سمت فعال</label><input class="form-control" placeholder="نام سمت..." @bind="_positionSearch" /></div>
+            <div class="admin-filter"><label class="form-label">موجودیت</label><input class="form-control" placeholder="مثلاً Permission" @bind="_entityType" /></div>
+            <div class="admin-filter"><label class="form-label">عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
+            <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
+            <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
         </div>
 
         <div class="card-toolbar">
