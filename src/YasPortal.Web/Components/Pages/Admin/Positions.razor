@@ -49,6 +49,9 @@
                     <p class="muted">روی نام سمت برای مدیریت تخصیص کلیک کنید. دکمه‌های <strong>+</strong> و
                         <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
                     </div>
+                    <div class="toolbar-tools">
+                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" /></div>
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
@@ -56,6 +59,7 @@
                                 class="bx bx-chevrons-up"></i> بستن همه</button>
                                 <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i
                                     class="bx bx-plus"></i> سمت ریشه</button>
+                                </div>
                                 </div>
                             </div>
 
@@ -71,17 +75,31 @@
             else
                                 {
                                     <div class="tree-summary">
-                                        <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
-                                        <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
-                                        <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id)
-                                                                && HasChildren(x.Id))</span>
+                                        @if (_visiblePositionIds is not null)
+                                        {
+                                            <span><i class="bx bx-search"></i> @_treeMatchCount نتیجه از @_positions.Count سمت</span>
+                                        }
+                                        else
+                                        {
+                                            <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
+                                            <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
+                                            <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id)
+                                                                    && HasChildren(x.Id))</span>
+                                        }
                                         </div>
-                                        <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
-                                            @foreach (var root in Roots)
-                                            {
-                                                @RenderNode(root, 0)
-                                            }
-                                        </div>
+                                        @if (_visiblePositionIds is not null && _visiblePositionIds.Count == 0)
+                                        {
+                                            <div class="empty-state"><i class="bx bx-search-alt empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام سمت دیگری را جستجو کنید.</span></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
+                                                @foreach (var root in Roots)
+                                                {
+                                                    @RenderNode(root, 0)
+                                                }
+                                            </div>
+                                        }
                                     }
                                 </section>
 
@@ -156,14 +174,38 @@
 @code {
     private List<PositionRow> _positions = [];
     private readonly HashSet<Guid> _collapsedNodeIds = [];
+    private string _treeSearch = "";
+    private HashSet<Guid>? _visiblePositionIds;
+    private int _treeMatchCount;
     private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign;
     private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
     private string? _selectedPositionEmployeeName;
     private bool _loading, _savingAssignment, _treeInitialized;
 
-    private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null).OrderBy(x => x.Name);
+    private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null
+        && (_visiblePositionIds is null || _visiblePositionIds.Contains(x.Id))).OrderBy(x => x.Name);
     private string SelectedPositionName => _selectedPositionId is Guid id ? _positions.FirstOrDefault(x => x.Id == id)?.Name
 ?? "سمت" : "سمت";
+
+    private void TreeSearchChanged()
+    {
+        var q = _treeSearch.Trim();
+        if (q.Length == 0) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
+
+        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Id).ToHashSet();
+        _treeMatchCount = matches.Count;
+
+        var visible = new HashSet<Guid>(matches);
+        var byId = _positions.ToDictionary(x => x.Id);
+        foreach (var matchId in matches)
+        {
+            var current = byId[matchId];
+            while (current.ParentPositionId is Guid parentId && visible.Add(parentId))
+                current = byId[parentId];
+        }
+        _visiblePositionIds = visible;
+    }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -190,6 +232,9 @@
             {
                 _collapsedNodeIds.RemoveWhere(id => !_positions.Any(x => x.Id == id));
             }
+
+            if (_treeSearch.Trim().Length > 0)
+                TreeSearchChanged();
 
             if (_selectedPositionId is Guid selected)
                 await LoadSelectedAssignmentAsync(selected);
@@ -469,9 +514,10 @@ x.PositionId == id))
 
     private RenderFragment RenderNode(PositionRow position, int depth) => builder =>
     {
-        var children = _positions.Where(x => x.ParentPositionId == position.Id).OrderBy(x => x.Name).ToList();
+        var children = _positions.Where(x => x.ParentPositionId == position.Id
+            && (_visiblePositionIds is null || _visiblePositionIds.Contains(x.Id))).OrderBy(x => x.Name).ToList();
         var hasChildren = children.Count > 0;
-        var expanded = IsExpanded(position.Id);
+        var expanded = _visiblePositionIds is not null ? true : IsExpanded(position.Id);
         var s = 0;
 
         builder.OpenElement(s++, "div");

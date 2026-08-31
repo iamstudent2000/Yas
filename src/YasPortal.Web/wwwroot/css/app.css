@@ -542,26 +542,26 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
 .positions-tree-toolbar{align-items:flex-start;margin-bottom:14px}
 .tree-toolbar-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-start}
 .position-tree-card-wrap{min-height:480px}
-.tree-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 12px;padding:8px 10px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:#667085;font-size:11px}
+.tree-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 10px;padding:7px 10px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:#667085;font-size:11px}
 .tree-summary span{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#fff;border:1px solid #eaecf0}
-.position-tree{display:flex;flex-direction:column;gap:6px}
+.position-tree{display:flex;flex-direction:column;gap:2px;max-height:min(640px,calc(100vh - 340px));overflow-y:auto;padding-left:4px;margin-left:-4px}
 .tree-node{position:relative}
-.tree-item{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:54px;padding:6px 8px;border:1px solid #eaecf0;border-radius:10px;background:#fff;transition:border-color .12s,box-shadow .12s,background .12s}
-.tree-item:hover{border-color:#d0d5dd;background:#fcfcfd}
-.tree-item.selected{border-color:#98a2b3;box-shadow:0 0 0 2px rgba(16,24,40,.05);background:#f8fafc}
-.tree-toggle{width:28px;height:28px;padding:0;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#344054;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
+.tree-item{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:38px;padding:4px 7px;border:1px solid transparent;border-radius:8px;background:#fff;transition:border-color .12s,box-shadow .12s,background .12s}
+.tree-item:hover{border-color:#eaecf0;background:#fafbfc}
+.tree-item.selected{border-color:var(--admin-primary-soft,#eef3ff);background:var(--admin-primary-soft,#eef3ff);box-shadow:inset 2px 0 0 var(--admin-primary,#3157d5)}
+.tree-toggle{width:22px;height:22px;padding:0;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#344054;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
 .tree-toggle:hover{background:#f2f4f7}
-.tree-toggle i{font-size:17px}
-.tree-toggle-placeholder{width:28px;flex:0 0 auto}
-.tree-main{display:flex;align-items:center;gap:9px;min-width:0;flex:1;background:none;border:0;text-align:right;cursor:pointer;color:inherit;padding:0}
-.tree-icon{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto}
+.tree-toggle i{font-size:14px}
+.tree-toggle-placeholder{width:22px;flex:0 0 auto}
+.tree-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;background:none;border:0;text-align:right;cursor:pointer;color:inherit;padding:0}
+.tree-icon{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:0 0 auto;font-size:12px}
 .tree-icon.free{background:#f2f4f7;color:#475467}
 .tree-icon.occupied{background:#ecfdf3;color:#027a48}
-.tree-text{display:flex;flex-direction:column;gap:2px;min-width:0}
-.tree-text strong{font-size:13px;line-height:1.4}
-.tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
-.tree-actions{display:flex;gap:4px;flex:0 0 auto}
-.tree-children{display:flex;flex-direction:column;gap:6px;margin-top:6px;margin-right:18px;padding-right:11px;border-right:2px solid #eaecf0}
+.tree-text{display:flex;flex-direction:column;gap:0;min-width:0}
+.tree-text strong{font-size:12px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.tree-actions{display:flex;gap:3px;flex:0 0 auto}
+.tree-children{display:flex;flex-direction:column;gap:2px;margin-top:2px;margin-right:11px;padding-right:11px;border-right:1.5px solid #edf0f4}
 .position-side-panel{position:sticky;top:16px}
 .rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
 .rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}
