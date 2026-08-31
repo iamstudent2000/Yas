@@ -102,11 +102,18 @@
                 <p>@_selectedPermissionIds.Count مجوز انتخاب شده از @_permissionTotal مجوز.</p>
             </div>
             <div class="panel-heading-tools">
+                <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i>
+                    @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i>
+                    @_selectedPermissionIds.Count انتخاب شده</span></div>
                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
                                                                                    @onkeyup="PermissionSearchChanged" /></div>
                 <label class="only-selected"><input type="checkbox"
                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
+                <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                 @onclick="() => SetVisiblePermissions(gid, true)"><i class="bx bx-check-double"></i> انتخاب نتایج</button><button
+                    class="btn btn-secondary btn-sm" disabled="@_saving"
+                    @onclick="() => SetVisiblePermissions(gid, false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
             </div>
         </div>@if(_permissionLoading){
             <div class="empty-state">در حال بارگذاری مجوزها...</div>
@@ -139,12 +146,6 @@
                     }
                 </div>
             }
-        <div class="bulk-toolbar"><span>@_permissionTotal مجوز در نتیجه</span>
-            <div><button class="btn btn-secondary btn-sm" disabled="@_saving"
-                             @onclick="() => SetVisiblePermissions(gid, true)">انتخاب نتایج</button><button
-                class="btn btn-secondary btn-sm" disabled="@_saving"
-                @onclick="() => SetVisiblePermissions(gid, false)">حذف نتایج</button></div>
-            </div>
         </section>
     }
 else
