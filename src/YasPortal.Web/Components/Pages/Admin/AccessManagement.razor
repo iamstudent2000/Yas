@@ -108,7 +108,7 @@
                                             </div>
                                             <div class="permission-grid">@foreach(var p in area){var
                                                 selected = _directPermissionIds.Contains(p.Id);
-                                                <label class="permission-choice permission-tile @(selected ? "selected" : "")"><input
+                                                <label class="permission-choice @(selected ? "selected" : "")"><input
                                                     type="checkbox" checked="@selected" disabled="@_saving"
                                                     @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span

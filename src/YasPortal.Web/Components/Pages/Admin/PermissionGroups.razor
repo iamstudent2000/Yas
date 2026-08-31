@@ -128,7 +128,7 @@
                             </div>
                             <div class="permission-grid">@foreach(var permission in area){var
                                 granted = _selectedPermissionIds.Contains(permission.Id);
-                                <label class="permission-choice permission-tile @(granted ? "selected" : "")"><input type="checkbox"
+                                <label class="permission-choice @(granted ? "selected" : "")"><input type="checkbox"
                                                                                                          checked="@granted" disabled="@_saving"
                                                                                                          @onchange="e => ToggleGroupPermission(gid, permission.Id, e.Value is bool v && v)" /><span
                                     class="choice-box"><i class="bx bx-check"></i></span><span
