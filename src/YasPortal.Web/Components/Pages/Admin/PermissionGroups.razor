@@ -121,9 +121,10 @@
 
                 <div class="permission-sections">@foreach(var area in
                     _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key)){
-                        <section class="permission-section">
-                            <div class="permission-section-heading">
-                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span>
+                        var collapsed = _collapsedAreas.Contains(area.Key);
+                        <section class="permission-section @(collapsed ? "collapsed" : "")">
+                            <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
+                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span><i class="bx bx-chevron-down chevron"></i>
                             </div>
                             <div class="permission-grid">@foreach(var permission in area){var
                                 granted = _selectedPermissionIds.Contains(permission.Id);
@@ -161,6 +162,8 @@ else
     _groupLoading, _permissionLoading, _saving, _onlySelected; private HashSet<Guid> _selectedPermissionIds = []; private
 string
     SelectedGroupName => _groups.FirstOrDefault(x => x.Id == _selectedGroupId)?.Name ?? "گروه";
+    private HashSet<string> _collapsedAreas = [];
+    private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     protected override async Task OnInitializedAsync() => await LoadGroupsAsync();
     private async Task LoadGroupsAsync()
     {

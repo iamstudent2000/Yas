@@ -100,10 +100,11 @@
 
                                 <div class="permission-sections">@foreach(var area in
                                     _permissions.GroupBy(x => PermissionArea(x.Code)).OrderBy(x => x.Key)){
-                                        <section class="permission-section">
-                                            <div class="permission-section-heading">
+                                        var collapsed = _collapsedAreas.Contains(area.Key);
+                                        <section class="permission-section @(collapsed ? "collapsed" : "")">
+                                            <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
                                                 <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span
-                                                class="badge badge-muted">@area.Count() مجوز</span>
+                                                class="badge badge-muted">@area.Count() مجوز</span><i class="bx bx-chevron-down chevron"></i>
                                             </div>
                                             <div class="permission-grid">@foreach(var p in area){var
                                                 selected = _directPermissionIds.Contains(p.Id);
@@ -211,6 +212,8 @@ _effectiveViaGroupIds = [];
     private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
 "";
     private string? _statusMessage; private bool _permissionLoading, _groupLoading, _saving;
+    private HashSet<string> _collapsedAreas = [];
+    private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
 ct) => AdminQueries.SearchEmployeesAsync(search, ct);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeePositionsAsync(string search, CancellationToken
