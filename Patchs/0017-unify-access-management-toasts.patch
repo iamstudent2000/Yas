@@ -1,0 +1,85 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 576b694..3c0b41b 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -10,7 +10,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <base href="/" />
+     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+-    <link rel="stylesheet" href="css/app.css?v=20260826-9" />
++    <link rel="stylesheet" href="css/app.css?v=20260826-10" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+     <HeadOutlet @rendermode="InteractiveServer" />
+ </head>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor b/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
+index ee24f2d..9efddc5 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
+@@ -9,6 +9,7 @@
+ @attribute [Authorize(Policy = "Admin.Access")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
+ @inject AdminQueryService AdminQueries
++@inject AppState AppState
+ 
+ <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
+ <div class="admin-page" dir="rtl">
+@@ -63,10 +64,6 @@
+                     <div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div>
+                 </div>
+             </section>
+-            @if (!string.IsNullOrWhiteSpace(_statusMessage))
+-            {
+-                <div class="access-status">@_statusMessage</div>
+-            }
+             <section class="card access-panel">
+                 <div class="panel-heading">
+                     <div>
+@@ -211,7 +208,7 @@ _effectiveViaGroupIds = [];
+ [];
+     private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
+ "";
+-    private string? _statusMessage; private bool _permissionLoading, _groupLoading, _saving;
++    private bool _permissionLoading, _groupLoading, _saving;
+     private HashSet<string> _collapsedAreas = [];
+     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
+     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
+@@ -223,7 +220,7 @@ Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
+     private async Task EmployeeChanged(Guid?
+ id)
+     {
+-        _statusMessage = null; _employeeId = id; _positionId = null; _positionName = ""; ClearAccessState(); _selectedEmployee =
++        _employeeId = id; _positionId = null; _positionName = ""; ClearAccessState(); _selectedEmployee =
+ id is Guid
+ eid ? await AdminQueries.GetEmployeeAsync(eid) : null; if (_selectedEmployee is
+ null) return; if (_selectedEmployee.IsAdmin) { await LoadAdminAccessAsync(_selectedEmployee.Id); }
+@@ -345,7 +342,7 @@ _positionId!.Value).ToListAsync(); db.UserPositionPermissions.RemoveRange(old);
+                 UserPositionPermission(_selectedEmployee.Id, _positionId!.Value, id)));
+             }
+             await db.SaveChangesAsync(); await
+-RebuildEffectiveAsync(db); _statusMessage = "مجوزهای مستقیم ذخیره شد.";
++RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخیره شد.", ToastLevel.Success);
+         }
+         finally { _saving = false; }
+     }
+@@ -377,7 +374,7 @@ _positionId!.Value).ToListAsync(); db.UserPositionPermissionGroups.RemoveRange(o
+                 UserPositionPermissionGroup(_selectedEmployee.Id, _positionId!.Value, id)));
+             }
+             await db.SaveChangesAsync(); await
+-RebuildEffectiveAsync(db); _statusMessage = "گروه‌های مجوز ذخیره شد.";
++RebuildEffectiveAsync(db); AppState.AddToast("گروه‌های مجوز ذخیره شد.", ToastLevel.Success);
+         }
+         finally { _saving = false; }
+     }
+diff --git a/src/YasPortal.Web/wwwroot/css/app.css b/src/YasPortal.Web/wwwroot/css/app.css
+index d6949ed..e757c47 100644
+--- a/src/YasPortal.Web/wwwroot/css/app.css
++++ b/src/YasPortal.Web/wwwroot/css/app.css
+@@ -282,7 +282,7 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-table .entity-id,.admin-page table .entity-id{direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}.admin-table .date-cell,.admin-page table .date-cell{white-space:nowrap;width:145px;min-width:145px}.admin-table .action-cell,.data-table .action-cell,.admin-page table .action-cell{display:table-cell!important;width:1%;min-width:150px;white-space:nowrap}.admin-table .action-cell .btn,.admin-table .action-cell .admin-btn,.data-table .action-cell .btn,.data-table .action-cell .admin-btn,.admin-page table .action-cell .btn,.admin-page table .action-cell .admin-btn{display:inline-flex!important;vertical-align:middle;flex:0 0 auto;margin-left:5px}.admin-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid #eef1f5;background:#fafbfc}.badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:25px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}.badge-success{background:var(--admin-success-soft);color:var(--admin-success)}.badge-muted{background:#f2f4f7;color:#667085}.badge-danger{background:var(--admin-danger-soft);color:var(--admin-danger)}
+ .admin-two-col{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;align-items:start}.employee-list{border:1px solid #eef1f5;border-radius:12px;overflow:hidden}.employee-row{display:grid;grid-template-columns:minmax(180px,1fr) 280px 90px;align-items:center;gap:14px;padding:11px 14px;border-bottom:1px solid #eef1f5}.employee-row:last-child{border-bottom:0}.employee-info{display:flex;align-items:center;gap:10px;min-width:0}.employee-avatar{width:36px;height:36px;border-radius:10px;background:var(--admin-primary-soft);color:var(--admin-primary);display:grid;place-items:center;font-weight:800;flex:0 0 36px}.position-badge-list,.admin-filter-chips{display:flex;flex-wrap:wrap;gap:5px}.only-selected{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--admin-muted);white-space:nowrap;cursor:pointer;user-select:none}.only-selected input{accent-color:var(--admin-primary);cursor:pointer}.position-badge{text-decoration:none}.admin-notice-card{margin-top:16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;padding:16px}.empty-state,.admin-empty{min-height:190px;padding:40px 20px;text-align:center;color:#94a3b8}
+ .access-selector,.access-panel{padding:18px;margin-bottom:14px}.selector-grid,.access-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}.effective-list{border:1px solid #e5e7eb;border-radius:11px;overflow:hidden}.effective-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid #eef2f7}.effective-row:last-child{border-bottom:0}
+-.subject-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 16px;margin-bottom:10px;background:linear-gradient(135deg,#fff 0%,#f8faff 100%);border-color:#dfe5ee;box-shadow:0 5px 18px rgba(16,24,40,.045)}.subject-main{display:flex;align-items:center;gap:11px;min-width:0}.subject-icon{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border-radius:11px;background:var(--admin-primary-soft);color:var(--admin-primary);font-size:19px;border:1px solid #dbe4ff}.subject-main>div:last-child{display:flex;flex-direction:column;gap:1px;min-width:0}.subject-main strong{color:#101828;font-size:13px;font-weight:800;line-height:1.5}.subject-main span{color:var(--admin-muted);font-size:11px;line-height:1.5}.subject-stats{display:flex;align-items:stretch;gap:0;border:1px solid #e4e8ef;border-radius:10px;overflow:hidden;background:#fff;flex:0 0 auto}.subject-stats>div{min-width:68px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border-left:1px solid #eef1f5}.subject-stats>div:last-child{border-left:0}.subject-stats strong{font-size:15px;line-height:1.35;font-weight:800;color:#172033;font-variant-numeric:tabular-nums}.subject-stats span{font-size:10px;line-height:1.4;color:var(--admin-muted)}.access-status{display:flex;align-items:center;gap:8px;min-height:38px;margin:0 0 12px;padding:8px 12px;border:1px solid #bfe7d2;border-radius:10px;background:var(--admin-success-soft);color:#126b4a;font-size:11.5px;font-weight:700}.access-status::before{content:'✓';width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#d6f3e3;color:var(--admin-success);font-size:12px;font-weight:900;flex:0 0 21px}
++.subject-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 16px;margin-bottom:10px;background:linear-gradient(135deg,#fff 0%,#f8faff 100%);border-color:#dfe5ee;box-shadow:0 5px 18px rgba(16,24,40,.045)}.subject-main{display:flex;align-items:center;gap:11px;min-width:0}.subject-icon{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border-radius:11px;background:var(--admin-primary-soft);color:var(--admin-primary);font-size:19px;border:1px solid #dbe4ff}.subject-main>div:last-child{display:flex;flex-direction:column;gap:1px;min-width:0}.subject-main strong{color:#101828;font-size:13px;font-weight:800;line-height:1.5}.subject-main span{color:var(--admin-muted);font-size:11px;line-height:1.5}.subject-stats{display:flex;align-items:stretch;gap:0;border:1px solid #e4e8ef;border-radius:10px;overflow:hidden;background:#fff;flex:0 0 auto}.subject-stats>div{min-width:68px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border-left:1px solid #eef1f5}.subject-stats>div:last-child{border-left:0}.subject-stats strong{font-size:15px;line-height:1.35;font-weight:800;color:#172033;font-variant-numeric:tabular-nums}.subject-stats span{font-size:10px;line-height:1.4;color:var(--admin-muted)}
+ .access-panel .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid #eef1f5;background:#fff}.access-panel .panel-heading>div:first-child{min-width:0}.access-panel .panel-heading h2{margin:0;color:var(--admin-text);font-size:15px;font-weight:800}.access-panel .panel-heading p{margin:3px 0 0;color:var(--admin-muted);font-size:11px}.access-panel .panel-heading-tools{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;flex:0 1 auto}.access-panel .panel-heading-tools .admin-filter-chips{display:flex;align-items:center;flex-wrap:nowrap;gap:5px;flex:0 0 auto}.access-panel .panel-heading-tools .search-box{width:230px;flex:0 1 230px;min-width:170px}.access-panel .panel-heading-tools .search-box .form-control{min-height:36px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid #eef1f5;background:#fafbfc}.selection-actions{display:flex;gap:6px;flex-wrap:wrap}
+ @media(max-width:900px){.access-panel .panel-heading{align-items:flex-start;flex-wrap:wrap}.access-panel .panel-heading-tools{width:100%;justify-content:space-between}.access-panel .panel-heading-tools .search-box{flex:1 1 220px;width:auto}.selector-grid,.access-columns{grid-template-columns:1fr}.subject-card{align-items:flex-start;flex-direction:column}.subject-stats{width:100%}.subject-stats>div{flex:1}}
+ @media(max-width:560px){.access-panel .panel-heading-tools{flex-wrap:wrap}.access-panel .panel-heading-tools .admin-filter-chips{width:100%;flex-wrap:wrap}.access-panel .panel-heading-tools .search-box{width:100%;flex-basis:100%}}

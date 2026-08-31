@@ -9,6 +9,7 @@
 @attribute [Authorize(Policy = "Admin.Access")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
+@inject AppState AppState
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
 <div class="admin-page" dir="rtl">
@@ -63,10 +64,6 @@
                     <div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div>
                 </div>
             </section>
-            @if (!string.IsNullOrWhiteSpace(_statusMessage))
-            {
-                <div class="access-status">@_statusMessage</div>
-            }
             <section class="card access-panel">
                 <div class="panel-heading">
                     <div>
@@ -211,7 +208,7 @@ _effectiveViaGroupIds = [];
 [];
     private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
 "";
-    private string? _statusMessage; private bool _permissionLoading, _groupLoading, _saving;
+    private bool _permissionLoading, _groupLoading, _saving;
     private HashSet<string> _collapsedAreas = [];
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
@@ -223,7 +220,7 @@ Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
     private async Task EmployeeChanged(Guid?
 id)
     {
-        _statusMessage = null; _employeeId = id; _positionId = null; _positionName = ""; ClearAccessState(); _selectedEmployee =
+        _employeeId = id; _positionId = null; _positionName = ""; ClearAccessState(); _selectedEmployee =
 id is Guid
 eid ? await AdminQueries.GetEmployeeAsync(eid) : null; if (_selectedEmployee is
 null) return; if (_selectedEmployee.IsAdmin) { await LoadAdminAccessAsync(_selectedEmployee.Id); }
@@ -345,7 +342,7 @@ _positionId!.Value).ToListAsync(); db.UserPositionPermissions.RemoveRange(old);
                 UserPositionPermission(_selectedEmployee.Id, _positionId!.Value, id)));
             }
             await db.SaveChangesAsync(); await
-RebuildEffectiveAsync(db); _statusMessage = "مجوزهای مستقیم ذخیره شد.";
+RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخیره شد.", ToastLevel.Success);
         }
         finally { _saving = false; }
     }
@@ -377,7 +374,7 @@ _positionId!.Value).ToListAsync(); db.UserPositionPermissionGroups.RemoveRange(o
                 UserPositionPermissionGroup(_selectedEmployee.Id, _positionId!.Value, id)));
             }
             await db.SaveChangesAsync(); await
-RebuildEffectiveAsync(db); _statusMessage = "گروه‌های مجوز ذخیره شد.";
+RebuildEffectiveAsync(db); AppState.AddToast("گروه‌های مجوز ذخیره شد.", ToastLevel.Success);
         }
         finally { _saving = false; }
     }
