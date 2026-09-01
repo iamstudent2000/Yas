@@ -77,7 +77,8 @@
                             @_directPermissionIds.Count انتخاب شده</span></div>
                             <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                            placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput"
-                                                                                           @onkeyup="PermissionSearchChanged" /></div>
+                                                                                           @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
+                                type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
                                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
                                                                        @onclick="() => SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب
                                     نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving"
@@ -127,7 +128,8 @@
                                     </div>
                                     <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
                                                                                                                 placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
-                                                                                                                @onkeyup="GroupSearchChanged" /></div>
+                                                                                                                @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
+                                        type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
                                     </div>
                                     <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span><span
                                         class="lookup-note">@_groupTotal گروه</span></div>@if(_groupLoading){
@@ -160,7 +162,8 @@
                                                 <p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p>
                                             </div>
                                             <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
-                                                                                                                        placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div>
+                                                                                                                        placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" />@if(!string.IsNullOrEmpty(_effectiveSearch)){<button
+                                                type="button" class="search-clear" @onclick="() => _effectiveSearch = \"\""><i class="bx bx-x"></i></button>}</div>
                                             </div>
                                             <div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه:
                                                 @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>
@@ -301,12 +304,14 @@ AdminQueries.GetAllPermissionGroupsAsync(_groupSearch)).ToList(); _groupTotal = 
         if (e.Key is "Enter" or
 "Tab" || _permissionSearch.Length == 0) await LoadPermissionResultsAsync();
     }
+    private async Task ClearPermissionSearch() { _permissionSearch = ""; await LoadPermissionResultsAsync(); }
     private async Task
 GroupSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or "Tab" || _groupSearch.Length == 0) await
 LoadGroupListAsync();
     }
+    private async Task ClearGroupSearch() { _groupSearch = ""; await LoadGroupListAsync(); }
     private async Task ToggleDirectAsync(Guid id, bool selected)
     {
         if (selected) _directPermissionIds.Add(id);

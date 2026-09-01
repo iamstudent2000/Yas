@@ -51,14 +51,13 @@
                     </div>
                     <div class="toolbar-tools">
                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" /></div>
+                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" />@if(!string.IsNullOrEmpty(_treeSearch)){<button
+                                type="button" class="search-clear" @onclick="ClearTreeSearch"><i class="bx bx-x"></i></button>}</div>
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
                             <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i
                                 class="bx bx-chevrons-up"></i> بستن همه</button>
-                                <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i
-                                    class="bx bx-plus"></i> سمت ریشه</button>
                                 </div>
                                 </div>
                             </div>
@@ -207,6 +206,13 @@
         _visiblePositionIds = visible;
     }
 
+    private void ClearTreeSearch()
+    {
+        _treeSearch = "";
+        _visiblePositionIds = null;
+        _treeMatchCount = 0;
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
@@ -263,21 +269,14 @@
             _collapsedNodeIds.Remove(positionId);
     }
 
-    private void ExpandAll() => _collapsedNodeIds.Clear();
+    private void ExpandAll() { ClearTreeSearch(); _collapsedNodeIds.Clear(); }
 
     private void CollapseAll()
     {
+        ClearTreeSearch();
         _collapsedNodeIds.Clear();
         foreach (var position in _positions.Where(x => HasChildren(x.Id)))
             _collapsedNodeIds.Add(position.Id);
-    }
-
-    private void BeginCreateRoot()
-    {
-        _editingId = null;
-        _name = "";
-        _parentPositionId = null;
-        _parentPositionName = "";
     }
 
     private void BeginCreateChild(Guid parentId)

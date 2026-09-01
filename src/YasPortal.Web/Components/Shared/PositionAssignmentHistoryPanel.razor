@@ -9,7 +9,7 @@
             <h3><i class="bx bx-history"></i> سوابق تخصیص «@PositionName»</h3>
             <p>تمام کارکنانی که در طول زمان به این سمت تخصیص داشته‌اند نمایش داده می‌شوند.</p>
         </div>
-        <div class="history-count">@_rows.Count سابقه</div>
+        <div class="history-count">@_total سابقه</div>
     </div>
 
     @if (_loading)
@@ -58,6 +58,8 @@
                 </div>
             }
         </div>
+        <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_total" Busy="@_loading"
+                          PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
     }
 </section>
 
@@ -67,6 +69,7 @@
     private List<HistoryRow> _rows = [];
     private bool _loading;
     private Guid _loadedPositionId;
+    private int _page = 1, _pageSize = 10, _total;
 
     private string PositionName { get; set; } = "سمت";
 
@@ -76,6 +79,7 @@
             return;
 
         _loadedPositionId = PositionId;
+        _page = 1;
         await LoadAsync();
     }
 
@@ -91,10 +95,19 @@
                 .Select(x => x.Name)
                 .FirstOrDefaultAsync() ?? "سمت";
 
-            _rows = await db.PositionAssignmentHistories.AsNoTracking()
+            var query = db.PositionAssignmentHistories.AsNoTracking()
                 .Where(x => x.PositionId == PositionId)
                 .OrderByDescending(x => x.StartedAt ?? DateTime.MinValue)
-                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue)
+                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue);
+
+            _total = await query.CountAsync();
+
+            var totalPages = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+            if (_page > totalPages) _page = totalPages;
+
+            _rows = await query
+                .Skip((_page - 1) * _pageSize)
+                .Take(_pageSize)
                 .Select(x => new HistoryRow(
                     x.Id,
                     x.Employee.FullName,
@@ -108,6 +121,9 @@
             _loading = false;
         }
     }
+
+    private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
+    private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
 
     private static string FormatDate(DateTime? value) => value is null
         ? "—"

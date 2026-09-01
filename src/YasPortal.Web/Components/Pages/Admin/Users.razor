@@ -75,7 +75,8 @@
                         </div>
                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                            placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput"
-                                                                                           @onkeyup="SearchChanged" /></div>
+                                                                                           @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
+                            type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
                         </div>
                         <div class="data-table-wrap">
                             @if (_loading)
@@ -197,6 +198,7 @@ db.Employees.CountAsync(x => x.IsAdmin);
 LoadAsync();
         }
     }
+    private async Task ClearSearch() { _search = ""; _page = 1; await LoadAsync(); }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken

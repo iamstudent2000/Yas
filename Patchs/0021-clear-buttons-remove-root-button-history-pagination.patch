@@ -1,0 +1,336 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 1ce03ec..04ba408 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -10,7 +10,7 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <base href="/" />
+     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+-    <link rel="stylesheet" href="css/app.css?v=20260826-12" />
++    <link rel="stylesheet" href="css/app.css?v=20260827-1" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+     <HeadOutlet @rendermode="InteractiveServer" />
+ </head>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor b/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
+index 9efddc5..685e4b8 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AccessManagement.razor
+@@ -77,7 +77,8 @@
+                             @_directPermissionIds.Count انتخاب شده</span></div>
+                             <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                            placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput"
+-                                                                                           @onkeyup="PermissionSearchChanged" /></div>
++                                                                                           @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
++                                type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
+                                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                                                        @onclick="() => SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب
+                                     نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving"
+@@ -127,7 +128,8 @@
+                                     </div>
+                                     <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                                 placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
+-                                                                                                                @onkeyup="GroupSearchChanged" /></div>
++                                                                                                                @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
++                                        type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
+                                     </div>
+                                     <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span><span
+                                         class="lookup-note">@_groupTotal گروه</span></div>@if(_groupLoading){
+@@ -160,7 +162,8 @@
+                                                 <p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p>
+                                             </div>
+                                             <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+-                                                                                                                        placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" /></div>
++                                                                                                                        placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" />@if(!string.IsNullOrEmpty(_effectiveSearch)){<button
++                                                type="button" class="search-clear" @onclick="() => _effectiveSearch = \"\""><i class="bx bx-x"></i></button>}</div>
+                                             </div>
+                                             <div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه:
+                                                 @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>
+@@ -301,12 +304,14 @@ AdminQueries.GetAllPermissionGroupsAsync(_groupSearch)).ToList(); _groupTotal =
+         if (e.Key is "Enter" or
+ "Tab" || _permissionSearch.Length == 0) await LoadPermissionResultsAsync();
+     }
++    private async Task ClearPermissionSearch() { _permissionSearch = ""; await LoadPermissionResultsAsync(); }
+     private async Task
+ GroupSearchChanged(KeyboardEventArgs e)
+     {
+         if (e.Key is "Enter" or "Tab" || _groupSearch.Length == 0) await
+ LoadGroupListAsync();
+     }
++    private async Task ClearGroupSearch() { _groupSearch = ""; await LoadGroupListAsync(); }
+     private async Task ToggleDirectAsync(Guid id, bool selected)
+     {
+         if (selected) _directPermissionIds.Add(id);
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+index 21fd7b0..2d9da98 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+@@ -55,7 +55,8 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                     </div>
+                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                        placeholder="نام سازمان..." @bind="_organizationSearch" @bind:event="oninput"
+-                                                                                       @onkeyup="OrganizationSearchChanged" /></div>
++                                                                                       @onkeyup="OrganizationSearchChanged" />@if(!string.IsNullOrEmpty(_organizationSearch)){<button
++                        type="button" class="search-clear" @onclick="ClearOrganizationSearch"><i class="bx bx-x"></i></button>}</div>
+                     </div>
+                     @if (_organizationLoading)
+                     {
+@@ -125,7 +126,8 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                     <div></div>
+                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                        placeholder="نام یا نام کاربری کارمند..." @bind="_employeeSearch" @bind:event="oninput"
+-                                                                                       @onkeyup="EmployeeSearchChanged" /></div>
++                                                                                       @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
++                        type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
+                     </div>
+                     @if (_employeeLoading)
+                     {
+@@ -212,11 +214,13 @@ null;
+         if (e.Key is "Enter" or
+ "Tab" || _organizationSearch.Length == 0) { _organizationPage = 1; await LoadOrganizationsAsync(); }
+     }
++    private async Task ClearOrganizationSearch() { _organizationSearch = ""; _organizationPage = 1; await LoadOrganizationsAsync(); }
+     private async Task EmployeeSearchChanged(KeyboardEventArgs e)
+     {
+         if (e.Key is "Enter" or
+ "Tab" || _employeeSearch.Length == 0) { _employeePage = 1; await LoadEmployeesAsync(); }
+     }
++    private async Task ClearEmployeeSearch() { _employeeSearch = ""; _employeePage = 1; await LoadEmployeesAsync(); }
+     private async Task OrganizationPageChanged(int page) { _organizationPage = page; await LoadOrganizationsAsync(); }
+     private async Task OrganizationPageSizeChanged(int size)
+     {
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+index cae6811..6cbadbe 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+@@ -50,7 +50,8 @@
+                         </div>
+                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                            placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
+-                                                                                           @onkeyup="GroupSearchChanged" /></div>
++                                                                                           @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
++                            type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
+                         </div>@if(_groupLoading){
+                         <div class="empty-state">در حال بارگذاری...</div>
+                     }else if (_groups.Count == 0)
+@@ -107,7 +108,8 @@
+                     @_selectedPermissionIds.Count انتخاب شده</span></div>
+                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
+-                                                                                   @onkeyup="PermissionSearchChanged" /></div>
++                                                                                   @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
++                    type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
+                 <label class="only-selected"><input type="checkbox"
+                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
+                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
+@@ -213,11 +215,13 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
+         if (e.Key is "Enter" or
+     "Tab" || _groupSearch.Length == 0) { _groupPage = 1; await LoadGroupsAsync(); }
+     }
++    private async Task ClearGroupSearch() { _groupSearch = ""; _groupPage = 1; await LoadGroupsAsync(); }
+     private async Task PermissionSearchChanged(KeyboardEventArgs e)
+     {
+         if (e.Key is "Enter" or
+     "Tab" || _permissionSearch.Length == 0) await LoadPermissionsAsync();
+     }
++    private async Task ClearPermissionSearch() { _permissionSearch = ""; await LoadPermissionsAsync(); }
+     private async Task OnlySelectedChanged(ChangeEventArgs e)
+     {
+         _onlySelected = e.Value is bool b && b; await
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index 357fc6d..fb7f6d1 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -88,7 +88,8 @@
+                                     </select>
+                                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                                        placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
+-                                                                                                       @onkeyup="SearchChanged" /></div>
++                                                                                                       @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
++                                        type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
+                                 </div>
+                             </div>
+ 
+@@ -276,6 +277,14 @@
+             await LoadAsync();
+         }
+     }
++    private async Task ClearSearch()
++    {
++        _search = "";
++        _page = 1;
++        _expandedPermissionId = null;
++        _usage = null;
++        await LoadAsync();
++    }
+ 
+     private async Task UsageChanged(ChangeEventArgs e)
+     {
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index 29197ac..35a2f35 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -51,14 +51,13 @@
+                     </div>
+                     <div class="toolbar-tools">
+                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+-                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" /></div>
++                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" />@if(!string.IsNullOrEmpty(_treeSearch)){<button
++                                type="button" class="search-clear" @onclick="ClearTreeSearch"><i class="bx bx-x"></i></button>}</div>
+                     <div class="tree-toolbar-actions">
+                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
+                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                             <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i
+                                 class="bx bx-chevrons-up"></i> بستن همه</button>
+-                                <button type="button" class="btn btn-primary btn-sm" @onclick="BeginCreateRoot"><i
+-                                    class="bx bx-plus"></i> سمت ریشه</button>
+                                 </div>
+                                 </div>
+                             </div>
+@@ -207,6 +206,13 @@
+         _visiblePositionIds = visible;
+     }
+ 
++    private void ClearTreeSearch()
++    {
++        _treeSearch = "";
++        _visiblePositionIds = null;
++        _treeMatchCount = 0;
++    }
++
+     protected override async Task OnInitializedAsync() => await LoadAsync();
+ 
+     private async Task LoadAsync()
+@@ -263,23 +269,16 @@
+             _collapsedNodeIds.Remove(positionId);
+     }
+ 
+-    private void ExpandAll() => _collapsedNodeIds.Clear();
++    private void ExpandAll() { ClearTreeSearch(); _collapsedNodeIds.Clear(); }
+ 
+     private void CollapseAll()
+     {
++        ClearTreeSearch();
+         _collapsedNodeIds.Clear();
+         foreach (var position in _positions.Where(x => HasChildren(x.Id)))
+             _collapsedNodeIds.Add(position.Id);
+     }
+ 
+-    private void BeginCreateRoot()
+-    {
+-        _editingId = null;
+-        _name = "";
+-        _parentPositionId = null;
+-        _parentPositionName = "";
+-    }
+-
+     private void BeginCreateChild(Guid parentId)
+     {
+         _editingId = null;
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Users.razor b/src/YasPortal.Web/Components/Pages/Admin/Users.razor
+index 7df41e2..d62642f 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Users.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Users.razor
+@@ -75,7 +75,8 @@
+                         </div>
+                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                                                                                            placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput"
+-                                                                                           @onkeyup="SearchChanged" /></div>
++                                                                                           @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
++                            type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
+                         </div>
+                         <div class="data-table-wrap">
+                             @if (_loading)
+@@ -197,6 +198,7 @@ db.Employees.CountAsync(x => x.IsAdmin);
+ LoadAsync();
+         }
+     }
++    private async Task ClearSearch() { _search = ""; _page = 1; await LoadAsync(); }
+     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
+     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
+     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken
+diff --git a/src/YasPortal.Web/Components/Shared/PositionAssignmentHistoryPanel.razor b/src/YasPortal.Web/Components/Shared/PositionAssignmentHistoryPanel.razor
+index 57943c2..eb4bd1f 100644
+--- a/src/YasPortal.Web/Components/Shared/PositionAssignmentHistoryPanel.razor
++++ b/src/YasPortal.Web/Components/Shared/PositionAssignmentHistoryPanel.razor
+@@ -9,7 +9,7 @@
+             <h3><i class="bx bx-history"></i> سوابق تخصیص «@PositionName»</h3>
+             <p>تمام کارکنانی که در طول زمان به این سمت تخصیص داشته‌اند نمایش داده می‌شوند.</p>
+         </div>
+-        <div class="history-count">@_rows.Count سابقه</div>
++        <div class="history-count">@_total سابقه</div>
+     </div>
+ 
+     @if (_loading)
+@@ -58,6 +58,8 @@
+                 </div>
+             }
+         </div>
++        <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_total" Busy="@_loading"
++                          PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
+     }
+ </section>
+ 
+@@ -67,6 +69,7 @@
+     private List<HistoryRow> _rows = [];
+     private bool _loading;
+     private Guid _loadedPositionId;
++    private int _page = 1, _pageSize = 10, _total;
+ 
+     private string PositionName { get; set; } = "سمت";
+ 
+@@ -76,6 +79,7 @@
+             return;
+ 
+         _loadedPositionId = PositionId;
++        _page = 1;
+         await LoadAsync();
+     }
+ 
+@@ -91,10 +95,19 @@
+                 .Select(x => x.Name)
+                 .FirstOrDefaultAsync() ?? "سمت";
+ 
+-            _rows = await db.PositionAssignmentHistories.AsNoTracking()
++            var query = db.PositionAssignmentHistories.AsNoTracking()
+                 .Where(x => x.PositionId == PositionId)
+                 .OrderByDescending(x => x.StartedAt ?? DateTime.MinValue)
+-                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue)
++                .ThenByDescending(x => x.EndedAt ?? DateTime.MaxValue);
++
++            _total = await query.CountAsync();
++
++            var totalPages = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
++            if (_page > totalPages) _page = totalPages;
++
++            _rows = await query
++                .Skip((_page - 1) * _pageSize)
++                .Take(_pageSize)
+                 .Select(x => new HistoryRow(
+                     x.Id,
+                     x.Employee.FullName,
+@@ -109,6 +122,9 @@
+         }
+     }
+ 
++    private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
++    private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
++
+     private static string FormatDate(DateTime? value) => value is null
+         ? "—"
+         : value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+diff --git a/src/YasPortal.Web/wwwroot/css/app.css b/src/YasPortal.Web/wwwroot/css/app.css
+index 9e2a675..3c521b9 100644
+--- a/src/YasPortal.Web/wwwroot/css/app.css
++++ b/src/YasPortal.Web/wwwroot/css/app.css
+@@ -336,7 +336,10 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-page .filter-bar { display:grid; grid-template-columns:minmax(220px,1fr) auto; gap:8px; align-items:center; margin-bottom:8px; }
+ .search-box { position:relative; min-width:0; flex:1 1 220px; }
+ .search-box > i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#667085; pointer-events:none; }
+-.search-box input { padding-left:36px; }
++.search-box input { padding-left:36px; padding-right:28px; }
++.search-box .search-clear { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:20px; height:20px; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:#98a2b3; cursor:pointer; padding:0; }
++.search-box .search-clear:hover { background:#f2f4f7; color:#475467; }
++.search-box .search-clear i { font-size:15px; }
+ .admin-page .small-search { width:230px; flex:0 0 230px; }
+ .admin-page .selection-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; padding:7px 10px; border:1px solid #eef1f5; border-radius:8px; background:#f8fafc; }
+ .admin-page .selection-toolbar > div { display:flex; align-items:center; gap:5px; flex-wrap:nowrap; }

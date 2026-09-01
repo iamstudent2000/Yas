@@ -55,7 +55,8 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                     </div>
                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                        placeholder="نام سازمان..." @bind="_organizationSearch" @bind:event="oninput"
-                                                                                       @onkeyup="OrganizationSearchChanged" /></div>
+                                                                                       @onkeyup="OrganizationSearchChanged" />@if(!string.IsNullOrEmpty(_organizationSearch)){<button
+                        type="button" class="search-clear" @onclick="ClearOrganizationSearch"><i class="bx bx-x"></i></button>}</div>
                     </div>
                     @if (_organizationLoading)
                     {
@@ -125,7 +126,8 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                     <div></div>
                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                        placeholder="نام یا نام کاربری کارمند..." @bind="_employeeSearch" @bind:event="oninput"
-                                                                                       @onkeyup="EmployeeSearchChanged" /></div>
+                                                                                       @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
+                        type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
                     </div>
                     @if (_employeeLoading)
                     {
@@ -212,11 +214,13 @@ null;
         if (e.Key is "Enter" or
 "Tab" || _organizationSearch.Length == 0) { _organizationPage = 1; await LoadOrganizationsAsync(); }
     }
+    private async Task ClearOrganizationSearch() { _organizationSearch = ""; _organizationPage = 1; await LoadOrganizationsAsync(); }
     private async Task EmployeeSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
 "Tab" || _employeeSearch.Length == 0) { _employeePage = 1; await LoadEmployeesAsync(); }
     }
+    private async Task ClearEmployeeSearch() { _employeeSearch = ""; _employeePage = 1; await LoadEmployeesAsync(); }
     private async Task OrganizationPageChanged(int page) { _organizationPage = page; await LoadOrganizationsAsync(); }
     private async Task OrganizationPageSizeChanged(int size)
     {

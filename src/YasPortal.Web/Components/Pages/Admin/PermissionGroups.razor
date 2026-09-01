@@ -50,7 +50,8 @@
                         </div>
                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                            placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
-                                                                                           @onkeyup="GroupSearchChanged" /></div>
+                                                                                           @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
+                            type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
                         </div>@if(_groupLoading){
                         <div class="empty-state">در حال بارگذاری...</div>
                     }else if (_groups.Count == 0)
@@ -107,7 +108,8 @@
                     @_selectedPermissionIds.Count انتخاب شده</span></div>
                 <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
-                                                                                   @onkeyup="PermissionSearchChanged" /></div>
+                                                                                   @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
+                    type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
                 <label class="only-selected"><input type="checkbox"
                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
@@ -213,11 +215,13 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
         if (e.Key is "Enter" or
     "Tab" || _groupSearch.Length == 0) { _groupPage = 1; await LoadGroupsAsync(); }
     }
+    private async Task ClearGroupSearch() { _groupSearch = ""; _groupPage = 1; await LoadGroupsAsync(); }
     private async Task PermissionSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
     "Tab" || _permissionSearch.Length == 0) await LoadPermissionsAsync();
     }
+    private async Task ClearPermissionSearch() { _permissionSearch = ""; await LoadPermissionsAsync(); }
     private async Task OnlySelectedChanged(ChangeEventArgs e)
     {
         _onlySelected = e.Value is bool b && b; await

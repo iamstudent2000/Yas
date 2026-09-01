@@ -88,7 +88,8 @@
                                     </select>
                                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                                        placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
-                                                                                                       @onkeyup="SearchChanged" /></div>
+                                                                                                       @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
+                                        type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
                                 </div>
                             </div>
 
@@ -275,6 +276,14 @@
             _usage = null;
             await LoadAsync();
         }
+    }
+    private async Task ClearSearch()
+    {
+        _search = "";
+        _page = 1;
+        _expandedPermissionId = null;
+        _usage = null;
+        await LoadAsync();
     }
 
     private async Task UsageChanged(ChangeEventArgs e)
