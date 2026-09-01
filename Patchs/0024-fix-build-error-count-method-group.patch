@@ -1,0 +1,13 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+index 287fed9..7df4267 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+@@ -142,7 +142,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                         else
+                         {
+                             <span><i class="bx bx-group"></i> @_allEmployees.Count کارمند</span>
+-                            <span><i class="bx bx-buildings"></i> @_employeeGroups.Count سازمان</span>
++                            <span><i class="bx bx-buildings"></i> @_employeeGroups.Count() سازمان</span>
+                         }
+                     </div>
+                     @if (_orgAssignVisibleIds is not null && _orgAssignVisibleIds.Count == 0)
