@@ -126,6 +126,10 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                             placeholder="جستجوی نام کارمند یا سازمان..." @bind="_employeeSearch" @bind:event="oninput"
                             @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
                                 type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllOrgGroups"><i
+                            class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllOrgGroups"><i
+                            class="bx bx-chevrons-up"></i> بستن همه</button>
                     </div>
                 </div>
                 @if (_employeeLoading)
@@ -245,6 +249,14 @@ DbFactory.CreateDbContextAsync(); _activeOrganizationCount = await db.Organizati
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken
 ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
     private void ToggleOrgGroup(string key) { if (!_collapsedOrgGroups.Add(key)) _collapsedOrgGroups.Remove(key); }
+    private void ExpandAllOrgGroups() { ClearEmployeeSearch(); _collapsedOrgGroups.Clear(); }
+    private void CollapseAllOrgGroups()
+    {
+        ClearEmployeeSearch();
+        _collapsedOrgGroups.Clear();
+        foreach (var key in _allEmployees.Select(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!).Distinct())
+            _collapsedOrgGroups.Add(key);
+    }
     private void RecomputeOrgAssignVisible()
     {
         var q = _employeeSearch.Trim();
