@@ -163,7 +163,7 @@
                                             </div>
                                             <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
                                                                                                                         placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" />@if(!string.IsNullOrEmpty(_effectiveSearch)){<button
-                                                type="button" class="search-clear" @onclick="() => _effectiveSearch = \"\""><i class="bx bx-x"></i></button>}</div>
+                                                type="button" class="search-clear" @onclick="ClearEffectiveSearch"><i class="bx bx-x"></i></button>}</div>
                                             </div>
                                             <div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه:
                                                 @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>
@@ -312,6 +312,7 @@ GroupSearchChanged(KeyboardEventArgs e)
 LoadGroupListAsync();
     }
     private async Task ClearGroupSearch() { _groupSearch = ""; await LoadGroupListAsync(); }
+    private void ClearEffectiveSearch() => _effectiveSearch = "";
     private async Task ToggleDirectAsync(Guid id, bool selected)
     {
         if (selected) _directPermissionIds.Add(id);
