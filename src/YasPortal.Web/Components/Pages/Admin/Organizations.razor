@@ -32,7 +32,7 @@
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کارکنان</span><strong
-            class="stat-value">@_employeeTotal</strong>
+            class="stat-value">@_allEmployees.Count</strong>
         </div>
     </div>
     <div class="admin-two-col">
@@ -116,57 +116,92 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                 </section>
             </div>
             <section class="card organization-assignment">
-                <div class="page-header compact-header">
+                <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0;">تخصیص سازمان به کارکنان</h2>
-                        <p class="page-subtitle">کارمند را جستجو کنید؛ فقط صفحه جاری از کارکنان به مرورگر ارسال می‌شود.</p>
+                        <p class="page-subtitle">کارکنان بر اساس سازمان فعلی گروه‌بندی شده‌اند. برای جابه‌جایی، سازمان جدید را انتخاب کنید.</p>
+                    </div>
+                    <div class="toolbar-tools">
+                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                            placeholder="جستجوی نام کارمند یا سازمان..." @bind="_employeeSearch" @bind:event="oninput"
+                            @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
+                                type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
                     </div>
                 </div>
-                <div class="card-toolbar">
-                    <div></div>
-                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                       placeholder="نام یا نام کاربری کارمند..." @bind="_employeeSearch" @bind:event="oninput"
-                                                                                       @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
-                        type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
+                @if (_employeeLoading)
+                {
+                    <div class="empty-state">در حال بارگذاری...</div>
+                }
+                else
+                {
+                    <div class="tree-summary">
+                        @if (_orgAssignVisibleIds is not null)
+                        {
+                            <span><i class="bx bx-search"></i> @_orgAssignMatchCount نتیجه از @_allEmployees.Count کارمند</span>
+                        }
+                        else
+                        {
+                            <span><i class="bx bx-group"></i> @_allEmployees.Count کارمند</span>
+                            <span><i class="bx bx-buildings"></i> @_employeeGroups.Count سازمان</span>
+                        }
                     </div>
-                    @if (_employeeLoading)
+                    @if (_orgAssignVisibleIds is not null && _orgAssignVisibleIds.Count == 0)
                     {
-                        <div class="empty-state">در حال بارگذاری...</div>
+                        <div class="empty-state"><i class="bx bx-search-alt empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام دیگری را جستجو کنید.</span></div>
                     }
                     else
                     {
-
-                        <div class="admin-bordered-list employee-list">@foreach(var employee in _employees){
-                            <div class="employee-row">
-                                <div class="employee-info">
-                                    <div class="employee-avatar">@GetInitial(employee.FullName)</div>
-                                    <div><strong>@employee.FullName</strong><span>@employee.Username</span></div>
-                                </div>
-                                <ServerSearchableGuidSelect Value="@GetEmployeeOrganization(employee.Id)"
-                                                            ValueChanged="id=>ChangeEmployeeOrganization(employee.Id,id)" SearchAsync="SearchOrganizationsAsync"
-                                                            SelectedText="@employee.OrganizationName" Placeholder="انتخاب سازمان"
-                                                            SearchPlaceholder="نام سازمان..." /><span
-                                class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" :
-                                        "غیرفعال")</span>
-                            </div>
-                        }
-                    </div>
+                        <div class="org-assign-sections">
+                            @foreach (var group in _employeeGroups)
+                            {
+                                var collapsed = _collapsedOrgGroups.Contains(group.Key);
+                                <section class="permission-section @(collapsed ? "collapsed" : "")">
+                                    <div class="permission-section-heading" @onclick="() => ToggleOrgGroup(group.Key)">
+                                        <div><i class="bx bx-buildings"></i><strong>@group.Key</strong></div><span
+                                            class="badge badge-muted">@group.Count() نفر</span><i class="bx bx-chevron-down chevron"></i>
+                                    </div>
+                                    <div class="org-assign-rows">
+                                        @foreach (var employee in group)
+                                        {
+                                            <div class="org-assign-row">
+                                                <div class="org-assign-person">
+                                                    <span class="org-assign-avatar">@GetInitial(employee.FullName)</span>
+                                                    <span class="org-assign-text"><strong>@employee.FullName</strong><small>@employee.Username</small></span>
+                                                </div>
+                                                <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
+                                                <div class="org-assign-select">
+                                                    <ServerSearchableGuidSelect Value="@employee.OrganizationId"
+                                                        ValueChanged="id=>ChangeEmployeeOrganization(employee.Id,id)" SearchAsync="SearchOrganizationsAsync"
+                                                        SelectedText="@employee.OrganizationName" Placeholder="انتخاب سازمان"
+                                                        SearchPlaceholder="نام سازمان..." />
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </section>
+                            }
+                        </div>
+                    }
                 }
-                <ServerPagination Page="@_employeePage" PageSize="@_employeePageSize" TotalCount="@_employeeTotal"
-                                  Busy="@_employeeLoading" PageChanged="EmployeePageChanged" PageSizeChanged="EmployeePageSizeChanged" />
             </section>
         </div>
 
 @code {
     private List<AdminQueryService.OrganizationPageRow> _organizations = [];
-    private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId;
     private string _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
     private int
-_organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _employeePage = 1, _employeePageSize = 20,
-_employeeTotal, _activeOrganizationCount;
+_organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOrganizationCount;
     private bool _organizationLoading, _employeeLoading;
-    private readonly Dictionary<Guid, Guid> _employeeOrganizationIds = [];
+    private List<AdminQueryService.EmployeeAssignmentRow> _allEmployees = [];
+    private readonly HashSet<string> _collapsedOrgGroups = [];
+    private bool _employeeTreeInitialized;
+    private HashSet<Guid>? _orgAssignVisibleIds;
+    private int _orgAssignMatchCount;
+    private IEnumerable<IGrouping<string, AdminQueryService.EmployeeAssignmentRow>> _employeeGroups =>
+        _allEmployees.Where(x => _orgAssignVisibleIds is null || _orgAssignVisibleIds.Contains(x.Id))
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!)
+            .OrderBy(g => g.Key);
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync() { await LoadOrganizationsAsync(); await LoadEmployeesAsync(); await LoadStatsAsync(); }
     private async Task LoadOrganizationsAsync()
@@ -190,13 +225,15 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
     {
         _employeeLoading = true; try
         {
-            var r = await
-AdminQueries.GetEmployeesAsync(_employeePage, _employeePageSize, _employeeSearch); _employees = r.Items.ToList();
-            _employeeTotal = r.TotalCount; _employeeOrganizationIds.Clear(); await
-            using var db = await DbFactory.CreateDbContextAsync(); var ids = _employees.Select(x => x.Id).ToList(); var rows = await
-            db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.OrganizationId }).ToListAsync();
-            foreach (var
-            x in rows) _employeeOrganizationIds[x.Id] = x.OrganizationId;
+            _allEmployees = (await AdminQueries.GetAllEmployeesForAssignmentAsync()).ToList();
+            if (!_employeeTreeInitialized)
+            {
+                foreach (var key in _allEmployees.Select(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!).Distinct())
+                    _collapsedOrgGroups.Add(key);
+                _employeeTreeInitialized = true;
+            }
+            if (_employeeSearch.Trim().Length > 0)
+                RecomputeOrgAssignVisible();
         }
         finally { _employeeLoading = false; }
     }
@@ -207,31 +244,32 @@ DbFactory.CreateDbContextAsync(); _activeOrganizationCount = await db.Organizati
     }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken
 ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
-    private Guid? GetEmployeeOrganization(Guid id) => _employeeOrganizationIds.TryGetValue(id, out var value) ? value :
-null;
+    private void ToggleOrgGroup(string key) { if (!_collapsedOrgGroups.Add(key)) _collapsedOrgGroups.Remove(key); }
+    private void RecomputeOrgAssignVisible()
+    {
+        var q = _employeeSearch.Trim();
+        if (q.Length == 0) { _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; return; }
+        var matches = _allEmployees.Where(x => x.FullName.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || x.Username.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || (x.OrganizationName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        _orgAssignMatchCount = matches.Count;
+        _orgAssignVisibleIds = matches.Select(x => x.Id).ToHashSet();
+        foreach (var key in matches.Select(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!).Distinct())
+            _collapsedOrgGroups.Remove(key);
+    }
     private async Task OrganizationSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
 "Tab" || _organizationSearch.Length == 0) { _organizationPage = 1; await LoadOrganizationsAsync(); }
     }
     private async Task ClearOrganizationSearch() { _organizationSearch = ""; _organizationPage = 1; await LoadOrganizationsAsync(); }
-    private async Task EmployeeSearchChanged(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or
-"Tab" || _employeeSearch.Length == 0) { _employeePage = 1; await LoadEmployeesAsync(); }
-    }
-    private async Task ClearEmployeeSearch() { _employeeSearch = ""; _employeePage = 1; await LoadEmployeesAsync(); }
+    private void EmployeeSearchChanged(KeyboardEventArgs e) => RecomputeOrgAssignVisible();
+    private void ClearEmployeeSearch() { _employeeSearch = ""; _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; }
     private async Task OrganizationPageChanged(int page) { _organizationPage = page; await LoadOrganizationsAsync(); }
     private async Task OrganizationPageSizeChanged(int size)
     {
         _organizationPageSize = size; _organizationPage = 1; await
 LoadOrganizationsAsync();
-    }
-    private async Task EmployeePageChanged(int page) { _employeePage = page; await LoadEmployeesAsync(); }
-    private async Task EmployeePageSizeChanged(int size)
-    {
-        _employeePageSize = size; _employeePage = 1; await
-LoadEmployeesAsync();
     }
     private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _name = x.Name; }
     private void CancelEdit() { _editingId = null; _name = string.Empty; }

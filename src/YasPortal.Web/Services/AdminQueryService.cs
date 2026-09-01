@@ -118,6 +118,19 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         return rows.Select(x => new PermissionGroupPageRow(x.Id, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
     }
 
+    public async Task<IReadOnlyList<EmployeeAssignmentRow>> GetAllEmployeesForAssignmentAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Employees.AsNoTracking()
+            .OrderBy(x => x.FullName)
+            .Select(x => new EmployeeAssignmentRow(
+                x.Id, x.Username, x.FullName,
+                x.OrganizationId,
+                db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(),
+                x.IsActive))
+            .ToListAsync(ct);
+    }
+
     public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page, int pageSize, string? search, CancellationToken ct = default)
     {
         page = Page(page);
@@ -179,6 +192,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
     private static int Page(int page) => Math.Max(1, page); private static int Size(int size) => Math.Clamp(size, 5, 100); private static string Normalize(string? value) => (value ?? "").Trim();
     public sealed record ActivePositionRow(Guid Id, string Name);
     public sealed record EmployeePageRow(Guid Id, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
+    public sealed record EmployeeAssignmentRow(Guid Id, string Username, string FullName, Guid OrganizationId, string? OrganizationName, bool IsActive);
     public sealed record OrganizationPageRow(Guid Id, string Name, bool IsActive, int EmployeeCount);
     public sealed record PermissionPageRow(Guid Id, string Code, string Name, int DirectAssignmentCount, int GroupMembershipCount);
     public sealed record PermissionGroupPageRow(Guid Id, string Name, string? Description, int PermissionCount, int AssignmentCount);
