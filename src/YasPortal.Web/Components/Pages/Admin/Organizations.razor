@@ -325,7 +325,7 @@ db.Organizations.SingleOrDefaultAsync(x => x.Id == oid && x.IsActive); if (organ
         var employee = await
 db.Employees.SingleAsync(x => x.Id == employeeId); employee.ChangeOrganization(oid); await
 db.SaveChangesAsync(); AppState.AddToast($"سازمان «{organization.Name}» ثبت شد.", ToastLevel.Success); await
-LoadEmployeesAsync();
+LoadEmployeesAsync(); await LoadOrganizationsAsync();
     }
     private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "ک" : value.Trim()[0].ToString();
 }
