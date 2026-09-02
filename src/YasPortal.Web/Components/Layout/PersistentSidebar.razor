@@ -53,7 +53,23 @@
     }
 
     .sidebar.sidebar-hidden {
-        display: none;
+        position: fixed;
+        top: 0;
+        right: 0;
+        height: 100vh;
+        z-index: 1099;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, .18);
+        transition: opacity .12s ease;
+    }
+
+    .sidebar-floating-brand:hover + .sidebar.sidebar-hidden,
+    .sidebar.sidebar-hidden:hover {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
     }
 
     .sidebar-floating-brand {
