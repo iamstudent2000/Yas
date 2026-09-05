@@ -28,7 +28,7 @@
 .admin-table-bordered-rows tbody tr:nth-child(odd) td,
 .data-table-bordered-rows tbody tr:nth-child(odd) td { background:#fff; }
 .admin-table-bordered-rows tbody tr:nth-child(even) td,
-.data-table-bordered-rows tbody tr:nth-child(even) td { background:#f6f8fb; }
+.data-table-bordered-rows tbody tr:nth-child(even) td { background:#eef1f6; }
 .admin-table-bordered-rows tbody td,
 .data-table-bordered-rows tbody td { border-top:1px solid #e5eaf0; border-bottom:1px solid #e5eaf0; padding:9px 10px; }
 .admin-table-bordered-rows tbody td:first-child,
