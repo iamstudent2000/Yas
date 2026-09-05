@@ -1,0 +1,26 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index d42e06f..1a0a769 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -83,7 +83,7 @@
+                             <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
+                             <td><span class="admin-truncate" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+-                            <td><div><strong>@GetEntityText(row.EntityType)</strong><small class="entity-id">@row.EntityId</small></div></td>
++                            <td><div><strong>@GetEntityText(row.EntityType)</strong><small class="entity-id" lang="en">@row.EntityId</small></div></td>
+                             <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                         </tr>
+                     }
+@@ -102,10 +102,10 @@
+                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                 </header>
+                 <div class="admin-modal__body">
+-                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong>@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong>@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small class="entity-id">@_selected.EntityId</small></div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
++                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong><small class="entity-id" lang="en">@_selected.EntityId</small></div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
+                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                 </div>
+-                <footer class="admin-modal-footer"><span dir="ltr">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
++                <footer class="admin-modal-footer"><span dir="ltr" lang="en">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+             </section>
+         </div>
+     }
