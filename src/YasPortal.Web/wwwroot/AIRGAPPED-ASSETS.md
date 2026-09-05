@@ -10,7 +10,7 @@
 - `Vazirmatn-SemiBold.woff2`
 - `Vazirmatn-Bold.woff2`
 
-`css/app.css` این فایل‌ها را به صورت local بارگذاری می‌کند.
+`css/base.css` این فایل‌ها را به صورت local بارگذاری می‌کند.
 
 ## Boxicons
 

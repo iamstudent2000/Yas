@@ -1,0 +1,68 @@
+/* =============================================================
+   06 — Permission Choice Chips
+   Part of the YasPortal admin stylesheet set. Load order matters — see
+   App.razor for the <link> sequence and a one-line note per file.
+   The pill-shaped permission/group toggle chips — identical on Admin Access
+   and Permission Groups by design, since both pages render the exact same
+   .permission-choice / .group-choice markup.
+   ============================================================= */
+
+/* Shared permission checkbox — identical on Admin Access and Permission Groups. */
+.admin-page .permission-choice,
+.admin-page .group-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    width: auto;
+    max-width: 100%;
+    padding: 8px 16px;
+    border: 1.5px solid var(--admin-border-strong, #d8e0e8);
+    border-radius: 999px;
+    background: var(--admin-surface, #fff);
+    cursor: pointer;
+    transition: border-color .12s ease, background .12s ease;
+}
+
+.admin-page .permission-choice:hover,
+.admin-page .group-choice:hover {
+    border-color: var(--admin-primary, #3157d5);
+}
+
+.admin-page .permission-choice.selected,
+.admin-page .group-choice.selected {
+    border-color: var(--admin-primary, #3157d5);
+    background: var(--admin-primary, #3157d5);
+}
+
+.admin-page .permission-choice input,
+.admin-page .group-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.admin-page .choice-box {
+    display: none;
+}
+
+.admin-page .choice-text {
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.admin-page .choice-text strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--admin-text, #172033);
+}
+
+.admin-page .selected .choice-text strong {
+    font-weight: 600;
+    color: #fff;
+}

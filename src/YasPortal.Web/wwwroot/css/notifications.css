@@ -1,0 +1,162 @@
+/* =============================================================
+   03 — Toast Notifications
+   Part of the YasPortal admin stylesheet set. Load order matters — see
+   App.razor for the <link> sequence and a one-line note per file.
+   The floating toast/snackbar system rendered by AppNotifications.razor via
+   AppState.AddToast(). Fully self-contained — no other file depends on these
+   selectors and these selectors don't depend on anything else.
+   ============================================================= */
+
+.app-toast-container {
+    position: fixed !important;
+    top: auto !important;
+    right: auto !important;
+    left: 16px !important;
+    bottom: 16px !important;
+    z-index: 2147483000 !important;
+    width: min(340px, calc(100vw - 32px)) !important;
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    pointer-events: none !important;
+    direction: rtl !important;
+}
+
+.app-toast-container > .app-toast {
+    position: relative !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 54px !important;
+    margin: 0 !important;
+    padding: 9px 10px 9px 8px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    pointer-events: auto !important;
+    gap: 8px !important;
+    background: #fff !important;
+    border: 1px solid #e4e7ec !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 20px rgba(16,24,40,.12) !important;
+    color: #1f2937 !important;
+    isolation: isolate;
+    animation: app-toast-in .18s ease-out;
+}
+
+.app-toast-container > .app-toast::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: 3px;
+    background: #98a2b3;
+}
+
+.app-toast-success::before { background: #12b76a !important; }
+.app-toast-info::before { background: #155eef !important; }
+.app-toast-warning::before { background: #f79009 !important; }
+.app-toast-error::before { background: #f04438 !important; }
+
+.app-toast-icon {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    align-self: flex-start;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.app-toast-success .app-toast-icon { background: #ecfdf3; color: #039855; }
+.app-toast-info .app-toast-icon { background: #eef4ff; color: #155eef; }
+.app-toast-warning .app-toast-icon { background: #fffaeb; color: #dc6803; }
+.app-toast-error .app-toast-icon { background: #fef3f2; color: #d92d20; }
+
+.app-toast-content {
+    min-width: 0;
+    flex: 1 1 auto;
+    text-align: right;
+    overflow: hidden;
+    padding-top: 0;
+}
+
+.app-toast-title {
+    margin: 0 0 2px;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.app-toast-message {
+    margin: 0;
+    color: #667085;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.app-toast-close {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    margin: -1px 0 0;
+    border: 0;
+    background: transparent;
+    color: #98a2b3;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    align-self: flex-start;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background .15s ease, color .15s ease;
+}
+
+.app-toast-close:hover {
+    background: #f2f4f7;
+    color: #344054;
+}
+
+.app-toast-close:focus-visible {
+    outline: 2px solid rgba(21,94,239,.35);
+    outline-offset: 1px;
+}
+
+@keyframes app-toast-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 576px) {
+    .app-toast-container {
+        left: 10px !important;
+        bottom: 10px !important;
+        width: calc(100vw - 20px) !important;
+    }
+
+    .app-toast-container > .app-toast {
+        min-height: 50px !important;
+        padding: 8px 9px 8px 7px !important;
+    }
+
+    .app-toast-icon {
+        flex-basis: 26px;
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
+    }
+
+    .app-toast-title { font-size: 11.5px; }
+    .app-toast-message { font-size: 11px; }
+}

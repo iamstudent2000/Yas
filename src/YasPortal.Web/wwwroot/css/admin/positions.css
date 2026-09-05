@@ -1,0 +1,65 @@
+/* =============================================================
+   07 — Positions Tree & Org Assignment
+   Part of the YasPortal admin stylesheet set. Load order matters — see
+   App.razor for the <link> sequence and a one-line note per file.
+   The searchable/collapsible position tree on /admin/positions, and the
+   organization-to-employee assignment tree-style view on /admin/organizations
+   (shares the .permission-section collapse mechanism from admin-tables-and-lists.css).
+   ============================================================= */
+
+/* YasPortal Positions page */
+.positions-page{max-width:1500px;margin:0 auto}
+.positions-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.positions-tree-toolbar{align-items:flex-start;margin-bottom:14px}
+.tree-toolbar-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-start}
+.position-tree-card-wrap{min-height:480px}
+.tree-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-2px 0 10px;padding:7px 10px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:#667085;font-size:11px}
+.tree-summary span{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#fff;border:1px solid #eaecf0}
+.position-tree{display:flex;flex-direction:column;gap:2px;max-height:min(640px,calc(100vh - 340px));overflow-y:auto;padding-left:4px;margin-left:-4px}
+.org-assign-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
+.org-assign-rows{display:flex;flex-direction:column}
+.org-assign-row{display:flex;align-items:center;gap:10px;min-height:42px;padding:6px 12px;border-bottom:1px solid var(--admin-border,#eef1f5)}
+.org-assign-row:last-child{border-bottom:0}
+.org-assign-row:hover{background:#fafbfc}
+.org-assign-person{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.org-assign-avatar{width:26px;height:26px;border-radius:7px;background:#f2f4f7;color:#475467;display:grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 26px}
+.org-assign-text{display:flex;flex-direction:column;gap:0;min-width:0}
+.org-assign-text strong{font-size:12px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.org-assign-text small{color:#98a2b3;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.org-assign-select{flex:0 0 220px}
+.tree-node{position:relative}
+.tree-item{display:flex;align-items:center;justify-content:space-between;gap:7px;min-height:38px;padding:4px 7px;border:1px solid transparent;border-radius:8px;background:#fff;transition:border-color .12s,box-shadow .12s,background .12s}
+.tree-item:hover{border-color:#eaecf0;background:#fafbfc}
+.tree-item.selected{border-color:var(--admin-primary-soft,#eef3ff);background:var(--admin-primary-soft,#eef3ff);box-shadow:inset 2px 0 0 var(--admin-primary,#3157d5)}
+.tree-toggle{width:22px;height:22px;padding:0;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#344054;display:grid;place-items:center;flex:0 0 auto;cursor:pointer}
+.tree-toggle:hover{background:#f2f4f7}
+.tree-toggle i{font-size:14px}
+.tree-toggle-placeholder{width:22px;flex:0 0 auto}
+.tree-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;background:none;border:0;text-align:right;cursor:pointer;color:inherit;padding:0}
+.tree-icon{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:0 0 auto;font-size:12px}
+.tree-icon.free{background:#f2f4f7;color:#475467}
+.tree-icon.occupied{background:#ecfdf3;color:#027a48}
+.tree-text{display:flex;flex-direction:column;gap:0;min-width:0}
+.tree-text strong{font-size:12px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+.tree-actions{display:flex;gap:3px;flex:0 0 auto}
+.tree-children{display:flex;flex-direction:column;gap:2px;margin-top:2px;margin-right:11px;padding-right:11px;border-right:1.5px solid #edf0f4}
+.position-side-panel{position:sticky;top:16px}
+.rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
+.rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}
+.rules-mini i{color:#027a48}
+.assignment-card{margin-top:16px}
+.current-assignment{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px;border:1px solid #d0d5dd;border-radius:12px;background:#f8fafc}
+.current-icon{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:#ecfdf3;color:#027a48;font-size:21px}
+.current-main{display:flex;flex-direction:column;gap:2px}
+.assignment-empty{display:flex;align-items:center;gap:12px;padding:14px;border:1px dashed #d0d5dd;border-radius:12px;color:#475467}
+.assignment-empty>i{font-size:25px}
+.assignment-empty div{display:flex;flex-direction:column;gap:2px}
+.assignment-empty span{font-size:12px;color:#667085}
+.assignment-form{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:12px}
+.eyebrow{font-size:11px;font-weight:700;color:#667085;margin-bottom:3px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:220px;color:#667085}
+.empty-icon{font-size:34px}
+.icon-only{width:32px;padding:6px}
+.form-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media (max-width:900px){.positions-layout{grid-template-columns:1fr}.position-side-panel{position:static}.positions-tree-toolbar{flex-direction:column}.tree-toolbar-actions{width:100%}.tree-item{padding-right:calc(6px + var(--depth) * 16px)}.tree-actions .btn-sm:not(.icon-only){font-size:0;width:30px;height:30px;padding:5px}.tree-actions .btn-sm:not(.icon-only) i{font-size:16px}.assignment-form{grid-template-columns:1fr}.current-assignment{grid-template-columns:auto 1fr}.current-assignment .btn{grid-column:1/-1;width:100%}}
