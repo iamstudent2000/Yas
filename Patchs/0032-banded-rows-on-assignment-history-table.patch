@@ -1,0 +1,13 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AssignmentHistory.razor b/src/YasPortal.Web/Components/Pages/Admin/AssignmentHistory.razor
+index 351fb65..cfb22ec 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AssignmentHistory.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AssignmentHistory.razor
+@@ -79,7 +79,7 @@
+                         {
+ 
+                             <div class="admin-table-wrap">
+-                                <table class="admin-table">
++                                <table class="admin-table admin-table-bordered-rows">
+                                     <thead>
+                                         <tr>
+                                             <th>کارمند</th>
