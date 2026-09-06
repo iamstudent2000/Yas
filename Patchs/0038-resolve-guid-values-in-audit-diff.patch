@@ -1,0 +1,74 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index 4ac910b..16f8102 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -84,7 +84,7 @@
+                             <td><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+                             <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate">@row.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
+-                            <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetails(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
++                            <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                         </tr>
+                     }
+                     </tbody>
+@@ -162,16 +162,57 @@
+     private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
+     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
+-    private void ShowDetails(AuditRow r)=>_selected=r;private void CloseDetails()=>_selected=null;
++    private Dictionary<Guid,string> _idNameMap=new();
++    private async Task ShowDetailsAsync(AuditRow r)
++    {
++        _selected=r;
++        _idNameMap=await ResolveIdsInJsonAsync(r.BeforeJson,r.AfterJson);
++    }
++    private void CloseDetails()=>_selected=null;
++    private async Task<Dictionary<Guid,string>> ResolveIdsInJsonAsync(string? beforeJson,string? afterJson)
++    {
++        var ids=new HashSet<Guid>();
++        CollectGuids(beforeJson,ids);
++        CollectGuids(afterJson,ids);
++        var map=new Dictionary<Guid,string>();
++        if(ids.Count==0)return map;
++        await using var db=await DbFactory.CreateDbContextAsync();
++        foreach(var x in await db.Employees.AsNoTracking().Where(x=>ids.Contains(x.Id)).Select(x=>new{x.Id,x.FullName}).ToListAsync())map[x.Id]=x.FullName;
++        foreach(var x in await db.Positions.AsNoTracking().Where(x=>ids.Contains(x.Id)).Select(x=>new{x.Id,x.Name}).ToListAsync())map[x.Id]=x.Name;
++        foreach(var x in await db.Organizations.AsNoTracking().Where(x=>ids.Contains(x.Id)).Select(x=>new{x.Id,x.Name}).ToListAsync())map[x.Id]=x.Name;
++        foreach(var x in await db.Permissions.AsNoTracking().Where(x=>ids.Contains(x.Id)).Select(x=>new{x.Id,x.Name}).ToListAsync())map[x.Id]=x.Name;
++        foreach(var x in await db.PermissionGroups.AsNoTracking().Where(x=>ids.Contains(x.Id)).Select(x=>new{x.Id,x.Name}).ToListAsync())map[x.Id]=x.Name;
++        return map;
++    }
++    private static void CollectGuids(string? json,HashSet<Guid> ids)
++    {
++        if(string.IsNullOrWhiteSpace(json))return;
++        try
++        {
++            using var doc=JsonDocument.Parse(json);
++            foreach(var p in doc.RootElement.EnumerateObject())
++                if(p.Value.ValueKind==JsonValueKind.String&&Guid.TryParse(p.Value.GetString(),out var id))ids.Add(id);
++        }
++        catch{}
++    }
+     private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a};
+     private static string GetActionClass(string a)=>a switch{"Created"=>"admin-action--success","Deleted"=>"admin-action--danger","Updated"=>"admin-action--warning",_=>"admin-action--neutral"};
+     private static string GetActionIcon(string a)=>a switch{"Created"=>"bx-plus","Deleted"=>"bx-trash",_=>"bx-edit-alt"};
+     private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز",_=>e};
+     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
+     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
+-    private static RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='bx bx-minus-circle'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddContent(i++,FormatJsonValue(p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
++    private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='bx bx-minus-circle'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
+     private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n};
+-    private static string FormatJsonValue(JsonElement v)=>v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",JsonValueKind.String=>v.GetString()??"-",_=>v.ToString()};
++    private string FormatJsonValue(JsonElement v)
++    {
++        if(v.ValueKind==JsonValueKind.String)
++        {
++            var s=v.GetString();
++            if(s is not null&&Guid.TryParse(s,out var id)&&_idNameMap.TryGetValue(id,out var name))return name;
++            return s??"-";
++        }
++        return v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",_=>v.ToString()};
++    }
+     private sealed record AuditRow(Guid Id,DateTime OccurredAtUtc,Guid? EmployeeId,Guid? ActivePositionId,string? EmployeeName,string? PositionName,string Action,string EntityType,string? EntityId,string? EntityName,string? BeforeJson,string? AfterJson);
+     public async ValueTask DisposeAsync(){_loadCts?.Cancel();_loadCts?.Dispose();await Task.CompletedTask;}
+ }
