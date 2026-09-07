@@ -1,0 +1,81 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index 8ddc5d3..77bf592 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -83,7 +83,7 @@
+                             <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
+                             <td><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+-                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate" title="@row.EntityName">@row.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
++                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate" title="@row.EntityName">@row.EntityName</small>}else{<small class="entity-id admin-truncate" lang="en" data-persian-digits="off" title="@row.EntityId">@row.EntityId</small>}</div></td>
+                             <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                         </tr>
+                     }
+@@ -102,7 +102,7 @@
+                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                 </header>
+                 <div class="admin-modal__body">
+-                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small title="@_selected.EntityName">@_selected.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@_selected.EntityId</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
++                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small title="@_selected.EntityName">@_selected.EntityName</small>}else{<small class="entity-id admin-truncate" lang="en" data-persian-digits="off" title="@FormatEntityId(_selected.EntityType,_selected.EntityId)">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
+                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                 </div>
+                 <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+@@ -166,14 +166,15 @@
+     private async Task ShowDetailsAsync(AuditRow r)
+     {
+         _selected=r;
+-        _idNameMap=await ResolveIdsInJsonAsync(r.BeforeJson,r.AfterJson);
++        _idNameMap=await ResolveIdsInJsonAsync(r.BeforeJson,r.AfterJson,r.EntityId);
+     }
+     private void CloseDetails()=>_selected=null;
+-    private async Task<Dictionary<Guid,string>> ResolveIdsInJsonAsync(string? beforeJson,string? afterJson)
++    private async Task<Dictionary<Guid,string>> ResolveIdsInJsonAsync(string? beforeJson,string? afterJson,string? entityId)
+     {
+         var ids=new HashSet<Guid>();
+         CollectGuids(beforeJson,ids);
+         CollectGuids(afterJson,ids);
++        CollectGuidsFromComposite(entityId,ids);
+         var map=new Dictionary<Guid,string>();
+         if(ids.Count==0)return map;
+         await using var db=await DbFactory.CreateDbContextAsync();
+@@ -195,14 +196,38 @@
+         }
+         catch{}
+     }
++    private static void CollectGuidsFromComposite(string? entityId,HashSet<Guid> ids)
++    {
++        if(string.IsNullOrWhiteSpace(entityId)||!entityId.Contains('='))return;
++        foreach(var part in entityId.Split(','))
++        {
++            var kv=part.Split('=',2);
++            if(kv.Length==2&&Guid.TryParse(kv[1].Trim(),out var id))ids.Add(id);
++        }
++    }
++    private string FormatEntityId(string entityType,string? entityId)
++    {
++        if(string.IsNullOrWhiteSpace(entityId))return "-";
++        if(!entityId.Contains('='))return entityId;
++        var parts=new List<string>();
++        foreach(var part in entityId.Split(','))
++        {
++            var kv=part.Split('=',2);
++            if(kv.Length!=2)continue;
++            var label=GetPropertyText(kv[0].Trim());
++            var value=Guid.TryParse(kv[1].Trim(),out var id)&&_idNameMap.TryGetValue(id,out var name)?name:kv[1].Trim();
++            parts.Add($"{label}: {value}");
++        }
++        return parts.Count>0?string.Join(" · ",parts):entityId;
++    }
+     private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a};
+     private static string GetActionClass(string a)=>a switch{"Created"=>"admin-action--success","Deleted"=>"admin-action--danger","Updated"=>"admin-action--warning",_=>"admin-action--neutral"};
+     private static string GetActionIcon(string a)=>a switch{"Created"=>"bx-plus","Deleted"=>"bx-trash",_=>"bx-edit-alt"};
+-    private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز",_=>e};
++    private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",_=>e};
+     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
+     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
+     private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='bx bx-minus-circle'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
+-    private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n};
++    private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","PermissionId"=>"مجوز","GroupId"=>"گروه مجوز","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n};
+     private string FormatJsonValue(JsonElement v)
+     {
+         if(v.ValueKind==JsonValueKind.String)
