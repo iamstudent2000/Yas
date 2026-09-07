@@ -1,0 +1,32 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index 77bf592..bb73b5d 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -83,7 +83,7 @@
+                             <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
+                             <td><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+-                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate" title="@row.EntityName">@row.EntityName</small>}else{<small class="entity-id admin-truncate" lang="en" data-persian-digits="off" title="@row.EntityId">@row.EntityId</small>}</div></td>
++                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small lang="en" data-persian-digits="off">@row.EntityName <span class="entity-id">(@row.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
+                             <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                         </tr>
+                     }
+@@ -102,7 +102,7 @@
+                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                 </header>
+                 <div class="admin-modal__body">
+-                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small title="@_selected.EntityName">@_selected.EntityName</small>}else{<small class="entity-id admin-truncate" lang="en" data-persian-digits="off" title="@FormatEntityId(_selected.EntityType,_selected.EntityId)">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
++                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small lang="en" data-persian-digits="off">@_selected.EntityName <span class="entity-id">(@_selected.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
+                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                 </div>
+                 <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+@@ -215,7 +215,8 @@
+             var kv=part.Split('=',2);
+             if(kv.Length!=2)continue;
+             var label=GetPropertyText(kv[0].Trim());
+-            var value=Guid.TryParse(kv[1].Trim(),out var id)&&_idNameMap.TryGetValue(id,out var name)?name:kv[1].Trim();
++            var rawValue=kv[1].Trim();
++            var value=Guid.TryParse(rawValue,out var id)&&_idNameMap.TryGetValue(id,out var name)?$"{name} ({rawValue})":rawValue;
+             parts.Add($"{label}: {value}");
+         }
+         return parts.Count>0?string.Join(" · ",parts):entityId;
