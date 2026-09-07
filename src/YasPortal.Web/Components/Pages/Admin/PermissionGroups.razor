@@ -70,7 +70,7 @@
                                  @onclick="() => SelectGroup(group.Id)">
                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
                                     class="bx bx-layer"></i></span><span
-                                    class="admin-list-text"><strong>@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
+                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
                                     <span>@group.Description</span>
                                 }
                             </span>

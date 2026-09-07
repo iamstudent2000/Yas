@@ -170,7 +170,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                                             <div class="org-assign-row">
                                                 <div class="org-assign-person">
                                                     <span class="org-assign-avatar">@GetInitial(employee.FullName)</span>
-                                                    <span class="org-assign-text"><strong>@employee.FullName</strong><small>@employee.Username</small></span>
+                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Username</small></span>
                                                 </div>
                                                 <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
                                                 <div class="org-assign-select">

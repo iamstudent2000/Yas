@@ -565,6 +565,7 @@ x.PositionId == id))
         builder.OpenElement(s++, "span");
         builder.AddAttribute(s++, "class", "tree-text");
         builder.OpenElement(s++, "strong");
+        builder.AddAttribute(s++, "title", position.Name);
         builder.AddContent(s++, position.Name);
         builder.CloseElement();
         builder.OpenElement(s++, "small");

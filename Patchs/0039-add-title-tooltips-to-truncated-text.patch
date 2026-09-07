@@ -1,0 +1,77 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index 16f8102..8ddc5d3 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -80,10 +80,10 @@
+                         var local=row.OccurredAtUtc.ToLocalTime();
+                         <tr @key="row.Id">
+                             <td class="date-cell"><strong>@ToPersianDate(local)</strong><small class="muted">@ToPersianDigits(local.ToString("HH:mm:ss"))</small></td>
+-                            <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
++                            <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
+                             <td><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
+                             <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+-                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate">@row.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
++                            <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small class="admin-truncate" title="@row.EntityName">@row.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
+                             <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                         </tr>
+                     }
+@@ -102,7 +102,7 @@
+                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                 </header>
+                 <div class="admin-modal__body">
+-                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small>@_selected.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@_selected.EntityId</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
++                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small title="@_selected.EntityName">@_selected.EntityName</small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@_selected.EntityId</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
+                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                 </div>
+                 <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+index 64a78e4..238b367 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+@@ -170,7 +170,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                                             <div class="org-assign-row">
+                                                 <div class="org-assign-person">
+                                                     <span class="org-assign-avatar">@GetInitial(employee.FullName)</span>
+-                                                    <span class="org-assign-text"><strong>@employee.FullName</strong><small>@employee.Username</small></span>
++                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Username</small></span>
+                                                 </div>
+                                                 <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
+                                                 <div class="org-assign-select">
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+index 6cbadbe..21211b9 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+@@ -70,7 +70,7 @@
+                                  @onclick="() => SelectGroup(group.Id)">
+                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
+                                     class="bx bx-layer"></i></span><span
+-                                    class="admin-list-text"><strong>@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
++                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
+                                     <span>@group.Description</span>
+                                 }
+                             </span>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index fb7f6d1..60f5783 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -114,7 +114,7 @@
+                                                     <div class="admin-list-primary">
+                                                         <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
+                                                         <div class="admin-list-text">
+-                                                            <strong>@x.Name</strong>
++                                                            <strong title="@x.Name">@x.Name</strong>
+                                                             <span>@PermissionCategory(x.Code)</span>
+                                                             <code class="admin-code" dir="ltr">@x.Code</code>
+                                                         </div>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index 35a2f35..f7d2751 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -565,6 +565,7 @@ x.PositionId == id))
+         builder.OpenElement(s++, "span");
+         builder.AddAttribute(s++, "class", "tree-text");
+         builder.OpenElement(s++, "strong");
++        builder.AddAttribute(s++, "title", position.Name);
+         builder.AddContent(s++, position.Name);
+         builder.CloseElement();
+         builder.OpenElement(s++, "small");
