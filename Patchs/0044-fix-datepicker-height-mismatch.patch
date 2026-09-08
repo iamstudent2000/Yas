@@ -1,0 +1,18 @@
+diff --git a/src/YasPortal.Web/Components/Shared/PersianDatePicker.razor b/src/YasPortal.Web/Components/Shared/PersianDatePicker.razor
+index 2a93abb..353f11c 100644
+--- a/src/YasPortal.Web/Components/Shared/PersianDatePicker.razor
++++ b/src/YasPortal.Web/Components/Shared/PersianDatePicker.razor
+@@ -224,11 +224,11 @@ _displayMonth && td == d);
+         position: relative;
+         z-index: 2002;
+         width: 100%;
+-        min-height: 40px;
++        min-height: 34px;
+         border: 1px solid #dbe3ee;
+         border-radius: 8px;
+         background: #fff;
+-        padding: 8px 11px;
++        padding: 6px 8px;
+         display: flex;
+         align-items: center;
+         justify-content: space-between;
