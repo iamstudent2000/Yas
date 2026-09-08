@@ -1,0 +1,39 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index e789068..4c96a29 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -17,7 +17,7 @@
+         notifications, then the admin design system (core -> tables/lists ->
+         permission chips -> positions), and rtl-utilities always loads last.
+     -->
+-    <link rel="stylesheet" href="css/base.css?v=20260828-2" />
++    <link rel="stylesheet" href="css/base.css?v=20260828-3" />
+     <link rel="stylesheet" href="css/components.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/admin-core.css?v=20260828-4" />
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index bb73b5d..430649b 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -102,7 +102,7 @@
+                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                 </header>
+                 <div class="admin-modal__body">
+-                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small lang="en" data-persian-digits="off">@_selected.EntityName <span class="entity-id">(@_selected.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
++                    <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card admin-meta-card-wide"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small lang="en" data-persian-digits="off">@_selected.EntityName <span class="entity-id">(@_selected.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
+                     <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                 </div>
+                 <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+diff --git a/src/YasPortal.Web/wwwroot/css/base.css b/src/YasPortal.Web/wwwroot/css/base.css
+index 7f66a91..585d36c 100644
+--- a/src/YasPortal.Web/wwwroot/css/base.css
++++ b/src/YasPortal.Web/wwwroot/css/base.css
+@@ -42,6 +42,8 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ .admin-modal-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-top:1px solid var(--admin-border,#e5eaf0);flex:0 0 auto;background:#fafbfc}
+ .admin-modal-footer span{font-size:10.5px;color:var(--admin-muted,#667085)}
+ .admin-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
++.admin-meta-card.admin-meta-card-wide{grid-column:1/-1}
++.entity-id{white-space:normal!important;overflow-wrap:anywhere;word-break:break-word;line-height:1.6}
+ .admin-meta-card{border:1px solid var(--admin-border,#e5eaf0);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:3px;min-width:0}
+ .admin-meta-card span{font-size:10px;color:var(--admin-muted,#667085)}
+ .admin-meta-card strong{font-size:12px;color:var(--admin-text,#172033);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
