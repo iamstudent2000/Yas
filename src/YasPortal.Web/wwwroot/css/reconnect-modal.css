@@ -1,0 +1,86 @@
+/* =============================================================
+   09 — Reconnection Modal
+   Custom Persian text for Blazor Server's built-in reconnection UI.
+   Blazor toggles one of these classes on #components-reconnect-modal:
+   components-reconnect-show / -failed / -rejected / -hide / -paused.
+   Load anywhere after base.css (uses the shared --admin-* tokens).
+   ============================================================= */
+
+#components-reconnect-modal { display:none; }
+
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-rejected,
+#components-reconnect-modal.components-reconnect-paused {
+    display:flex;
+    position:fixed;
+    inset:0;
+    z-index:99999;
+    align-items:center;
+    justify-content:center;
+    background:rgba(16,24,40,.55);
+}
+
+#components-reconnect-modal .reconnect-box {
+    background:var(--admin-surface,#fff);
+    border-radius:var(--admin-radius,14px);
+    padding:28px 34px;
+    text-align:center;
+    box-shadow:0 20px 55px rgba(16,24,40,.25);
+    max-width:300px;
+    font-family:inherit;
+}
+
+#components-reconnect-modal .reconnect-spin {
+    font-size:30px;
+    color:var(--admin-primary,#3157d5);
+    display:none;
+}
+
+#components-reconnect-modal.components-reconnect-show .reconnect-spin,
+#components-reconnect-modal.components-reconnect-paused .reconnect-spin {
+    display:inline-block;
+}
+
+#components-reconnect-modal .reconnect-message {
+    margin:12px 0 4px;
+    font-size:14px;
+    font-weight:700;
+    color:var(--admin-text,#172033);
+}
+
+#components-reconnect-modal.components-reconnect-show .reconnect-message::before {
+    content:"در حال اتصال مجدد به سرور...";
+}
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-message::before {
+    content:"اتصال به سرور برقرار نشد.";
+}
+
+#components-reconnect-modal.components-reconnect-rejected .reconnect-message::before {
+    content:"نشست شما منقضی شده است. در حال بارگذاری مجدد صفحه...";
+}
+
+#components-reconnect-modal.components-reconnect-paused .reconnect-message::before {
+    content:"اتصال موقتاً متوقف شده است.";
+}
+
+#components-reconnect-modal .reconnect-attempt {
+    margin:0;
+    font-size:12px;
+    color:var(--admin-muted,#667085);
+    display:none;
+}
+
+#components-reconnect-modal.components-reconnect-show .reconnect-attempt {
+    display:block;
+}
+
+#components-reconnect-modal .reconnect-retry-btn {
+    display:none;
+    margin-top:14px;
+}
+
+#components-reconnect-modal.components-reconnect-failed .reconnect-retry-btn {
+    display:inline-flex;
+}

@@ -25,13 +25,32 @@
     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
     <link rel="stylesheet" href="css/admin/positions.css?v=20260828-1" />
     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+    <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
 <body>
     <ApplicationShell @rendermode="InteractiveServer" />
+    <div id="components-reconnect-modal">
+        <div class="reconnect-box">
+            <i class="bx bx-loader-alt bx-spin reconnect-spin"></i>
+            <p class="reconnect-message"></p>
+            <p class="reconnect-attempt">تلاش <span id="components-reconnect-current-attempt"></span> از
+                <span id="components-reconnect-max-retries"></span></p>
+            <button type="button" class="btn btn-primary reconnect-retry-btn" onclick="window.Blazor.reconnect()">تلاش
+                مجدد</button>
+        </div>
+    </div>
     <script src="_framework/blazor.web.js"></script>
+    <script>
+        document.getElementById('components-reconnect-modal')
+            .addEventListener('components-reconnect-state-changed', function (event) {
+                if (event.detail.state === 'rejected') {
+                    location.reload();
+                }
+            });
+    </script>
     <script src="js/admin-ui.js"></script>
     <script src="js/active-position-dropdown.js"></script>
     <script src="js/server-lookup.js"></script>

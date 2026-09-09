@@ -1,0 +1,129 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 4c96a29..4665354 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -25,13 +25,32 @@
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/positions.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
++    <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+     <HeadOutlet @rendermode="InteractiveServer" />
+ </head>
+ 
+ <body>
+     <ApplicationShell @rendermode="InteractiveServer" />
++    <div id="components-reconnect-modal">
++        <div class="reconnect-box">
++            <i class="bx bx-loader-alt bx-spin reconnect-spin"></i>
++            <p class="reconnect-message"></p>
++            <p class="reconnect-attempt">تلاش <span id="components-reconnect-current-attempt"></span> از
++                <span id="components-reconnect-max-retries"></span></p>
++            <button type="button" class="btn btn-primary reconnect-retry-btn" onclick="window.Blazor.reconnect()">تلاش
++                مجدد</button>
++        </div>
++    </div>
+     <script src="_framework/blazor.web.js"></script>
++    <script>
++        document.getElementById('components-reconnect-modal')
++            .addEventListener('components-reconnect-state-changed', function (event) {
++                if (event.detail.state === 'rejected') {
++                    location.reload();
++                }
++            });
++    </script>
+     <script src="js/admin-ui.js"></script>
+     <script src="js/active-position-dropdown.js"></script>
+     <script src="js/server-lookup.js"></script>
+diff --git a/src/YasPortal.Web/wwwroot/css/reconnect-modal.css b/src/YasPortal.Web/wwwroot/css/reconnect-modal.css
+new file mode 100644
+index 0000000..e2441b2
+--- /dev/null
++++ b/src/YasPortal.Web/wwwroot/css/reconnect-modal.css
+@@ -0,0 +1,86 @@
++/* =============================================================
++   09 — Reconnection Modal
++   Custom Persian text for Blazor Server's built-in reconnection UI.
++   Blazor toggles one of these classes on #components-reconnect-modal:
++   components-reconnect-show / -failed / -rejected / -hide / -paused.
++   Load anywhere after base.css (uses the shared --admin-* tokens).
++   ============================================================= */
++
++#components-reconnect-modal { display:none; }
++
++#components-reconnect-modal.components-reconnect-show,
++#components-reconnect-modal.components-reconnect-failed,
++#components-reconnect-modal.components-reconnect-rejected,
++#components-reconnect-modal.components-reconnect-paused {
++    display:flex;
++    position:fixed;
++    inset:0;
++    z-index:99999;
++    align-items:center;
++    justify-content:center;
++    background:rgba(16,24,40,.55);
++}
++
++#components-reconnect-modal .reconnect-box {
++    background:var(--admin-surface,#fff);
++    border-radius:var(--admin-radius,14px);
++    padding:28px 34px;
++    text-align:center;
++    box-shadow:0 20px 55px rgba(16,24,40,.25);
++    max-width:300px;
++    font-family:inherit;
++}
++
++#components-reconnect-modal .reconnect-spin {
++    font-size:30px;
++    color:var(--admin-primary,#3157d5);
++    display:none;
++}
++
++#components-reconnect-modal.components-reconnect-show .reconnect-spin,
++#components-reconnect-modal.components-reconnect-paused .reconnect-spin {
++    display:inline-block;
++}
++
++#components-reconnect-modal .reconnect-message {
++    margin:12px 0 4px;
++    font-size:14px;
++    font-weight:700;
++    color:var(--admin-text,#172033);
++}
++
++#components-reconnect-modal.components-reconnect-show .reconnect-message::before {
++    content:"در حال اتصال مجدد به سرور...";
++}
++
++#components-reconnect-modal.components-reconnect-failed .reconnect-message::before {
++    content:"اتصال به سرور برقرار نشد.";
++}
++
++#components-reconnect-modal.components-reconnect-rejected .reconnect-message::before {
++    content:"نشست شما منقضی شده است. در حال بارگذاری مجدد صفحه...";
++}
++
++#components-reconnect-modal.components-reconnect-paused .reconnect-message::before {
++    content:"اتصال موقتاً متوقف شده است.";
++}
++
++#components-reconnect-modal .reconnect-attempt {
++    margin:0;
++    font-size:12px;
++    color:var(--admin-muted,#667085);
++    display:none;
++}
++
++#components-reconnect-modal.components-reconnect-show .reconnect-attempt {
++    display:block;
++}
++
++#components-reconnect-modal .reconnect-retry-btn {
++    display:none;
++    margin-top:14px;
++}
++
++#components-reconnect-modal.components-reconnect-failed .reconnect-retry-btn {
++    display:inline-flex;
++}
