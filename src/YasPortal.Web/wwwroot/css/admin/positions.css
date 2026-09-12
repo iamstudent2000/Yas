@@ -44,6 +44,10 @@
 .tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
 .tree-actions{display:flex;gap:3px;flex:0 0 auto}
 .tree-children{display:flex;flex-direction:column;gap:2px;margin-top:2px;margin-right:11px;padding-right:11px;border-right:1.5px solid #edf0f4}
+.tree-assign-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px 22px;padding:10px 12px;border:1px solid var(--admin-primary-soft,#eef3ff);border-radius:10px;background:#f9fafe}
+.tree-assign-label{flex:0 0 100%;font-size:11px;color:var(--admin-muted,#667085)}
+.tree-assign-inline .server-lookup{flex:1 1 220px;min-width:0}
+.tree-assign-actions{display:flex;gap:6px;flex:0 0 auto}
 .position-side-panel{position:sticky;top:16px}
 .rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
 .rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}

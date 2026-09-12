@@ -1,0 +1,215 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 448f8ca..a4c1ea2 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -23,7 +23,7 @@
+     <link rel="stylesheet" href="css/admin/admin-core.css?v=20260828-5" />
+     <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260828-2" />
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+-    <link rel="stylesheet" href="css/admin/positions.css?v=20260828-1" />
++    <link rel="stylesheet" href="css/admin/positions.css?v=20260828-2" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index f7d2751..ceeb3af 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -134,41 +134,17 @@
+                                     <section class="card assignment-card">
+                                         <div class="card-toolbar">
+                                             <div>
+-                                                <div class="eyebrow">تخصیص کارمند</div>
++                                                <div class="eyebrow">تاریخچه سمت</div>
+                                                 <h2 class="section-title" style="margin:0">@SelectedPositionName</h2>
+-                                                <p class="muted">هر سمت حداکثر یک کارمند فعال دارد.</p>
++                                                <p class="muted">تخصیص و تغییر کارمند مستقیماً از خود درخت انجام می‌شود.</p>
+                                             </div>
+                                             <button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button>
+                                         </div>
+-                                        @if (_selectedPositionEmployeeName is not null)
+-                                        {
+-                                            <div class="current-assignment">
+-                                                <div class="current-icon"><i class="bx bx-user-check"></i></div>
+-                                                <div class="current-main"><span class="muted">کارمند
+-                                                    فعلی</span><strong>@_selectedPositionEmployeeName</strong></div>
+-                                                    <button class="btn btn-danger btn-sm" disabled="@_savingAssignment"
+-                                                            @onclick="() => FreePosition(selectedPositionId)"><i class="bx bx-unlink"></i> آزاد کردن سمت</button>
+-                                                </div>
+-                                            }
+-            else
+-                                            {
+-                                                <div class="assignment-empty"><i class="bx bx-briefcase"></i>
+-                                                    <div><strong>این سمت آزاد است</strong><span>یک کارمند فعال را جستجو و تخصیص دهید.</span></div>
+-                                                </div>
+-                                                <div class="assignment-form">
+-                                                    <ServerSearchableGuidSelect Value="@_employeeToAssign" ValueChanged="EmployeeChanged"
+-                                                                                SearchAsync="SearchAssignableEmployeesAsync" SelectedText="@_employeeToAssignName"
+-                                                                                Placeholder="کارمند را جستجو کنید..." SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
+-                                                    <button class="btn btn-primary" disabled="@(_savingAssignment || _employeeToAssign is null)"
+-                                                            @onclick="AssignEmployee"><i class="bx bx-link"></i> تخصیص کارمند</button>
+-                                                </div>
+-                                                <div class="help-text">جستجو مستقیماً از SQL Server انجام می‌شود و فقط کارکنان فعال نمایش داده می‌شوند.</div>
+-                                            }
+-                                        </section>
++                                    </section>
+ 
+-                                        <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
+-                                    }
+-                                </div>
++                                    <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
++                                }
++                            </div>
+ 
+ @code {
+     private List<PositionRow> _positions = [];
+@@ -176,7 +152,7 @@
+     private string _treeSearch = "";
+     private HashSet<Guid>? _visiblePositionIds;
+     private int _treeMatchCount;
+-    private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign;
++    private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId;
+     private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
+     private string? _selectedPositionEmployeeName;
+     private bool _loading, _savingAssignment, _treeInitialized;
+@@ -387,25 +363,29 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+         _selectedPositionEmployeeName = null;
+     }
+ 
+-    private async Task AssignEmployee()
++    private void ToggleAssigning(Guid positionId)
++    {
++        if (_assigningPositionId == positionId)
++        {
++            _assigningPositionId = null;
++        }
++        else
++        {
++            _assigningPositionId = positionId;
++            _employeeToAssign = null;
++            _employeeToAssignName = "";
++        }
++    }
++
++    private async Task ReassignEmployeeAsync(Guid positionId)
+     {
+-        if (_selectedPositionId is not Guid positionId || _employeeToAssign is not Guid employeeId)
++        if (_employeeToAssign is not Guid employeeId || _savingAssignment)
+             return;
+ 
+         _savingAssignment = true;
+         try
+         {
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            var owner = await db.EmployeePositions.AsNoTracking()
+-                .Where(x => x.PositionId == positionId && x.EndedAt == null)
+-                .Select(x => (string?)x.Employee.FullName)
+-                .FirstOrDefaultAsync();
+-
+-            if (owner is not null)
+-            {
+-                AppState.AddToast($"این سمت در حال حاضر به «{owner}» تخصیص داده شده است.", ToastLevel.Error);
+-                return;
+-            }
+ 
+             var employee = await db.Employees.SingleAsync(x => x.Id == employeeId);
+             if (!employee.IsActive || employee.IsAdmin)
+@@ -414,8 +394,22 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+                 return;
+             }
+ 
+-            var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId ==
+-positionId);
++            var current = await db.EmployeePositions.SingleOrDefaultAsync(x => x.PositionId == positionId && x.EndedAt == null);
++            if (current is not null)
++            {
++                if (current.EmployeeId == employeeId)
++                {
++                    AppState.AddToast("این سمت هم‌اکنون به همین کارمند تخصیص دارد.", ToastLevel.Error);
++                    return;
++                }
++
++                var previousEmployee = await db.Employees.SingleAsync(x => x.Id == current.EmployeeId);
++                if (previousEmployee.LastActivePositionId == positionId)
++                    previousEmployee.SetLastActivePosition(null);
++                current.End();
++            }
++
++            var link = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employeeId && x.PositionId == positionId);
+             if (link is null)
+                 db.EmployeePositions.Add(new EmployeePosition(employeeId, positionId));
+             else
+@@ -426,13 +420,14 @@ positionId);
+             try
+             {
+                 await db.SaveChangesAsync();
+-                AppState.AddToast("کارمند به سمت تخصیص یافت.", ToastLevel.Success);
++                AppState.AddToast(current is null ? "کارمند به سمت تخصیص یافت." : "تخصیص سمت جابه‌جا شد.", ToastLevel.Success);
+             }
+             catch (DbUpdateException)
+             {
+                 AppState.AddToast("این سمت هم‌زمان توسط کارمند دیگری تخصیص داده شد.", ToastLevel.Error);
+             }
+ 
++            _assigningPositionId = null;
+             _employeeToAssign = null;
+             _employeeToAssignName = "";
+             await LoadAsync();
+@@ -580,12 +575,42 @@ x.PositionId == id))
+         builder.AddAttribute(s++, "class", "tree-actions");
+         AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-plus", "زیرسمت", () => BeginCreateChild(position.Id));
+         AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-edit-alt", "ویرایش", () => Edit(position.Id));
++        AddButton(builder, ref s, "btn btn-primary btn-sm", position.IsOccupied ? "bx bx-transfer" : "bx bx-link",
++            position.IsOccupied ? "تغییر کارمند" : "تخصیص کارمند", () => ToggleAssigning(position.Id));
+         if (position.IsOccupied)
+             AddAsyncButton(builder, ref s, "btn btn-danger btn-sm", "bx bx-unlink", "آزاد", () => FreePosition(position.Id));
+         AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm icon-only", "bx bx-trash", "حذف", () => Delete(position.Id));
+         builder.CloseElement();
+         builder.CloseElement();
+ 
++        if (_assigningPositionId == position.Id)
++        {
++            builder.OpenElement(s++, "div");
++            builder.AddAttribute(s++, "class", "tree-assign-inline");
++            builder.OpenElement(s++, "span");
++            builder.AddAttribute(s++, "class", "tree-assign-label");
++            builder.AddContent(s++, position.IsOccupied
++                ? $"کارمند جدید را برای جایگزینی «{position.EmployeeName}» انتخاب کنید:"
++                : "کارمند مورد نظر را انتخاب کنید:");
++            builder.CloseElement();
++            builder.OpenComponent<ServerSearchableGuidSelect>(s++);
++            builder.AddComponentParameter(s++, "Value", _employeeToAssign);
++            builder.AddComponentParameter(s++, "ValueChanged", EventCallback.Factory.Create<Guid?>(this, EmployeeChanged));
++            builder.AddComponentParameter(s++, "SearchAsync",
++                (Func<string, CancellationToken, Task<IReadOnlyList<AdminQueryService.LookupItem>>>)SearchAssignableEmployeesAsync);
++            builder.AddComponentParameter(s++, "SelectedText", _employeeToAssignName);
++            builder.AddComponentParameter(s++, "Placeholder", "کارمند را جستجو کنید...");
++            builder.AddComponentParameter(s++, "SearchPlaceholder", "نام یا نام کاربری را تایپ کنید...");
++            builder.CloseComponent();
++            builder.OpenElement(s++, "div");
++            builder.AddAttribute(s++, "class", "tree-assign-actions");
++            AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check",
++                position.IsOccupied ? "تایید جابه‌جایی" : "تایید تخصیص", () => ReassignEmployeeAsync(position.Id));
++            AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-x", "انصراف", () => ToggleAssigning(position.Id));
++            builder.CloseElement();
++            builder.CloseElement();
++        }
++
+         if (hasChildren && expanded)
+         {
+             builder.OpenElement(s++, "div");
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/positions.css b/src/YasPortal.Web/wwwroot/css/admin/positions.css
+index b9d79b7..dc8694a 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/positions.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/positions.css
+@@ -44,6 +44,10 @@
+ .tree-text small{color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}
+ .tree-actions{display:flex;gap:3px;flex:0 0 auto}
+ .tree-children{display:flex;flex-direction:column;gap:2px;margin-top:2px;margin-right:11px;padding-right:11px;border-right:1.5px solid #edf0f4}
++.tree-assign-inline{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 4px 22px;padding:10px 12px;border:1px solid var(--admin-primary-soft,#eef3ff);border-radius:10px;background:#f9fafe}
++.tree-assign-label{flex:0 0 100%;font-size:11px;color:var(--admin-muted,#667085)}
++.tree-assign-inline .server-lookup{flex:1 1 220px;min-width:0}
++.tree-assign-actions{display:flex;gap:6px;flex:0 0 auto}
+ .position-side-panel{position:sticky;top:16px}
+ .rules-mini{margin-top:20px;padding:12px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;display:flex;flex-direction:column;gap:9px}
+ .rules-mini div{display:flex;gap:8px;align-items:center;color:#475467;font-size:12px}
