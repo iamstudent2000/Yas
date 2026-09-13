@@ -192,3 +192,11 @@
     .admin-page .selection-toolbar > div .btn { flex:1 1 0; }
     .admin-page .effective-row { align-items:flex-start; flex-direction:column; }
 }
+
+/* Sortable table headers */
+.sortable-th{cursor:pointer;user-select:none;-webkit-user-select:none}
+.sortable-th:hover{background:#eef1f6}
+.sortable-th-inner{display:inline-flex;align-items:center;gap:4px}
+.sortable-th-inner i{font-size:13px;color:#98a2b3}
+.sortable-th:hover .sortable-th-inner i{color:#667085}
+

@@ -76,9 +76,9 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                             <table class="data-table data-table-bordered-rows">
                                 <thead>
                                     <tr>
-                                        <th>سازمان</th>
-                                        <th>کارکنان</th>
-                                        <th>وضعیت</th>
+                                        <SortableHeader Text="سازمان" Column="name" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+                                        <SortableHeader Text="کارکنان" Column="employees" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+                                        <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
                                         <th>عملیات</th>
                                     </tr>
                                 </thead>
@@ -196,6 +196,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
     private string _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
     private int
 _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOrganizationCount;
+    private string? _orgSortBy; private bool _orgSortDesc;
     private bool _organizationLoading, _employeeLoading;
     private List<AdminQueryService.EmployeeAssignmentRow> _allEmployees = [];
     private readonly HashSet<string> _collapsedOrgGroups = [];
@@ -213,17 +214,23 @@ _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOr
         _organizationLoading = true; try
         {
             var r = await
-AdminQueries.GetOrganizationsAsync(_organizationPage, _organizationPageSize, _organizationSearch); _organizations =
+AdminQueries.GetOrganizationsAsync(_organizationPage, _organizationPageSize, _organizationSearch, _orgSortBy, _orgSortDesc); _organizations =
 r.Items.ToList(); _organizationTotal = r.TotalCount; if (_organizationTotal > 0 && _organizationPage > Math.Max(1,
 (int)Math.Ceiling(_organizationTotal / (double)_organizationPageSize)))
             {
                 _organizationPage = 1; var
 reset = await
-AdminQueries.GetOrganizationsAsync(_organizationPage, _organizationPageSize, _organizationSearch); _organizations =
+AdminQueries.GetOrganizationsAsync(_organizationPage, _organizationPageSize, _organizationSearch, _orgSortBy, _orgSortDesc); _organizations =
 reset.Items.ToList(); _organizationTotal = reset.TotalCount;
             }
         }
         finally { _organizationLoading = false; }
+    }
+    private async Task SortOrganizationsByAsync(string column)
+    {
+        if (_orgSortBy == column) _orgSortDesc = !_orgSortDesc; else { _orgSortBy = column; _orgSortDesc = false; }
+        _organizationPage = 1;
+        await LoadOrganizationsAsync();
     }
     private async Task LoadEmployeesAsync()
     {

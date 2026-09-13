@@ -1,0 +1,24 @@
+<th class="sortable-th" @onclick="HandleClick">
+    <span class="sortable-th-inner">
+        @Text
+        <i class="bx @IconClass"></i>
+    </span>
+</th>
+
+@code {
+    /// <summary>Column label shown in the header.</summary>
+    [Parameter] public string Text { get; set; } = "";
+    /// <summary>Sort key this header represents (matches what the page passes back on OnSort).</summary>
+    [Parameter, EditorRequired] public string Column { get; set; } = "";
+    /// <summary>The page's currently active sort column.</summary>
+    [Parameter] public string? CurrentSort { get; set; }
+    /// <summary>Whether the currently active sort column is descending.</summary>
+    [Parameter] public bool CurrentDescending { get; set; }
+    /// <summary>Raised with this header's Column when clicked; the page decides direction toggling.</summary>
+    [Parameter] public EventCallback<string> OnSort { get; set; }
+
+    private bool IsActive => CurrentSort == Column;
+    private string IconClass => IsActive ? (CurrentDescending ? "bx-sort-down" : "bx-sort-up") : "bx-sort-alt-2";
+
+    private Task HandleClick() => OnSort.InvokeAsync(Column);
+}

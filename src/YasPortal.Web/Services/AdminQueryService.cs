@@ -131,7 +131,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             .ToListAsync(ct);
     }
 
-    public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page, int pageSize, string? search, CancellationToken ct = default)
+    public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, CancellationToken ct = default)
     {
         page = Page(page);
         pageSize = Size(pageSize);
@@ -139,14 +139,25 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q));
         var total = await query.CountAsync(ct);
-        var rows = await query.OrderBy(x => x.FullName).Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
+        query = (sortBy, sortDesc) switch
+        {
+            ("type", false) => query.OrderBy(x => x.IsAdmin).ThenBy(x => x.FullName),
+            ("type", true) => query.OrderByDescending(x => x.IsAdmin).ThenBy(x => x.FullName),
+            ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.FullName),
+            ("status", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.FullName),
+            ("organization", false) => query.OrderBy(x => db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => o.Name).FirstOrDefault()).ThenBy(x => x.FullName),
+            ("organization", true) => query.OrderByDescending(x => db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => o.Name).FirstOrDefault()).ThenBy(x => x.FullName),
+            ("name", true) => query.OrderByDescending(x => x.FullName),
+            _ => query.OrderBy(x => x.FullName),
+        };
+        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
         var employeeIds = rows.Select(x => x.Id).ToArray();
         var assignments = await db.EmployeePositions.AsNoTracking().Where(x => employeeIds.Contains(x.EmployeeId) && x.EndedAt == null).OrderBy(x => x.Position.Name).Select(x => new { x.EmployeeId, x.PositionId, x.Position.Name }).ToListAsync(ct);
         var positionsByEmployee = assignments.GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.Select(x => new ActivePositionRow(x.PositionId, x.Name)).ToList() as IReadOnlyList<ActivePositionRow>);
         var items = rows.Select(x => x with { ActivePositions = positionsByEmployee.TryGetValue(x.Id, out var positions) ? positions : Array.Empty<ActivePositionRow>() }).ToList();
         return new(items, total, page, pageSize);
     }
-    public async Task<PageResult<OrganizationPageRow>> GetOrganizationsAsync(int page, int pageSize, string? search, CancellationToken ct = default)
+    public async Task<PageResult<OrganizationPageRow>> GetOrganizationsAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, CancellationToken ct = default)
     {
         page = Page(page);
         pageSize = Size(pageSize);
@@ -154,7 +165,16 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q));
         var total = await query.CountAsync(ct);
-        var items = await query.OrderBy(x => x.Name).Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
+        var ordered = (sortBy, sortDesc) switch
+        {
+            ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.Name),
+            ("status", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Name),
+            ("employees", false) => query.OrderBy(x => x.Employees.Count).ThenBy(x => x.Name),
+            ("employees", true) => query.OrderByDescending(x => x.Employees.Count).ThenBy(x => x.Name),
+            ("name", true) => query.OrderByDescending(x => x.Name),
+            _ => query.OrderBy(x => x.Name),
+        };
+        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
         return new(items, total, page, pageSize);
     }
     public async Task<PageResult<PermissionPageRow>> GetPermissionsAsync(int page, int pageSize, string? search, string? usage, CancellationToken ct = default)
