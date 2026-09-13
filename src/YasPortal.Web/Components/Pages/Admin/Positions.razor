@@ -131,17 +131,6 @@
 
                                 @if (_selectedPositionId is Guid selectedPositionId)
                                 {
-                                    <section class="card assignment-card">
-                                        <div class="card-toolbar">
-                                            <div>
-                                                <div class="eyebrow">تاریخچه سمت</div>
-                                                <h2 class="section-title" style="margin:0">@SelectedPositionName</h2>
-                                                <p class="muted">تخصیص و تغییر کارمند مستقیماً از خود درخت انجام می‌شود.</p>
-                                            </div>
-                                            <button class="btn btn-secondary btn-sm" @onclick="ClearSelection"><i class="bx bx-x"></i> بستن</button>
-                                        </div>
-                                    </section>
-
                                     <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
                                 }
                             </div>
@@ -159,11 +148,10 @@
 
     private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null
         && (_visiblePositionIds is null || _visiblePositionIds.Contains(x.Id))).OrderBy(x => x.Name);
-    private string SelectedPositionName => _selectedPositionId is Guid id ? _positions.FirstOrDefault(x => x.Id == id)?.Name
-?? "سمت" : "سمت";
 
     private void TreeSearchChanged()
     {
+        _assigningPositionId = null;
         var q = _treeSearch.Trim();
         if (q.Length == 0) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
 
@@ -184,6 +172,7 @@
 
     private void ClearTreeSearch()
     {
+        _assigningPositionId = null;
         _treeSearch = "";
         _visiblePositionIds = null;
         _treeMatchCount = 0;
@@ -241,6 +230,7 @@
 
     private void ToggleNode(Guid positionId)
     {
+        _assigningPositionId = null;
         if (!_collapsedNodeIds.Add(positionId))
             _collapsedNodeIds.Remove(positionId);
     }
@@ -257,6 +247,7 @@
 
     private void BeginCreateChild(Guid parentId)
     {
+        _assigningPositionId = null;
         _editingId = null;
         _name = "";
         _parentPositionId = parentId;
@@ -266,6 +257,7 @@
 
     private void Edit(Guid id)
     {
+        _assigningPositionId = null;
         var p = _positions.Single(x => x.Id == id);
         _editingId = id;
         _name = p.Name;
@@ -349,6 +341,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
 
     private async Task SelectPosition(Guid id)
     {
+        _assigningPositionId = null;
         _selectedPositionId = id;
         _employeeToAssign = null;
         _employeeToAssignName = "";
