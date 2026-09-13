@@ -193,7 +193,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             var currentEndedAt = entry.Property(x => x.EndedAt).CurrentValue;
             if (originalEndedAt is null && currentEndedAt is not null)
             {
-                var activeHistory = PositionAssignmentHistories.Local.FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null) ?? PositionAssignmentHistories.FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null);
+                var activeHistory = PositionAssignmentHistories.Local.FirstOrDefault(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null) ?? PositionAssignmentHistories.FirstOrDefault(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt == null);
                 activeHistory?.End(currentEndedAt.Value);
             }
             else if (originalEndedAt is not null && currentEndedAt is null && !PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
@@ -212,7 +212,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             var currentEndedAt = entry.Property(x => x.EndedAt).CurrentValue;
             if (originalEndedAt is null && currentEndedAt is not null)
             {
-                var activeHistory = PositionAssignmentHistories.Local.FirstOrDefault(x => x.PositionId == entry.Entity.PositionId && x.EndedAt is null) ?? await PositionAssignmentHistories.FirstOrDefaultAsync(x => x.PositionId == entry.Entity.PositionId && x.EndedAt == null, cancellationToken);
+                var activeHistory = PositionAssignmentHistories.Local.FirstOrDefault(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null) ?? await PositionAssignmentHistories.FirstOrDefaultAsync(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt == null, cancellationToken);
                 activeHistory?.End(currentEndedAt.Value);
             }
             else if (originalEndedAt is not null && currentEndedAt is null && !PositionAssignmentHistories.Local.Any(x => x.EmployeeId == entry.Entity.EmployeeId && x.PositionId == entry.Entity.PositionId && x.EndedAt is null))
