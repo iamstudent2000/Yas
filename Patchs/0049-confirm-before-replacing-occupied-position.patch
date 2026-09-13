@@ -1,0 +1,76 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index ceeb3af..a7bb4fc 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -152,7 +152,7 @@
+     private string _treeSearch = "";
+     private HashSet<Guid>? _visiblePositionIds;
+     private int _treeMatchCount;
+-    private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId;
++    private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId, _confirmingReassignPositionId;
+     private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
+     private string? _selectedPositionEmployeeName;
+     private bool _loading, _savingAssignment, _treeInitialized;
+@@ -293,6 +293,7 @@
+     {
+         _employeeToAssign = id;
+         _employeeToAssignName = "";
++        _confirmingReassignPositionId = null;
+         return Task.CompletedTask;
+     }
+ 
+@@ -375,6 +376,14 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+             _employeeToAssign = null;
+             _employeeToAssignName = "";
+         }
++        _confirmingReassignPositionId = null;
++    }
++
++    private void RequestReplaceConfirmation(Guid positionId)
++    {
++        if (_employeeToAssign is null || _savingAssignment)
++            return;
++        _confirmingReassignPositionId = positionId;
+     }
+ 
+     private async Task ReassignEmployeeAsync(Guid positionId)
+@@ -428,6 +437,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+             }
+ 
+             _assigningPositionId = null;
++            _confirmingReassignPositionId = null;
+             _employeeToAssign = null;
+             _employeeToAssignName = "";
+             await LoadAsync();
+@@ -602,10 +612,29 @@ x.PositionId == id))
+             builder.AddComponentParameter(s++, "Placeholder", "کارمند را جستجو کنید...");
+             builder.AddComponentParameter(s++, "SearchPlaceholder", "نام یا نام کاربری را تایپ کنید...");
+             builder.CloseComponent();
++            if (position.IsOccupied && _confirmingReassignPositionId == position.Id)
++            {
++                builder.OpenElement(s++, "div");
++                builder.AddAttribute(s++, "class", "tree-assign-replace-warning");
++                builder.OpenElement(s++, "i");
++                builder.AddAttribute(s++, "class", "bx bx-error");
++                builder.CloseElement();
++                builder.AddContent(s++, $"«{position.EmployeeName}» از این سمت خارج و کارمند جدید جایگزین می‌شود. مطمئن هستید؟");
++                builder.CloseElement();
++            }
++
+             builder.OpenElement(s++, "div");
+             builder.AddAttribute(s++, "class", "tree-assign-actions");
+-            AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check",
+-                position.IsOccupied ? "تایید جابه‌جایی" : "تایید تخصیص", () => ReassignEmployeeAsync(position.Id));
++            if (position.IsOccupied && _confirmingReassignPositionId != position.Id)
++            {
++                AddButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check", "تایید جابه‌جایی",
++                    () => RequestReplaceConfirmation(position.Id));
++            }
++            else
++            {
++                AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check",
++                    position.IsOccupied ? "بله، جایگزین شود" : "تایید تخصیص", () => ReassignEmployeeAsync(position.Id));
++            }
+             AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-x", "انصراف", () => ToggleAssigning(position.Id));
+             builder.CloseElement();
+             builder.CloseElement();

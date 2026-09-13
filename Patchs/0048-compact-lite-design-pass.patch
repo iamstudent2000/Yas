@@ -1,0 +1,109 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index a4c1ea2..6898845 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -17,13 +17,13 @@
+         notifications, then the admin design system (core -> tables/lists ->
+         permission chips -> positions), and rtl-utilities always loads last.
+     -->
+-    <link rel="stylesheet" href="css/base.css?v=20260828-3" />
+-    <link rel="stylesheet" href="css/components.css?v=20260828-1" />
++    <link rel="stylesheet" href="css/base.css?v=20260912-1" />
++    <link rel="stylesheet" href="css/components.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
+-    <link rel="stylesheet" href="css/admin/admin-core.css?v=20260828-5" />
++    <link rel="stylesheet" href="css/admin/admin-core.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260828-2" />
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+-    <link rel="stylesheet" href="css/admin/positions.css?v=20260828-2" />
++    <link rel="stylesheet" href="css/admin/positions.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/admin-core.css b/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
+index f5b4149..2aba00f 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
+@@ -32,3 +32,25 @@
+ .access-panel .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid #eef1f5;background:#fff}.access-panel .panel-heading>div:first-child{min-width:0}.access-panel .panel-heading h2{margin:0;color:var(--admin-text);font-size:15px;font-weight:800}.access-panel .panel-heading p{margin:3px 0 0;color:var(--admin-muted);font-size:11px}.access-panel .panel-heading-tools{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;flex:0 1 auto}.access-panel .panel-heading-tools .admin-filter-chips{display:flex;align-items:center;flex-wrap:nowrap;gap:5px;flex:0 0 auto}.access-panel .panel-heading-tools .search-box{width:230px;flex:0 1 230px;min-width:170px}.access-panel .panel-heading-tools .search-box .form-control{min-height:36px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid #eef1f5;background:#fafbfc}.selection-actions{display:flex;gap:6px;flex-wrap:wrap}
+ @media(max-width:900px){.access-panel .panel-heading{align-items:flex-start;flex-wrap:wrap}.access-panel .panel-heading-tools{width:100%;justify-content:space-between}.access-panel .panel-heading-tools .search-box{flex:1 1 220px;width:auto}.selector-grid,.access-columns{grid-template-columns:1fr}.subject-card{align-items:flex-start;flex-direction:column}.subject-stats{width:100%}.subject-stats>div{flex:1}}
+ @media(max-width:560px){.access-panel .panel-heading-tools{flex-wrap:wrap}.access-panel .panel-heading-tools .admin-filter-chips{width:100%;flex-wrap:wrap}.access-panel .panel-heading-tools .search-box{width:100%;flex-basis:100%}}
++
++/* Pass 4: compact/lite design pass — smaller radii, lighter shadows, tighter spacing across all admin pages */
++:root{--admin-radius:10px;--admin-shadow:0 2px 8px rgba(16,24,40,.05)}
++.admin-page,.positions-page{font-size:12.5px;line-height:1.55}
++.page-header,.admin-page .admin-page-header{padding:14px 16px;margin-bottom:14px;border-radius:12px;box-shadow:none}
++.page-title{font-size:20px}
++.page-subtitle{font-size:12px}
++.card,.admin-card,.table-card,.filter-card{border-radius:10px}
++.section-title,.card-title{font-size:13.5px}
++.admin-toolbar,.card-toolbar{padding:11px 14px}
++.btn,.admin-btn{min-height:32px;padding:7px 11px;font-size:11.5px;border-radius:8px}
++.btn-sm{min-height:28px;padding:5px 8px;border-radius:7px;font-size:10.5px}
++.form-control{min-height:34px;padding:7px 9px;border-radius:8px}
++.form-label{margin-bottom:4px}
++.stat-grid{gap:8px;margin-bottom:12px}
++.stat-card{padding:11px}
++.admin-table th,.admin-table td,.data-table th,.data-table td,.admin-page table th,.admin-page table td{padding:8px 10px}
++.admin-table td,.data-table td,.admin-page table td{font-size:12px}
++.admin-pagination{padding:9px 12px}
++.badge{min-height:21px;padding:3px 7px;font-size:10.5px}
++.subject-card{padding:10px 13px}
++.access-panel .panel-heading,.access-selector,.access-panel{padding:11px 13px}
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/positions.css b/src/YasPortal.Web/wwwroot/css/admin/positions.css
+index dc8694a..e557efb 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/positions.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/positions.css
+@@ -67,3 +67,12 @@
+ .icon-only{width:32px;padding:6px}
+ .form-actions{display:flex;gap:8px;flex-wrap:wrap}
+ @media (max-width:900px){.positions-layout{grid-template-columns:1fr}.position-side-panel{position:static}.positions-tree-toolbar{flex-direction:column}.tree-toolbar-actions{width:100%}.tree-item{padding-right:calc(6px + var(--depth) * 16px)}.tree-actions .btn-sm:not(.icon-only){font-size:0;width:30px;height:30px;padding:5px}.tree-actions .btn-sm:not(.icon-only) i{font-size:16px}.assignment-form{grid-template-columns:1fr}.current-assignment{grid-template-columns:auto 1fr}.current-assignment .btn{grid-column:1/-1;width:100%}}
++
++/* Pass 4: compact/lite design pass */
++.tree-item{min-height:34px;padding:3px 6px;border-radius:7px}
++.tree-icon{width:21px;height:21px;border-radius:6px;font-size:11px}
++.tree-toggle{width:20px;height:20px;border-radius:5px}
++.tree-assign-inline{padding:8px 10px;border-radius:8px;margin:2px 0 3px 22px}
++.tree-assign-replace-warning{flex:0 0 100%;display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:7px;background:var(--admin-warning-soft,#fff6e5);color:var(--admin-warning,#b54708);font-size:11px}
++.position-tree-card-wrap{min-height:420px}
++.rules-mini{margin-top:14px;padding:10px}
+diff --git a/src/YasPortal.Web/wwwroot/css/base.css b/src/YasPortal.Web/wwwroot/css/base.css
+index 585d36c..8a77d88 100644
+--- a/src/YasPortal.Web/wwwroot/css/base.css
++++ b/src/YasPortal.Web/wwwroot/css/base.css
+@@ -32,6 +32,20 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ @media(max-width:850px){.topbar{height:62px}.application-body{min-height:0}.sidebar{position:static;height:auto;width:100%;padding:9px 10px;overflow:visible}.sidebar-nav{display:flex;gap:5px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:thin}.sidebar-nav a{flex:0 0 auto;min-height:40px;white-space:nowrap}.sidebar-section-title{display:none}.admin-title{margin-top:7px}.sidebar-footer{display:none}.content{padding:20px 14px}.page-header{flex-direction:column;align-items:stretch}.page-title{font-size:22px}}
+ @media(max-width:520px){.topbar{height:58px;padding-inline:10px}.brand{font-size:16px}.brand-mark{width:34px;height:34px}.topbar-user small{display:none}.user-avatar{width:34px;height:34px}.application-body{min-height:0}.sidebar{padding:7px 8px}.sidebar-nav a{font-size:12px;padding:9px 10px}.content{padding:15px 10px}.page-header{margin-bottom:15px}.page-title{font-size:20px}.page-subtitle{font-size:12px}.login-card{padding:22px 18px;border-radius:15px}}
+ 
++/* Pass 4: compact/lite design pass — applies outside .admin-page too (dashboard, login, profile shell) */
++.content{padding:18px clamp(14px,2vw,26px)}
++.page-title{font-size:20px}
++.card{border-radius:11px;padding:15px;box-shadow:0 2px 8px rgba(16,24,40,.05)}
++.section-title{font-size:14px;margin:0 0 11px}
++.stat-card{padding:12px;border-radius:11px}
++.stat-value{font-size:17px}
++.btn{min-height:32px;padding:7px 11px;font-size:12px;border-radius:8px}
++.form-control{min-height:34px;padding:7px 9px;border-radius:8px}
++.data-table th,.data-table td{padding:9px 11px}
++.login-card{padding:24px;border-radius:15px;box-shadow:0 10px 30px rgba(16,24,40,.09)}
++.sidebar{padding:14px 10px}
++.sidebar-nav a{min-height:38px;padding:8px 10px}
++
+ /* Modal layering: dialogs must always sit above shared date pickers. */
+ .admin-modal-overlay{position:fixed;inset:0;z-index:3000!important;background:rgba(16,24,40,.55);display:flex;align-items:center;justify-content:center;padding:24px}
+ .admin-modal{z-index:3001!important;background:var(--admin-surface,#fff);border-radius:var(--admin-radius,14px);box-shadow:var(--admin-shadow,0 8px 28px rgba(16,24,40,.055)),0 24px 60px rgba(16,24,40,.25);width:100%;max-width:720px;max-height:min(85vh,820px);display:flex;flex-direction:column;overflow:hidden}
+diff --git a/src/YasPortal.Web/wwwroot/css/components.css b/src/YasPortal.Web/wwwroot/css/components.css
+index ce01833..cd53869 100644
+--- a/src/YasPortal.Web/wwwroot/css/components.css
++++ b/src/YasPortal.Web/wwwroot/css/components.css
+@@ -11,3 +11,10 @@
+ /* Pass 3: shared component polish */
+ .position-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.position-card{border-radius:15px;padding:18px;gap:13px;min-height:190px;transition:border-color .16s,box-shadow .16s,transform .16s}.position-card:hover{border-color:#c7d7f7;box-shadow:0 10px 28px rgba(16,24,40,.07);transform:translateY(-1px)}.position-card.selected{border-color:#7aa2f8;background:#f7faff;box-shadow:0 8px 24px rgba(49,87,213,.09)}.position-content h2{font-size:16px;line-height:1.55;margin:0 0 8px}.position-icon{width:42px;height:42px;border-radius:11px;font-size:21px}.profile-status{font-size:12px;line-height:1.7}.empty-state{min-height:200px;padding:30px 18px}.empty-state strong{font-size:13px}.empty-state p{margin:0;color:#667085;font-size:12px;line-height:1.8}.empty-icon{width:48px;height:48px;border-radius:14px;font-size:23px}
+ @media(max-width:700px){.position-grid{grid-template-columns:1fr;gap:11px}.position-card{min-height:0;padding:16px}.position-card:hover{transform:none}}
++
++/* Pass 4: compact/lite design pass */
++.position-card{border-radius:11px;padding:14px;gap:10px;min-height:170px;box-shadow:0 2px 8px rgba(16,24,40,.05)}
++.position-icon{width:38px;height:38px;border-radius:9px;font-size:19px}
++.position-content h2{font-size:14.5px;margin:0 0 6px}
++.empty-state{min-height:180px;padding:24px 16px}
++.empty-icon{width:42px;height:42px;border-radius:12px;font-size:20px}

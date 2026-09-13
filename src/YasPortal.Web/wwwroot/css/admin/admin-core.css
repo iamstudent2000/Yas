@@ -32,3 +32,25 @@
 .access-panel .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid #eef1f5;background:#fff}.access-panel .panel-heading>div:first-child{min-width:0}.access-panel .panel-heading h2{margin:0;color:var(--admin-text);font-size:15px;font-weight:800}.access-panel .panel-heading p{margin:3px 0 0;color:var(--admin-muted);font-size:11px}.access-panel .panel-heading-tools{display:flex;align-items:center;justify-content:flex-start;gap:8px;min-width:0;flex:0 1 auto}.access-panel .panel-heading-tools .admin-filter-chips{display:flex;align-items:center;flex-wrap:nowrap;gap:5px;flex:0 0 auto}.access-panel .panel-heading-tools .search-box{width:230px;flex:0 1 230px;min-width:170px}.access-panel .panel-heading-tools .search-box .form-control{min-height:36px}.selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid #eef1f5;background:#fafbfc}.selection-actions{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:900px){.access-panel .panel-heading{align-items:flex-start;flex-wrap:wrap}.access-panel .panel-heading-tools{width:100%;justify-content:space-between}.access-panel .panel-heading-tools .search-box{flex:1 1 220px;width:auto}.selector-grid,.access-columns{grid-template-columns:1fr}.subject-card{align-items:flex-start;flex-direction:column}.subject-stats{width:100%}.subject-stats>div{flex:1}}
 @media(max-width:560px){.access-panel .panel-heading-tools{flex-wrap:wrap}.access-panel .panel-heading-tools .admin-filter-chips{width:100%;flex-wrap:wrap}.access-panel .panel-heading-tools .search-box{width:100%;flex-basis:100%}}
+
+/* Pass 4: compact/lite design pass — smaller radii, lighter shadows, tighter spacing across all admin pages */
+:root{--admin-radius:10px;--admin-shadow:0 2px 8px rgba(16,24,40,.05)}
+.admin-page,.positions-page{font-size:12.5px;line-height:1.55}
+.page-header,.admin-page .admin-page-header{padding:14px 16px;margin-bottom:14px;border-radius:12px;box-shadow:none}
+.page-title{font-size:20px}
+.page-subtitle{font-size:12px}
+.card,.admin-card,.table-card,.filter-card{border-radius:10px}
+.section-title,.card-title{font-size:13.5px}
+.admin-toolbar,.card-toolbar{padding:11px 14px}
+.btn,.admin-btn{min-height:32px;padding:7px 11px;font-size:11.5px;border-radius:8px}
+.btn-sm{min-height:28px;padding:5px 8px;border-radius:7px;font-size:10.5px}
+.form-control{min-height:34px;padding:7px 9px;border-radius:8px}
+.form-label{margin-bottom:4px}
+.stat-grid{gap:8px;margin-bottom:12px}
+.stat-card{padding:11px}
+.admin-table th,.admin-table td,.data-table th,.data-table td,.admin-page table th,.admin-page table td{padding:8px 10px}
+.admin-table td,.data-table td,.admin-page table td{font-size:12px}
+.admin-pagination{padding:9px 12px}
+.badge{min-height:21px;padding:3px 7px;font-size:10.5px}
+.subject-card{padding:10px 13px}
+.access-panel .panel-heading,.access-selector,.access-panel{padding:11px 13px}

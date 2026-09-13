@@ -67,3 +67,12 @@
 .icon-only{width:32px;padding:6px}
 .form-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media (max-width:900px){.positions-layout{grid-template-columns:1fr}.position-side-panel{position:static}.positions-tree-toolbar{flex-direction:column}.tree-toolbar-actions{width:100%}.tree-item{padding-right:calc(6px + var(--depth) * 16px)}.tree-actions .btn-sm:not(.icon-only){font-size:0;width:30px;height:30px;padding:5px}.tree-actions .btn-sm:not(.icon-only) i{font-size:16px}.assignment-form{grid-template-columns:1fr}.current-assignment{grid-template-columns:auto 1fr}.current-assignment .btn{grid-column:1/-1;width:100%}}
+
+/* Pass 4: compact/lite design pass */
+.tree-item{min-height:34px;padding:3px 6px;border-radius:7px}
+.tree-icon{width:21px;height:21px;border-radius:6px;font-size:11px}
+.tree-toggle{width:20px;height:20px;border-radius:5px}
+.tree-assign-inline{padding:8px 10px;border-radius:8px;margin:2px 0 3px 22px}
+.tree-assign-replace-warning{flex:0 0 100%;display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:7px;background:var(--admin-warning-soft,#fff6e5);color:var(--admin-warning,#b54708);font-size:11px}
+.position-tree-card-wrap{min-height:420px}
+.rules-mini{margin-top:14px;padding:10px}
