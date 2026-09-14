@@ -309,8 +309,16 @@
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
-    private void ExpandAllAreas() => _collapsedAreas.Clear();
-    private void CollapseAllAreas() => _collapsedAreas = _permissions.Select(x => PermissionCategory(x.Code)).ToHashSet();
+    private async Task ExpandAllAreas()
+    {
+        _collapsedAreas.Clear();
+        if (!string.IsNullOrWhiteSpace(_search)) { _search = string.Empty; await LoadAsync(); }
+    }
+    private async Task CollapseAllAreas()
+    {
+        if (!string.IsNullOrWhiteSpace(_search)) { _search = string.Empty; await LoadAsync(); }
+        _collapsedAreas = _permissions.Select(x => PermissionCategory(x.Code)).ToHashSet();
+    }
 
     private async Task LoadAsync()
     {
