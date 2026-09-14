@@ -73,6 +73,10 @@
 .admin-page .permission-section-heading > div strong { font-size:12.5px; color:var(--admin-text, #172033); }
 .admin-page .permission-section-heading span { color:#667085; font-size:10px; }
 .admin-page .permission-grid { display:flex; flex-wrap:wrap; gap:8px; padding:7px; }
+.admin-page .permission-sections-list { display:flex; flex-direction:column; gap:10px; }
+.admin-page .permission-section.collapsed .permission-section-body { display:none; }
+.admin-page .permission-section-body .admin-list-table-head { padding:8px 12px; }
+.admin-page .permission-section-body .admin-list-row { padding:9px 12px; }
 .admin-page .group-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; max-height:520px; overflow-y:auto; padding:2px; }
 .admin-page .effective-list { max-height:520px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:9px; }
 .admin-page .effective-row { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 10px; border-bottom:1px solid #eef2f7; }

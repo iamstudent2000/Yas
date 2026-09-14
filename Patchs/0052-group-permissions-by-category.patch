@@ -1,0 +1,173 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 1c636a6..89e3269 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -21,7 +21,7 @@
+     <link rel="stylesheet" href="css/components.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/admin-core.css?v=20260912-1" />
+-    <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-1" />
++    <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-2" />
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/positions.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index 60f5783..8ffe61c 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -104,8 +104,19 @@
+                                     }
+             else
+                                     {
+-                                        <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
+-                                        @foreach (var x in _permissions)
++                                        <div class="permission-sections-list">@foreach (var area in
++                                            _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key))
++                                            {
++                                                var collapsed = _collapsedAreas.Contains(area.Key);
++                                                <section class="permission-section @(collapsed ? "collapsed" : "")">
++                                                    <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
++                                                        <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div>
++                                                        <span class="badge badge-muted">@area.Count() مجوز</span>
++                                                        <i class="bx bx-chevron-down chevron"></i>
++                                                    </div>
++                                                    <div class="permission-section-body">
++                                                        <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
++                                        @foreach (var x in area)
+                                         {
+                                             var isExpanded = _expandedPermissionId == x.Id;
+                                             var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
+@@ -115,7 +126,6 @@
+                                                         <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
+                                                         <div class="admin-list-text">
+                                                             <strong title="@x.Name">@x.Name</strong>
+-                                                            <span>@PermissionCategory(x.Code)</span>
+                                                             <code class="admin-code" dir="ltr">@x.Code</code>
+                                                         </div>
+                                                     </div>
+@@ -217,8 +227,10 @@
+                                                                                     }
+                                                                                 </div>
+                                                                             }
+-                                                                            <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading"
+-                                                                                              PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
++                                                    </div>
++                                                </section>
++                                            }
++                                        </div>
+                                                                         }
+                                                                     </section>
+                                                                 </div>
+@@ -237,19 +249,22 @@
+     private AdminQueryService.PermissionUsageDetails? _usage;
+     private Guid? _expandedPermissionId, _editingId;
+     private string _code = "", _name = "", _search = "", _usageFilter = "";
+-    private int _page = 1, _pageSize = 20, _totalCount, _directAssignmentCount, _groupMembershipCount;
++    private int _totalCount, _directAssignmentCount, _groupMembershipCount;
+     private bool _loading, _usageLoading;
++    private HashSet<string> _collapsedAreas = [];
+ 
+     protected override async Task OnInitializedAsync() => await LoadAsync();
+ 
++    private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
++
+     private async Task LoadAsync()
+     {
+         _loading = true;
+         try
+         {
+-            var result = await AdminQueries.GetPermissionsAsync(_page, _pageSize, _search, _usageFilter);
+-            _permissions = result.Items.ToList();
+-            _totalCount = result.TotalCount;
++            var result = await AdminQueries.GetAllPermissionsAsync(_search, _usageFilter);
++            _permissions = result.ToList();
++            _totalCount = _permissions.Count;
+             await using var db = await DbFactory.CreateDbContextAsync();
+             _directAssignmentCount = await db.UserPositionPermissions.CountAsync() + await db.EmployeePermissions.CountAsync();
+             _groupMembershipCount = await db.PermissionGroupPermissions.CountAsync();
+@@ -271,7 +286,6 @@
+     {
+         if (e.Key is "Enter" or "Tab" || _search.Length == 0)
+         {
+-            _page = 1;
+             _expandedPermissionId = null;
+             _usage = null;
+             await LoadAsync();
+@@ -280,7 +294,6 @@
+     private async Task ClearSearch()
+     {
+         _search = "";
+-        _page = 1;
+         _expandedPermissionId = null;
+         _usage = null;
+         await LoadAsync();
+@@ -289,24 +302,6 @@
+     private async Task UsageChanged(ChangeEventArgs e)
+     {
+         _usageFilter = e.Value?.ToString() ?? "";
+-        _page = 1;
+-        _expandedPermissionId = null;
+-        _usage = null;
+-        await LoadAsync();
+-    }
+-
+-    private async Task PageChanged(int page)
+-    {
+-        _page = page;
+-        _expandedPermissionId = null;
+-        _usage = null;
+-        await LoadAsync();
+-    }
+-
+-    private async Task PageSizeChanged(int size)
+-    {
+-        _pageSize = size;
+-        _page = 1;
+         _expandedPermissionId = null;
+         _usage = null;
+         await LoadAsync();
+@@ -360,7 +355,6 @@ x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.Per
+         }
+         db.Permissions.Remove(await db.Permissions.SingleAsync(x => x.Id == id));
+         await db.SaveChangesAsync(); AppState.AddToast("مجوز حذف شد.", ToastLevel.Success);
+-        if (_page > 1 && _permissions.Count == 1) _page--;
+         await LoadAsync();
+     }
+ }
+\ No newline at end of file
+diff --git a/src/YasPortal.Web/Services/AdminQueryService.cs b/src/YasPortal.Web/Services/AdminQueryService.cs
+index 301c787..9cb695d 100644
+--- a/src/YasPortal.Web/Services/AdminQueryService.cs
++++ b/src/YasPortal.Web/Services/AdminQueryService.cs
+@@ -103,11 +103,14 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         var groups = groupRows.Select(g => { var assignments = positionGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, x.PositionName, "سمت")).Concat(employeeGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, null, "مستقیم به کارمند"))).GroupBy(x => new { x.EmployeeId, x.PositionName, x.Source }).Select(x => x.First()).OrderBy(x => x.EmployeeName).ThenBy(x => x.PositionName).ToList(); var assigneeText = assignments.Count == 0 ? "بدون تخصیص" : $"{assignments.Count} تخصیص: " + string.Join("، ", assignments.Select(x => x.PositionName is null ? $"{x.EmployeeName} (مستقیم)" : $"{x.EmployeeName} — {x.PositionName}")); return new GroupPermissionUsage(g.GroupId, g.Name, g.Description, g.PermissionCount, assigneeText, "گروه مجوز", assignments); }).ToList();
+         return new PermissionUsageDetails(permission.Id, permission.Name, permission.Code, direct, groups);
+     }
+-    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search = null, CancellationToken ct = default)
++    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search = null, string? usage = null, CancellationToken ct = default)
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        var rows = await db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q)).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Name, DirectAssignmentCount = db.UserPositionPermissions.Count(up => up.PermissionId == x.Id) + db.EmployeePermissions.Count(ep => ep.PermissionId == x.Id), GroupMembershipCount = db.PermissionGroupPermissions.Count(gp => gp.PermissionId == x.Id) }).ToListAsync(ct);
++        var query = db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).Select(x => new { x.Id, x.Code, x.Name, DirectAssignmentCount = db.UserPositionPermissions.Count(up => up.PermissionId == x.Id) + db.EmployeePermissions.Count(ep => ep.PermissionId == x.Id), GroupMembershipCount = db.PermissionGroupPermissions.Count(gp => gp.PermissionId == x.Id) });
++        if (usage == "used") query = query.Where(x => x.DirectAssignmentCount + x.GroupMembershipCount > 0);
++        else if (usage == "unused") query = query.Where(x => x.DirectAssignmentCount + x.GroupMembershipCount == 0);
++        var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).ToListAsync(ct);
+         return rows.Select(x => new PermissionPageRow(x.Id, x.Code, x.Name, x.DirectAssignmentCount, x.GroupMembershipCount)).ToList();
+     }
+     public async Task<IReadOnlyList<PermissionGroupPageRow>> GetAllPermissionGroupsAsync(string? search = null, CancellationToken ct = default)
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+index 5007ef1..75ec164 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+@@ -73,6 +73,10 @@
+ .admin-page .permission-section-heading > div strong { font-size:12.5px; color:var(--admin-text, #172033); }
+ .admin-page .permission-section-heading span { color:#667085; font-size:10px; }
+ .admin-page .permission-grid { display:flex; flex-wrap:wrap; gap:8px; padding:7px; }
++.admin-page .permission-sections-list { display:flex; flex-direction:column; gap:10px; }
++.admin-page .permission-section.collapsed .permission-section-body { display:none; }
++.admin-page .permission-section-body .admin-list-table-head { padding:8px 12px; }
++.admin-page .permission-section-body .admin-list-row { padding:9px 12px; }
+ .admin-page .group-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; max-height:520px; overflow-y:auto; padding:2px; }
+ .admin-page .effective-list { max-height:520px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:9px; }
+ .admin-page .effective-row { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 10px; border-bottom:1px solid #eef2f7; }

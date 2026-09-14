@@ -103,11 +103,14 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var groups = groupRows.Select(g => { var assignments = positionGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, x.PositionName, "سمت")).Concat(employeeGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, null, "مستقیم به کارمند"))).GroupBy(x => new { x.EmployeeId, x.PositionName, x.Source }).Select(x => x.First()).OrderBy(x => x.EmployeeName).ThenBy(x => x.PositionName).ToList(); var assigneeText = assignments.Count == 0 ? "بدون تخصیص" : $"{assignments.Count} تخصیص: " + string.Join("، ", assignments.Select(x => x.PositionName is null ? $"{x.EmployeeName} (مستقیم)" : $"{x.EmployeeName} — {x.PositionName}")); return new GroupPermissionUsage(g.GroupId, g.Name, g.Description, g.PermissionCount, assigneeText, "گروه مجوز", assignments); }).ToList();
         return new PermissionUsageDetails(permission.Id, permission.Name, permission.Code, direct, groups);
     }
-    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search = null, string? usage = null, CancellationToken ct = default)
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var rows = await db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q)).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Name, DirectAssignmentCount = db.UserPositionPermissions.Count(up => up.PermissionId == x.Id) + db.EmployeePermissions.Count(ep => ep.PermissionId == x.Id), GroupMembershipCount = db.PermissionGroupPermissions.Count(gp => gp.PermissionId == x.Id) }).ToListAsync(ct);
+        var query = db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).Select(x => new { x.Id, x.Code, x.Name, DirectAssignmentCount = db.UserPositionPermissions.Count(up => up.PermissionId == x.Id) + db.EmployeePermissions.Count(ep => ep.PermissionId == x.Id), GroupMembershipCount = db.PermissionGroupPermissions.Count(gp => gp.PermissionId == x.Id) });
+        if (usage == "used") query = query.Where(x => x.DirectAssignmentCount + x.GroupMembershipCount > 0);
+        else if (usage == "unused") query = query.Where(x => x.DirectAssignmentCount + x.GroupMembershipCount == 0);
+        var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).ToListAsync(ct);
         return rows.Select(x => new PermissionPageRow(x.Id, x.Code, x.Name, x.DirectAssignmentCount, x.GroupMembershipCount)).ToList();
     }
     public async Task<IReadOnlyList<PermissionGroupPageRow>> GetAllPermissionGroupsAsync(string? search = null, CancellationToken ct = default)

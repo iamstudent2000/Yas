@@ -104,8 +104,19 @@
                                     }
             else
                                     {
-                                        <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
-                                        @foreach (var x in _permissions)
+                                        <div class="permission-sections-list">@foreach (var area in
+                                            _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key))
+                                            {
+                                                var collapsed = _collapsedAreas.Contains(area.Key);
+                                                <section class="permission-section @(collapsed ? "collapsed" : "")">
+                                                    <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
+                                                        <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div>
+                                                        <span class="badge badge-muted">@area.Count() مجوز</span>
+                                                        <i class="bx bx-chevron-down chevron"></i>
+                                                    </div>
+                                                    <div class="permission-section-body">
+                                                        <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
+                                        @foreach (var x in area)
                                         {
                                             var isExpanded = _expandedPermissionId == x.Id;
                                             var used = x.DirectAssignmentCount + x.GroupMembershipCount > 0;
@@ -115,7 +126,6 @@
                                                         <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
                                                         <div class="admin-list-text">
                                                             <strong title="@x.Name">@x.Name</strong>
-                                                            <span>@PermissionCategory(x.Code)</span>
                                                             <code class="admin-code" dir="ltr">@x.Code</code>
                                                         </div>
                                                     </div>
@@ -217,8 +227,10 @@
                                                                                     }
                                                                                 </div>
                                                                             }
-                                                                            <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading"
-                                                                                              PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
+                                                    </div>
+                                                </section>
+                                            }
+                                        </div>
                                                                         }
                                                                     </section>
                                                                 </div>
@@ -237,19 +249,22 @@
     private AdminQueryService.PermissionUsageDetails? _usage;
     private Guid? _expandedPermissionId, _editingId;
     private string _code = "", _name = "", _search = "", _usageFilter = "";
-    private int _page = 1, _pageSize = 20, _totalCount, _directAssignmentCount, _groupMembershipCount;
+    private int _totalCount, _directAssignmentCount, _groupMembershipCount;
     private bool _loading, _usageLoading;
+    private HashSet<string> _collapsedAreas = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
 
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
-            var result = await AdminQueries.GetPermissionsAsync(_page, _pageSize, _search, _usageFilter);
-            _permissions = result.Items.ToList();
-            _totalCount = result.TotalCount;
+            var result = await AdminQueries.GetAllPermissionsAsync(_search, _usageFilter);
+            _permissions = result.ToList();
+            _totalCount = _permissions.Count;
             await using var db = await DbFactory.CreateDbContextAsync();
             _directAssignmentCount = await db.UserPositionPermissions.CountAsync() + await db.EmployeePermissions.CountAsync();
             _groupMembershipCount = await db.PermissionGroupPermissions.CountAsync();
@@ -271,7 +286,6 @@
     {
         if (e.Key is "Enter" or "Tab" || _search.Length == 0)
         {
-            _page = 1;
             _expandedPermissionId = null;
             _usage = null;
             await LoadAsync();
@@ -280,7 +294,6 @@
     private async Task ClearSearch()
     {
         _search = "";
-        _page = 1;
         _expandedPermissionId = null;
         _usage = null;
         await LoadAsync();
@@ -289,24 +302,6 @@
     private async Task UsageChanged(ChangeEventArgs e)
     {
         _usageFilter = e.Value?.ToString() ?? "";
-        _page = 1;
-        _expandedPermissionId = null;
-        _usage = null;
-        await LoadAsync();
-    }
-
-    private async Task PageChanged(int page)
-    {
-        _page = page;
-        _expandedPermissionId = null;
-        _usage = null;
-        await LoadAsync();
-    }
-
-    private async Task PageSizeChanged(int size)
-    {
-        _pageSize = size;
-        _page = 1;
         _expandedPermissionId = null;
         _usage = null;
         await LoadAsync();
@@ -360,7 +355,6 @@ x.PermissionId == id) || await db.PermissionGroupPermissions.AnyAsync(x => x.Per
         }
         db.Permissions.Remove(await db.Permissions.SingleAsync(x => x.Id == id));
         await db.SaveChangesAsync(); AppState.AddToast("مجوز حذف شد.", ToastLevel.Success);
-        if (_page > 1 && _permissions.Count == 1) _page--;
         await LoadAsync();
     }
 }
