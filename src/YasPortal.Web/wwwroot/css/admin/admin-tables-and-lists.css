@@ -77,6 +77,20 @@
 .admin-page .permission-section.collapsed .permission-section-body { display:none; }
 .admin-page .permission-section-body .admin-list-table-head { padding:8px 12px; }
 .admin-page .permission-section-body .admin-list-row { padding:9px 12px; }
+.admin-page .admin-detail-panel-search { display:flex; align-items:center; gap:6px; padding:7px 11px; border-bottom:1px solid var(--admin-border); background:#fbfcfe; }
+.admin-page .admin-detail-panel-search i { color:var(--admin-muted, #98a2b3); font-size:13px; }
+.admin-page .admin-detail-panel-search input { border:0; background:transparent; padding:2px 0; min-height:auto; font-size:11.5px; }
+.admin-page .admin-detail-panel-search input:focus { outline:none; box-shadow:none; }
+.admin-page .admin-detail-item-expandable { flex-wrap:wrap; }
+.admin-page .admin-detail-item-toggle { display:inline-flex; align-items:center; gap:4px; border:0; background:var(--admin-primary-soft,#eef3ff); color:var(--admin-primary,#3157d5); border-radius:999px; padding:3px 8px; font-size:10px; cursor:pointer; }
+.admin-page .admin-detail-item-toggle:hover { background:#dce6ff; }
+.admin-page .admin-detail-subitems { flex:0 0 100%; margin-top:8px; border-top:1px dashed var(--admin-border); padding-top:8px; display:flex; flex-direction:column; gap:5px; }
+.admin-page .admin-detail-subitem { display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--admin-text); padding:3px 6px; border-radius:6px; background:#f8fafc; }
+.admin-page .admin-detail-subitem small { color:var(--admin-muted,#98a2b3); }
+.admin-page .admin-detail-subitem-tag { margin-inline-start:auto; color:var(--admin-muted,#98a2b3); font-size:10px; }
+.admin-page .admin-detail-subitem-empty { font-size:10.5px; color:var(--admin-muted,#98a2b3); padding:4px 6px; }
+.admin-page .usage-pager { display:flex; align-items:center; justify-content:center; gap:8px; padding:8px; font-size:10.5px; color:var(--admin-muted,#667085); border-top:1px solid var(--admin-border); }
+.admin-page .usage-pager .btn-sm { padding:3px 7px; min-height:24px; }
 .admin-page .group-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; max-height:520px; overflow-y:auto; padding:2px; }
 .admin-page .effective-list { max-height:520px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:9px; }
 .admin-page .effective-row { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 10px; border-bottom:1px solid #eef2f7; }

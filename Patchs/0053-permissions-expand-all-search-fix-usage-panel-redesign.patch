@@ -1,0 +1,274 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index 89e3269..bd874cb 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -21,7 +21,7 @@
+     <link rel="stylesheet" href="css/components.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/admin-core.css?v=20260912-1" />
+-    <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-2" />
++    <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-3" />
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/positions.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index 8ffe61c..1131eb3 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -81,6 +81,8 @@
+                                     <p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p>
+                                 </div>
+                                 <div class="toolbar-tools">
++                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllAreas"><i class="bx bx-expand-alt"></i> باز کردن همه</button>
++                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllAreas"><i class="bx bx-collapse-alt"></i> بستن همه</button>
+                                     <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
+                                         <option value="">همه</option>
+                                         <option value="used">در حال استفاده</option>
+@@ -107,7 +109,7 @@
+                                         <div class="permission-sections-list">@foreach (var area in
+                                             _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key))
+                                             {
+-                                                var collapsed = _collapsedAreas.Contains(area.Key);
++                                                var collapsed = _collapsedAreas.Contains(area.Key) && string.IsNullOrWhiteSpace(_search);
+                                                 <section class="permission-section @(collapsed ? "collapsed" : "")">
+                                                     <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
+                                                         <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div>
+@@ -174,14 +176,25 @@
+                                                                             <div class="admin-detail-panel">
+                                                                                 <div class="admin-detail-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص
+                                                                                     مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
++                                                                                    @if (_usage.DirectAssignments.Count > 5)
++                                                                                    {
++                                                                                        <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
++                                                                                            class="form-control" placeholder="جستجوی کارمند..." value="@_directSearch"
++                                                                                            @oninput="e => { _directSearch = e.Value?.ToString() ?? \"\"; _directPage = 1; }" /></div>
++                                                                                    }
++                                                                                    @{ var filteredDirect = FilteredDirect(); }
+                                                                                     @if (_usage.DirectAssignments.Count == 0)
+                                                                                     {
+                                                                                         <div class="admin-empty" style="min-height:100px"><span>این مجوز مستقیماً به هیچ کاربری
+                                                                                             تخصیص داده نشده است.</span></div>
+                                                                                         }
+-                                            else
++                                            else if (filteredDirect.Count == 0)
+                                                                                         {
+-                                                                                            @foreach (var d in _usage.DirectAssignments)
++                                                                                            <div class="admin-empty" style="min-height:80px"><span>موردی با این عبارت پیدا نشد.</span></div>
++                                                                                        }
++                                                                                        else
++                                                                                        {
++                                                                                            @foreach (var d in PageOf(filteredDirect, _directPage))
+                                                                                             {
+                                                                                                 <div class="admin-detail-item">
+                                                                                                     <div class="admin-detail-item-icon"><i class="bx bx-user"></i></div>
+@@ -194,21 +207,35 @@
+                                                                                                         </div>
+                                                                                                     </div>
+                                                                                                 }
++                                                                                            <UsagePager Page="_directPage" TotalCount="filteredDirect.Count" PageSize="UsagePageSize"
++                                                                                                        PageChanged="p => _directPage = p" />
+                                                                                             }
+                                                                                         </div>
+                                                                                         <div class="admin-detail-panel">
+                                                                                             <div class="admin-detail-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این
+                                                                                                 مجوز</strong><span>@_usage.Groups.Count</span></div>
++                                                                                                @if (_usage.Groups.Count > 5)
++                                                                                                {
++                                                                                                    <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
++                                                                                                        class="form-control" placeholder="جستجوی گروه..." value="@_groupsSearch"
++                                                                                                        @oninput="e => { _groupsSearch = e.Value?.ToString() ?? \"\"; _groupsPage = 1; }" /></div>
++                                                                                                }
++                                                                                                @{ var filteredGroups = FilteredGroups(); }
+                                                                                                 @if (_usage.Groups.Count == 0)
+                                                                                                 {
+                                                                                                     <div class="admin-empty" style="min-height:100px"><span>هیچ گروهی این مجوز را شامل
+                                                                                                         نمی‌شود.</span></div>
+                                                                                                     }
+-                                            else
++                                            else if (filteredGroups.Count == 0)
++                                                                                                {
++                                                                                                    <div class="admin-empty" style="min-height:80px"><span>موردی با این عبارت پیدا نشد.</span></div>
++                                                                                                }
++                                                                                                    else
+                                                                                                     {
+-                                                                                                        @foreach (var g in _usage.Groups)
++                                                                                                        @foreach (var g in PageOf(filteredGroups, _groupsPage))
+                                                                                                         {
+-                                                                                                            <div class="admin-detail-item">
++                                                                                                            var groupExpanded = _expandedUsageGroupId == g.GroupId;
++                                                                                                            <div class="admin-detail-item admin-detail-item-expandable">
+                                                                                                                 <div class="admin-detail-item-icon"><i class="bx bx-layer"></i></div>
+                                                                                                                 <div class="admin-detail-item-main"><strong>@g.GroupName</strong>@if
+                                                                                                                     (!string.IsNullOrWhiteSpace(g.Description)){
+@@ -216,9 +243,34 @@
+                                                                                                                     }
+                                                                                                                 </div>
+                                                                                                                 <div class="admin-detail-item-side"><span>@g.PermissionCount
+-                                                                                                                    مجوز</span><span>@g.AssignedEmployeeCount تخصیص</span></div>
++                                                                                                                    مجوز</span>
++                                                                                                                    <button type="button" class="admin-detail-item-toggle"
++                                                                                                                            @onclick="() => ToggleUsageGroup(g.GroupId)"><span>@g.AssignedEmployeeCount
++                                                                                                                        تخصیص</span><i class="bx @(groupExpanded ? "bx-chevron-up" : "bx-chevron-down")"></i></button>
++                                                                                                                </div>
++                                                                                                                @if (groupExpanded)
++                                                                                                                {
++                                                                                                                    <div class="admin-detail-subitems">
++                                                                                                                        @if (g.Assignments.Count == 0)
++                                                                                                                        {
++                                                                                                                            <div class="admin-detail-subitem-empty">این گروه به کسی تخصیص داده نشده است.</div>
++                                                                                                                        }
++                                                                                                                        else
++                                                                                                                        {
++                                                                                                                            @foreach (var a in g.Assignments)
++                                                                                                                            {
++                                                                                                                                <div class="admin-detail-subitem">
++                                                                                                                                    <span>@a.EmployeeName</span><small dir="ltr">@a.Username</small>
++                                                                                                                                    <span class="admin-detail-subitem-tag">@(a.PositionName ?? a.Source)</span>
++                                                                                                                                </div>
++                                                                                                                            }
++                                                                                                                        }
++                                                                                                                    </div>
++                                                                                                                }
+                                                                                                                 </div>
+                                                                                                             }
++                                                                                                        <UsagePager Page="_groupsPage" TotalCount="filteredGroups.Count" PageSize="UsagePageSize"
++                                                                                                                    PageChanged="p => _groupsPage = p" />
+                                                                                                         }
+                                                                                                     </div>
+                                                                                                 </div>
+@@ -247,15 +299,18 @@
+ @code {
+     private List<AdminQueryService.PermissionPageRow> _permissions = [];
+     private AdminQueryService.PermissionUsageDetails? _usage;
+-    private Guid? _expandedPermissionId, _editingId;
+-    private string _code = "", _name = "", _search = "", _usageFilter = "";
+-    private int _totalCount, _directAssignmentCount, _groupMembershipCount;
++    private Guid? _expandedPermissionId, _editingId, _expandedUsageGroupId;
++    private string _code = "", _name = "", _search = "", _usageFilter = "", _directSearch = "", _groupsSearch = "";
++    private int _totalCount, _directAssignmentCount, _groupMembershipCount, _directPage = 1, _groupsPage = 1;
+     private bool _loading, _usageLoading;
+     private HashSet<string> _collapsedAreas = [];
++    private const int UsagePageSize = 6;
+ 
+     protected override async Task OnInitializedAsync() => await LoadAsync();
+ 
+     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
++    private void ExpandAllAreas() => _collapsedAreas.Clear();
++    private void CollapseAllAreas() => _collapsedAreas = _permissions.Select(x => PermissionCategory(x.Code)).ToHashSet();
+ 
+     private async Task LoadAsync()
+     {
+@@ -277,11 +332,37 @@
+         if (_expandedPermissionId == id) { _expandedPermissionId = null; _usage = null; return; }
+         _expandedPermissionId = id;
+         _usage = null;
++        _directSearch = _groupsSearch = "";
++        _directPage = _groupsPage = 1;
++        _expandedUsageGroupId = null;
+         _usageLoading = true;
+         try { _usage = await AdminQueries.GetPermissionUsageAsync(id); }
+         finally { _usageLoading = false; }
+     }
+ 
++    private void ToggleUsageGroup(Guid groupId) => _expandedUsageGroupId = _expandedUsageGroupId == groupId ? null : groupId;
++
++    private List<AdminQueryService.DirectPermissionUsage> FilteredDirect()
++    {
++        if (_usage is null) return [];
++        var q = _directSearch.Trim();
++        if (q.Length == 0) return _usage.DirectAssignments.ToList();
++        return _usage.DirectAssignments.Where(x => x.EmployeeName.Contains(q, StringComparison.CurrentCultureIgnoreCase)
++            || x.Username.Contains(q, StringComparison.CurrentCultureIgnoreCase)
++            || (x.PositionName?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false)).ToList();
++    }
++
++    private List<AdminQueryService.GroupPermissionUsage> FilteredGroups()
++    {
++        if (_usage is null) return [];
++        var q = _groupsSearch.Trim();
++        if (q.Length == 0) return _usage.Groups.ToList();
++        return _usage.Groups.Where(x => x.GroupName.Contains(q, StringComparison.CurrentCultureIgnoreCase)
++            || (x.Description?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false)).ToList();
++    }
++
++    private static List<T> PageOf<T>(List<T> items, int page) => items.Skip((page - 1) * UsagePageSize).Take(UsagePageSize).ToList();
++
+     private async Task SearchChanged(KeyboardEventArgs e)
+     {
+         if (e.Key is "Enter" or "Tab" || _search.Length == 0)
+diff --git a/src/YasPortal.Web/Components/Shared/UsagePager.razor b/src/YasPortal.Web/Components/Shared/UsagePager.razor
+new file mode 100644
+index 0000000..62bb8a4
+--- /dev/null
++++ b/src/YasPortal.Web/Components/Shared/UsagePager.razor
+@@ -0,0 +1,23 @@
++@if (TotalPages > 1)
++{
++    <div class="usage-pager">
++        <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)">
++            <i class="bx bx-chevron-right"></i>
++        </button>
++        <span>صفحه @Page از @TotalPages</span>
++        <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page >= TotalPages)" @onclick="() => Go(Page + 1)">
++            <i class="bx bx-chevron-left"></i>
++        </button>
++    </div>
++}
++
++@code {
++    [Parameter] public int Page { get; set; } = 1;
++    [Parameter] public int TotalCount { get; set; }
++    [Parameter] public int PageSize { get; set; } = 6;
++    [Parameter] public EventCallback<int> PageChanged { get; set; }
++
++    private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
++
++    private Task Go(int page) => PageChanged.InvokeAsync(Math.Clamp(page, 1, TotalPages));
++}
+diff --git a/src/YasPortal.Web/Services/AdminQueryService.cs b/src/YasPortal.Web/Services/AdminQueryService.cs
+index 9cb695d..d365e32 100644
+--- a/src/YasPortal.Web/Services/AdminQueryService.cs
++++ b/src/YasPortal.Web/Services/AdminQueryService.cs
+@@ -15,7 +15,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+     public sealed record PermissionUsageDetails(Guid PermissionId, string PermissionName, string PermissionCode, IReadOnlyList<DirectPermissionUsage> DirectAssignments, IReadOnlyList<GroupPermissionUsage> Groups);
+     public sealed record DirectPermissionUsage(Guid EmployeeId, string EmployeeName, string Username, Guid? PositionId, string? PositionName, string Source);
+     public sealed record GroupAssignmentUsage(Guid EmployeeId, string EmployeeName, string Username, string? PositionName, string Source);
+-    public sealed record GroupPermissionUsage(Guid GroupId, string GroupName, string? Description, int PermissionCount, string AssignedEmployeeCount, string Source, IReadOnlyList<GroupAssignmentUsage> Assignments);
++    public sealed record GroupPermissionUsage(Guid GroupId, string GroupName, string? Description, int PermissionCount, int AssignedEmployeeCount, string Source, IReadOnlyList<GroupAssignmentUsage> Assignments);
+ 
+     public async Task<EmployeeSummary?> GetEmployeeAsync(Guid id, CancellationToken ct = default)
+     {
+@@ -100,7 +100,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         var groupIds = groupRows.Select(x => x.GroupId).ToArray();
+         var positionGroupAssignments = await db.UserPositionPermissionGroups.AsNoTracking().Where(x => groupIds.Contains(x.GroupId)).OrderBy(x => x.GroupId).ThenBy(x => x.Employee.FullName).ThenBy(x => x.Position.Name).Select(x => new { x.GroupId, x.EmployeeId, x.Employee.FullName, x.Employee.Username, PositionName = x.Position.Name }).ToListAsync(ct);
+         var employeeGroupAssignments = await db.EmployeePermissionGroups.AsNoTracking().Where(x => groupIds.Contains(x.GroupId)).OrderBy(x => x.GroupId).ThenBy(x => x.Employee.FullName).Select(x => new { x.GroupId, x.EmployeeId, x.Employee.FullName, x.Employee.Username }).ToListAsync(ct);
+-        var groups = groupRows.Select(g => { var assignments = positionGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, x.PositionName, "سمت")).Concat(employeeGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, null, "مستقیم به کارمند"))).GroupBy(x => new { x.EmployeeId, x.PositionName, x.Source }).Select(x => x.First()).OrderBy(x => x.EmployeeName).ThenBy(x => x.PositionName).ToList(); var assigneeText = assignments.Count == 0 ? "بدون تخصیص" : $"{assignments.Count} تخصیص: " + string.Join("، ", assignments.Select(x => x.PositionName is null ? $"{x.EmployeeName} (مستقیم)" : $"{x.EmployeeName} — {x.PositionName}")); return new GroupPermissionUsage(g.GroupId, g.Name, g.Description, g.PermissionCount, assigneeText, "گروه مجوز", assignments); }).ToList();
++        var groups = groupRows.Select(g => { var assignments = positionGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, x.PositionName, "سمت")).Concat(employeeGroupAssignments.Where(x => x.GroupId == g.GroupId).Select(x => new GroupAssignmentUsage(x.EmployeeId, x.FullName, x.Username, null, "مستقیم به کارمند"))).GroupBy(x => new { x.EmployeeId, x.PositionName, x.Source }).Select(x => x.First()).OrderBy(x => x.EmployeeName).ThenBy(x => x.PositionName).ToList(); return new GroupPermissionUsage(g.GroupId, g.Name, g.Description, g.PermissionCount, assignments.Count, "گروه مجوز", assignments); }).ToList();
+         return new PermissionUsageDetails(permission.Id, permission.Name, permission.Code, direct, groups);
+     }
+     public async Task<IReadOnlyList<PermissionPageRow>> GetAllPermissionsAsync(string? search = null, string? usage = null, CancellationToken ct = default)
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+index 75ec164..589fd0a 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+@@ -77,6 +77,20 @@
+ .admin-page .permission-section.collapsed .permission-section-body { display:none; }
+ .admin-page .permission-section-body .admin-list-table-head { padding:8px 12px; }
+ .admin-page .permission-section-body .admin-list-row { padding:9px 12px; }
++.admin-page .admin-detail-panel-search { display:flex; align-items:center; gap:6px; padding:7px 11px; border-bottom:1px solid var(--admin-border); background:#fbfcfe; }
++.admin-page .admin-detail-panel-search i { color:var(--admin-muted, #98a2b3); font-size:13px; }
++.admin-page .admin-detail-panel-search input { border:0; background:transparent; padding:2px 0; min-height:auto; font-size:11.5px; }
++.admin-page .admin-detail-panel-search input:focus { outline:none; box-shadow:none; }
++.admin-page .admin-detail-item-expandable { flex-wrap:wrap; }
++.admin-page .admin-detail-item-toggle { display:inline-flex; align-items:center; gap:4px; border:0; background:var(--admin-primary-soft,#eef3ff); color:var(--admin-primary,#3157d5); border-radius:999px; padding:3px 8px; font-size:10px; cursor:pointer; }
++.admin-page .admin-detail-item-toggle:hover { background:#dce6ff; }
++.admin-page .admin-detail-subitems { flex:0 0 100%; margin-top:8px; border-top:1px dashed var(--admin-border); padding-top:8px; display:flex; flex-direction:column; gap:5px; }
++.admin-page .admin-detail-subitem { display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--admin-text); padding:3px 6px; border-radius:6px; background:#f8fafc; }
++.admin-page .admin-detail-subitem small { color:var(--admin-muted,#98a2b3); }
++.admin-page .admin-detail-subitem-tag { margin-inline-start:auto; color:var(--admin-muted,#98a2b3); font-size:10px; }
++.admin-page .admin-detail-subitem-empty { font-size:10.5px; color:var(--admin-muted,#98a2b3); padding:4px 6px; }
++.admin-page .usage-pager { display:flex; align-items:center; justify-content:center; gap:8px; padding:8px; font-size:10.5px; color:var(--admin-muted,#667085); border-top:1px solid var(--admin-border); }
++.admin-page .usage-pager .btn-sm { padding:3px 7px; min-height:24px; }
+ .admin-page .group-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; max-height:520px; overflow-y:auto; padding:2px; }
+ .admin-page .effective-list { max-height:520px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:9px; }
+ .admin-page .effective-row { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:38px; padding:7px 10px; border-bottom:1px solid #eef2f7; }

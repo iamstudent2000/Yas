@@ -1,0 +1,23 @@
+@if (TotalPages > 1)
+{
+    <div class="usage-pager">
+        <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)">
+            <i class="bx bx-chevron-right"></i>
+        </button>
+        <span>صفحه @Page از @TotalPages</span>
+        <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page >= TotalPages)" @onclick="() => Go(Page + 1)">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+    </div>
+}
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public int PageSize { get; set; } = 6;
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
+
+    private Task Go(int page) => PageChanged.InvokeAsync(Math.Clamp(page, 1, TotalPages));
+}
