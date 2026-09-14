@@ -173,7 +173,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                                             <div class="org-assign-row">
                                                 <div class="org-assign-person">
                                                     <span class="org-assign-avatar">@GetInitial(employee.FullName)</span>
-                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Username</small></span>
+                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Code — @employee.Username</small></span>
                                                 </div>
                                                 <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
                                                 <div class="org-assign-select">
@@ -273,6 +273,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         if (q.Length == 0) { _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; return; }
         var matches = _allEmployees.Where(x => x.FullName.Contains(q, StringComparison.OrdinalIgnoreCase)
             || x.Username.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase)
             || (x.OrganizationName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
         _orgAssignMatchCount = matches.Count;
         _orgAssignVisibleIds = matches.Select(x => x.Id).ToHashSet();

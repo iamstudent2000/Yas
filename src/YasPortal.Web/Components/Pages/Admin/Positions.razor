@@ -157,7 +157,7 @@
         var q = _treeSearch.Trim();
         if (q.Length == 0) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
 
-        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
             .Select(x => x.Id).ToHashSet();
         _treeMatchCount = matches.Count;
 

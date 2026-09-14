@@ -1,0 +1,111 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+index eb0c2e8..c9cd1b7 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+@@ -173,7 +173,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                                             <div class="org-assign-row">
+                                                 <div class="org-assign-person">
+                                                     <span class="org-assign-avatar">@GetInitial(employee.FullName)</span>
+-                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Username</small></span>
++                                                    <span class="org-assign-text"><strong title="@employee.FullName">@employee.FullName</strong><small>@employee.Code — @employee.Username</small></span>
+                                                 </div>
+                                                 <span class="badge @(employee.IsActive ? "badge-success" : "badge-muted")">@(employee.IsActive ? "فعال" : "غیرفعال")</span>
+                                                 <div class="org-assign-select">
+@@ -273,6 +273,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+         if (q.Length == 0) { _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; return; }
+         var matches = _allEmployees.Where(x => x.FullName.Contains(q, StringComparison.OrdinalIgnoreCase)
+             || x.Username.Contains(q, StringComparison.OrdinalIgnoreCase)
++            || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase)
+             || (x.OrganizationName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+         _orgAssignMatchCount = matches.Count;
+         _orgAssignVisibleIds = matches.Select(x => x.Id).ToHashSet();
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index 365e163..420e838 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -157,7 +157,7 @@
+         var q = _treeSearch.Trim();
+         if (q.Length == 0) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
+ 
+-        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
++        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
+             .Select(x => x.Id).ToHashSet();
+         _treeMatchCount = matches.Count;
+ 
+diff --git a/src/YasPortal.Web/Services/AdminQueryService.cs b/src/YasPortal.Web/Services/AdminQueryService.cs
+index 7b36272..58c87c1 100644
+--- a/src/YasPortal.Web/Services/AdminQueryService.cs
++++ b/src/YasPortal.Web/Services/AdminQueryService.cs
+@@ -26,19 +26,19 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        return await db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q)).OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
++        return await db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchAssignableEmployeesAsync(string? search, CancellationToken ct = default)
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        return await db.Employees.AsNoTracking().Where(x => x.IsActive && !x.IsAdmin && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q))).OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.FullName + " — " + x.Username)).ToListAsync(ct);
++        return await db.Employees.AsNoTracking().Where(x => x.IsActive && !x.IsAdmin && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q))).OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username)).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchOrganizationsAsync(string? search, bool activeOnly = true, CancellationToken ct = default)
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        return await db.Organizations.AsNoTracking().Where(x => (!activeOnly || x.IsActive) && (q == "" || x.Name.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Name)).ToListAsync(ct);
++        return await db.Organizations.AsNoTracking().Where(x => (!activeOnly || x.IsActive) && (q == "" || x.Name.Contains(q) || x.Code.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchPositionsAsync(string? search, Guid? employeeId = null, Guid? excludeId = null, CancellationToken ct = default)
+     {
+@@ -49,7 +49,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+             query = query.Where(x => db.EmployeePositions.Any(ep => ep.EmployeeId == eid && ep.PositionId == x.Id && ep.EndedAt == null));
+         if (excludeId is Guid xid)
+             query = query.Where(x => x.Id != xid);
+-        return await query.Where(x => q == "" || x.Name.Contains(q)).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Name)).ToListAsync(ct);
++        return await query.Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchAvailablePositionsAsync(string? search, Guid? excludePositionId = null, CancellationToken ct = default)
+     {
+@@ -58,19 +58,19 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         var query = db.Positions.AsNoTracking().Where(p => !db.EmployeePositions.Any(ep => ep.PositionId == p.Id && ep.EndedAt == null));
+         if (excludePositionId is Guid exclude)
+             query = query.Where(p => p.Id != exclude);
+-        return await query.Where(p => q == "" || p.Name.Contains(q)).OrderBy(p => p.Name).Take(30).Select(p => new LookupItem(p.Id, p.Name + " — آزاد")).ToListAsync(ct);
++        return await query.Where(p => q == "" || p.Name.Contains(q) || p.Code.Contains(q)).OrderBy(p => p.Name).Take(30).Select(p => new LookupItem(p.Id, p.Code + " — " + p.Name + " — آزاد")).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchPermissionsAsync(string? search, CancellationToken ct = default)
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        return await db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Name)).ToListAsync(ct);
++        return await db.Permissions.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
+     }
+     public async Task<IReadOnlyList<LookupItem>> SearchPermissionGroupsAsync(string? search, CancellationToken ct = default)
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        return await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Name)).ToListAsync(ct);
++        return await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
+     }
+ 
+     public async Task<PermissionUsageDetails?> GetPermissionUsageAsync(Guid permissionId, CancellationToken ct = default)
+@@ -127,7 +127,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         return await db.Employees.AsNoTracking()
+             .OrderBy(x => x.FullName)
+             .Select(x => new EmployeeAssignmentRow(
+-                x.Id, x.Username, x.FullName,
++                x.Id, x.Code, x.Username, x.FullName,
+                 x.OrganizationId,
+                 db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(),
+                 x.IsActive))
+@@ -219,7 +219,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+     private static int Page(int page) => Math.Max(1, page); private static int Size(int size) => Math.Clamp(size, 5, 100); private static string Normalize(string? value) => (value ?? "").Trim();
+     public sealed record ActivePositionRow(Guid Id, string Name);
+     public sealed record EmployeePageRow(Guid Id, string Code, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
+-    public sealed record EmployeeAssignmentRow(Guid Id, string Username, string FullName, Guid OrganizationId, string? OrganizationName, bool IsActive);
++    public sealed record EmployeeAssignmentRow(Guid Id, string Code, string Username, string FullName, Guid OrganizationId, string? OrganizationName, bool IsActive);
+     public sealed record OrganizationPageRow(Guid Id, string Code, string Name, bool IsActive, int EmployeeCount);
+     public sealed record PermissionPageRow(Guid Id, string Code, string Name, int DirectAssignmentCount, int GroupMembershipCount);
+     public sealed record PermissionGroupPageRow(Guid Id, string Code, string Name, string? Description, int PermissionCount, int AssignmentCount);
