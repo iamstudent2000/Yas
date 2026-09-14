@@ -1,0 +1,22 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+index 1131eb3..f0c9b21 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Permissions.razor
+@@ -180,7 +180,7 @@
+                                                                                     {
+                                                                                         <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
+                                                                                             class="form-control" placeholder="جستجوی کارمند..." value="@_directSearch"
+-                                                                                            @oninput="e => { _directSearch = e.Value?.ToString() ?? \"\"; _directPage = 1; }" /></div>
++                                                                                            @oninput="e => { _directSearch = e.Value?.ToString() ?? string.Empty; _directPage = 1; }" /></div>
+                                                                                     }
+                                                                                     @{ var filteredDirect = FilteredDirect(); }
+                                                                                     @if (_usage.DirectAssignments.Count == 0)
+@@ -218,7 +218,7 @@
+                                                                                                 {
+                                                                                                     <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
+                                                                                                         class="form-control" placeholder="جستجوی گروه..." value="@_groupsSearch"
+-                                                                                                        @oninput="e => { _groupsSearch = e.Value?.ToString() ?? \"\"; _groupsPage = 1; }" /></div>
++                                                                                                        @oninput="e => { _groupsSearch = e.Value?.ToString() ?? string.Empty; _groupsPage = 1; }" /></div>
+                                                                                                 }
+                                                                                                 @{ var filteredGroups = FilteredGroups(); }
+                                                                                                 @if (_usage.Groups.Count == 0)
