@@ -6,18 +6,22 @@ public sealed class Organization
     {
     }
 
-    public Organization(string name)
+    public Organization(string code, string name)
     {
+        SetCode(code);
         SetName(name);
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
+    public string Code { get; private set; } = null!;
     public string Name { get; private set; } = null!;
     public bool IsActive { get; private set; } = true;
 
     public ICollection<Employee> Employees { get; private set; } = new List<Employee>();
 
     public void Rename(string name) => SetName(name);
+
+    public void ChangeCode(string code) => SetCode(code);
 
     public void Activate() => IsActive = true;
 
@@ -44,5 +48,13 @@ public sealed class Organization
             throw new ArgumentException("Organization name is required.", nameof(name));
 
         Name = name.Trim();
+    }
+
+    private void SetCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Organization code is required.", nameof(code));
+
+        Code = code.Trim();
     }
 }

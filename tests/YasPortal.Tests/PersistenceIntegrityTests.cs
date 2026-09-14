@@ -12,7 +12,7 @@ public sealed class PersistenceIntegrityTests
     {
         var organizationId = Guid.NewGuid();
         var positionId = Guid.NewGuid();
-        var employee = new Employee("employee", "Employee", organizationId);
+        var employee = new Employee("EMP-employee", "employee", "Employee", organizationId);
         var assignment = new EmployeePosition(employee.Id, positionId);
         employee.Positions.Add(assignment);
         employee.SetLastActivePosition(positionId);
@@ -28,8 +28,8 @@ public sealed class PersistenceIntegrityTests
     [Fact]
     public void Last_active_position_must_be_an_active_assignment()
     {
-        var employee = new Employee("employee", "Employee", Guid.NewGuid());
-        var position = new Position("Position");
+        var employee = new Employee("EMP-employee", "employee", "Employee", Guid.NewGuid());
+        var position = new Position("POS-Position", "Position");
 
         var exception = Assert.Throws<InvalidOperationException>(() => employee.SetLastActivePosition(position.Id));
         Assert.Contains("active employee assignment", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -47,8 +47,8 @@ public sealed class PersistenceIntegrityTests
     [Fact]
     public void Inactive_employee_cannot_select_a_position()
     {
-        var employee = new Employee("employee", "Employee", Guid.NewGuid());
-        var position = new Position("Position");
+        var employee = new Employee("EMP-employee", "employee", "Employee", Guid.NewGuid());
+        var position = new Position("POS-Position", "Position");
         employee.Positions.Add(new EmployeePosition(employee.Id, position.Id));
         employee.Deactivate();
 
@@ -60,9 +60,9 @@ public sealed class PersistenceIntegrityTests
     public async Task Context_rejects_assigning_position_to_inactive_employee()
     {
         await using var db = CreateContext();
-        var organization = new Organization("Org");
-        var employee = new Employee("employee", "Employee", organization.Id);
-        var position = new Position("Position");
+        var organization = new Organization("ORG-Org", "Org");
+        var employee = new Employee("EMP-employee", "employee", "Employee", organization.Id);
+        var position = new Position("POS-Position", "Position");
         employee.Deactivate();
 
         db.Organizations.Add(organization);
@@ -80,10 +80,10 @@ public sealed class PersistenceIntegrityTests
     public async Task Context_rejects_two_active_employees_for_one_position()
     {
         await using var db = CreateContext();
-        var organization = new Organization("Org");
-        var first = new Employee("first", "First", organization.Id);
-        var second = new Employee("second", "Second", organization.Id);
-        var position = new Position("Position");
+        var organization = new Organization("ORG-Org", "Org");
+        var first = new Employee("EMP-first", "first", "First", organization.Id);
+        var second = new Employee("EMP-second", "second", "Second", organization.Id);
+        var position = new Position("POS-Position", "Position");
 
         db.Organizations.Add(organization);
         db.Employees.AddRange(first, second);
@@ -101,8 +101,8 @@ public sealed class PersistenceIntegrityTests
     public async Task Context_rejects_position_hierarchy_cycles()
     {
         await using var db = CreateContext();
-        var first = new Position("First");
-        var second = new Position("Second", first.Id);
+        var first = new Position("POS-First", "First");
+        var second = new Position("POS-Second", "Second", first.Id);
         db.Positions.AddRange(first, second);
         await db.SaveChangesAsync();
 
@@ -119,9 +119,9 @@ public sealed class PersistenceIntegrityTests
 
         await using (var setup = CreateContext(databaseName))
         {
-            var organization = new Organization("Org");
-            var employee = new Employee("employee", "Employee", organization.Id);
-            var position = new Position("Position");
+            var organization = new Organization("ORG-Org", "Org");
+            var employee = new Employee("EMP-employee", "employee", "Employee", organization.Id);
+            var position = new Position("POS-Position", "Position");
             setup.Organizations.Add(organization);
             setup.Employees.Add(employee);
             setup.Positions.Add(position);

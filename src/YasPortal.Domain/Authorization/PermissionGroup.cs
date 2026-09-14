@@ -10,15 +10,19 @@ public sealed class PermissionGroup
     {
     }
 
-    public PermissionGroup(string name, string? description = null)
+    public PermissionGroup(string code, string name, string? description = null)
     {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Group code is required.", nameof(code));
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Group name is required.", nameof(name));
+        Code = code.Trim();
         Name = name.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
+    public string Code { get; private set; } = null!;
     public string Name { get; private set; } = null!;
     public string? Description
     {
@@ -31,5 +35,12 @@ public sealed class PermissionGroup
             throw new ArgumentException("Group name is required.", nameof(name));
         Name = name.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+    }
+
+    public void ChangeCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Group code is required.", nameof(code));
+        Code = code.Trim();
     }
 }

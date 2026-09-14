@@ -8,7 +8,7 @@ public class OrganizationTests
     [Fact]
     public void Organization_can_be_renamed_and_toggled()
     {
-        var organization = new Organization("سازمان اولیه");
+        var organization = new Organization("ORG-سازماناولیه", "سازمان اولیه");
 
         organization.Rename("سازمان جدید");
         organization.Deactivate();
@@ -25,7 +25,7 @@ public class OrganizationTests
     {
         var firstOrganizationId = Guid.NewGuid();
         var secondOrganizationId = Guid.NewGuid();
-        var employee = new Employee("employee", "کارمند نمونه", firstOrganizationId);
+        var employee = new Employee("EMP-employee", "employee", "کارمند نمونه", firstOrganizationId);
 
         employee.ChangeOrganization(secondOrganizationId);
 

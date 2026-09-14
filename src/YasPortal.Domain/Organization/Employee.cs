@@ -6,14 +6,17 @@ public sealed class Employee
     {
     }
 
-    public Employee(string username, string fullName, Guid organizationId, bool isAdmin = false)
+    public Employee(string code, string username, string fullName, Guid organizationId, bool isAdmin = false)
     {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Employee code is required.", nameof(code));
         if (string.IsNullOrWhiteSpace(username))
             throw new ArgumentException("Username is required.", nameof(username));
         if (string.IsNullOrWhiteSpace(fullName))
             throw new ArgumentException("Full name is required.", nameof(fullName));
         if (organizationId == Guid.Empty)
             throw new ArgumentException("Organization is required.", nameof(organizationId));
+        Code = code.Trim();
         Username = username.Trim();
         FullName = fullName.Trim();
         OrganizationId = organizationId;
@@ -21,6 +24,7 @@ public sealed class Employee
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
+    public string Code { get; private set; } = null!;
     public string Username { get; private set; } = null!;
     public string FullName { get; private set; } = null!;
     public Guid OrganizationId
@@ -67,6 +71,13 @@ public sealed class Employee
             throw new InvalidOperationException("The selected position is not an active employee assignment.");
 
         LastActivePositionId = positionId;
+    }
+
+    public void ChangeCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Employee code is required.", nameof(code));
+        Code = code.Trim();
     }
 
     public void SetFullName(string fullName)

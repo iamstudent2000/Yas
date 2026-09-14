@@ -34,26 +34,33 @@ public static class DevelopmentDataSeeder
                 WHERE [EndedAt] IS NULL;
             """, ct);
 
-        var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
-        foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
+        var organizationDefinitions = new[]
         {
-            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == name, ct);
+            (Code: "ORG-001", Name: "ستاد مرکزی"),
+            (Code: "ORG-002", Name: "منابع انسانی"),
+            (Code: "ORG-003", Name: "امور مالی")
+        };
+
+        var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in organizationDefinitions)
+        {
+            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == definition.Name, ct);
             if (organization is null)
             {
-                organization = new Organization(name);
+                organization = new Organization(definition.Code, definition.Name);
                 db.Organizations.Add(organization);
             }
-            organizations[name] = organization;
+            organizations[definition.Name] = organization;
         }
         await db.SaveChangesAsync(ct);
 
         var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase) {
-            ["مدیر سامانه"] = await EnsurePosition(db, "مدیر سامانه", null, ct)
+            ["مدیر سامانه"] = await EnsurePosition(db, "POS-001", "مدیر سامانه", null, ct)
         };
-        positions["مدیر منابع انسانی"] = await EnsurePosition(db, "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
-        positions["مدیر واحد"] = await EnsurePosition(db, "مدیر واحد", positions["مدیر سامانه"].Id, ct);
-        positions["کارشناس مالی"] = await EnsurePosition(db, "کارشناس مالی", positions["مدیر واحد"].Id, ct);
-        positions["کارمند"] = await EnsurePosition(db, "کارمند", positions["مدیر واحد"].Id, ct);
+        positions["مدیر منابع انسانی"] = await EnsurePosition(db, "POS-002", "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
+        positions["مدیر واحد"] = await EnsurePosition(db, "POS-003", "مدیر واحد", positions["مدیر سامانه"].Id, ct);
+        positions["کارشناس مالی"] = await EnsurePosition(db, "POS-004", "کارشناس مالی", positions["مدیر واحد"].Id, ct);
+        positions["کارمند"] = await EnsurePosition(db, "POS-005", "کارمند", positions["مدیر واحد"].Id, ct);
 
         var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase) {
             ["Dashboard.View"] = new Permission("Dashboard.View", "مشاهده داشبورد"),
@@ -90,11 +97,11 @@ public static class DevelopmentDataSeeder
 
         var employeeDefinitions = new[]
         {
-            (Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
-            (Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
-            (Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
-            (Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
-            (Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
+            (Code: "EMP-001", Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
+            (Code: "EMP-002", Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
+            (Code: "EMP-003", Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
+            (Code: "EMP-004", Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
+            (Code: "EMP-005", Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
         };
 
         var employees = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
@@ -103,7 +110,7 @@ public static class DevelopmentDataSeeder
             var employee = await db.Employees.SingleOrDefaultAsync(x => x.Username == definition.Username, ct);
             if (employee is null)
             {
-                employee = new Employee(definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
+                employee = new Employee(definition.Code, definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
                 employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
                 db.Employees.Add(employee);
             }
@@ -142,12 +149,12 @@ public static class DevelopmentDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task<Position> EnsurePosition(ApplicationDbContext db, string name, Guid? parentPositionId, CancellationToken ct)
+    private static async Task<Position> EnsurePosition(ApplicationDbContext db, string code, string name, Guid? parentPositionId, CancellationToken ct)
     {
         var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
         if (position is null)
         {
-            position = new Position(name, parentPositionId);
+            position = new Position(code, name, parentPositionId);
             db.Positions.Add(position);
             await db.SaveChangesAsync(ct);
             return position;

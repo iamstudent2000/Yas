@@ -9,7 +9,7 @@ public class EmployeeTests
     public void Employee_can_be_admin_without_a_role()
     {
         var organizationId = Guid.NewGuid();
-        var employee = new Employee("admin", "System Administrator", organizationId, isAdmin: true);
+        var employee = new Employee("EMP-admin", "admin", "System Administrator", organizationId, isAdmin: true);
 
         Assert.True(employee.IsAdmin);
         Assert.Equal(organizationId, employee.OrganizationId);
@@ -19,7 +19,7 @@ public class EmployeeTests
     public void Employee_defaults_to_non_admin()
     {
         var organizationId = Guid.NewGuid();
-        var employee = new Employee("employee", "Normal Employee", organizationId);
+        var employee = new Employee("EMP-employee", "employee", "Normal Employee", organizationId);
 
         Assert.False(employee.IsAdmin);
         Assert.Equal(organizationId, employee.OrganizationId);

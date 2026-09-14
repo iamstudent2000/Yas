@@ -57,7 +57,7 @@ public sealed class PermissionCheckerTests
     public async Task Position_permission_is_scoped_to_the_claimed_active_position()
     {
         await using var fixture = new PermissionFixture();
-        var secondPosition = new Position("Second Position");
+        var secondPosition = new Position("POS-SecondPosition", "Second Position");
         var firstPermission = new Permission("Requests.View", "View requests");
         var secondPermission = new Permission("Requests.Approve", "Approve requests");
         fixture.Db.Positions.Add(secondPosition);
@@ -86,7 +86,7 @@ public sealed class PermissionCheckerTests
     {
         await using var fixture = new PermissionFixture();
         var permission = new Permission("Requests.View", "View requests");
-        var group = new PermissionGroup("Request viewers");
+        var group = new PermissionGroup("GRP-Requestviewers", "Request viewers");
         fixture.Db.Permissions.Add(permission);
         fixture.Db.PermissionGroups.Add(group);
         fixture.Db.PermissionGroupPermissions.Add(new PermissionGroupPermission(group.Id, permission.Id));
@@ -100,7 +100,7 @@ public sealed class PermissionCheckerTests
         Assert.True(await fixture.Checker.HasPermissionAsync(
             fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()), permission.Code));
 
-        var otherPosition = new Position("Other Position");
+        var otherPosition = new Position("POS-OtherPosition", "Other Position");
         fixture.Db.Positions.Add(otherPosition);
         var otherAssignment = new EmployeePosition(fixture.Employee.Id, otherPosition.Id);
         fixture.Employee.Positions.Add(otherAssignment);
@@ -159,9 +159,9 @@ public sealed class PermissionCheckerTests
                 .UseInMemoryDatabase(databaseName, _databaseRoot)
                 .Options;
             Db = new ApplicationDbContext(options);
-            var organization = new Organization("Test Organization");
-            Position = new Position("Test Position");
-            Employee = new Employee("test-user", "Test User", organization.Id, isAdmin);
+            var organization = new Organization("ORG-TestOrganization", "Test Organization");
+            Position = new Position("POS-TestPosition", "Test Position");
+            Employee = new Employee("EMP-test-user", "test-user", "Test User", organization.Id, isAdmin);
             Db.Organizations.Add(organization);
             Db.Positions.Add(Position);
             Db.Employees.Add(Employee);

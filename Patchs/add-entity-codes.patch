@@ -1,0 +1,1177 @@
+diff --git a/src/YasPortal.Domain/Authorization/PermissionGroup.cs b/src/YasPortal.Domain/Authorization/PermissionGroup.cs
+index 24cebb7..1025615 100644
+--- a/src/YasPortal.Domain/Authorization/PermissionGroup.cs
++++ b/src/YasPortal.Domain/Authorization/PermissionGroup.cs
+@@ -10,15 +10,19 @@ public sealed class PermissionGroup
+     {
+     }
+ 
+-    public PermissionGroup(string name, string? description = null)
++    public PermissionGroup(string code, string name, string? description = null)
+     {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Group code is required.", nameof(code));
+         if (string.IsNullOrWhiteSpace(name))
+             throw new ArgumentException("Group name is required.", nameof(name));
++        Code = code.Trim();
+         Name = name.Trim();
+         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+     }
+ 
+     public Guid Id { get; private set; } = Guid.NewGuid();
++    public string Code { get; private set; } = null!;
+     public string Name { get; private set; } = null!;
+     public string? Description
+     {
+@@ -32,4 +36,11 @@ public sealed class PermissionGroup
+         Name = name.Trim();
+         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+     }
++
++    public void ChangeCode(string code)
++    {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Group code is required.", nameof(code));
++        Code = code.Trim();
++    }
+ }
+diff --git a/src/YasPortal.Domain/Organization/Employee.cs b/src/YasPortal.Domain/Organization/Employee.cs
+index 6f3d65f..1acf43b 100644
+--- a/src/YasPortal.Domain/Organization/Employee.cs
++++ b/src/YasPortal.Domain/Organization/Employee.cs
+@@ -6,14 +6,17 @@ public sealed class Employee
+     {
+     }
+ 
+-    public Employee(string username, string fullName, Guid organizationId, bool isAdmin = false)
++    public Employee(string code, string username, string fullName, Guid organizationId, bool isAdmin = false)
+     {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Employee code is required.", nameof(code));
+         if (string.IsNullOrWhiteSpace(username))
+             throw new ArgumentException("Username is required.", nameof(username));
+         if (string.IsNullOrWhiteSpace(fullName))
+             throw new ArgumentException("Full name is required.", nameof(fullName));
+         if (organizationId == Guid.Empty)
+             throw new ArgumentException("Organization is required.", nameof(organizationId));
++        Code = code.Trim();
+         Username = username.Trim();
+         FullName = fullName.Trim();
+         OrganizationId = organizationId;
+@@ -21,6 +24,7 @@ public sealed class Employee
+     }
+ 
+     public Guid Id { get; private set; } = Guid.NewGuid();
++    public string Code { get; private set; } = null!;
+     public string Username { get; private set; } = null!;
+     public string FullName { get; private set; } = null!;
+     public Guid OrganizationId
+@@ -69,6 +73,13 @@ public sealed class Employee
+         LastActivePositionId = positionId;
+     }
+ 
++    public void ChangeCode(string code)
++    {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Employee code is required.", nameof(code));
++        Code = code.Trim();
++    }
++
+     public void SetFullName(string fullName)
+     {
+         if (string.IsNullOrWhiteSpace(fullName))
+diff --git a/src/YasPortal.Domain/Organization/Organization.cs b/src/YasPortal.Domain/Organization/Organization.cs
+index bdc9db3..3e17ff1 100644
+--- a/src/YasPortal.Domain/Organization/Organization.cs
++++ b/src/YasPortal.Domain/Organization/Organization.cs
+@@ -6,12 +6,14 @@ public sealed class Organization
+     {
+     }
+ 
+-    public Organization(string name)
++    public Organization(string code, string name)
+     {
++        SetCode(code);
+         SetName(name);
+     }
+ 
+     public Guid Id { get; private set; } = Guid.NewGuid();
++    public string Code { get; private set; } = null!;
+     public string Name { get; private set; } = null!;
+     public bool IsActive { get; private set; } = true;
+ 
+@@ -19,6 +21,8 @@ public sealed class Organization
+ 
+     public void Rename(string name) => SetName(name);
+ 
++    public void ChangeCode(string code) => SetCode(code);
++
+     public void Activate() => IsActive = true;
+ 
+     /// <summary>
+@@ -45,4 +49,12 @@ public sealed class Organization
+ 
+         Name = name.Trim();
+     }
++
++    private void SetCode(string code)
++    {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Organization code is required.", nameof(code));
++
++        Code = code.Trim();
++    }
+ }
+diff --git a/src/YasPortal.Domain/Organization/Position.cs b/src/YasPortal.Domain/Organization/Position.cs
+index 36c0d9d..aaed14e 100644
+--- a/src/YasPortal.Domain/Organization/Position.cs
++++ b/src/YasPortal.Domain/Organization/Position.cs
+@@ -6,19 +6,23 @@ public sealed class Position
+     {
+     }
+ 
+-    public Position(string name, Guid? parentPositionId = null)
++    public Position(string code, string name, Guid? parentPositionId = null)
+     {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Position code is required.", nameof(code));
+         if (string.IsNullOrWhiteSpace(name))
+             throw new ArgumentException("Position name is required.", nameof(name));
+ 
+         if (parentPositionId == Id)
+             throw new ArgumentException("A position cannot be its own parent.", nameof(parentPositionId));
+ 
++        Code = code.Trim();
+         Name = name.Trim();
+         ParentPositionId = parentPositionId;
+     }
+ 
+     public Guid Id { get; private set; } = Guid.NewGuid();
++    public string Code { get; private set; } = null!;
+     public string Name { get; private set; } = null!;
+     public Guid? ParentPositionId
+     {
+@@ -38,6 +42,14 @@ public sealed class Position
+         Name = name.Trim();
+     }
+ 
++    public void ChangeCode(string code)
++    {
++        if (string.IsNullOrWhiteSpace(code))
++            throw new ArgumentException("Position code is required.", nameof(code));
++
++        Code = code.Trim();
++    }
++
+     public void ChangeParent(Guid? parentPositionId)
+     {
+         if (parentPositionId == Id)
+diff --git a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+index 81895f8..0ce4ad1 100644
+--- a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
++++ b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+@@ -34,26 +34,33 @@ public static class DevelopmentDataSeeder
+                 WHERE [EndedAt] IS NULL;
+             """, ct);
+ 
++        var organizationDefinitions = new[]
++        {
++            (Code: "ORG-001", Name: "ستاد مرکزی"),
++            (Code: "ORG-002", Name: "منابع انسانی"),
++            (Code: "ORG-003", Name: "امور مالی")
++        };
++
+         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
+-        foreach (var name in new[] { "ستاد مرکزی", "منابع انسانی", "امور مالی" })
++        foreach (var definition in organizationDefinitions)
+         {
+-            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == name, ct);
++            var organization = await db.Organizations.SingleOrDefaultAsync(x => x.Name == definition.Name, ct);
+             if (organization is null)
+             {
+-                organization = new Organization(name);
++                organization = new Organization(definition.Code, definition.Name);
+                 db.Organizations.Add(organization);
+             }
+-            organizations[name] = organization;
++            organizations[definition.Name] = organization;
+         }
+         await db.SaveChangesAsync(ct);
+ 
+         var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase) {
+-            ["مدیر سامانه"] = await EnsurePosition(db, "مدیر سامانه", null, ct)
++            ["مدیر سامانه"] = await EnsurePosition(db, "POS-001", "مدیر سامانه", null, ct)
+         };
+-        positions["مدیر منابع انسانی"] = await EnsurePosition(db, "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
+-        positions["مدیر واحد"] = await EnsurePosition(db, "مدیر واحد", positions["مدیر سامانه"].Id, ct);
+-        positions["کارشناس مالی"] = await EnsurePosition(db, "کارشناس مالی", positions["مدیر واحد"].Id, ct);
+-        positions["کارمند"] = await EnsurePosition(db, "کارمند", positions["مدیر واحد"].Id, ct);
++        positions["مدیر منابع انسانی"] = await EnsurePosition(db, "POS-002", "مدیر منابع انسانی", positions["مدیر سامانه"].Id, ct);
++        positions["مدیر واحد"] = await EnsurePosition(db, "POS-003", "مدیر واحد", positions["مدیر سامانه"].Id, ct);
++        positions["کارشناس مالی"] = await EnsurePosition(db, "POS-004", "کارشناس مالی", positions["مدیر واحد"].Id, ct);
++        positions["کارمند"] = await EnsurePosition(db, "POS-005", "کارمند", positions["مدیر واحد"].Id, ct);
+ 
+         var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase) {
+             ["Dashboard.View"] = new Permission("Dashboard.View", "مشاهده داشبورد"),
+@@ -90,11 +97,11 @@ public static class DevelopmentDataSeeder
+ 
+         var employeeDefinitions = new[]
+         {
+-            (Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
+-            (Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
+-            (Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
+-            (Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
+-            (Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
++            (Code: "EMP-001", Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
++            (Code: "EMP-002", Username: "employee", FullName: "کارمند نمونه", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Employee123!"),
++            (Code: "EMP-003", Username: "hr", FullName: "سارا احمدی", Organization: "منابع انسانی", IsAdmin: false, Password: "Hr123!"),
++            (Code: "EMP-004", Username: "manager", FullName: "علی رضایی", Organization: "ستاد مرکزی", IsAdmin: false, Password: "Manager123!"),
++            (Code: "EMP-005", Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
+         };
+ 
+         var employees = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
+@@ -103,7 +110,7 @@ public static class DevelopmentDataSeeder
+             var employee = await db.Employees.SingleOrDefaultAsync(x => x.Username == definition.Username, ct);
+             if (employee is null)
+             {
+-                employee = new Employee(definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
++                employee = new Employee(definition.Code, definition.Username, definition.FullName, organizations[definition.Organization].Id, definition.IsAdmin);
+                 employee.SetPasswordHash(passwordHasher.HashPassword(employee, definition.Password));
+                 db.Employees.Add(employee);
+             }
+@@ -142,12 +149,12 @@ public static class DevelopmentDataSeeder
+         await db.SaveChangesAsync(ct);
+     }
+ 
+-    private static async Task<Position> EnsurePosition(ApplicationDbContext db, string name, Guid? parentPositionId, CancellationToken ct)
++    private static async Task<Position> EnsurePosition(ApplicationDbContext db, string code, string name, Guid? parentPositionId, CancellationToken ct)
+     {
+         var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
+         if (position is null)
+         {
+-            position = new Position(name, parentPositionId);
++            position = new Position(code, name, parentPositionId);
+             db.Positions.Add(position);
+             await db.SaveChangesAsync(ct);
+             return position;
+diff --git a/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.Designer.cs b/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.Designer.cs
+new file mode 100644
+index 0000000..017d901
+--- /dev/null
++++ b/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.Designer.cs
+@@ -0,0 +1,501 @@
++﻿// <auto-generated />
++using System;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Metadata;
++using Microsoft.EntityFrameworkCore.Migrations;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++using YasPortal.Infrastructure.Persistence;
++
++#nullable disable
++
++namespace YasPortal.Infrastructure.Migrations
++{
++    [DbContext(typeof(ApplicationDbContext))]
++    [Migration("20260914120000_AddEntityCodes")]
++    partial class AddEntityCodes
++    {
++        /// <inheritdoc />
++        protected override void BuildTargetModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasAnnotation("ProductVersion", "10.0.11")
++                .HasAnnotation("Relational:MaxIdentifierLength", 128);
++
++            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b => {
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PermissionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("EmployeeId", "PermissionId");
++
++                b.HasIndex("PermissionId");
++
++                b.ToTable("EmployeePermissions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b => {
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("GroupId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("EmployeeId", "GroupId");
++
++                b.HasIndex("GroupId");
++
++                b.ToTable("EmployeePermissionGroups");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.Permission", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(200)
++                    .HasColumnType("nvarchar(200)");
++
++                b.Property<string>("Name")
++                    .IsRequired()
++                    .HasMaxLength(300)
++                    .HasColumnType("nvarchar(300)");
++
++                b.HasKey("Id");
++
++                b.HasIndex("Code")
++                    .IsUnique();
++
++                b.ToTable("Permissions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroup", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
++                b.Property<string>("Description")
++                    .HasMaxLength(500)
++                    .HasColumnType("nvarchar(500)");
++
++                b.Property<string>("Name")
++                    .IsRequired()
++                    .HasMaxLength(200)
++                    .HasColumnType("nvarchar(200)");
++
++                b.HasKey("Id");
++
++                b.HasIndex("Code")
++                    .IsUnique();
++
++                b.HasIndex("Name")
++                    .IsUnique();
++
++                b.ToTable("PermissionGroups");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b => {
++                b.Property<Guid>("GroupId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PermissionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("GroupId", "PermissionId");
++
++                b.HasIndex("PermissionId");
++
++                b.ToTable("PermissionGroupPermissions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b => {
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PermissionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("EmployeeId", "PositionId", "PermissionId");
++
++                b.HasIndex("PermissionId");
++
++                b.HasIndex("PositionId");
++
++                b.ToTable("UserPositionPermissions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b => {
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("GroupId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("EmployeeId", "PositionId", "GroupId");
++
++                b.HasIndex("GroupId");
++
++                b.HasIndex("PositionId");
++
++                b.ToTable("UserPositionPermissionGroups");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
++                b.Property<string>("FullName")
++                    .IsRequired()
++                    .HasMaxLength(256)
++                    .HasColumnType("nvarchar(256)");
++
++                b.Property<bool>("IsActive")
++                    .HasColumnType("bit");
++
++                b.Property<bool>("IsAdmin")
++                    .HasColumnType("bit");
++
++                b.Property<Guid?>("LastActivePositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("OrganizationId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("PasswordHash")
++                    .HasMaxLength(512)
++                    .HasColumnType("nvarchar(512)");
++
++                b.Property<string>("Username")
++                    .IsRequired()
++                    .HasMaxLength(256)
++                    .HasColumnType("nvarchar(256)");
++
++                b.HasKey("Id");
++
++                b.HasIndex("Code")
++                    .IsUnique();
++
++                b.HasIndex("LastActivePositionId");
++
++                b.HasIndex("OrganizationId");
++
++                b.HasIndex("Username")
++                    .IsUnique();
++
++                b.ToTable("Employees");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b => {
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("PositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<DateTime?>("EndedAt")
++                    .HasColumnType("datetime2");
++
++                b.HasKey("EmployeeId", "PositionId");
++
++                b.HasIndex("PositionId")
++                    .IsUnique()
++                    .HasFilter("[EndedAt] IS NULL");
++
++                b.ToTable("EmployeePositions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
++                b.Property<bool>("IsActive")
++                    .HasColumnType("bit");
++
++                b.Property<string>("Name")
++                    .IsRequired()
++                    .HasMaxLength(200)
++                    .HasColumnType("nvarchar(200)");
++
++                b.HasKey("Id");
++
++                b.HasIndex("Code")
++                    .IsUnique();
++
++                b.HasIndex("Name")
++                    .IsUnique();
++
++                b.ToTable("Organizations");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
++                b.Property<string>("Name")
++                    .IsRequired()
++                    .HasMaxLength(200)
++                    .HasColumnType("nvarchar(200)");
++
++                b.Property<Guid?>("ParentPositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.HasKey("Id");
++
++                b.HasIndex("Code")
++                    .IsUnique();
++
++                b.HasIndex("Name")
++                    .IsUnique();
++
++                b.HasIndex("ParentPositionId");
++
++                b.ToTable("Positions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b => {
++                b.Property<Guid>("Id")
++                    .ValueGeneratedOnAdd()
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<Guid>("EmployeeId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<DateTime?>("EndedAt")
++                    .HasColumnType("datetime2");
++
++                b.Property<Guid>("PositionId")
++                    .HasColumnType("uniqueidentifier");
++
++                b.Property<DateTime?>("StartedAt")
++                    .HasColumnType("datetime2");
++
++                b.HasKey("Id");
++
++                b.HasIndex("PositionId")
++                    .IsUnique()
++                    .HasFilter("[EndedAt] IS NULL");
++
++                b.HasIndex("EmployeeId", "StartedAt");
++
++                b.HasIndex("PositionId", "StartedAt");
++
++                b.ToTable("PositionAssignmentHistories");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermission", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany()
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
++                    .WithMany()
++                    .HasForeignKey("PermissionId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Permission");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.EmployeePermissionGroup", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany()
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
++                    .WithMany()
++                    .HasForeignKey("GroupId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Group");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.PermissionGroupPermission", b => {
++                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
++                    .WithMany()
++                    .HasForeignKey("GroupId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
++                    .WithMany()
++                    .HasForeignKey("PermissionId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.Navigation("Group");
++
++                b.Navigation("Permission");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermission", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany()
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Authorization.Permission", "Permission")
++                    .WithMany()
++                    .HasForeignKey("PermissionId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
++                    .WithMany()
++                    .HasForeignKey("PositionId")
++                    .OnDelete(DeleteBehavior.Restrict)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Permission");
++
++                b.Navigation("Position");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Authorization.UserPositionPermissionGroup", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany()
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Authorization.PermissionGroup", "Group")
++                    .WithMany()
++                    .HasForeignKey("GroupId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
++                    .WithMany()
++                    .HasForeignKey("PositionId")
++                    .OnDelete(DeleteBehavior.Restrict)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Group");
++
++                b.Navigation("Position");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
++                b.HasOne("YasPortal.Domain.Organization.Position", null)
++                    .WithMany()
++                    .HasForeignKey("LastActivePositionId")
++                    .OnDelete(DeleteBehavior.SetNull);
++
++                b.HasOne("YasPortal.Domain.Organization.Organization", "Organization")
++                    .WithMany("Employees")
++                    .HasForeignKey("OrganizationId")
++                    .OnDelete(DeleteBehavior.Restrict)
++                    .IsRequired();
++
++                b.Navigation("Organization");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.EmployeePosition", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany("Positions")
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
++                    .WithMany()
++                    .HasForeignKey("PositionId")
++                    .OnDelete(DeleteBehavior.Restrict)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Position");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
++                b.HasOne("YasPortal.Domain.Organization.Position", "ParentPosition")
++                    .WithMany("Children")
++                    .HasForeignKey("ParentPositionId")
++                    .OnDelete(DeleteBehavior.Restrict);
++
++                b.Navigation("ParentPosition");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.PositionAssignmentHistory", b => {
++                b.HasOne("YasPortal.Domain.Organization.Employee", "Employee")
++                    .WithMany()
++                    .HasForeignKey("EmployeeId")
++                    .OnDelete(DeleteBehavior.Cascade)
++                    .IsRequired();
++
++                b.HasOne("YasPortal.Domain.Organization.Position", "Position")
++                    .WithMany()
++                    .HasForeignKey("PositionId")
++                    .OnDelete(DeleteBehavior.Restrict)
++                    .IsRequired();
++
++                b.Navigation("Employee");
++
++                b.Navigation("Position");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Employee", b => {
++                b.Navigation("Positions");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Organization", b => {
++                b.Navigation("Employees");
++            });
++
++            modelBuilder.Entity("YasPortal.Domain.Organization.Position", b => {
++                b.Navigation("Children");
++            });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.cs b/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.cs
+new file mode 100644
+index 0000000..4545cc4
+--- /dev/null
++++ b/src/YasPortal.Infrastructure/Migrations/20260914120000_AddEntityCodes.cs
+@@ -0,0 +1,117 @@
++﻿using System;
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace YasPortal.Infrastructure.Migrations
++{
++    /// <inheritdoc />
++    public partial class AddEntityCodes : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.AddColumn<string>(
++                name: "Code",
++                table: "Organizations",
++                type: "nvarchar(50)",
++                maxLength: 50,
++                nullable: false,
++                defaultValue: "");
++
++            migrationBuilder.AddColumn<string>(
++                name: "Code",
++                table: "Employees",
++                type: "nvarchar(50)",
++                maxLength: 50,
++                nullable: false,
++                defaultValue: "");
++
++            migrationBuilder.AddColumn<string>(
++                name: "Code",
++                table: "Positions",
++                type: "nvarchar(50)",
++                maxLength: 50,
++                nullable: false,
++                defaultValue: "");
++
++            migrationBuilder.AddColumn<string>(
++                name: "Code",
++                table: "PermissionGroups",
++                type: "nvarchar(50)",
++                maxLength: 50,
++                nullable: false,
++                defaultValue: "");
++
++            // Backfill existing rows with a unique placeholder code before the
++            // unique indexes below are created, since new rows going forward are
++            // expected to supply a real, user-entered code.
++            migrationBuilder.Sql("""
++                UPDATE [dbo].[Organizations] SET [Code] = CONCAT('ORG-', CONVERT(nvarchar(36), [Id])) WHERE [Code] = '';
++                UPDATE [dbo].[Employees] SET [Code] = CONCAT('EMP-', CONVERT(nvarchar(36), [Id])) WHERE [Code] = '';
++                UPDATE [dbo].[Positions] SET [Code] = CONCAT('POS-', CONVERT(nvarchar(36), [Id])) WHERE [Code] = '';
++                UPDATE [dbo].[PermissionGroups] SET [Code] = CONCAT('GRP-', CONVERT(nvarchar(36), [Id])) WHERE [Code] = '';
++                """);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_Organizations_Code",
++                table: "Organizations",
++                column: "Code",
++                unique: true);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_Employees_Code",
++                table: "Employees",
++                column: "Code",
++                unique: true);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_Positions_Code",
++                table: "Positions",
++                column: "Code",
++                unique: true);
++
++            migrationBuilder.CreateIndex(
++                name: "IX_PermissionGroups_Code",
++                table: "PermissionGroups",
++                column: "Code",
++                unique: true);
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropIndex(
++                name: "IX_Organizations_Code",
++                table: "Organizations");
++
++            migrationBuilder.DropIndex(
++                name: "IX_Employees_Code",
++                table: "Employees");
++
++            migrationBuilder.DropIndex(
++                name: "IX_Positions_Code",
++                table: "Positions");
++
++            migrationBuilder.DropIndex(
++                name: "IX_PermissionGroups_Code",
++                table: "PermissionGroups");
++
++            migrationBuilder.DropColumn(
++                name: "Code",
++                table: "Organizations");
++
++            migrationBuilder.DropColumn(
++                name: "Code",
++                table: "Employees");
++
++            migrationBuilder.DropColumn(
++                name: "Code",
++                table: "Positions");
++
++            migrationBuilder.DropColumn(
++                name: "Code",
++                table: "PermissionGroups");
++        }
++    }
++}
+diff --git a/src/YasPortal.Infrastructure/Migrations/ApplicationDbContextModelSnapshot.cs b/src/YasPortal.Infrastructure/Migrations/ApplicationDbContextModelSnapshot.cs
+index 11c8414..1317c7e 100644
+--- a/src/YasPortal.Infrastructure/Migrations/ApplicationDbContextModelSnapshot.cs
++++ b/src/YasPortal.Infrastructure/Migrations/ApplicationDbContextModelSnapshot.cs
+@@ -78,6 +78,11 @@ namespace YasPortal.Infrastructure.Migrations
+                     .ValueGeneratedOnAdd()
+                     .HasColumnType("uniqueidentifier");
+ 
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
+                 b.Property<string>("Description")
+                     .HasMaxLength(500)
+                     .HasColumnType("nvarchar(500)");
+@@ -89,6 +94,9 @@ namespace YasPortal.Infrastructure.Migrations
+ 
+                 b.HasKey("Id");
+ 
++                b.HasIndex("Code")
++                    .IsUnique();
++
+                 b.HasIndex("Name")
+                     .IsUnique();
+ 
+@@ -152,6 +160,11 @@ namespace YasPortal.Infrastructure.Migrations
+                     .ValueGeneratedOnAdd()
+                     .HasColumnType("uniqueidentifier");
+ 
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
+                 b.Property<string>("FullName")
+                     .IsRequired()
+                     .HasMaxLength(256)
+@@ -180,6 +193,9 @@ namespace YasPortal.Infrastructure.Migrations
+ 
+                 b.HasKey("Id");
+ 
++                b.HasIndex("Code")
++                    .IsUnique();
++
+                 b.HasIndex("LastActivePositionId");
+ 
+                 b.HasIndex("OrganizationId");
+@@ -214,6 +230,11 @@ namespace YasPortal.Infrastructure.Migrations
+                     .ValueGeneratedOnAdd()
+                     .HasColumnType("uniqueidentifier");
+ 
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
+                 b.Property<bool>("IsActive")
+                     .HasColumnType("bit");
+ 
+@@ -224,6 +245,9 @@ namespace YasPortal.Infrastructure.Migrations
+ 
+                 b.HasKey("Id");
+ 
++                b.HasIndex("Code")
++                    .IsUnique();
++
+                 b.HasIndex("Name")
+                     .IsUnique();
+ 
+@@ -235,6 +259,11 @@ namespace YasPortal.Infrastructure.Migrations
+                     .ValueGeneratedOnAdd()
+                     .HasColumnType("uniqueidentifier");
+ 
++                b.Property<string>("Code")
++                    .IsRequired()
++                    .HasMaxLength(50)
++                    .HasColumnType("nvarchar(50)");
++
+                 b.Property<string>("Name")
+                     .IsRequired()
+                     .HasMaxLength(200)
+@@ -245,6 +274,9 @@ namespace YasPortal.Infrastructure.Migrations
+ 
+                 b.HasKey("Id");
+ 
++                b.HasIndex("Code")
++                    .IsUnique();
++
+                 b.HasIndex("Name")
+                     .IsUnique();
+ 
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index e20200d..f8d2ca1 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -223,15 +223,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+     protected override void OnModelCreating(ModelBuilder modelBuilder)
+     {
+         modelBuilder.Entity<AuditEntry>(e => { e.HasKey(x => x.Id); e.Property(x => x.Action).HasMaxLength(100).IsRequired(); e.Property(x => x.EntityType).HasMaxLength(200).IsRequired(); e.Property(x => x.EntityId).HasMaxLength(500); e.Property(x => x.BeforeJson).HasColumnType("nvarchar(max)"); e.Property(x => x.AfterJson).HasColumnType("nvarchar(max)"); e.HasIndex(x => x.OccurredAtUtc); e.HasIndex(x => new { x.EntityType, x.EntityId }); e.HasIndex(x => x.EmployeeId); });
+-        modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); });
+-        modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
+-        modelBuilder.Entity<Position>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.HasOne(x => x.ParentPosition).WithMany(x => x.Children).HasForeignKey(x => x.ParentPositionId).OnDelete(DeleteBehavior.Restrict); });
++        modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); });
++        modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
++        modelBuilder.Entity<Position>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.HasOne(x => x.ParentPosition).WithMany(x => x.Children).HasForeignKey(x => x.ParentPositionId).OnDelete(DeleteBehavior.Restrict); });
+         modelBuilder.Entity<EmployeePosition>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId }); e.HasOne(x => x.Employee).WithMany(x => x.Positions).HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL"); });
+         modelBuilder.Entity<PositionAssignmentHistory>(e => { e.HasKey(x => x.Id); e.HasIndex(x => new { x.EmployeeId, x.StartedAt }); e.HasIndex(x => new { x.PositionId, x.StartedAt }); e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL"); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); });
+         modelBuilder.Entity<Permission>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(200).IsRequired(); e.Property(x => x.Name).HasMaxLength(300).IsRequired(); });
+         modelBuilder.Entity<UserPositionPermission>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.PermissionId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<EmployeePermission>(e => { e.HasKey(x => new { x.EmployeeId, x.PermissionId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
+-        modelBuilder.Entity<PermissionGroup>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Description).HasMaxLength(500); });
++        modelBuilder.Entity<PermissionGroup>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Description).HasMaxLength(500); });
+         modelBuilder.Entity<PermissionGroupPermission>(e => { e.HasKey(x => new { x.GroupId, x.PermissionId }); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<UserPositionPermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+diff --git a/tests/YasPortal.Tests/EmployeeTests.cs b/tests/YasPortal.Tests/EmployeeTests.cs
+index 83791c9..d56a5c1 100644
+--- a/tests/YasPortal.Tests/EmployeeTests.cs
++++ b/tests/YasPortal.Tests/EmployeeTests.cs
+@@ -9,7 +9,7 @@ public class EmployeeTests
+     public void Employee_can_be_admin_without_a_role()
+     {
+         var organizationId = Guid.NewGuid();
+-        var employee = new Employee("admin", "System Administrator", organizationId, isAdmin: true);
++        var employee = new Employee("EMP-admin", "admin", "System Administrator", organizationId, isAdmin: true);
+ 
+         Assert.True(employee.IsAdmin);
+         Assert.Equal(organizationId, employee.OrganizationId);
+@@ -19,7 +19,7 @@ public class EmployeeTests
+     public void Employee_defaults_to_non_admin()
+     {
+         var organizationId = Guid.NewGuid();
+-        var employee = new Employee("employee", "Normal Employee", organizationId);
++        var employee = new Employee("EMP-employee", "employee", "Normal Employee", organizationId);
+ 
+         Assert.False(employee.IsAdmin);
+         Assert.Equal(organizationId, employee.OrganizationId);
+diff --git a/tests/YasPortal.Tests/OrganizationTests.cs b/tests/YasPortal.Tests/OrganizationTests.cs
+index f5ad9c5..293b9b3 100644
+--- a/tests/YasPortal.Tests/OrganizationTests.cs
++++ b/tests/YasPortal.Tests/OrganizationTests.cs
+@@ -8,7 +8,7 @@ public class OrganizationTests
+     [Fact]
+     public void Organization_can_be_renamed_and_toggled()
+     {
+-        var organization = new Organization("سازمان اولیه");
++        var organization = new Organization("ORG-سازماناولیه", "سازمان اولیه");
+ 
+         organization.Rename("سازمان جدید");
+         organization.Deactivate();
+@@ -25,7 +25,7 @@ public class OrganizationTests
+     {
+         var firstOrganizationId = Guid.NewGuid();
+         var secondOrganizationId = Guid.NewGuid();
+-        var employee = new Employee("employee", "کارمند نمونه", firstOrganizationId);
++        var employee = new Employee("EMP-employee", "employee", "کارمند نمونه", firstOrganizationId);
+ 
+         employee.ChangeOrganization(secondOrganizationId);
+ 
+diff --git a/tests/YasPortal.Tests/PermissionCheckerTests.cs b/tests/YasPortal.Tests/PermissionCheckerTests.cs
+index 29bdbe6..e064169 100644
+--- a/tests/YasPortal.Tests/PermissionCheckerTests.cs
++++ b/tests/YasPortal.Tests/PermissionCheckerTests.cs
+@@ -57,7 +57,7 @@ public sealed class PermissionCheckerTests
+     public async Task Position_permission_is_scoped_to_the_claimed_active_position()
+     {
+         await using var fixture = new PermissionFixture();
+-        var secondPosition = new Position("Second Position");
++        var secondPosition = new Position("POS-SecondPosition", "Second Position");
+         var firstPermission = new Permission("Requests.View", "View requests");
+         var secondPermission = new Permission("Requests.Approve", "Approve requests");
+         fixture.Db.Positions.Add(secondPosition);
+@@ -86,7 +86,7 @@ public sealed class PermissionCheckerTests
+     {
+         await using var fixture = new PermissionFixture();
+         var permission = new Permission("Requests.View", "View requests");
+-        var group = new PermissionGroup("Request viewers");
++        var group = new PermissionGroup("GRP-Requestviewers", "Request viewers");
+         fixture.Db.Permissions.Add(permission);
+         fixture.Db.PermissionGroups.Add(group);
+         fixture.Db.PermissionGroupPermissions.Add(new PermissionGroupPermission(group.Id, permission.Id));
+@@ -100,7 +100,7 @@ public sealed class PermissionCheckerTests
+         Assert.True(await fixture.Checker.HasPermissionAsync(
+             fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()), permission.Code));
+ 
+-        var otherPosition = new Position("Other Position");
++        var otherPosition = new Position("POS-OtherPosition", "Other Position");
+         fixture.Db.Positions.Add(otherPosition);
+         var otherAssignment = new EmployeePosition(fixture.Employee.Id, otherPosition.Id);
+         fixture.Employee.Positions.Add(otherAssignment);
+@@ -159,9 +159,9 @@ public sealed class PermissionCheckerTests
+                 .UseInMemoryDatabase(databaseName, _databaseRoot)
+                 .Options;
+             Db = new ApplicationDbContext(options);
+-            var organization = new Organization("Test Organization");
+-            Position = new Position("Test Position");
+-            Employee = new Employee("test-user", "Test User", organization.Id, isAdmin);
++            var organization = new Organization("ORG-TestOrganization", "Test Organization");
++            Position = new Position("POS-TestPosition", "Test Position");
++            Employee = new Employee("EMP-test-user", "test-user", "Test User", organization.Id, isAdmin);
+             Db.Organizations.Add(organization);
+             Db.Positions.Add(Position);
+             Db.Employees.Add(Employee);
+diff --git a/tests/YasPortal.Tests/PersistenceIntegrityTests.cs b/tests/YasPortal.Tests/PersistenceIntegrityTests.cs
+index 2dfecea..0803418 100644
+--- a/tests/YasPortal.Tests/PersistenceIntegrityTests.cs
++++ b/tests/YasPortal.Tests/PersistenceIntegrityTests.cs
+@@ -12,7 +12,7 @@ public sealed class PersistenceIntegrityTests
+     {
+         var organizationId = Guid.NewGuid();
+         var positionId = Guid.NewGuid();
+-        var employee = new Employee("employee", "Employee", organizationId);
++        var employee = new Employee("EMP-employee", "employee", "Employee", organizationId);
+         var assignment = new EmployeePosition(employee.Id, positionId);
+         employee.Positions.Add(assignment);
+         employee.SetLastActivePosition(positionId);
+@@ -28,8 +28,8 @@ public sealed class PersistenceIntegrityTests
+     [Fact]
+     public void Last_active_position_must_be_an_active_assignment()
+     {
+-        var employee = new Employee("employee", "Employee", Guid.NewGuid());
+-        var position = new Position("Position");
++        var employee = new Employee("EMP-employee", "employee", "Employee", Guid.NewGuid());
++        var position = new Position("POS-Position", "Position");
+ 
+         var exception = Assert.Throws<InvalidOperationException>(() => employee.SetLastActivePosition(position.Id));
+         Assert.Contains("active employee assignment", exception.Message, StringComparison.OrdinalIgnoreCase);
+@@ -47,8 +47,8 @@ public sealed class PersistenceIntegrityTests
+     [Fact]
+     public void Inactive_employee_cannot_select_a_position()
+     {
+-        var employee = new Employee("employee", "Employee", Guid.NewGuid());
+-        var position = new Position("Position");
++        var employee = new Employee("EMP-employee", "employee", "Employee", Guid.NewGuid());
++        var position = new Position("POS-Position", "Position");
+         employee.Positions.Add(new EmployeePosition(employee.Id, position.Id));
+         employee.Deactivate();
+ 
+@@ -60,9 +60,9 @@ public sealed class PersistenceIntegrityTests
+     public async Task Context_rejects_assigning_position_to_inactive_employee()
+     {
+         await using var db = CreateContext();
+-        var organization = new Organization("Org");
+-        var employee = new Employee("employee", "Employee", organization.Id);
+-        var position = new Position("Position");
++        var organization = new Organization("ORG-Org", "Org");
++        var employee = new Employee("EMP-employee", "employee", "Employee", organization.Id);
++        var position = new Position("POS-Position", "Position");
+         employee.Deactivate();
+ 
+         db.Organizations.Add(organization);
+@@ -80,10 +80,10 @@ public sealed class PersistenceIntegrityTests
+     public async Task Context_rejects_two_active_employees_for_one_position()
+     {
+         await using var db = CreateContext();
+-        var organization = new Organization("Org");
+-        var first = new Employee("first", "First", organization.Id);
+-        var second = new Employee("second", "Second", organization.Id);
+-        var position = new Position("Position");
++        var organization = new Organization("ORG-Org", "Org");
++        var first = new Employee("EMP-first", "first", "First", organization.Id);
++        var second = new Employee("EMP-second", "second", "Second", organization.Id);
++        var position = new Position("POS-Position", "Position");
+ 
+         db.Organizations.Add(organization);
+         db.Employees.AddRange(first, second);
+@@ -101,8 +101,8 @@ public sealed class PersistenceIntegrityTests
+     public async Task Context_rejects_position_hierarchy_cycles()
+     {
+         await using var db = CreateContext();
+-        var first = new Position("First");
+-        var second = new Position("Second", first.Id);
++        var first = new Position("POS-First", "First");
++        var second = new Position("POS-Second", "Second", first.Id);
+         db.Positions.AddRange(first, second);
+         await db.SaveChangesAsync();
+ 
+@@ -119,9 +119,9 @@ public sealed class PersistenceIntegrityTests
+ 
+         await using (var setup = CreateContext(databaseName))
+         {
+-            var organization = new Organization("Org");
+-            var employee = new Employee("employee", "Employee", organization.Id);
+-            var position = new Position("Position");
++            var organization = new Organization("ORG-Org", "Org");
++            var employee = new Employee("EMP-employee", "employee", "Employee", organization.Id);
++            var position = new Position("POS-Position", "Position");
+             setup.Organizations.Add(organization);
+             setup.Employees.Add(employee);
+             setup.Positions.Add(position);
