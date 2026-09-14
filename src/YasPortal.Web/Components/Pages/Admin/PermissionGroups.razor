@@ -33,7 +33,8 @@
                                 <h2 class="section-title">@(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
                                 <p class="muted">نام گروه برای مدیران واضح باشد.</p>
                             </div>
-                        </div><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200"
+                        </div><label class="form-label">کد گروه</label><input class="form-control" @bind="_code" maxlength="50"
+                                                                               placeholder="مثلاً GRP-006" /><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200"
                                                                                placeholder="مثلاً اپراتور درخواست" /><label class="form-label">توضیح</label><textarea
                         class="form-control" @bind="_description" maxlength="500" rows="4"></textarea>
                         <div class="form-actions"><button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i>
@@ -70,7 +71,7 @@
                                  @onclick="() => SelectGroup(group.Id)">
                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
                                     class="bx bx-layer"></i></span><span
-                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
+                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong><span class="badge badge-muted">@group.Code</span>@if(!string.IsNullOrWhiteSpace(group.Description)){
                                     <span>@group.Description</span>
                                 }
                             </span>
@@ -160,7 +161,7 @@ else
 @code {
     private List<AdminQueryService.PermissionGroupPageRow> _groups = []; private List<AdminQueryService.PermissionPageRow>
     _permissions = []; private Guid? _editingId, _selectedGroupId; private string
-    _name = "", _description = "", _groupSearch = "", _permissionSearch = ""; private int
+    _name = "", _description = "", _groupSearch = "", _permissionSearch = "", _code = ""; private int
     _groupPage = 1, _groupPageSize = 20, _groupTotal, _permissionTotal; private bool
     _groupLoading, _permissionLoading, _saving, _onlySelected; private HashSet<Guid> _selectedPermissionIds = []; private
 string
@@ -229,23 +230,33 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
     }
     private void EditGroup(AdminQueryService.PermissionGroupPageRow
     x)
-    { _editingId = x.Id; _name = x.Name; _description = x.Description ?? ""; }
+    { _editingId = x.Id; _code = x.Code; _name = x.Name; _description = x.Description ?? ""; }
     private void
     CancelEdit()
-    { _editingId = null; _name = _description = ""; }
+    { _editingId = null; _code = _name = _description = ""; }
     private async Task SaveGroup()
     {
+        var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
+        {
+            AppState.AddToast("کد گروه الزامی است.", ToastLevel.Error); return;
+        }
         var name = _name.Trim(); if (string.IsNullOrWhiteSpace(name))
         {
             AppState.AddToast("نام گروه الزامی است.",
 ToastLevel.Error); return;
         }
-        await using var db = await DbFactory.CreateDbContextAsync(); if (await
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.PermissionGroups.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("گروهی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
+        if (await
     db.PermissionGroups.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("این نام گروه قبلاً استفاده شده است.", ToastLevel.Error); return; }
-        if (_editingId is Guid id) (await
-    db.PermissionGroups.SingleAsync(x => x.Id == id)).Rename(name, _description);
+        if (_editingId is Guid id)
+        {
+            var existing = await db.PermissionGroups.SingleAsync(x => x.Id == id);
+            existing.ChangeCode(code);
+            existing.Rename(name, _description);
+        }
         else db.PermissionGroups.Add(new
-    PermissionGroup(name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
+    PermissionGroup(code, name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
     }
     private async Task DeleteGroup(Guid id)
     {

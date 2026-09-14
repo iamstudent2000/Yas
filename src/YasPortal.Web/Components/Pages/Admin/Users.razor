@@ -47,6 +47,7 @@
             <div class="admin-two-col">
                 <section class="card">
                     <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
+                    <label class="form-label">کد کارمند</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً EMP-006" />
                     <label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256"
                                                                        disabled="@(_editingId is not null)" />
                     <label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName"
@@ -88,6 +89,7 @@
                                 <table class="data-table data-table-bordered-rows">
                                     <thead>
                                         <tr>
+                                            <SortableHeader Text="کد" Column="code" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                             <SortableHeader Text="کاربر" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                             <SortableHeader Text="نوع" Column="type" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                             <SortableHeader Text="سازمان" Column="organization" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
@@ -100,6 +102,7 @@
                                         @foreach (var x in _employees)
                                         {
                                             <tr @key="x.Id">
+                                                <td><span class="badge badge-muted">@x.Code</span></td>
                                                 <td><strong>@x.FullName</strong><small class="muted-line">@x.Username</small></td>
                                                 <td><span class="badge @(x.IsAdmin ? "badge-success" : "badge-muted")">@(x.IsAdmin ? "مدیر سامانه" : "کارمند")</span></td>
                                                 <td>@x.OrganizationName</td>
@@ -172,7 +175,7 @@
 @code {
     private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId, _organizationId;
-    private string _username = "", _fullName = "", _password = "", _organizationName = "", _search = "";
+    private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "", _search = "";
     private bool _isAdmin, _loading;
     private int _page = 1, _pageSize = 20, _totalCount, _activeCount, _adminCount;
     private string? _sortBy; private bool _sortDesc;
@@ -214,7 +217,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
     private void BeginEdit(AdminQueryService.EmployeePageRow
 x)
     {
-        _editingId = x.Id; _username = x.Username; _fullName = x.FullName; _organizationId = null; _organizationName =
+        _editingId = x.Id; _code = x.Code; _username = x.Username; _fullName = x.FullName; _organizationId = null; _organizationName =
 x.OrganizationName ?? ""; _isAdmin = x.IsAdmin; _password = ""; _
 = LoadOrganizationIdAsync(x.Id);
     }
@@ -232,19 +235,22 @@ InvokeAsync(StateHasChanged);
     private void
 CancelEdit()
     {
-        _editingId = null; _username = _fullName = _password = _organizationName = ""; _organizationId = null; _isAdmin =
+        _editingId = null; _code = _username = _fullName = _password = _organizationName = ""; _organizationId = null; _isAdmin =
 false;
     }
     private async Task
 SaveEmployee()
     {
-        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId is
-null) { AppState.AddToast("نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error); return; }
+        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId is
+null) { AppState.AddToast("کد، نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error); return; }
+        var code = _code.Trim();
         await using var db = await
-DbFactory.CreateDbContextAsync(); Employee employee; var wasAdmin = false; if (_editingId is Guid id)
+DbFactory.CreateDbContextAsync();
+        if (await db.Employees.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("کارمندی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
+        Employee employee; var wasAdmin = false; if (_editingId is Guid id)
         {
             employee = await
-db.Employees.SingleAsync(x => x.Id == id); wasAdmin = employee.IsAdmin; employee.SetFullName(_fullName);
+db.Employees.SingleAsync(x => x.Id == id); wasAdmin = employee.IsAdmin; employee.ChangeCode(code); employee.SetFullName(_fullName);
             employee.ChangeOrganization(_organizationId.Value); employee.SetAdmin(_isAdmin); if
             (!string.IsNullOrWhiteSpace(_password)) employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password)); if
             (!wasAdmin && _isAdmin)
@@ -265,7 +271,7 @@ username = _username.Trim(); if (await db.Employees.AnyAsync(x => x.Username == 
                 return;
             }
             employee = new
-Employee(username, _fullName, _organizationId.Value, _isAdmin);
+Employee(code, username, _fullName, _organizationId.Value, _isAdmin);
             employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password)); db.Employees.Add(employee);
         }
         await

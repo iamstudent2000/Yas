@@ -117,8 +117,8 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var rows = await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) }).ToListAsync(ct);
-        return rows.Select(x => new PermissionGroupPageRow(x.Id, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
+        var rows = await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) }).ToListAsync(ct);
+        return rows.Select(x => new PermissionGroupPageRow(x.Id, x.Code, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
     }
 
     public async Task<IReadOnlyList<EmployeeAssignmentRow>> GetAllEmployeesForAssignmentAsync(CancellationToken ct = default)
@@ -140,10 +140,12 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         pageSize = Size(pageSize);
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q));
+        var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q));
         var total = await query.CountAsync(ct);
         query = (sortBy, sortDesc) switch
         {
+            ("code", false) => query.OrderBy(x => x.Code),
+            ("code", true) => query.OrderByDescending(x => x.Code),
             ("type", false) => query.OrderBy(x => x.IsAdmin).ThenBy(x => x.FullName),
             ("type", true) => query.OrderByDescending(x => x.IsAdmin).ThenBy(x => x.FullName),
             ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.FullName),
@@ -153,7 +155,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             ("name", true) => query.OrderByDescending(x => x.FullName),
             _ => query.OrderBy(x => x.FullName),
         };
-        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
+        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Code, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
         var employeeIds = rows.Select(x => x.Id).ToArray();
         var assignments = await db.EmployeePositions.AsNoTracking().Where(x => employeeIds.Contains(x.EmployeeId) && x.EndedAt == null).OrderBy(x => x.Position.Name).Select(x => new { x.EmployeeId, x.PositionId, x.Position.Name }).ToListAsync(ct);
         var positionsByEmployee = assignments.GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.Select(x => new ActivePositionRow(x.PositionId, x.Name)).ToList() as IReadOnlyList<ActivePositionRow>);
@@ -166,10 +168,12 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         pageSize = Size(pageSize);
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q));
+        var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q));
         var total = await query.CountAsync(ct);
         var ordered = (sortBy, sortDesc) switch
         {
+            ("code", false) => query.OrderBy(x => x.Code),
+            ("code", true) => query.OrderByDescending(x => x.Code),
             ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.Name),
             ("status", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Name),
             ("employees", false) => query.OrderBy(x => x.Employees.Count).ThenBy(x => x.Name),
@@ -177,7 +181,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             ("name", true) => query.OrderByDescending(x => x.Name),
             _ => query.OrderBy(x => x.Name),
         };
-        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
+        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Code, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
         return new(items, total, page, pageSize);
     }
     public async Task<PageResult<PermissionPageRow>> GetPermissionsAsync(int page, int pageSize, string? search, string? usage, CancellationToken ct = default)
@@ -204,19 +208,19 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         pageSize = Size(pageSize);
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.PermissionGroups.AsNoTracking().Select(x => new { x.Id, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) });
+        var query = db.PermissionGroups.AsNoTracking().Select(x => new { x.Id, x.Code, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) });
         if (q != "")
-            query = query.Where(x => x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q)));
+            query = query.Where(x => x.Name.Contains(q) || x.Code.Contains(q) || (x.Description != null && x.Description.Contains(q)));
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        var items = rows.Select(x => new PermissionGroupPageRow(x.Id, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
+        var items = rows.Select(x => new PermissionGroupPageRow(x.Id, x.Code, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
         return new(items, total, page, pageSize);
     }
     private static int Page(int page) => Math.Max(1, page); private static int Size(int size) => Math.Clamp(size, 5, 100); private static string Normalize(string? value) => (value ?? "").Trim();
     public sealed record ActivePositionRow(Guid Id, string Name);
-    public sealed record EmployeePageRow(Guid Id, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
+    public sealed record EmployeePageRow(Guid Id, string Code, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
     public sealed record EmployeeAssignmentRow(Guid Id, string Username, string FullName, Guid OrganizationId, string? OrganizationName, bool IsActive);
-    public sealed record OrganizationPageRow(Guid Id, string Name, bool IsActive, int EmployeeCount);
+    public sealed record OrganizationPageRow(Guid Id, string Code, string Name, bool IsActive, int EmployeeCount);
     public sealed record PermissionPageRow(Guid Id, string Code, string Name, int DirectAssignmentCount, int GroupMembershipCount);
-    public sealed record PermissionGroupPageRow(Guid Id, string Name, string? Description, int PermissionCount, int AssignmentCount);
+    public sealed record PermissionGroupPageRow(Guid Id, string Code, string Name, string? Description, int PermissionCount, int AssignmentCount);
 }

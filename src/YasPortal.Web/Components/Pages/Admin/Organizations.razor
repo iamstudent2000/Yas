@@ -38,7 +38,8 @@
     <div class="admin-two-col">
         <section class="card">
             <h2 class="section-title"><i class="bx bx-plus-circle"></i> @(_editingId is null ? "ایجاد سازمان جدید" :
-                                 "ویرایش سازمان")</h2><label class="form-label">نام سازمان</label><input class="form-control"
+                                 "ویرایش سازمان")</h2><label class="form-label">کد سازمان</label><input class="form-control"
+                                                                                        @bind="_code" maxlength="50" placeholder="مثلاً ORG-004" /><label class="form-label">نام سازمان</label><input class="form-control"
                                                                                         @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" />
                 <div class="form-actions"><button class="btn btn-primary" @onclick="SaveOrganization"><i
 class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>@if(_editingId
@@ -76,6 +77,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                             <table class="data-table data-table-bordered-rows">
                                 <thead>
                                     <tr>
+                                        <SortableHeader Text="کد" Column="code" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
                                         <SortableHeader Text="سازمان" Column="name" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
                                         <SortableHeader Text="کارکنان" Column="employees" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
                                         <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
@@ -84,6 +86,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                                 </thead>
                                 <tbody>@foreach(var organization in _organizations){
                                     <tr>
+                                        <td><span class="badge badge-muted">@organization.Code</span></td>
                                         <td><strong>@organization.Name</strong></td>
                                         <td>@organization.EmployeeCount نفر</td>
                                         <td><span
@@ -193,7 +196,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
 @code {
     private List<AdminQueryService.OrganizationPageRow> _organizations = [];
     private Guid? _editingId;
-    private string _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
+    private string _code = string.Empty, _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
     private int
 _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOrganizationCount;
     private string? _orgSortBy; private bool _orgSortDesc;
@@ -290,23 +293,30 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         _organizationPageSize = size; _organizationPage = 1; await
 LoadOrganizationsAsync();
     }
-    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _name = x.Name; }
-    private void CancelEdit() { _editingId = null; _name = string.Empty; }
+    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _code = x.Code; _name = x.Name; }
+    private void CancelEdit() { _editingId = null; _code = string.Empty; _name = string.Empty; }
     private async Task SaveOrganization()
     {
+        var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
+        {
+            AppState.AddToast("کد سازمان الزامی است.", ToastLevel.Error); return;
+        }
         var name = _name.Trim(); if (string.IsNullOrWhiteSpace(name))
         {
             AppState.AddToast("نام سازمان الزامی است.",
 ToastLevel.Error); return;
         }
-        await using var db = await DbFactory.CreateDbContextAsync(); if (await
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Organizations.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("سازمانی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
+        if (await
 db.Organizations.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("سازمانی با این نام قبلاً ثبت شده است.", ToastLevel.Error); return; }
         if (_editingId is Guid id)
         {
-            (await
-db.Organizations.SingleAsync(x => x.Id == id)).Rename(name); AppState.AddToast("سازمان ویرایش شد.", ToastLevel.Success);
+            var existing = await db.Organizations.SingleAsync(x => x.Id == id);
+            existing.ChangeCode(code);
+            existing.Rename(name); AppState.AddToast("سازمان ویرایش شد.", ToastLevel.Success);
         }
-        else { db.Organizations.Add(new Organization(name)); AppState.AddToast("سازمان جدید ایجاد شد.", ToastLevel.Success); }
+        else { db.Organizations.Add(new Organization(code, name)); AppState.AddToast("سازمان جدید ایجاد شد.", ToastLevel.Success); }
         await db.SaveChangesAsync(); CancelEdit(); await LoadAsync();
     }
     private async Task ToggleOrganization(Guid id)

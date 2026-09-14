@@ -106,6 +106,8 @@
                                     <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i>
                                         @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
                                         <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
+                                        <label class="form-label">کد سمت</label>
+                                        <input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً POS-006" />
                                         <label class="form-label">نام سمت</label>
                                         <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
                                         <label class="form-label">سمت بالادست</label>
@@ -142,7 +144,7 @@
     private HashSet<Guid>? _visiblePositionIds;
     private int _treeMatchCount;
     private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId, _confirmingReassignPositionId;
-    private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
+    private string _code = "", _name = "", _parentPositionName = "", _employeeToAssignName = "";
     private string? _selectedPositionEmployeeName;
     private bool _loading, _savingAssignment, _treeInitialized;
 
@@ -188,6 +190,7 @@
             await using var db = await DbFactory.CreateDbContextAsync();
             _positions = await db.Positions.AsNoTracking().OrderBy(x => x.Name).Select(x => new PositionRow(
                 x.Id,
+                x.Code,
                 x.Name,
                 x.ParentPositionId,
                 db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep =>
@@ -249,6 +252,7 @@
     {
         _assigningPositionId = null;
         _editingId = null;
+        _code = "";
         _name = "";
         _parentPositionId = parentId;
         _parentPositionName = _positions.FirstOrDefault(x => x.Id == parentId)?.Name ?? "";
@@ -260,6 +264,7 @@
         _assigningPositionId = null;
         var p = _positions.Single(x => x.Id == id);
         _editingId = id;
+        _code = p.Code;
         _name = p.Name;
         _parentPositionId = p.ParentPositionId;
         _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" :
@@ -269,6 +274,7 @@
     private void CancelEdit()
     {
         _editingId = null;
+        _code = "";
         _name = "";
         _parentPositionId = null;
         _parentPositionName = "";
@@ -296,6 +302,13 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
 
     private async Task Save()
     {
+        var code = _code.Trim();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            AppState.AddToast("کد سمت الزامی است.", ToastLevel.Error);
+            return;
+        }
+
         var name = _name.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -316,6 +329,11 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         }
 
         await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Positions.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty)))
+        {
+            AppState.AddToast("سمتی با این کد قبلاً ثبت شده است.", ToastLevel.Error);
+            return;
+        }
         if (await db.Positions.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty)))
         {
             AppState.AddToast("سمتی با این نام قبلاً ثبت شده است.", ToastLevel.Error);
@@ -325,13 +343,14 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         if (_editingId is Guid eid)
         {
             var p = await db.Positions.SingleAsync(x => x.Id == eid);
+            p.ChangeCode(code);
             p.Rename(name);
             p.ChangeParent(_parentPositionId);
             AppState.AddToast("سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
         }
         else
         {
-            db.Positions.Add(new Position(name, _parentPositionId));
+            db.Positions.Add(new Position(code, name, _parentPositionId));
             AppState.AddToast("سمت جدید ایجاد شد.", ToastLevel.Success);
         }
 
@@ -564,7 +583,11 @@ x.PositionId == id))
         builder.AddAttribute(s++, "class", "tree-text");
         builder.OpenElement(s++, "strong");
         builder.AddAttribute(s++, "title", position.Name);
-        builder.AddContent(s++, position.Name);
+        builder.AddContent(s++, $"{position.Name} ");
+        builder.OpenElement(s++, "small");
+        builder.AddAttribute(s++, "class", "badge badge-muted");
+        builder.AddContent(s++, position.Code);
+        builder.CloseElement();
         builder.CloseElement();
         builder.OpenElement(s++, "small");
         builder.AddContent(s++, position.IsOccupied ? $"کارمند: {position.EmployeeName}" : "سمت آزاد");
@@ -676,7 +699,7 @@ action)
         builder.CloseElement();
     }
 
-    private sealed record PositionRow(Guid Id, string Name, Guid? ParentPositionId, string? EmployeeName)
+    private sealed record PositionRow(Guid Id, string Code, string Name, Guid? ParentPositionId, string? EmployeeName)
     {
         public bool IsOccupied => !string.IsNullOrWhiteSpace(EmployeeName);
     }

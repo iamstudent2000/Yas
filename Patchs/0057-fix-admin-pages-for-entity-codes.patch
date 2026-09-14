@@ -1,0 +1,437 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+index 40f46b7..eb0c2e8 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Organizations.razor
+@@ -38,7 +38,8 @@
+     <div class="admin-two-col">
+         <section class="card">
+             <h2 class="section-title"><i class="bx bx-plus-circle"></i> @(_editingId is null ? "ایجاد سازمان جدید" :
+-                                 "ویرایش سازمان")</h2><label class="form-label">نام سازمان</label><input class="form-control"
++                                 "ویرایش سازمان")</h2><label class="form-label">کد سازمان</label><input class="form-control"
++                                                                                        @bind="_code" maxlength="50" placeholder="مثلاً ORG-004" /><label class="form-label">نام سازمان</label><input class="form-control"
+                                                                                         @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" />
+                 <div class="form-actions"><button class="btn btn-primary" @onclick="SaveOrganization"><i
+ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>@if(_editingId
+@@ -76,6 +77,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                             <table class="data-table data-table-bordered-rows">
+                                 <thead>
+                                     <tr>
++                                        <SortableHeader Text="کد" Column="code" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+                                         <SortableHeader Text="سازمان" Column="name" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+                                         <SortableHeader Text="کارکنان" Column="employees" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+                                         <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_orgSortBy" CurrentDescending="@_orgSortDesc" OnSort="SortOrganizationsByAsync" />
+@@ -84,6 +86,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+                                 </thead>
+                                 <tbody>@foreach(var organization in _organizations){
+                                     <tr>
++                                        <td><span class="badge badge-muted">@organization.Code</span></td>
+                                         <td><strong>@organization.Name</strong></td>
+                                         <td>@organization.EmployeeCount نفر</td>
+                                         <td><span
+@@ -193,7 +196,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
+ @code {
+     private List<AdminQueryService.OrganizationPageRow> _organizations = [];
+     private Guid? _editingId;
+-    private string _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
++    private string _code = string.Empty, _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
+     private int
+ _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOrganizationCount;
+     private string? _orgSortBy; private bool _orgSortDesc;
+@@ -290,23 +293,30 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+         _organizationPageSize = size; _organizationPage = 1; await
+ LoadOrganizationsAsync();
+     }
+-    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _name = x.Name; }
+-    private void CancelEdit() { _editingId = null; _name = string.Empty; }
++    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _code = x.Code; _name = x.Name; }
++    private void CancelEdit() { _editingId = null; _code = string.Empty; _name = string.Empty; }
+     private async Task SaveOrganization()
+     {
++        var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
++        {
++            AppState.AddToast("کد سازمان الزامی است.", ToastLevel.Error); return;
++        }
+         var name = _name.Trim(); if (string.IsNullOrWhiteSpace(name))
+         {
+             AppState.AddToast("نام سازمان الزامی است.",
+ ToastLevel.Error); return;
+         }
+-        await using var db = await DbFactory.CreateDbContextAsync(); if (await
++        await using var db = await DbFactory.CreateDbContextAsync();
++        if (await db.Organizations.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("سازمانی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
++        if (await
+ db.Organizations.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("سازمانی با این نام قبلاً ثبت شده است.", ToastLevel.Error); return; }
+         if (_editingId is Guid id)
+         {
+-            (await
+-db.Organizations.SingleAsync(x => x.Id == id)).Rename(name); AppState.AddToast("سازمان ویرایش شد.", ToastLevel.Success);
++            var existing = await db.Organizations.SingleAsync(x => x.Id == id);
++            existing.ChangeCode(code);
++            existing.Rename(name); AppState.AddToast("سازمان ویرایش شد.", ToastLevel.Success);
+         }
+-        else { db.Organizations.Add(new Organization(name)); AppState.AddToast("سازمان جدید ایجاد شد.", ToastLevel.Success); }
++        else { db.Organizations.Add(new Organization(code, name)); AppState.AddToast("سازمان جدید ایجاد شد.", ToastLevel.Success); }
+         await db.SaveChangesAsync(); CancelEdit(); await LoadAsync();
+     }
+     private async Task ToggleOrganization(Guid id)
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+index 21211b9..8204ed6 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+@@ -33,7 +33,8 @@
+                                 <h2 class="section-title">@(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
+                                 <p class="muted">نام گروه برای مدیران واضح باشد.</p>
+                             </div>
+-                        </div><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200"
++                        </div><label class="form-label">کد گروه</label><input class="form-control" @bind="_code" maxlength="50"
++                                                                               placeholder="مثلاً GRP-006" /><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200"
+                                                                                placeholder="مثلاً اپراتور درخواست" /><label class="form-label">توضیح</label><textarea
+                         class="form-control" @bind="_description" maxlength="500" rows="4"></textarea>
+                         <div class="form-actions"><button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i>
+@@ -70,7 +71,7 @@
+                                  @onclick="() => SelectGroup(group.Id)">
+                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
+                                     class="bx bx-layer"></i></span><span
+-                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong>@if(!string.IsNullOrWhiteSpace(group.Description)){
++                                    class="admin-list-text"><strong title="@group.Name">@group.Name</strong><span class="badge badge-muted">@group.Code</span>@if(!string.IsNullOrWhiteSpace(group.Description)){
+                                     <span>@group.Description</span>
+                                 }
+                             </span>
+@@ -160,7 +161,7 @@ else
+ @code {
+     private List<AdminQueryService.PermissionGroupPageRow> _groups = []; private List<AdminQueryService.PermissionPageRow>
+     _permissions = []; private Guid? _editingId, _selectedGroupId; private string
+-    _name = "", _description = "", _groupSearch = "", _permissionSearch = ""; private int
++    _name = "", _description = "", _groupSearch = "", _permissionSearch = "", _code = ""; private int
+     _groupPage = 1, _groupPageSize = 20, _groupTotal, _permissionTotal; private bool
+     _groupLoading, _permissionLoading, _saving, _onlySelected; private HashSet<Guid> _selectedPermissionIds = []; private
+ string
+@@ -229,23 +230,33 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
+     }
+     private void EditGroup(AdminQueryService.PermissionGroupPageRow
+     x)
+-    { _editingId = x.Id; _name = x.Name; _description = x.Description ?? ""; }
++    { _editingId = x.Id; _code = x.Code; _name = x.Name; _description = x.Description ?? ""; }
+     private void
+     CancelEdit()
+-    { _editingId = null; _name = _description = ""; }
++    { _editingId = null; _code = _name = _description = ""; }
+     private async Task SaveGroup()
+     {
++        var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
++        {
++            AppState.AddToast("کد گروه الزامی است.", ToastLevel.Error); return;
++        }
+         var name = _name.Trim(); if (string.IsNullOrWhiteSpace(name))
+         {
+             AppState.AddToast("نام گروه الزامی است.",
+ ToastLevel.Error); return;
+         }
+-        await using var db = await DbFactory.CreateDbContextAsync(); if (await
++        await using var db = await DbFactory.CreateDbContextAsync();
++        if (await db.PermissionGroups.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("گروهی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
++        if (await
+     db.PermissionGroups.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("این نام گروه قبلاً استفاده شده است.", ToastLevel.Error); return; }
+-        if (_editingId is Guid id) (await
+-    db.PermissionGroups.SingleAsync(x => x.Id == id)).Rename(name, _description);
++        if (_editingId is Guid id)
++        {
++            var existing = await db.PermissionGroups.SingleAsync(x => x.Id == id);
++            existing.ChangeCode(code);
++            existing.Rename(name, _description);
++        }
+         else db.PermissionGroups.Add(new
+-    PermissionGroup(name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
++    PermissionGroup(code, name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
+     }
+     private async Task DeleteGroup(Guid id)
+     {
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+index ee2e4d9..365e163 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Positions.razor
+@@ -106,6 +106,8 @@
+                                     <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i>
+                                         @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
+                                         <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
++                                        <label class="form-label">کد سمت</label>
++                                        <input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً POS-006" />
+                                         <label class="form-label">نام سمت</label>
+                                         <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
+                                         <label class="form-label">سمت بالادست</label>
+@@ -142,7 +144,7 @@
+     private HashSet<Guid>? _visiblePositionIds;
+     private int _treeMatchCount;
+     private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId, _confirmingReassignPositionId;
+-    private string _name = "", _parentPositionName = "", _employeeToAssignName = "";
++    private string _code = "", _name = "", _parentPositionName = "", _employeeToAssignName = "";
+     private string? _selectedPositionEmployeeName;
+     private bool _loading, _savingAssignment, _treeInitialized;
+ 
+@@ -188,6 +190,7 @@
+             await using var db = await DbFactory.CreateDbContextAsync();
+             _positions = await db.Positions.AsNoTracking().OrderBy(x => x.Name).Select(x => new PositionRow(
+                 x.Id,
++                x.Code,
+                 x.Name,
+                 x.ParentPositionId,
+                 db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep =>
+@@ -249,6 +252,7 @@
+     {
+         _assigningPositionId = null;
+         _editingId = null;
++        _code = "";
+         _name = "";
+         _parentPositionId = parentId;
+         _parentPositionName = _positions.FirstOrDefault(x => x.Id == parentId)?.Name ?? "";
+@@ -260,6 +264,7 @@
+         _assigningPositionId = null;
+         var p = _positions.Single(x => x.Id == id);
+         _editingId = id;
++        _code = p.Code;
+         _name = p.Name;
+         _parentPositionId = p.ParentPositionId;
+         _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" :
+@@ -269,6 +274,7 @@
+     private void CancelEdit()
+     {
+         _editingId = null;
++        _code = "";
+         _name = "";
+         _parentPositionId = null;
+         _parentPositionName = "";
+@@ -296,6 +302,13 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+ 
+     private async Task Save()
+     {
++        var code = _code.Trim();
++        if (string.IsNullOrWhiteSpace(code))
++        {
++            AppState.AddToast("کد سمت الزامی است.", ToastLevel.Error);
++            return;
++        }
++
+         var name = _name.Trim();
+         if (string.IsNullOrWhiteSpace(name))
+         {
+@@ -316,6 +329,11 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+         }
+ 
+         await using var db = await DbFactory.CreateDbContextAsync();
++        if (await db.Positions.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty)))
++        {
++            AppState.AddToast("سمتی با این کد قبلاً ثبت شده است.", ToastLevel.Error);
++            return;
++        }
+         if (await db.Positions.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Empty)))
+         {
+             AppState.AddToast("سمتی با این نام قبلاً ثبت شده است.", ToastLevel.Error);
+@@ -325,13 +343,14 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
+         if (_editingId is Guid eid)
+         {
+             var p = await db.Positions.SingleAsync(x => x.Id == eid);
++            p.ChangeCode(code);
+             p.Rename(name);
+             p.ChangeParent(_parentPositionId);
+             AppState.AddToast("سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
+         }
+         else
+         {
+-            db.Positions.Add(new Position(name, _parentPositionId));
++            db.Positions.Add(new Position(code, name, _parentPositionId));
+             AppState.AddToast("سمت جدید ایجاد شد.", ToastLevel.Success);
+         }
+ 
+@@ -564,7 +583,11 @@ x.PositionId == id))
+         builder.AddAttribute(s++, "class", "tree-text");
+         builder.OpenElement(s++, "strong");
+         builder.AddAttribute(s++, "title", position.Name);
+-        builder.AddContent(s++, position.Name);
++        builder.AddContent(s++, $"{position.Name} ");
++        builder.OpenElement(s++, "small");
++        builder.AddAttribute(s++, "class", "badge badge-muted");
++        builder.AddContent(s++, position.Code);
++        builder.CloseElement();
+         builder.CloseElement();
+         builder.OpenElement(s++, "small");
+         builder.AddContent(s++, position.IsOccupied ? $"کارمند: {position.EmployeeName}" : "سمت آزاد");
+@@ -676,7 +699,7 @@ action)
+         builder.CloseElement();
+     }
+ 
+-    private sealed record PositionRow(Guid Id, string Name, Guid? ParentPositionId, string? EmployeeName)
++    private sealed record PositionRow(Guid Id, string Code, string Name, Guid? ParentPositionId, string? EmployeeName)
+     {
+         public bool IsOccupied => !string.IsNullOrWhiteSpace(EmployeeName);
+     }
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Users.razor b/src/YasPortal.Web/Components/Pages/Admin/Users.razor
+index 52eb297..76786e8 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Users.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Users.razor
+@@ -47,6 +47,7 @@
+             <div class="admin-two-col">
+                 <section class="card">
+                     <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
++                    <label class="form-label">کد کارمند</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً EMP-006" />
+                     <label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256"
+                                                                        disabled="@(_editingId is not null)" />
+                     <label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName"
+@@ -88,6 +89,7 @@
+                                 <table class="data-table data-table-bordered-rows">
+                                     <thead>
+                                         <tr>
++                                            <SortableHeader Text="کد" Column="code" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                             <SortableHeader Text="کاربر" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                             <SortableHeader Text="نوع" Column="type" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                             <SortableHeader Text="سازمان" Column="organization" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+@@ -100,6 +102,7 @@
+                                         @foreach (var x in _employees)
+                                         {
+                                             <tr @key="x.Id">
++                                                <td><span class="badge badge-muted">@x.Code</span></td>
+                                                 <td><strong>@x.FullName</strong><small class="muted-line">@x.Username</small></td>
+                                                 <td><span class="badge @(x.IsAdmin ? "badge-success" : "badge-muted")">@(x.IsAdmin ? "مدیر سامانه" : "کارمند")</span></td>
+                                                 <td>@x.OrganizationName</td>
+@@ -172,7 +175,7 @@
+ @code {
+     private List<AdminQueryService.EmployeePageRow> _employees = [];
+     private Guid? _editingId, _organizationId;
+-    private string _username = "", _fullName = "", _password = "", _organizationName = "", _search = "";
++    private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "", _search = "";
+     private bool _isAdmin, _loading;
+     private int _page = 1, _pageSize = 20, _totalCount, _activeCount, _adminCount;
+     private string? _sortBy; private bool _sortDesc;
+@@ -214,7 +217,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+     private void BeginEdit(AdminQueryService.EmployeePageRow
+ x)
+     {
+-        _editingId = x.Id; _username = x.Username; _fullName = x.FullName; _organizationId = null; _organizationName =
++        _editingId = x.Id; _code = x.Code; _username = x.Username; _fullName = x.FullName; _organizationId = null; _organizationName =
+ x.OrganizationName ?? ""; _isAdmin = x.IsAdmin; _password = ""; _
+ = LoadOrganizationIdAsync(x.Id);
+     }
+@@ -232,19 +235,22 @@ InvokeAsync(StateHasChanged);
+     private void
+ CancelEdit()
+     {
+-        _editingId = null; _username = _fullName = _password = _organizationName = ""; _organizationId = null; _isAdmin =
++        _editingId = null; _code = _username = _fullName = _password = _organizationName = ""; _organizationId = null; _isAdmin =
+ false;
+     }
+     private async Task
+ SaveEmployee()
+     {
+-        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId is
+-null) { AppState.AddToast("نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error); return; }
++        if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId is
++null) { AppState.AddToast("کد، نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error); return; }
++        var code = _code.Trim();
+         await using var db = await
+-DbFactory.CreateDbContextAsync(); Employee employee; var wasAdmin = false; if (_editingId is Guid id)
++DbFactory.CreateDbContextAsync();
++        if (await db.Employees.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("کارمندی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
++        Employee employee; var wasAdmin = false; if (_editingId is Guid id)
+         {
+             employee = await
+-db.Employees.SingleAsync(x => x.Id == id); wasAdmin = employee.IsAdmin; employee.SetFullName(_fullName);
++db.Employees.SingleAsync(x => x.Id == id); wasAdmin = employee.IsAdmin; employee.ChangeCode(code); employee.SetFullName(_fullName);
+             employee.ChangeOrganization(_organizationId.Value); employee.SetAdmin(_isAdmin); if
+             (!string.IsNullOrWhiteSpace(_password)) employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password)); if
+             (!wasAdmin && _isAdmin)
+@@ -265,7 +271,7 @@ username = _username.Trim(); if (await db.Employees.AnyAsync(x => x.Username ==
+                 return;
+             }
+             employee = new
+-Employee(username, _fullName, _organizationId.Value, _isAdmin);
++Employee(code, username, _fullName, _organizationId.Value, _isAdmin);
+             employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password)); db.Employees.Add(employee);
+         }
+         await
+diff --git a/src/YasPortal.Web/Services/AdminQueryService.cs b/src/YasPortal.Web/Services/AdminQueryService.cs
+index d365e32..7b36272 100644
+--- a/src/YasPortal.Web/Services/AdminQueryService.cs
++++ b/src/YasPortal.Web/Services/AdminQueryService.cs
+@@ -117,8 +117,8 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+     {
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        var rows = await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) }).ToListAsync(ct);
+-        return rows.Select(x => new PermissionGroupPageRow(x.Id, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
++        var rows = await db.PermissionGroups.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q) || (x.Description != null && x.Description.Contains(q))).OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) }).ToListAsync(ct);
++        return rows.Select(x => new PermissionGroupPageRow(x.Id, x.Code, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
+     }
+ 
+     public async Task<IReadOnlyList<EmployeeAssignmentRow>> GetAllEmployeesForAssignmentAsync(CancellationToken ct = default)
+@@ -140,10 +140,12 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         pageSize = Size(pageSize);
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q));
++        var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q));
+         var total = await query.CountAsync(ct);
+         query = (sortBy, sortDesc) switch
+         {
++            ("code", false) => query.OrderBy(x => x.Code),
++            ("code", true) => query.OrderByDescending(x => x.Code),
+             ("type", false) => query.OrderBy(x => x.IsAdmin).ThenBy(x => x.FullName),
+             ("type", true) => query.OrderByDescending(x => x.IsAdmin).ThenBy(x => x.FullName),
+             ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.FullName),
+@@ -153,7 +155,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+             ("name", true) => query.OrderByDescending(x => x.FullName),
+             _ => query.OrderBy(x => x.FullName),
+         };
+-        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
++        var rows = await query.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new EmployeePageRow(x.Id, x.Code, x.Username, x.FullName, db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault(), x.IsActive, x.IsAdmin)).ToListAsync(ct);
+         var employeeIds = rows.Select(x => x.Id).ToArray();
+         var assignments = await db.EmployeePositions.AsNoTracking().Where(x => employeeIds.Contains(x.EmployeeId) && x.EndedAt == null).OrderBy(x => x.Position.Name).Select(x => new { x.EmployeeId, x.PositionId, x.Position.Name }).ToListAsync(ct);
+         var positionsByEmployee = assignments.GroupBy(x => x.EmployeeId).ToDictionary(g => g.Key, g => g.Select(x => new ActivePositionRow(x.PositionId, x.Name)).ToList() as IReadOnlyList<ActivePositionRow>);
+@@ -166,10 +168,12 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         pageSize = Size(pageSize);
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q));
++        var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q));
+         var total = await query.CountAsync(ct);
+         var ordered = (sortBy, sortDesc) switch
+         {
++            ("code", false) => query.OrderBy(x => x.Code),
++            ("code", true) => query.OrderByDescending(x => x.Code),
+             ("status", false) => query.OrderBy(x => x.IsActive).ThenBy(x => x.Name),
+             ("status", true) => query.OrderByDescending(x => x.IsActive).ThenBy(x => x.Name),
+             ("employees", false) => query.OrderBy(x => x.Employees.Count).ThenBy(x => x.Name),
+@@ -177,7 +181,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+             ("name", true) => query.OrderByDescending(x => x.Name),
+             _ => query.OrderBy(x => x.Name),
+         };
+-        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
++        var items = await ordered.Skip((page - 1) * pageSize).Take(pageSize).Select(x => new OrganizationPageRow(x.Id, x.Code, x.Name, x.IsActive, x.Employees.Count)).ToListAsync(ct);
+         return new(items, total, page, pageSize);
+     }
+     public async Task<PageResult<PermissionPageRow>> GetPermissionsAsync(int page, int pageSize, string? search, string? usage, CancellationToken ct = default)
+@@ -204,19 +208,19 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
+         pageSize = Size(pageSize);
+         var q = Normalize(search);
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+-        var query = db.PermissionGroups.AsNoTracking().Select(x => new { x.Id, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) });
++        var query = db.PermissionGroups.AsNoTracking().Select(x => new { x.Id, x.Code, x.Name, x.Description, PermissionCount = db.PermissionGroupPermissions.Count(g => g.GroupId == x.Id), AssignmentCount = db.UserPositionPermissionGroups.Count(a => a.GroupId == x.Id) + db.EmployeePermissionGroups.Count(a => a.GroupId == x.Id) });
+         if (q != "")
+-            query = query.Where(x => x.Name.Contains(q) || (x.Description != null && x.Description.Contains(q)));
++            query = query.Where(x => x.Name.Contains(q) || x.Code.Contains(q) || (x.Description != null && x.Description.Contains(q)));
+         var total = await query.CountAsync(ct);
+         var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+-        var items = rows.Select(x => new PermissionGroupPageRow(x.Id, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
++        var items = rows.Select(x => new PermissionGroupPageRow(x.Id, x.Code, x.Name, x.Description, x.PermissionCount, x.AssignmentCount)).ToList();
+         return new(items, total, page, pageSize);
+     }
+     private static int Page(int page) => Math.Max(1, page); private static int Size(int size) => Math.Clamp(size, 5, 100); private static string Normalize(string? value) => (value ?? "").Trim();
+     public sealed record ActivePositionRow(Guid Id, string Name);
+-    public sealed record EmployeePageRow(Guid Id, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
++    public sealed record EmployeePageRow(Guid Id, string Code, string Username, string FullName, string? OrganizationName, bool IsActive, bool IsAdmin, IReadOnlyList<ActivePositionRow>? ActivePositions = null);
+     public sealed record EmployeeAssignmentRow(Guid Id, string Username, string FullName, Guid OrganizationId, string? OrganizationName, bool IsActive);
+-    public sealed record OrganizationPageRow(Guid Id, string Name, bool IsActive, int EmployeeCount);
++    public sealed record OrganizationPageRow(Guid Id, string Code, string Name, bool IsActive, int EmployeeCount);
+     public sealed record PermissionPageRow(Guid Id, string Code, string Name, int DirectAssignmentCount, int GroupMembershipCount);
+-    public sealed record PermissionGroupPageRow(Guid Id, string Name, string? Description, int PermissionCount, int AssignmentCount);
++    public sealed record PermissionGroupPageRow(Guid Id, string Code, string Name, string? Description, int PermissionCount, int AssignmentCount);
+ }
+\ No newline at end of file
