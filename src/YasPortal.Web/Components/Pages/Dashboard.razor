@@ -30,11 +30,22 @@
                     <h2>@name</h2>
                     <p class="dash-hero-role">@(isAdmin ? "شما به‌عنوان مدیر سامانه وارد شده‌اید." : "خوش آمدید؛ در ادامه وضعیت حساب شما آمده است.")</p>
                 </div>
-                <div class="dash-hero-position">
-                    <span>سمت فعال</span>
-                    <strong>@(activePosition ?? "انتخاب نشده")</strong>
-                    <a href="/my-positions">تغییر سمت <i class="bx bx-left-arrow-alt"></i></a>
-                </div>
+                @if (isAdmin)
+                {
+                    <div class="dash-hero-position">
+                        <span>سطح دسترسی</span>
+                        <strong>مدیریت سامانه</strong>
+                        <a href="/admin/organizations">مدیریت سازمان‌ها <i class="bx bx-left-arrow-alt"></i></a>
+                    </div>
+                }
+                else
+                {
+                    <div class="dash-hero-position">
+                        <span>سمت فعال</span>
+                        <strong>@(activePosition ?? "انتخاب نشده")</strong>
+                        <a href="/my-positions">تغییر سمت <i class="bx bx-left-arrow-alt"></i></a>
+                    </div>
+                }
             </section>
 
             <div class="dash-columns">
@@ -47,10 +58,13 @@
                         <i class="bx bx-shield-check"></i>
                         <div><span>سطح دسترسی</span><strong>@(isAdmin ? "مدیریت سامانه" : "کاربر سامانه")</strong></div>
                     </div>
-                    <div class="dash-fact">
-                        <i class="bx bx-id-card"></i>
-                        <div><span>سمت فعال</span><strong>@(activePosition ?? "انتخاب نشده")</strong></div>
-                    </div>
+                    @if (!isAdmin)
+                    {
+                        <div class="dash-fact">
+                            <i class="bx bx-id-card"></i>
+                            <div><span>سمت فعال</span><strong>@(activePosition ?? "انتخاب نشده")</strong></div>
+                        </div>
+                    }
                 </section>
 
                 <section class="dash-links">
@@ -60,11 +74,14 @@
                         <span class="dash-link-text"><strong>پروفایل من</strong><small>مشاهده اطلاعات حساب و سازمان</small></span>
                         <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
                     </a>
-                    <a class="dash-link" href="/my-positions">
-                        <span class="dash-link-icon"><i class="bx bx-id-card"></i></span>
-                        <span class="dash-link-text"><strong>سمت‌های من</strong><small>انتخاب سمت فعال</small></span>
-                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
-                    </a>
+                    @if (!isAdmin)
+                    {
+                        <a class="dash-link" href="/my-positions">
+                            <span class="dash-link-icon"><i class="bx bx-id-card"></i></span>
+                            <span class="dash-link-text"><strong>سمت‌های من</strong><small>انتخاب سمت فعال</small></span>
+                            <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                        </a>
+                    }
                     @if (isAdmin)
                     {
                         <a class="dash-link" href="/admin/organizations">

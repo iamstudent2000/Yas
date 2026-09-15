@@ -46,6 +46,11 @@
         box-shadow: 0 4px 12px rgba(21, 94, 239, .18);
     }
 
+    .sidebar-brand .brand-mark svg {
+        width: 22px;
+        height: 22px;
+    }
+
     .sidebar-brand .brand-text {
         font-size: 18px;
         font-weight: 800;
@@ -90,8 +95,9 @@
         cursor: pointer;
     }
 
-    .sidebar-floating-brand i {
-        font-size: 21px;
+    .sidebar-floating-brand svg {
+        width: 22px;
+        height: 22px;
     }
 
     :global(.shell-main:has(.sidebar-floating-brand)) .topbar {
@@ -195,13 +201,17 @@
        @onchange="OnSidebarToggleChanged" />
 @if (_stateLoaded && _isMinimal)
 {
-    <button type="button" class="sidebar-floating-brand" title="نمایش منو" aria-label="نمایش منو" @onclick="ShowSidebar"><i
-        class="bx bx-layer"></i></button>
+    <button type="button" class="sidebar-floating-brand" title="نمایش منو" aria-label="نمایش منو" @onclick="ShowSidebar"><svg
+        viewBox="0 0 100 100" aria-hidden="true">
+        <use href="#jasmine-bloom-outline" />
+    </svg></button>
     }
 
     <aside class="sidebar @(_isMinimal ? "sidebar-hidden" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
         <label class="sidebar-brand" for="sidebar-minimal-toggle" title="مخفی کردن منو" aria-label="مخفی کردن منو">
-            <span class="brand-mark"><i class="bx bx-layer"></i></span><span class="brand-text">یاس پورتال</span>
+            <span class="brand-mark"><svg viewBox="0 0 100 100" aria-hidden="true">
+                    <use href="#jasmine-bloom-outline" />
+                </svg></span><span class="brand-text">یاس پورتال</span>
         </label>
         <nav class="sidebar-nav">
             <div class="sidebar-group">
@@ -216,7 +226,14 @@
                             <AuthorizeView Policy="Profile.View">
                                 <NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink>
                             </AuthorizeView>
-                            <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
+                            <AuthorizeView Context="myPositionsAuth">
+                                <Authorized>
+                                    @if (!myPositionsAuth.User.HasClaim("yas_is_admin", "True"))
+                                    {
+                                        <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
+                                    }
+                                </Authorized>
+                            </AuthorizeView>
                         </div>
                     </div>
                     <div class="sidebar-group">
