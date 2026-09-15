@@ -10,44 +10,63 @@
 
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1 class="page-title">پروفایل من</h1>
-        <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
+<div class="profile-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">پروفایل من</h1>
+            <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
+        </div>
+        <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
     </div>
-    <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
-</div>
 
-<div class="stat-grid">
-    <div class="stat-card">
-        <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">نام و نام خانوادگی</span><strong
-        class="stat-value">@FullName</strong>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="bx bx-at"></i></div><span class="stat-label">نام کاربری</span><strong
-        class="stat-value">@Username</strong>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">سازمان</span><strong
-        class="stat-value">@OrganizationName</strong>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="bx bx-shield"></i></div><span class="stat-label">نوع حساب</span><strong
-        class="stat-value">@AccountType</strong>
-    </div>
-</div>
-
-<section class="card">
-    <h2 class="section-title">وضعیت سازمان</h2>
-    <div class="profile-status"><span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")"><i
-        class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i> سازمان
-        @OrganizationStatus</span><span>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود.</span></div>
+    <section class="profile-identity">
+        <div class="profile-avatar" aria-hidden="true">@GetInitial(FullName)</div>
+        <div class="profile-identity-text">
+            <h2>@FullName</h2>
+            <div class="profile-identity-chips">
+                <span class="profile-chip" dir="ltr">@EmployeeCode</span>
+                <span class="profile-chip" dir="ltr">@@@Username</span>
+                <span class="badge @(AccountType == "مدیر سیستم" ? "badge-primary" : "badge-muted")">
+                    <i class="bx bx-shield"></i> @AccountType
+                </span>
+            </div>
+        </div>
+        <svg class="profile-identity-bloom" viewBox="0 0 100 100" aria-hidden="true">
+            <use href="#jasmine-bloom-outline" />
+        </svg>
     </section>
+
+    <div class="profile-columns">
+        <section class="profile-card">
+            <h2 class="section-title">اطلاعات حساب</h2>
+            <dl class="profile-facts">
+                <div class="profile-fact"><dt><i class="bx bx-id-card"></i> کد کارمند</dt><dd dir="ltr">@EmployeeCode</dd></div>
+                <div class="profile-fact"><dt><i class="bx bx-at"></i> نام کاربری</dt><dd dir="ltr">@Username</dd></div>
+                <div class="profile-fact"><dt><i class="bx bx-buildings"></i> سازمان</dt><dd>@OrganizationName</dd></div>
+                <div class="profile-fact"><dt><i class="bx bx-shield"></i> نوع حساب</dt><dd>@AccountType</dd></div>
+            </dl>
+        </section>
+
+        <section class="profile-card profile-org-card">
+            <h2 class="section-title">وضعیت سازمان</h2>
+            <div class="profile-org-status">
+                <span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")">
+                    <i class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i>
+                    سازمان @OrganizationStatus
+                </span>
+            </div>
+            <p>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود؛ برای تغییر سمت فعال به صفحه سمت‌های من مراجعه
+                کنید.</p>
+            <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="bx bx-left-arrow-alt"></i></a>
+        </section>
+    </div>
+</div>
 
 @code {
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
     private string Username { get; set; } = "کاربر";
     private string FullName { get; set; } = "کاربر";
+    private string EmployeeCode { get; set; } = "—";
     private string OrganizationName { get; set; } = "ثبت نشده";
     private string OrganizationStatus { get; set; } = "نامشخص";
     private string AccountType { get; set; } = "کاربر عادی";
@@ -63,7 +82,10 @@
 employeeId);
         if (employee is null) return;
         FullName = employee.FullName;
+        EmployeeCode = employee.Code;
         OrganizationName = employee.Organization.Name;
         OrganizationStatus = employee.Organization.IsActive ? "فعال" : "غیرفعال";
     }
+
+    private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "ک" : value.Trim()[0].ToString();
 }

@@ -12,57 +12,71 @@
 
 <PageTitle>سمت‌های من - یاس پورتال</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1 class="page-title">سمت‌های من</h1>
-        <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
-    </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
-</div>
+<div class="positions-page">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">سمت‌های من</h1>
+            <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
+        </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
+    </div>
 
-@if (_positions is null)
-{
-    <section class="card">
-        <p>در حال بارگذاری سمت‌ها...</p>
-    </section>
-}
-else if (_positions.Count == 0)
-{
-    <section class="card">
-        <div class="empty-state">
-            <div class="empty-icon"><i class="bx bx-id-card"></i></div><strong>هیچ سمت فعالی ثبت نشده است</strong><span>برای
-            این حساب هنوز سمت فعالی تعریف نشده است.</span>
-        </div>
-    </section>
-}
-else
-{
-    <div class="position-grid">
-        @foreach (var position in _positions)
-        {
-            <article class="position-card @(position.Id == _activePositionId ? "selected" : "")">
-                <div class="position-icon"><i class="bx bx-briefcase-alt-2"></i></div>
-                <div class="position-content">
-                    <h2>@position.Name</h2>@if (position.Id == _activePositionId){
-                    <span class="badge badge-success"><i
-                        class="bx bx-check-circle"></i> سمت فعال فعلی</span>
-                    }else
-                    {
-
-                        <span class="badge badge-muted">سمت
-                            دیگر</span>
-                        }
-                    </div>
-                    @if (position.Id != _activePositionId)
-                    {
-                        <form method="post" action="/account/position">
-                            <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" /><button
-                            class="btn btn-primary" type="submit"><i class="bx bx-check"></i> انتخاب سمت</button>
-                        </form>
-                    }
-                </article>
-            }
-        </div>
+    @if (_positions is null)
+    {
+        <section class="card">
+            <p>در حال بارگذاری سمت‌ها...</p>
+        </section>
     }
+    else if (_positions.Count == 0)
+    {
+        <section class="card">
+            <div class="empty-state">
+                <div class="empty-icon"><i class="bx bx-id-card"></i></div><strong>هیچ سمت فعالی ثبت نشده است</strong><span>برای
+                این حساب هنوز سمت فعالی تعریف نشده است.</span>
+            </div>
+        </section>
+    }
+    else
+    {
+        var active = _positions.FirstOrDefault(x => x.Id == _activePositionId);
+        var others = _positions.Where(x => x.Id != _activePositionId).ToList();
+
+        @if (active is not null)
+        {
+            <section class="position-active">
+                <svg class="position-active-bloom" viewBox="0 0 100 100" aria-hidden="true">
+                    <use href="#jasmine-bloom-outline" />
+                </svg>
+                <div class="position-active-icon"><i class="bx bx-briefcase-alt-2"></i></div>
+                <div class="position-active-text">
+                    <span>سمت فعال فعلی</span>
+                    <h2>@active.Name</h2>
+                </div>
+                <span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>
+            </section>
+        }
+
+        @if (others.Count > 0)
+        {
+            <section class="position-others">
+                <h2 class="section-title">@(active is null ? "سمت‌های شما" : "سایر سمت‌های شما")</h2>
+                <div class="position-list">
+                    @foreach (var position in others)
+                    {
+                        <div class="position-row">
+                            <span class="position-row-icon"><i class="bx bx-briefcase"></i></span>
+                            <span class="position-row-name">@position.Name</span>
+                            <form method="post" action="/account/position">
+                                <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" />
+                                <button class="btn btn-secondary" type="submit"><i class="bx bx-transfer-alt"></i> انتخاب
+                                    به‌عنوان سمت فعال</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
 
 @code {
     private List<PositionItem>? _positions;

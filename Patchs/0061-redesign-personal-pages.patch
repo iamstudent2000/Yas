@@ -1,0 +1,1384 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index bd874cb..395039a 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -15,7 +15,8 @@
+         why. Summary: base must load first (defines the app shell and the
+         generic defaults admin styles override), then shared components and
+         notifications, then the admin design system (core -> tables/lists ->
+-        permission chips -> positions), and rtl-utilities always loads last.
++        permission chips -> positions), then personal-pages (dashboard/profile/
++        my-positions), and rtl-utilities always loads last.
+     -->
+     <link rel="stylesheet" href="css/base.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/components.css?v=20260912-1" />
+@@ -24,6 +25,7 @@
+     <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-3" />
+     <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/positions.css?v=20260912-1" />
++    <link rel="stylesheet" href="css/personal-pages.css?v=20260915-1" />
+     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
+     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
+diff --git a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+index d270e1c..860b616 100644
+--- a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
++++ b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+@@ -1,6 +1,19 @@
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using Microsoft.AspNetCore.Components.Forms
+ 
++<svg width="0" height="0" style="position:absolute" aria-hidden="true">
++    <symbol id="jasmine-bloom-outline" viewBox="0 0 100 100">
++        <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
++            <ellipse cx="50" cy="23" rx="11" ry="23" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(72 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(144 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(216 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(288 50 50)" />
++            <circle cx="50" cy="50" r="6.5" />
++        </g>
++    </symbol>
++</svg>
++
+ <div class="application-shell" dir="rtl">
+     <div class="application-body">
+         <AuthorizeView>
+diff --git a/src/YasPortal.Web/Components/Pages/Dashboard.razor b/src/YasPortal.Web/Components/Pages/Dashboard.razor
+index ec98fdd..8d1e9a7 100644
+--- a/src/YasPortal.Web/Components/Pages/Dashboard.razor
++++ b/src/YasPortal.Web/Components/Pages/Dashboard.razor
+@@ -7,50 +7,84 @@
+ 
+ <AuthorizeView Context="auth">
+     <Authorized>
+-        <div class="page-header">
+-            <div>
+-                <h1 class="page-title">داشبورد</h1>
+-                <p class="page-subtitle">@((auth.User.HasClaim("yas_is_admin", "True")) ? "مدیریت و نظارت بر سامانه" :
+-                                        $"خوش آمدید، {auth.User.Identity?.Name}")</p>
++        @{
++            var isAdmin = auth.User.HasClaim("yas_is_admin", "True");
++            var name = auth.User.Identity?.Name ?? "کاربر";
++            var activePosition = auth.User.FindFirst("yas_active_position_name")?.Value;
++        }
++        <div class="dashboard-page">
++            <div class="page-header">
++                <div>
++                    <h1 class="page-title">داشبورد</h1>
++                    <p class="page-subtitle">@(isAdmin ? "مدیریت و نظارت بر سامانه" : "نمای کلی حساب و دسترسی‌های شما")</p>
+                 </div>
+                 <span class="badge badge-success"><i class="bx bx-check-circle"></i> حساب فعال</span>
+             </div>
+ 
+-            <div class="stat-grid">
+-                <div class="stat-card">
+-                    <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">حساب
+-                    کاربری</span><strong class="stat-value">@auth.User.Identity?.Name</strong>
++            <section class="dash-hero">
++                <svg class="dash-hero-bloom" viewBox="0 0 100 100" aria-hidden="true">
++                    <use href="#jasmine-bloom-outline" />
++                </svg>
++                <div class="dash-hero-text">
++                    <p class="dash-hero-greeting">@GetGreeting()،</p>
++                    <h2>@name</h2>
++                    <p class="dash-hero-role">@(isAdmin ? "شما به‌عنوان مدیر سامانه وارد شده‌اید." : "خوش آمدید؛ در ادامه وضعیت حساب شما آمده است.")</p>
+                 </div>
+-                <div class="stat-card">
+-                    <div class="stat-icon"><i class="bx bx-id-card"></i></div><span class="stat-label">سمت
+-                    فعال</span><strong class="stat-value">@(auth.User.FindFirst("yas_active_position_name")?.Value ??
+-                                       "انتخاب نشده")</strong>
++                <div class="dash-hero-position">
++                    <span>سمت فعال</span>
++                    <strong>@(activePosition ?? "انتخاب نشده")</strong>
++                    <a href="/my-positions">تغییر سمت <i class="bx bx-left-arrow-alt"></i></a>
+                 </div>
+-                <div class="stat-card">
+-                    <div class="stat-icon"><i class="bx bx-shield-check"></i></div><span class="stat-label">سطح
+-                    دسترسی</span><strong class="stat-value">@(auth.User.HasClaim("yas_is_admin", "True") ? "مدیریت سامانه" : "کاربر سامانه")</strong>
+-                </div>
+-            </div>
++            </section>
++
++            <div class="dash-columns">
++                <section class="dash-facts">
++                    <div class="dash-fact">
++                        <i class="bx bx-user"></i>
++                        <div><span>حساب کاربری</span><strong>@name</strong></div>
++                    </div>
++                    <div class="dash-fact">
++                        <i class="bx bx-shield-check"></i>
++                        <div><span>سطح دسترسی</span><strong>@(isAdmin ? "مدیریت سامانه" : "کاربر سامانه")</strong></div>
++                    </div>
++                    <div class="dash-fact">
++                        <i class="bx bx-id-card"></i>
++                        <div><span>سمت فعال</span><strong>@(activePosition ?? "انتخاب نشده")</strong></div>
++                    </div>
++                </section>
+ 
+-            <section class="card">
+-                <h2 class="section-title">دسترسی سریع</h2>
+-                <div class="stat-grid">
+-                    <a class="stat-card" href="/my-profile">
+-                        <div class="stat-icon"><i class="bx bx-user-circle"></i></div><strong>پروفایل من</strong><span
+-                        class="stat-label">مشاهده اطلاعات حساب و سازمان</span>
++                <section class="dash-links">
++                    <h2 class="section-title">دسترسی سریع</h2>
++                    <a class="dash-link" href="/my-profile">
++                        <span class="dash-link-icon"><i class="bx bx-user-circle"></i></span>
++                        <span class="dash-link-text"><strong>پروفایل من</strong><small>مشاهده اطلاعات حساب و سازمان</small></span>
++                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                     </a>
+-                    <a class="stat-card" href="/my-positions">
+-                        <div class="stat-icon"><i class="bx bx-id-card"></i></div><strong>سمت‌های من</strong><span
+-                        class="stat-label">انتخاب سمت فعال</span>
++                    <a class="dash-link" href="/my-positions">
++                        <span class="dash-link-icon"><i class="bx bx-id-card"></i></span>
++                        <span class="dash-link-text"><strong>سمت‌های من</strong><small>انتخاب سمت فعال</small></span>
++                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                     </a>
+-                    @if (auth.User.HasClaim("yas_is_admin", "True"))
++                    @if (isAdmin)
+                     {
+-                        <a class="stat-card" href="/admin/organizations">
+-                            <div class="stat-icon"><i class="bx bx-buildings"></i></div><strong>سازمان‌ها</strong><span
+-                            class="stat-label">مدیریت ساختار سازمانی</span>
++                        <a class="dash-link" href="/admin/organizations">
++                            <span class="dash-link-icon"><i class="bx bx-buildings"></i></span>
++                            <span class="dash-link-text"><strong>سازمان‌ها</strong><small>مدیریت ساختار سازمانی</small></span>
++                            <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                         </a>
+                     }
+-                </div>
+-            </section>
+-        </Authorized>
+-    </AuthorizeView>
++                </section>
++            </div>
++        </div>
++    </Authorized>
++</AuthorizeView>
++
++@code {
++    private static string GetGreeting() => DateTime.Now.Hour switch
++    {
++        >= 5 and < 12 => "صبح بخیر",
++        >= 12 and < 17 => "ظهر بخیر",
++        >= 17 and < 20 => "عصر بخیر",
++        _ => "شب بخیر",
++    };
++}
+diff --git a/src/YasPortal.Web/Components/Pages/Login.razor b/src/YasPortal.Web/Components/Pages/Login.razor
+index b7e652e..f434c71 100644
+--- a/src/YasPortal.Web/Components/Pages/Login.razor
++++ b/src/YasPortal.Web/Components/Pages/Login.razor
+@@ -4,404 +4,510 @@
+ 
+ <PageTitle>ورود | یاس پورتال</PageTitle>
+ 
+-<div class="login-shell" dir="rtl">
+-    <div class="login-decoration login-decoration-one"></div>
+-    <div class="login-decoration login-decoration-two"></div>
++<svg width="0" height="0" style="position:absolute" aria-hidden="true">
++    <symbol id="jasmine-bloom" viewBox="0 0 100 100">
++        <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
++            <ellipse cx="50" cy="23" rx="11" ry="23" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(72 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(144 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(216 50 50)" />
++            <ellipse cx="50" cy="23" rx="11" ry="23" transform="rotate(288 50 50)" />
++            <circle cx="50" cy="50" r="6.5" />
++        </g>
++    </symbol>
++</svg>
+ 
+-    <main class="login-card" aria-labelledby="login-title">
+-        <section class="login-brand">
+-            <div class="brand-mark" aria-hidden="true">
+-                <i class="bx bx-layer"></i>
+-            </div>
+-            <div>
+-                <div class="brand-name">یاس پورتال</div>
+-                <div class="brand-caption">سامانه یکپارچه سازمانی</div>
++<div class="login-shell" dir="rtl">
++    <main class="login-frame" aria-labelledby="login-title">
++        <section class="login-brandpanel" aria-hidden="true">
++            <svg class="bloom bloom-a" viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
++            <svg class="bloom bloom-b" viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
++            <svg class="bloom bloom-c" viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
++
++            <div class="login-brandpanel-body">
++                <div class="brandpanel-mark">
++                    <svg viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
++                </div>
++                <div class="brandpanel-text">
++                    <div class="brandpanel-name">یاس پورتال</div>
++                    <p>سامانه یکپارچه مدیریت سازمان، سمت‌ها و دسترسی‌های کارکنان — در یک بستر واحد.</p>
++                </div>
++                <ul class="brandpanel-points">
++                    <li><i class="bx bx-sitemap"></i> ساختار سازمانی شفاف و قابل پیگیری</li>
++                    <li><i class="bx bx-id-card"></i> سمت‌ها و مجوزهای هر کارمند، دقیق و به‌روز</li>
++                    <li><i class="bx bx-history"></i> رویدادهای سامانه، همیشه در دسترس</li>
++                </ul>
+             </div>
+         </section>
+ 
+-        <div class="login-heading">
+-            <h1 id="login-title">خوش آمدید</h1>
+-            <p>برای ورود به حساب کاربری خود اطلاعات زیر را وارد کنید.</p>
+-        </div>
+-
+-        @if (NoPositionError)
+-        {
+-            <div class="login-alert login-alert-warning" role="alert">
+-                <i class="bx bx-sitemap" aria-hidden="true"></i>
+-                <div>
+-                    <strong>سمت فعالی برای حساب شما ثبت نشده است.</strong>
+-                    <span>برای ورود، ابتدا باید حداقل یک سمت فعال به شما تخصیص داده شود. لطفاً با مدیر سامانه تماس
+-                        بگیرید.</span>
+-                    </div>
+-                </div>
+-            }
+-        else if (Error)
+-            {
+-                <div class="login-alert" role="alert">
+-                    <i class="bx bx-error-circle" aria-hidden="true"></i>
+-                    <span>نام کاربری یا رمز عبور صحیح نیست.</span>
++        <section class="login-formpanel">
++            <div class="login-formpanel-inner">
++                <div class="login-heading">
++                    <h1 id="login-title">خوش آمدید</h1>
++                    <p>برای ورود به حساب کاربری خود، اطلاعات زیر را وارد کنید.</p>
+                 </div>
+-            }
+ 
+-            <form class="login-form" method="post" action="/account/login">
+-                <AntiforgeryToken />
+-
+-                <div class="field">
+-                    <label for="username">نام کاربری</label>
+-                    <div class="input-wrap">
+-                        <i class="bx bx-user" aria-hidden="true"></i>
+-                        <input id="username" name="username" autocomplete="username"
+-                               placeholder="نام کاربری خود را وارد کنید" required />
++                @if (NoPositionError)
++                {
++                    <div class="login-alert login-alert-warning" role="alert">
++                        <i class="bx bx-sitemap" aria-hidden="true"></i>
++                        <div>
++                            <strong>سمت فعالی برای حساب شما ثبت نشده است.</strong>
++                            <span>برای ورود، ابتدا باید حداقل یک سمت فعال به شما تخصیص داده شود. لطفاً با مدیر سامانه
++                                تماس بگیرید.</span>
++                        </div>
++                    </div>
++                }
++                else if (Error)
++                {
++                    <div class="login-alert" role="alert">
++                        <i class="bx bx-error-circle" aria-hidden="true"></i>
++                        <span>نام کاربری یا رمز عبور صحیح نیست.</span>
++                    </div>
++                }
++
++                <form class="login-form" method="post" action="/account/login">
++                    <AntiforgeryToken />
++
++                    <div class="field">
++                        <label for="username">نام کاربری</label>
++                        <div class="input-wrap">
++                            <i class="bx bx-user" aria-hidden="true"></i>
++                            <input id="username" name="username" autocomplete="username"
++                                   placeholder="نام کاربری خود را وارد کنید" required />
++                        </div>
+                     </div>
+-                </div>
+ 
+-                <div class="field">
+-                    <label for="password">رمز عبور</label>
+-                    <div class="input-wrap">
+-                        <i class="bx bx-lock-alt" aria-hidden="true"></i>
+-                        <input id="password" name="password" type="password" autocomplete="current-password"
+-                               placeholder="رمز عبور خود را وارد کنید" required />
++                    <div class="field">
++                        <label for="password">رمز عبور</label>
++                        <div class="input-wrap">
++                            <i class="bx bx-lock-alt" aria-hidden="true"></i>
++                            <input id="password" name="password" type="password" autocomplete="current-password"
++                                   placeholder="رمز عبور خود را وارد کنید" required />
++                        </div>
+                     </div>
+-                </div>
+ 
+-                <button class="login-button" type="submit">
+-                    <span>ورود به سامانه</span>
+-                    <i class="bx bx-left-arrow-alt" aria-hidden="true"></i>
+-                </button>
+-            </form>
++                    <button class="login-button" type="submit">
++                        <span>ورود به سامانه</span>
++                        <i class="bx bx-left-arrow-alt" aria-hidden="true"></i>
++                    </button>
++                </form>
+ 
+-            <div class="login-footer">
+-                <i class="bx bx-shield-quarter" aria-hidden="true"></i>
+-                <span>ورود امن به سامانه یاس پورتال</span>
+-            </div>
+-
+-            <details class="development-accounts">
+-                <summary>
+-                    <i class="bx bx-code-alt" aria-hidden="true"></i>
+-                    <span>حساب‌های توسعه</span>
+-                    <i class="bx bx-chevron-down summary-chevron" aria-hidden="true"></i>
+-                </summary>
+-                <div class="account-list">
+-                    <div class="account-row">
+-                        <span>مدیر سامانه</span>
+-                        <code>admin / Admin123!</code>
+-                    </div>
+-                    <div class="account-row">
+-                        <span>کارمند</span>
+-                        <code>employee / Employee123!</code>
+-                    </div>
++                <div class="login-footer">
++                    <i class="bx bx-shield-quarter" aria-hidden="true"></i>
++                    <span>ورود امن به سامانه یاس پورتال</span>
+                 </div>
+-            </details>
+-        </main>
+-    </div>
+ 
+-    <style>
++                <details class="development-accounts">
++                    <summary>
++                        <i class="bx bx-code-alt" aria-hidden="true"></i>
++                        <span>حساب‌های توسعه</span>
++                        <i class="bx bx-chevron-down summary-chevron" aria-hidden="true"></i>
++                    </summary>
++                    <div class="account-list">
++                        <div class="account-row">
++                            <span>مدیر سامانه</span>
++                            <code>admin / Admin123!</code>
++                        </div>
++                        <div class="account-row">
++                            <span>کارمند</span>
++                            <code>employee / Employee123!</code>
++                        </div>
++                    </div>
++                </details>
++            </div>
++        </section>
++    </main>
++</div>
++
++<style>
++    .login-shell {
++        min-height: 100vh;
++        min-height: 100dvh;
++        display: grid;
++        place-items: center;
++        padding: 28px;
++        background: #eef1f7;
++        color: #172033;
++        font-family: inherit;
++        box-sizing: border-box
++    }
++
++    .login-shell * {
++        box-sizing: border-box
++    }
++
++    .login-frame {
++        width: min(100%, 940px);
++        display: grid;
++        grid-template-columns: 1fr 1.05fr;
++        border-radius: 24px;
++        overflow: hidden;
++        background: #fff;
++        box-shadow: 0 30px 70px rgba(19, 39, 122, .16);
++    }
++
++    /* ---- Brand panel ---- */
++    .login-brandpanel {
++        position: relative;
++        overflow: hidden;
++        background: linear-gradient(160deg, #13277a 0%, #1d4ed8 62%, #2f6f4f 130%);
++        color: #fff;
++        padding: 44px 38px;
++        display: flex;
++        align-items: flex-end;
++        min-height: 460px
++    }
++
++    .bloom {
++        position: absolute;
++        color: rgba(255, 255, 255, .16);
++        pointer-events: none
++    }
++
++    .bloom-a {
++        width: 260px;
++        height: 260px;
++        top: -70px;
++        left: -60px
++    }
++
++    .bloom-b {
++        width: 150px;
++        height: 150px;
++        bottom: 40px;
++        left: 60%;
++        color: rgba(255, 255, 255, .10);
++        transform: rotate(28deg)
++    }
++
++    .bloom-c {
++        width: 110px;
++        height: 110px;
++        top: 30%;
++        right: -30px;
++        color: rgba(255, 255, 255, .12);
++        transform: rotate(-18deg)
++    }
++
++    .login-brandpanel-body {
++        position: relative;
++        z-index: 1;
++        display: grid;
++        gap: 18px
++    }
++
++    .brandpanel-mark {
++        width: 46px;
++        height: 46px;
++        color: #fff
++    }
++
++    .brandpanel-name {
++        font-size: 22px;
++        font-weight: 800;
++        letter-spacing: -.01em
++    }
++
++    .brandpanel-text p {
++        margin: 8px 0 0;
++        max-width: 34ch;
++        color: rgba(255, 255, 255, .82);
++        font-size: 13px;
++        line-height: 1.9
++    }
++
++    .brandpanel-points {
++        margin: 6px 0 0;
++        padding: 0;
++        list-style: none;
++        display: grid;
++        gap: 10px;
++        border-top: 1px solid rgba(255, 255, 255, .18);
++        padding-top: 18px
++    }
++
++    .brandpanel-points li {
++        display: flex;
++        align-items: center;
++        gap: 9px;
++        font-size: 12.5px;
++        color: rgba(255, 255, 255, .9)
++    }
++
++    .brandpanel-points i {
++        font-size: 17px;
++        color: rgba(255, 255, 255, .75)
++    }
++
++    /* ---- Form panel ---- */
++    .login-formpanel {
++        display: flex;
++        align-items: center;
++        padding: 40px
++    }
++
++    .login-formpanel-inner {
++        width: 100%;
++        max-width: 340px;
++        margin: 0 auto
++    }
++
++    .login-heading {
++        margin-bottom: 22px
++    }
++
++    .login-heading h1 {
++        margin: 0;
++        font-size: 25px;
++        line-height: 1.5;
++        font-weight: 800;
++        color: #162033
++    }
++
++    .login-heading p {
++        margin: 6px 0 0;
++        color: #68758a;
++        font-size: 13px;
++        line-height: 1.8
++    }
++
++    .login-alert {
++        display: flex;
++        align-items: center;
++        gap: 8px;
++        margin-bottom: 18px;
++        padding: 10px 12px;
++        border: 1px solid #fecaca;
++        border-radius: 10px;
++        background: #fff5f5;
++        color: #b42318;
++        font-size: 12px;
++        line-height: 1.7
++    }
++
++    .login-alert-warning {
++        align-items: flex-start;
++        border-color: #fed7aa;
++        background: #fff8ed;
++        color: #9a3412
++    }
++
++    .login-alert-warning i {
++        margin-top: 2px
++    }
++
++    .login-alert-warning div {
++        display: grid;
++        gap: 2px
++    }
++
++    .login-alert-warning strong {
++        font-weight: 800
++    }
++
++    .login-alert-warning span {
++        color: #9a5a22
++    }
++
++    .login-alert i {
++        font-size: 18px;
++        flex: 0 0 auto
++    }
++
++    .login-form {
++        display: grid;
++        gap: 16px
++    }
++
++    .field {
++        display: grid;
++        gap: 7px
++    }
++
++    .field label {
++        color: #344054;
++        font-size: 13px;
++        font-weight: 700
++    }
++
++    .input-wrap {
++        position: relative
++    }
++
++    .input-wrap>i {
++        position: absolute;
++        top: 50%;
++        right: 13px;
++        transform: translateY(-50%);
++        color: #8995a8;
++        font-size: 19px;
++        pointer-events: none
++    }
++
++    .input-wrap input {
++        width: 100%;
++        height: 46px;
++        padding: 0 42px 0 13px;
++        border: 1px solid #d9e0ea;
++        border-radius: 11px;
++        outline: none;
++        background: #fff;
++        color: #172033;
++        font: inherit;
++        font-size: 13px;
++        transition: border-color .15s ease, box-shadow .15s ease
++    }
++
++    .input-wrap input::placeholder {
++        color: #a0aaba
++    }
++
++    .input-wrap input:focus {
++        border-color: #1d4ed8;
++        box-shadow: 0 0 0 3px rgba(29, 78, 216, .10)
++    }
++
++    .login-button {
++        width: 100%;
++        height: 46px;
++        margin-top: 4px;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        gap: 7px;
++        border: 0;
++        border-radius: 11px;
++        background: #1d4ed8;
++        color: #fff;
++        cursor: pointer;
++        font: inherit;
++        font-size: 13px;
++        font-weight: 800;
++        transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
++        box-shadow: 0 8px 18px rgba(29, 78, 216, .22)
++    }
++
++    .login-button:hover {
++        background: #1739ad;
++        transform: translateY(-1px);
++        box-shadow: 0 10px 22px rgba(29, 78, 216, .26)
++    }
++
++    .login-button:active {
++        transform: translateY(0)
++    }
++
++    .login-button i {
++        font-size: 19px
++    }
++
++    .login-footer {
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        gap: 6px;
++        margin-top: 20px;
++        color: #8490a3;
++        font-size: 11px
++    }
++
++    .login-footer i {
++        font-size: 16px
++    }
++
++    .development-accounts {
++        margin-top: 20px;
++        border-top: 1px solid #edf0f5;
++        padding-top: 14px;
++        color: #64748b;
++        font-size: 11px
++    }
++
++    .development-accounts summary {
++        display: flex;
++        align-items: center;
++        gap: 7px;
++        cursor: pointer;
++        list-style: none;
++        user-select: none
++    }
++
++    .development-accounts summary::-webkit-details-marker {
++        display: none
++    }
++
++    .development-accounts summary>i:first-child {
++        color: #1d4ed8;
++        font-size: 16px
++    }
++
++    .summary-chevron {
++        margin-right: auto;
++        transition: transform .15s ease;
++        font-size: 16px
++    }
++
++    .development-accounts[open] .summary-chevron {
++        transform: rotate(180deg)
++    }
++
++    .account-list {
++        display: grid;
++        gap: 7px;
++        margin-top: 10px
++    }
++
++    .account-row {
++        display: flex;
++        align-items: center;
++        justify-content: space-between;
++        gap: 10px;
++        padding: 8px 10px;
++        border-radius: 8px;
++        background: #f7f9fc
++    }
++
++    .account-row code {
++        direction: ltr;
++        color: #475467;
++        font-family: Consolas, monospace;
++        font-size: 10px
++    }
++
++    @@media(max-width:860px) {
+         .login-shell {
+-            min-height: 100vh;
+-            min-height: 100dvh;
+-            display: grid;
+-            place-items: center;
+-            position: relative;
+-            overflow: hidden;
+-            padding: 32px 20px;
+-            background: #f4f7fb;
+-            color: #172033;
+-            font-family: inherit;
+-            box-sizing: border-box
+-        }
+-
+-        .login-shell * {
+-            box-sizing: border-box
+-        }
+-
+-        .login-decoration {
+-            position: absolute;
+-            border-radius: 999px;
+-            pointer-events: none;
+-            opacity: .65
+-        }
+-
+-        .login-decoration-one {
+-            width: 430px;
+-            height: 430px;
+-            top: -220px;
+-            right: -130px;
+-            background: #dfe9ff
+-        }
+-
+-        .login-decoration-two {
+-            width: 330px;
+-            height: 330px;
+-            bottom: -180px;
+-            left: -120px;
+-            background: #e5f7f3
+-        }
+-
+-        .login-card {
+-            width: min(100%, 430px);
+-            position: relative;
+-            z-index: 1;
+-            padding: 32px;
+-            border: 1px solid #e3e8f1;
+-            border-radius: 22px;
+-            background: rgba(255, 255, 255, .97);
+-            box-shadow: 0 22px 55px rgba(31, 49, 79, .12)
+-        }
+-
+-        .login-brand {
+-            display: flex;
+-            align-items: center;
+-            gap: 12px;
+-            margin-bottom: 28px
+-        }
+-
+-        .brand-mark {
+-            width: 44px;
+-            height: 44px;
+-            display: grid;
+-            place-items: center;
+-            flex: 0 0 44px;
+-            border-radius: 13px;
+-            background: #2563eb;
+-            color: #fff;
+-            font-size: 23px;
+-            box-shadow: 0 8px 18px rgba(37, 99, 235, .22)
+-        }
+-
+-        .brand-name {
+-            font-size: 18px;
+-            font-weight: 800;
+-            line-height: 1.4
+-        }
+-
+-        .brand-caption {
+-            margin-top: 2px;
+-            color: #718096;
+-            font-size: 12px
+-        }
+-
+-        .login-heading {
+-            margin-bottom: 22px
+-        }
+-
+-        .login-heading h1 {
+-            margin: 0;
+-            font-size: 24px;
+-            line-height: 1.5;
+-            font-weight: 800;
+-            color: #162033
+-        }
+-
+-        .login-heading p {
+-            margin: 6px 0 0;
+-            color: #68758a;
+-            font-size: 13px;
+-            line-height: 1.8
+-        }
+-
+-        .login-alert {
+-            display: flex;
+-            align-items: center;
+-            gap: 8px;
+-            margin-bottom: 18px;
+-            padding: 10px 12px;
+-            border: 1px solid #fecaca;
+-            border-radius: 10px;
+-            background: #fff5f5;
+-            color: #b42318;
+-            font-size: 12px;
+-            line-height: 1.7
+-        }
+-
+-        .login-alert-warning {
+-            align-items: flex-start;
+-            border-color: #fed7aa;
+-            background: #fff8ed;
+-            color: #9a3412
++            padding: 0
+         }
+ 
+-        .login-alert-warning i {
+-            margin-top: 2px
+-        }
+-
+-        .login-alert-warning div {
+-            display: grid;
+-            gap: 2px
+-        }
+-
+-        .login-alert-warning strong {
+-            font-weight: 800
+-        }
+-
+-        .login-alert-warning span {
+-            color: #9a5a22
+-        }
+-
+-        .login-alert i {
+-            font-size: 18px;
+-            flex: 0 0 auto
+-        }
+-
+-        .login-form {
+-            display: grid;
+-            gap: 16px
+-        }
+-
+-        .field {
+-            display: grid;
+-            gap: 7px
+-        }
+-
+-        .field label {
+-            color: #344054;
+-            font-size: 13px;
+-            font-weight: 700
+-        }
+-
+-        .input-wrap {
+-            position: relative
+-        }
+-
+-        .input-wrap>i {
+-            position: absolute;
+-            top: 50%;
+-            right: 13px;
+-            transform: translateY(-50%);
+-            color: #8995a8;
+-            font-size: 19px;
+-            pointer-events: none
+-        }
+-
+-        .input-wrap input {
+-            width: 100%;
+-            height: 46px;
+-            padding: 0 42px 0 13px;
+-            border: 1px solid #d9e0ea;
+-            border-radius: 11px;
+-            outline: none;
+-            background: #fff;
+-            color: #172033;
+-            font: inherit;
+-            font-size: 13px;
+-            transition: border-color .15s ease, box-shadow .15s ease
+-        }
+-
+-        .input-wrap input::placeholder {
+-            color: #a0aaba
+-        }
+-
+-        .input-wrap input:focus {
+-            border-color: #2563eb;
+-            box-shadow: 0 0 0 3px rgba(37, 99, 235, .10)
+-        }
+-
+-        .login-button {
+-            width: 100%;
+-            height: 46px;
+-            margin-top: 4px;
+-            display: flex;
+-            align-items: center;
+-            justify-content: center;
+-            gap: 7px;
+-            border: 0;
+-            border-radius: 11px;
+-            background: #2563eb;
+-            color: #fff;
+-            cursor: pointer;
+-            font: inherit;
+-            font-size: 13px;
+-            font-weight: 800;
+-            transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+-            box-shadow: 0 8px 18px rgba(37, 99, 235, .20)
+-        }
+-
+-        .login-button:hover {
+-            background: #1d4ed8;
+-            transform: translateY(-1px);
+-            box-shadow: 0 10px 22px rgba(37, 99, 235, .24)
+-        }
+-
+-        .login-button:active {
+-            transform: translateY(0)
+-        }
+-
+-        .login-button i {
+-            font-size: 19px
+-        }
+-
+-        .login-footer {
+-            display: flex;
+-            align-items: center;
+-            justify-content: center;
+-            gap: 6px;
+-            margin-top: 20px;
+-            color: #8490a3;
+-            font-size: 11px
+-        }
+-
+-        .login-footer i {
+-            font-size: 16px
+-        }
+-
+-        .development-accounts {
+-            margin-top: 20px;
+-            border-top: 1px solid #edf0f5;
+-            padding-top: 14px;
+-            color: #64748b;
+-            font-size: 11px
++        .login-frame {
++            grid-template-columns: 1fr;
++            border-radius: 0;
++            min-height: 100dvh;
++            box-shadow: none
+         }
+ 
+-        .development-accounts summary {
+-            display: flex;
+-            align-items: center;
+-            gap: 7px;
+-            cursor: pointer;
+-            list-style: none;
+-            user-select: none
++        .login-brandpanel {
++            min-height: 0;
++            padding: 30px 24px 26px;
++            align-items: flex-start
+         }
+ 
+-        .development-accounts summary::-webkit-details-marker {
++        .brandpanel-points {
+             display: none
+         }
+ 
+-        .development-accounts summary>i:first-child {
+-            color: #2563eb;
+-            font-size: 16px
+-        }
+-
+-        .summary-chevron {
+-            margin-right: auto;
+-            transition: transform .15s ease;
+-            font-size: 16px
+-        }
+-
+-        .development-accounts[open] .summary-chevron {
+-            transform: rotate(180deg)
+-        }
+-
+-        .account-list {
+-            display: grid;
+-            gap: 7px;
+-            margin-top: 10px
++        .login-formpanel {
++            padding: 30px 22px
+         }
++    }
+ 
+-        .account-row {
+-            display: flex;
+-            align-items: center;
+-            justify-content: space-between;
+-            gap: 10px;
+-            padding: 8px 10px;
+-            border-radius: 8px;
+-            background: #f7f9fc
+-        }
+-
+-        .account-row code {
+-            direction: ltr;
+-            color: #475467;
+-            font-family: Consolas, monospace;
+-            font-size: 10px
++    @@media(max-width:400px) {
++        .login-heading h1 {
++            font-size: 22px
+         }
+-    </style>
++    }
++</style>
+ 
+ @code {
+     [SupplyParameterFromQuery(Name = "error")]
+diff --git a/src/YasPortal.Web/Components/Pages/MyPositions.razor b/src/YasPortal.Web/Components/Pages/MyPositions.razor
+index d4400bc..d3ecf7f 100644
+--- a/src/YasPortal.Web/Components/Pages/MyPositions.razor
++++ b/src/YasPortal.Web/Components/Pages/MyPositions.razor
+@@ -12,57 +12,71 @@
+ 
+ <PageTitle>سمت‌های من - یاس پورتال</PageTitle>
+ 
+-<div class="page-header">
+-    <div>
+-        <h1 class="page-title">سمت‌های من</h1>
+-        <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
+-    </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
+-</div>
++<div class="positions-page">
++    <div class="page-header">
++        <div>
++            <h1 class="page-title">سمت‌های من</h1>
++            <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
++        </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
++    </div>
+ 
+-@if (_positions is null)
+-{
+-    <section class="card">
+-        <p>در حال بارگذاری سمت‌ها...</p>
+-    </section>
+-}
+-else if (_positions.Count == 0)
+-{
+-    <section class="card">
+-        <div class="empty-state">
+-            <div class="empty-icon"><i class="bx bx-id-card"></i></div><strong>هیچ سمت فعالی ثبت نشده است</strong><span>برای
+-            این حساب هنوز سمت فعالی تعریف نشده است.</span>
+-        </div>
+-    </section>
+-}
+-else
+-{
+-    <div class="position-grid">
+-        @foreach (var position in _positions)
++    @if (_positions is null)
++    {
++        <section class="card">
++            <p>در حال بارگذاری سمت‌ها...</p>
++        </section>
++    }
++    else if (_positions.Count == 0)
++    {
++        <section class="card">
++            <div class="empty-state">
++                <div class="empty-icon"><i class="bx bx-id-card"></i></div><strong>هیچ سمت فعالی ثبت نشده است</strong><span>برای
++                این حساب هنوز سمت فعالی تعریف نشده است.</span>
++            </div>
++        </section>
++    }
++    else
++    {
++        var active = _positions.FirstOrDefault(x => x.Id == _activePositionId);
++        var others = _positions.Where(x => x.Id != _activePositionId).ToList();
++
++        @if (active is not null)
+         {
+-            <article class="position-card @(position.Id == _activePositionId ? "selected" : "")">
+-                <div class="position-icon"><i class="bx bx-briefcase-alt-2"></i></div>
+-                <div class="position-content">
+-                    <h2>@position.Name</h2>@if (position.Id == _activePositionId){
+-                    <span class="badge badge-success"><i
+-                        class="bx bx-check-circle"></i> سمت فعال فعلی</span>
+-                    }else
+-                    {
++            <section class="position-active">
++                <svg class="position-active-bloom" viewBox="0 0 100 100" aria-hidden="true">
++                    <use href="#jasmine-bloom-outline" />
++                </svg>
++                <div class="position-active-icon"><i class="bx bx-briefcase-alt-2"></i></div>
++                <div class="position-active-text">
++                    <span>سمت فعال فعلی</span>
++                    <h2>@active.Name</h2>
++                </div>
++                <span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>
++            </section>
++        }
+ 
+-                        <span class="badge badge-muted">سمت
+-                            دیگر</span>
+-                        }
+-                    </div>
+-                    @if (position.Id != _activePositionId)
++        @if (others.Count > 0)
++        {
++            <section class="position-others">
++                <h2 class="section-title">@(active is null ? "سمت‌های شما" : "سایر سمت‌های شما")</h2>
++                <div class="position-list">
++                    @foreach (var position in others)
+                     {
+-                        <form method="post" action="/account/position">
+-                            <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" /><button
+-                            class="btn btn-primary" type="submit"><i class="bx bx-check"></i> انتخاب سمت</button>
+-                        </form>
++                        <div class="position-row">
++                            <span class="position-row-icon"><i class="bx bx-briefcase"></i></span>
++                            <span class="position-row-name">@position.Name</span>
++                            <form method="post" action="/account/position">
++                                <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" />
++                                <button class="btn btn-secondary" type="submit"><i class="bx bx-transfer-alt"></i> انتخاب
++                                    به‌عنوان سمت فعال</button>
++                            </form>
++                        </div>
+                     }
+-                </article>
+-            }
+-        </div>
++                </div>
++            </section>
++        }
+     }
++</div>
+ 
+ @code {
+     private List<PositionItem>? _positions;
+diff --git a/src/YasPortal.Web/Components/Pages/MyProfile.razor b/src/YasPortal.Web/Components/Pages/MyProfile.razor
+index 883a064..7a93c96 100644
+--- a/src/YasPortal.Web/Components/Pages/MyProfile.razor
++++ b/src/YasPortal.Web/Components/Pages/MyProfile.razor
+@@ -10,44 +10,63 @@
+ 
+ <PageTitle>پروفایل من - یاس پورتال</PageTitle>
+ 
+-<div class="page-header">
+-    <div>
+-        <h1 class="page-title">پروفایل من</h1>
+-        <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
++<div class="profile-page">
++    <div class="page-header">
++        <div>
++            <h1 class="page-title">پروفایل من</h1>
++            <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
++        </div>
++        <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
+     </div>
+-    <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
+-</div>
+ 
+-<div class="stat-grid">
+-    <div class="stat-card">
+-        <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">نام و نام خانوادگی</span><strong
+-        class="stat-value">@FullName</strong>
+-    </div>
+-    <div class="stat-card">
+-        <div class="stat-icon"><i class="bx bx-at"></i></div><span class="stat-label">نام کاربری</span><strong
+-        class="stat-value">@Username</strong>
+-    </div>
+-    <div class="stat-card">
+-        <div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">سازمان</span><strong
+-        class="stat-value">@OrganizationName</strong>
+-    </div>
+-    <div class="stat-card">
+-        <div class="stat-icon"><i class="bx bx-shield"></i></div><span class="stat-label">نوع حساب</span><strong
+-        class="stat-value">@AccountType</strong>
++    <section class="profile-identity">
++        <div class="profile-avatar" aria-hidden="true">@GetInitial(FullName)</div>
++        <div class="profile-identity-text">
++            <h2>@FullName</h2>
++            <div class="profile-identity-chips">
++                <span class="profile-chip" dir="ltr">@EmployeeCode</span>
++                <span class="profile-chip" dir="ltr">@@@Username</span>
++                <span class="badge @(AccountType == "مدیر سیستم" ? "badge-primary" : "badge-muted")">
++                    <i class="bx bx-shield"></i> @AccountType
++                </span>
++            </div>
++        </div>
++        <svg class="profile-identity-bloom" viewBox="0 0 100 100" aria-hidden="true">
++            <use href="#jasmine-bloom-outline" />
++        </svg>
++    </section>
++
++    <div class="profile-columns">
++        <section class="profile-card">
++            <h2 class="section-title">اطلاعات حساب</h2>
++            <dl class="profile-facts">
++                <div class="profile-fact"><dt><i class="bx bx-id-card"></i> کد کارمند</dt><dd dir="ltr">@EmployeeCode</dd></div>
++                <div class="profile-fact"><dt><i class="bx bx-at"></i> نام کاربری</dt><dd dir="ltr">@Username</dd></div>
++                <div class="profile-fact"><dt><i class="bx bx-buildings"></i> سازمان</dt><dd>@OrganizationName</dd></div>
++                <div class="profile-fact"><dt><i class="bx bx-shield"></i> نوع حساب</dt><dd>@AccountType</dd></div>
++            </dl>
++        </section>
++
++        <section class="profile-card profile-org-card">
++            <h2 class="section-title">وضعیت سازمان</h2>
++            <div class="profile-org-status">
++                <span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")">
++                    <i class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i>
++                    سازمان @OrganizationStatus
++                </span>
++            </div>
++            <p>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود؛ برای تغییر سمت فعال به صفحه سمت‌های من مراجعه
++                کنید.</p>
++            <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="bx bx-left-arrow-alt"></i></a>
++        </section>
+     </div>
+ </div>
+ 
+-<section class="card">
+-    <h2 class="section-title">وضعیت سازمان</h2>
+-    <div class="profile-status"><span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")"><i
+-        class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i> سازمان
+-        @OrganizationStatus</span><span>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود.</span></div>
+-    </section>
+-
+ @code {
+     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+     private string Username { get; set; } = "کاربر";
+     private string FullName { get; set; } = "کاربر";
++    private string EmployeeCode { get; set; } = "—";
+     private string OrganizationName { get; set; } = "ثبت نشده";
+     private string OrganizationStatus { get; set; } = "نامشخص";
+     private string AccountType { get; set; } = "کاربر عادی";
+@@ -63,7 +82,10 @@
+ employeeId);
+         if (employee is null) return;
+         FullName = employee.FullName;
++        EmployeeCode = employee.Code;
+         OrganizationName = employee.Organization.Name;
+         OrganizationStatus = employee.Organization.IsActive ? "فعال" : "غیرفعال";
+     }
++
++    private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "ک" : value.Trim()[0].ToString();
+ }
+diff --git a/src/YasPortal.Web/wwwroot/css/personal-pages.css b/src/YasPortal.Web/wwwroot/css/personal-pages.css
+new file mode 100644
+index 0000000..71c62cc
+--- /dev/null
++++ b/src/YasPortal.Web/wwwroot/css/personal-pages.css
+@@ -0,0 +1,92 @@
++/* =============================================================
++   Personal pages — Dashboard, My Profile, My Positions
++   Scoped under .dashboard-page / .profile-page / .positions-page so
++   nothing here can leak into the admin section or other pages.
++   Loaded after the admin stylesheet set so its refinements win; see
++   App.razor for the <link> order note.
++   ============================================================= */
++
++.badge-primary{background:#eef2ff;color:#1d4ed8}
++
++/* ---- shared "fact row" pattern used by dashboard + profile ---- */
++.dash-facts,.profile-facts{display:flex;flex-direction:column;gap:0;margin:0;padding:0}
++.dash-fact,.profile-fact{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid #eef1f5}
++.dash-fact:last-child,.profile-fact:last-child{border-bottom:0}
++.dash-fact i,.profile-fact dt i{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:10px;background:#eef2ff;color:#1d4ed8;font-size:17px}
++.dash-fact div{display:flex;flex-direction:column;gap:2px;min-width:0}
++.dash-fact span,.profile-fact dt{margin:0;font-size:11.5px;color:#667085;display:flex;align-items:center;gap:8px}
++.dash-fact strong,.profile-fact dd{margin:0;font-size:13.5px;font-weight:700;color:#1b2333;overflow:hidden;text-overflow:ellipsis}
++.profile-fact{justify-content:space-between}
++.profile-fact dt{flex:0 0 auto}
++.profile-fact dd{text-align:left}
++
++/* =============================================================
++   Dashboard
++   ============================================================= */
++.dash-hero{position:relative;overflow:hidden;display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:#fff;border:1px solid #e6ebf2;border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 6px 24px rgba(16,24,40,.045)}
++.dash-hero-bloom{position:absolute;width:190px;height:190px;left:-40px;top:-50px;color:#eef2ff;pointer-events:none}
++.dash-hero-text{position:relative;flex:1 1 260px;min-width:0}
++.dash-hero-greeting{margin:0;font-size:13px;color:#667085}
++.dash-hero-text h2{margin:2px 0 0;font-size:24px;font-weight:800;letter-spacing:-.01em;color:#141c2c}
++.dash-hero-role{margin:6px 0 0;font-size:12.5px;color:#667085;line-height:1.8}
++.dash-hero-position{position:relative;flex:0 0 auto;display:flex;flex-direction:column;gap:6px;padding:14px 18px;border-radius:13px;background:linear-gradient(160deg,#eef2ff,#eafaf1);min-width:170px}
++.dash-hero-position span{font-size:11px;color:#3854a6}
++.dash-hero-position strong{font-size:15px;font-weight:800;color:#182751}
++.dash-hero-position a{display:inline-flex;align-items:center;gap:4px;margin-top:2px;font-size:11.5px;font-weight:700;color:#1d4ed8}
++.dash-hero-position a i{font-size:14px}
++
++.dash-columns{display:grid;grid-template-columns:1fr 1.15fr;gap:16px;align-items:start}
++.dash-facts,.dash-links{background:#fff;border:1px solid #e6ebf2;border-radius:16px;padding:18px 20px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
++
++.dash-link{display:flex;align-items:center;gap:12px;padding:12px 8px;border-radius:11px;color:inherit;transition:background .14s}
++.dash-link+.dash-link{margin-top:2px}
++.dash-link:hover{background:#f7f9fc}
++.dash-link-icon{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:11px;background:#eef2ff;color:#1d4ed8;font-size:19px}
++.dash-link-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
++.dash-link-text strong{font-size:13.5px;color:#1b2333}
++.dash-link-text small{font-size:11.5px;color:#667085}
++.dash-link-arrow{color:#98a2b3;font-size:17px;flex:0 0 auto}
++
++@media(max-width:900px){.dash-columns{grid-template-columns:1fr}}
++@media(max-width:520px){.dash-hero{padding:18px}.dash-hero-text h2{font-size:20px}.dash-hero-position{width:100%}}
++
++/* =============================================================
++   Profile
++   ============================================================= */
++.profile-identity{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #e6ebf2;border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 6px 24px rgba(16,24,40,.045)}
++.profile-avatar{position:relative;width:58px;height:58px;flex:0 0 58px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(160deg,#1d4ed8,#2f6f4f);color:#fff;font-size:22px;font-weight:800}
++.profile-identity-text{position:relative;min-width:0}
++.profile-identity-text h2{margin:0;font-size:20px;font-weight:800;color:#141c2c}
++.profile-identity-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:9px}
++.profile-chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:11px;font-weight:600}
++.profile-identity-bloom{position:absolute;width:170px;height:170px;left:-40px;top:-60px;color:#f2f4f7;pointer-events:none}
++
++.profile-columns{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start}
++.profile-card{background:#fff;border:1px solid #e6ebf2;border-radius:16px;padding:18px 20px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
++.profile-org-card p{margin:12px 0 0;color:#667085;font-size:12.5px;line-height:1.85}
++.profile-org-status{display:flex}
++.profile-org-link{display:inline-flex;align-items:center;gap:5px;margin-top:14px;font-size:12.5px;font-weight:700;color:#1d4ed8}
++.profile-org-link i{font-size:15px}
++
++@media(max-width:900px){.profile-columns{grid-template-columns:1fr}}
++@media(max-width:520px){.profile-identity{padding:18px;gap:12px}.profile-avatar{width:48px;height:48px;flex-basis:48px;font-size:18px}.profile-identity-text h2{font-size:17px}}
++
++/* =============================================================
++   My positions
++   ============================================================= */
++.position-active{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:linear-gradient(160deg,#eef2ff,#eafaf1);border:1px solid #d8e5ff;border-radius:16px;padding:20px 24px;margin-bottom:16px}
++.position-active-bloom{position:absolute;width:180px;height:180px;left:-40px;top:-55px;color:rgba(29,78,216,.08);pointer-events:none}
++.position-active-icon{position:relative;width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:13px;background:#fff;color:#1d4ed8;font-size:23px;box-shadow:0 6px 16px rgba(29,78,216,.14)}
++.position-active-text{position:relative;flex:1;min-width:0}
++.position-active-text span{font-size:11.5px;color:#3854a6}
++.position-active-text h2{margin:2px 0 0;font-size:19px;font-weight:800;color:#182751}
++
++.position-others{background:#fff;border:1px solid #e6ebf2;border-radius:16px;padding:6px 20px 10px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
++.position-others .section-title{padding-top:12px}
++.position-list{display:flex;flex-direction:column}
++.position-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid #eef1f5}
++.position-row-icon{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border-radius:10px;background:#f2f4f7;color:#667085;font-size:18px}
++.position-row-name{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:#1b2333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
++.position-row form{flex:0 0 auto}
++
++@media(max-width:600px){.position-active{padding:16px;gap:12px}.position-active-text h2{font-size:17px}.position-row{flex-wrap:wrap}.position-row form{width:100%}.position-row .btn{width:100%;justify-content:center}}

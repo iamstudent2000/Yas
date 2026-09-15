@@ -7,50 +7,84 @@
 
 <AuthorizeView Context="auth">
     <Authorized>
-        <div class="page-header">
-            <div>
-                <h1 class="page-title">داشبورد</h1>
-                <p class="page-subtitle">@((auth.User.HasClaim("yas_is_admin", "True")) ? "مدیریت و نظارت بر سامانه" :
-                                        $"خوش آمدید، {auth.User.Identity?.Name}")</p>
+        @{
+            var isAdmin = auth.User.HasClaim("yas_is_admin", "True");
+            var name = auth.User.Identity?.Name ?? "کاربر";
+            var activePosition = auth.User.FindFirst("yas_active_position_name")?.Value;
+        }
+        <div class="dashboard-page">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">داشبورد</h1>
+                    <p class="page-subtitle">@(isAdmin ? "مدیریت و نظارت بر سامانه" : "نمای کلی حساب و دسترسی‌های شما")</p>
                 </div>
                 <span class="badge badge-success"><i class="bx bx-check-circle"></i> حساب فعال</span>
             </div>
 
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-user"></i></div><span class="stat-label">حساب
-                    کاربری</span><strong class="stat-value">@auth.User.Identity?.Name</strong>
+            <section class="dash-hero">
+                <svg class="dash-hero-bloom" viewBox="0 0 100 100" aria-hidden="true">
+                    <use href="#jasmine-bloom-outline" />
+                </svg>
+                <div class="dash-hero-text">
+                    <p class="dash-hero-greeting">@GetGreeting()،</p>
+                    <h2>@name</h2>
+                    <p class="dash-hero-role">@(isAdmin ? "شما به‌عنوان مدیر سامانه وارد شده‌اید." : "خوش آمدید؛ در ادامه وضعیت حساب شما آمده است.")</p>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-id-card"></i></div><span class="stat-label">سمت
-                    فعال</span><strong class="stat-value">@(auth.User.FindFirst("yas_active_position_name")?.Value ??
-                                       "انتخاب نشده")</strong>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-shield-check"></i></div><span class="stat-label">سطح
-                    دسترسی</span><strong class="stat-value">@(auth.User.HasClaim("yas_is_admin", "True") ? "مدیریت سامانه" : "کاربر سامانه")</strong>
-                </div>
-            </div>
-
-            <section class="card">
-                <h2 class="section-title">دسترسی سریع</h2>
-                <div class="stat-grid">
-                    <a class="stat-card" href="/my-profile">
-                        <div class="stat-icon"><i class="bx bx-user-circle"></i></div><strong>پروفایل من</strong><span
-                        class="stat-label">مشاهده اطلاعات حساب و سازمان</span>
-                    </a>
-                    <a class="stat-card" href="/my-positions">
-                        <div class="stat-icon"><i class="bx bx-id-card"></i></div><strong>سمت‌های من</strong><span
-                        class="stat-label">انتخاب سمت فعال</span>
-                    </a>
-                    @if (auth.User.HasClaim("yas_is_admin", "True"))
-                    {
-                        <a class="stat-card" href="/admin/organizations">
-                            <div class="stat-icon"><i class="bx bx-buildings"></i></div><strong>سازمان‌ها</strong><span
-                            class="stat-label">مدیریت ساختار سازمانی</span>
-                        </a>
-                    }
+                <div class="dash-hero-position">
+                    <span>سمت فعال</span>
+                    <strong>@(activePosition ?? "انتخاب نشده")</strong>
+                    <a href="/my-positions">تغییر سمت <i class="bx bx-left-arrow-alt"></i></a>
                 </div>
             </section>
-        </Authorized>
-    </AuthorizeView>
+
+            <div class="dash-columns">
+                <section class="dash-facts">
+                    <div class="dash-fact">
+                        <i class="bx bx-user"></i>
+                        <div><span>حساب کاربری</span><strong>@name</strong></div>
+                    </div>
+                    <div class="dash-fact">
+                        <i class="bx bx-shield-check"></i>
+                        <div><span>سطح دسترسی</span><strong>@(isAdmin ? "مدیریت سامانه" : "کاربر سامانه")</strong></div>
+                    </div>
+                    <div class="dash-fact">
+                        <i class="bx bx-id-card"></i>
+                        <div><span>سمت فعال</span><strong>@(activePosition ?? "انتخاب نشده")</strong></div>
+                    </div>
+                </section>
+
+                <section class="dash-links">
+                    <h2 class="section-title">دسترسی سریع</h2>
+                    <a class="dash-link" href="/my-profile">
+                        <span class="dash-link-icon"><i class="bx bx-user-circle"></i></span>
+                        <span class="dash-link-text"><strong>پروفایل من</strong><small>مشاهده اطلاعات حساب و سازمان</small></span>
+                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                    </a>
+                    <a class="dash-link" href="/my-positions">
+                        <span class="dash-link-icon"><i class="bx bx-id-card"></i></span>
+                        <span class="dash-link-text"><strong>سمت‌های من</strong><small>انتخاب سمت فعال</small></span>
+                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                    </a>
+                    @if (isAdmin)
+                    {
+                        <a class="dash-link" href="/admin/organizations">
+                            <span class="dash-link-icon"><i class="bx bx-buildings"></i></span>
+                            <span class="dash-link-text"><strong>سازمان‌ها</strong><small>مدیریت ساختار سازمانی</small></span>
+                            <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                        </a>
+                    }
+                </section>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static string GetGreeting() => DateTime.Now.Hour switch
+    {
+        >= 5 and < 12 => "صبح بخیر",
+        >= 12 and < 17 => "ظهر بخیر",
+        >= 17 and < 20 => "عصر بخیر",
+        _ => "شب بخیر",
+    };
+}
