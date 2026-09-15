@@ -1,0 +1,102 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+index 851aa01..dd961bf 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/AuditLog.razor
+@@ -4,8 +4,10 @@
+ @using Microsoft.EntityFrameworkCore
+ @using YasPortal.Infrastructure.Persistence
+ @using YasPortal.Web.Components.Shared
++@using YasPortal.Web.Services
+ @attribute [Authorize(Policy = "Admin.AuditLog")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
++@inject AdminQueryService AdminQueries
+ 
+ <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
+ 
+@@ -39,9 +41,23 @@
+         </div>
+ 
+         <div class="admin-filters">
+-            <div class="admin-filter"><label class="form-label">کاربر</label><input class="form-control" placeholder="نام کاربر..." @bind="_employeeSearch" /></div>
+-            <div class="admin-filter"><label class="form-label">سمت فعال</label><input class="form-control" placeholder="نام سمت..." @bind="_positionSearch" /></div>
+-            <div class="admin-filter"><label class="form-label">موجودیت</label><input class="form-control" placeholder="مثلاً Permission" @bind="_entityType" /></div>
++            <div class="admin-filter"><label class="form-label">کاربر</label>
++                <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
++                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeSearch" Placeholder="همه کاربران"
++                                            SearchPlaceholder="نام، نام کاربری یا کد کارمند را جستجو کنید..." />
++            </div>
++            <div class="admin-filter"><label class="form-label">سمت فعال</label>
++                <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged"
++                                            SearchAsync="SearchPositionsAsync" SelectedText="@_positionSearch" Placeholder="همه سمت‌ها"
++                                            SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
++            </div>
++            <div class="admin-filter"><label class="form-label">موجودیت</label><select class="form-control" @bind="_entityType">
++                <option value="">همه موجودیت‌ها</option>
++                @foreach (var type in EntityTypes)
++                {
++                    <option value="@type">@GetEntityText(type)</option>
++                }
++            </select></div>
+             <div class="admin-filter"><label class="form-label">عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
+             <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
+             <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
+@@ -121,6 +137,8 @@
+ @code {
+     private List<AuditRow> _rows = [];
+     private AuditRow? _selected;
++    private Guid? _employeeId;
++    private Guid? _positionId;
+     private string _employeeSearch = "";
+     private string _positionSearch = "";
+     private string _entityType = "";
+@@ -147,9 +165,8 @@
+             if(!string.IsNullOrWhiteSpace(_action))query=query.Where(x=>x.Action==_action);
+             if(_fromDate.HasValue){var from=DateTime.SpecifyKind(_fromDate.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
+             if(_toDate.HasValue){var to=DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
+-            var et=_employeeSearch.Trim();var pt=_positionSearch.Trim();
+-            if(!string.IsNullOrWhiteSpace(et))query=query.Where(x=>x.EmployeeId.HasValue&&db.Employees.Any(e=>e.Id==x.EmployeeId&&e.FullName.Contains(et)));
+-            if(!string.IsNullOrWhiteSpace(pt))query=query.Where(x=>x.ActivePositionId.HasValue&&db.Positions.Any(p=>p.Id==x.ActivePositionId&&p.Name.Contains(pt)));
++            if(_employeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
++            if(_positionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
+             _totalCount=await query.CountAsync(token);if(_page>TotalPages)_page=TotalPages;
+             query=(_sortBy,_sortDesc)switch{
+                 ("time",false)=>query.OrderBy(x=>x.OccurredAtUtc),
+@@ -179,10 +196,37 @@
+         catch(OperationCanceledException)when(token.IsCancellationRequested){}
+         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
+     }
+-    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
++    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
+     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
+     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
++    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup"];
++    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
++    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
++    private async Task EmployeeChanged(Guid? id)
++    {
++        _employeeId = id;
++        _employeeSearch = "";
++        if (id is Guid eid)
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var employee = await db.Employees.AsNoTracking().Where(x => x.Id == eid).Select(x => new { x.Code, x.FullName }).SingleOrDefaultAsync();
++            if (employee is not null) _employeeSearch = $"{employee.Code} — {employee.FullName}";
++        }
++        _page = 1;
++    }
++    private async Task PositionChanged(Guid? id)
++    {
++        _positionId = id;
++        _positionSearch = "";
++        if (id is Guid pid)
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var position = await db.Positions.AsNoTracking().Where(x => x.Id == pid).Select(x => new { x.Code, x.Name }).SingleOrDefaultAsync();
++            if (position is not null) _positionSearch = $"{position.Code} — {position.Name}";
++        }
++        _page = 1;
++    }
+     private Dictionary<Guid,string> _idNameMap=new();
+     private async Task ShowDetailsAsync(AuditRow r)
+     {
