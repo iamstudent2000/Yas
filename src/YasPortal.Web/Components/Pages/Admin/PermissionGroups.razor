@@ -280,11 +280,17 @@ ToastLevel.Error); return;
             {
                 db.PermissionGroupPermissions.Add(new
     PermissionGroupPermission(groupId, permissionId)); _selectedPermissionIds.Add(permissionId);
+                await db.SaveChangesAsync();
+                AppState.AddToast("مجوز به گروه اضافه شد.", ToastLevel.Success);
             }
             else if (!grant && link is not
-    null) { db.PermissionGroupPermissions.Remove(link); _selectedPermissionIds.Remove(permissionId); }
-            else return; await
-    db.SaveChangesAsync();
+    null)
+            {
+                db.PermissionGroupPermissions.Remove(link); _selectedPermissionIds.Remove(permissionId);
+                await db.SaveChangesAsync();
+                AppState.AddToast("مجوز از گروه حذف شد.", ToastLevel.Success);
+            }
+            else return;
         }
         finally { _saving = false; }
     }
@@ -298,13 +304,18 @@ ToastLevel.Error); return;
     db.PermissionGroupPermissions.Where(x => x.GroupId == groupId && ids.Contains(x.PermissionId)).ToListAsync(); if (grant)
             {
                 var
-    existingIds = existing.Select(x => x.PermissionId).ToHashSet(); foreach (var id in
-    ids.Except(existingIds)) db.PermissionGroupPermissions.Add(new
+    existingIds = existing.Select(x => x.PermissionId).ToHashSet(); var toAdd = ids.Except(existingIds).ToList(); foreach (var id in
+    toAdd) db.PermissionGroupPermissions.Add(new
     PermissionGroupPermission(groupId, id)); _selectedPermissionIds.UnionWith(ids);
+                await db.SaveChangesAsync();
+                AppState.AddToast(toAdd.Count > 0 ? $"{toAdd.Count} مجوز به گروه اضافه شد." : "همه مجوزهای نمایش داده‌شده از قبل در گروه بودند.", ToastLevel.Success);
             }
-            else { db.PermissionGroupPermissions.RemoveRange(existing); _selectedPermissionIds.ExceptWith(ids); }
-            await
-    db.SaveChangesAsync();
+            else
+            {
+                db.PermissionGroupPermissions.RemoveRange(existing); _selectedPermissionIds.ExceptWith(ids);
+                await db.SaveChangesAsync();
+                AppState.AddToast(existing.Count > 0 ? $"{existing.Count} مجوز از گروه حذف شد." : "هیچ مجوزی از این فهرست در گروه نبود.", ToastLevel.Success);
+            }
         }
         finally { _saving = false; }
     }

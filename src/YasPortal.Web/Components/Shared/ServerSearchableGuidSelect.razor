@@ -5,12 +5,19 @@
 @inject IJSRuntime JS
 
 <div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
-    <button @ref="_trigger" type="button" class="server-lookup-trigger form-control" disabled="@Disabled"
-            @onclick="ToggleAsync">
-        <span class="server-lookup-value">@(string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ??
-                        Placeholder) : SelectedText)</span>
-            <i class="bx bx-chevron-down"></i>
+    <div @ref="_trigger" class="server-lookup-trigger form-control">
+        <button type="button" class="server-lookup-open" disabled="@Disabled" @onclick="ToggleAsync">
+            <span class="server-lookup-value">@SelectedLabel</span>
         </button>
+        @if (Value is not null && !Disabled)
+        {
+            <button type="button" class="server-lookup-clear" aria-label="پاک کردن انتخاب" title="پاک کردن انتخاب"
+                    @onclick="ClearAsync" @onclick:stopPropagation="true">
+                <i class="bx bx-x"></i>
+            </button>
+        }
+        <i class="bx bx-chevron-down server-lookup-chevron"></i>
+    </div>
         @if (_open && !Disabled)
         {
             <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
@@ -71,6 +78,10 @@
     private bool _open, _loading, _positioned;
     private CancellationTokenSource? _cts;
     private Guid? _resolvedValue;
+
+    private string SelectedLabel => Value is null
+        ? Placeholder
+        : (string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ?? Placeholder) : SelectedText);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -193,6 +204,18 @@
             await ValueChanged.InvokeAsync(option.Id);
     }
 
+    private async Task ClearAsync()
+    {
+        _open = false;
+        _positioned = false;
+        _search = "";
+        _selectedDisplayText = null;
+        _resolvedValue = null;
+
+        if (Value is not null)
+            await ValueChanged.InvokeAsync(null);
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();
@@ -220,10 +243,57 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 4px;
         text-align: right;
         min-height: 42px;
+        padding-inline-end: 8px;
         cursor: pointer;
         direction: rtl
+    }
+
+    .server-lookup-open {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        color: inherit;
+        text-align: right;
+        cursor: pointer
+    }
+
+    .server-lookup-open:disabled {
+        cursor: default
+    }
+
+    .server-lookup-chevron {
+        flex: 0 0 auto;
+        color: #667085;
+        pointer-events: none
+    }
+
+    .server-lookup-clear {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: #667085;
+        cursor: pointer;
+        padding: 0
+    }
+
+    .server-lookup-clear:hover {
+        background: rgba(0, 0, 0, .06);
+        color: #ef4444
     }
 
     .server-lookup.disabled {

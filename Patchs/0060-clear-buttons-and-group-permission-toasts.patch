@@ -1,0 +1,168 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+index 8204ed6..b695dcd 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/PermissionGroups.razor
+@@ -280,11 +280,17 @@ ToastLevel.Error); return;
+             {
+                 db.PermissionGroupPermissions.Add(new
+     PermissionGroupPermission(groupId, permissionId)); _selectedPermissionIds.Add(permissionId);
++                await db.SaveChangesAsync();
++                AppState.AddToast("مجوز به گروه اضافه شد.", ToastLevel.Success);
+             }
+             else if (!grant && link is not
+-    null) { db.PermissionGroupPermissions.Remove(link); _selectedPermissionIds.Remove(permissionId); }
+-            else return; await
+-    db.SaveChangesAsync();
++    null)
++            {
++                db.PermissionGroupPermissions.Remove(link); _selectedPermissionIds.Remove(permissionId);
++                await db.SaveChangesAsync();
++                AppState.AddToast("مجوز از گروه حذف شد.", ToastLevel.Success);
++            }
++            else return;
+         }
+         finally { _saving = false; }
+     }
+@@ -298,13 +304,18 @@ ToastLevel.Error); return;
+     db.PermissionGroupPermissions.Where(x => x.GroupId == groupId && ids.Contains(x.PermissionId)).ToListAsync(); if (grant)
+             {
+                 var
+-    existingIds = existing.Select(x => x.PermissionId).ToHashSet(); foreach (var id in
+-    ids.Except(existingIds)) db.PermissionGroupPermissions.Add(new
++    existingIds = existing.Select(x => x.PermissionId).ToHashSet(); var toAdd = ids.Except(existingIds).ToList(); foreach (var id in
++    toAdd) db.PermissionGroupPermissions.Add(new
+     PermissionGroupPermission(groupId, id)); _selectedPermissionIds.UnionWith(ids);
++                await db.SaveChangesAsync();
++                AppState.AddToast(toAdd.Count > 0 ? $"{toAdd.Count} مجوز به گروه اضافه شد." : "همه مجوزهای نمایش داده‌شده از قبل در گروه بودند.", ToastLevel.Success);
++            }
++            else
++            {
++                db.PermissionGroupPermissions.RemoveRange(existing); _selectedPermissionIds.ExceptWith(ids);
++                await db.SaveChangesAsync();
++                AppState.AddToast(existing.Count > 0 ? $"{existing.Count} مجوز از گروه حذف شد." : "هیچ مجوزی از این فهرست در گروه نبود.", ToastLevel.Success);
+             }
+-            else { db.PermissionGroupPermissions.RemoveRange(existing); _selectedPermissionIds.ExceptWith(ids); }
+-            await
+-    db.SaveChangesAsync();
+         }
+         finally { _saving = false; }
+     }
+diff --git a/src/YasPortal.Web/Components/Shared/ServerSearchableGuidSelect.razor b/src/YasPortal.Web/Components/Shared/ServerSearchableGuidSelect.razor
+index 2f72995..1a47902 100644
+--- a/src/YasPortal.Web/Components/Shared/ServerSearchableGuidSelect.razor
++++ b/src/YasPortal.Web/Components/Shared/ServerSearchableGuidSelect.razor
+@@ -5,12 +5,19 @@
+ @inject IJSRuntime JS
+ 
+ <div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
+-    <button @ref="_trigger" type="button" class="server-lookup-trigger form-control" disabled="@Disabled"
+-            @onclick="ToggleAsync">
+-        <span class="server-lookup-value">@(string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ??
+-                        Placeholder) : SelectedText)</span>
+-            <i class="bx bx-chevron-down"></i>
++    <div @ref="_trigger" class="server-lookup-trigger form-control">
++        <button type="button" class="server-lookup-open" disabled="@Disabled" @onclick="ToggleAsync">
++            <span class="server-lookup-value">@SelectedLabel</span>
+         </button>
++        @if (Value is not null && !Disabled)
++        {
++            <button type="button" class="server-lookup-clear" aria-label="پاک کردن انتخاب" title="پاک کردن انتخاب"
++                    @onclick="ClearAsync" @onclick:stopPropagation="true">
++                <i class="bx bx-x"></i>
++            </button>
++        }
++        <i class="bx bx-chevron-down server-lookup-chevron"></i>
++    </div>
+         @if (_open && !Disabled)
+         {
+             <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
+@@ -72,6 +79,10 @@
+     private CancellationTokenSource? _cts;
+     private Guid? _resolvedValue;
+ 
++    private string SelectedLabel => Value is null
++        ? Placeholder
++        : (string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ?? Placeholder) : SelectedText);
++
+     protected override async Task OnParametersSetAsync()
+     {
+         if (Value is null)
+@@ -193,6 +204,18 @@
+             await ValueChanged.InvokeAsync(option.Id);
+     }
+ 
++    private async Task ClearAsync()
++    {
++        _open = false;
++        _positioned = false;
++        _search = "";
++        _selectedDisplayText = null;
++        _resolvedValue = null;
++
++        if (Value is not null)
++            await ValueChanged.InvokeAsync(null);
++    }
++
+     public async ValueTask DisposeAsync()
+     {
+         _cts?.Cancel();
+@@ -220,12 +243,59 @@
+         display: flex;
+         align-items: center;
+         justify-content: space-between;
++        gap: 4px;
+         text-align: right;
+         min-height: 42px;
++        padding-inline-end: 8px;
+         cursor: pointer;
+         direction: rtl
+     }
+ 
++    .server-lookup-open {
++        flex: 1 1 auto;
++        display: flex;
++        align-items: center;
++        min-width: 0;
++        border: 0;
++        background: transparent;
++        padding: 0;
++        margin: 0;
++        font: inherit;
++        color: inherit;
++        text-align: right;
++        cursor: pointer
++    }
++
++    .server-lookup-open:disabled {
++        cursor: default
++    }
++
++    .server-lookup-chevron {
++        flex: 0 0 auto;
++        color: #667085;
++        pointer-events: none
++    }
++
++    .server-lookup-clear {
++        flex: 0 0 auto;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        width: 22px;
++        height: 22px;
++        border: 0;
++        border-radius: 50%;
++        background: transparent;
++        color: #667085;
++        cursor: pointer;
++        padding: 0
++    }
++
++    .server-lookup-clear:hover {
++        background: rgba(0, 0, 0, .06);
++        color: #ef4444
++    }
++
+     .server-lookup.disabled {
+         opacity: .65
+     }
