@@ -1,0 +1,621 @@
+diff --git a/src/YasPortal.Web/Components/App.razor b/src/YasPortal.Web/Components/App.razor
+index d1274fc..dc57e06 100644
+--- a/src/YasPortal.Web/Components/App.razor
++++ b/src/YasPortal.Web/Components/App.razor
+@@ -19,7 +19,7 @@
+         my-positions) and login (branded sign-in screen), and rtl-utilities
+         always loads last.
+     -->
+-    <link rel="stylesheet" href="css/base.css?v=20260916-1" />
++    <link rel="stylesheet" href="css/base.css?v=20260919-1" />
+     <link rel="stylesheet" href="css/components.css?v=20260912-1" />
+     <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
+     <link rel="stylesheet" href="css/admin/admin-core.css?v=20260912-1" />
+diff --git a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+index 4eee283..439a382 100644
+--- a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
++++ b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+@@ -2,18 +2,14 @@
+ @using Microsoft.JSInterop
+ @inject IJSRuntime JS
+ 
+-<input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@_isMinimal"
++<input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
+        @onchange="OnSidebarToggleChanged" />
+-@if (_stateLoaded && _isMinimal)
+-{
+-    <button type="button" class="sidebar-floating-brand" title="نمایش منو" aria-label="نمایش منو" @onclick="ShowSidebar"><svg
+-        viewBox="0 0 100 100" aria-hidden="true">
+-        <use href="#jasmine-bloom-outline" />
+-    </svg></button>
+-    }
+ 
+-    <aside class="sidebar @(_isMinimal ? "sidebar-hidden" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
+-        <label class="sidebar-brand" for="sidebar-minimal-toggle" title="مخفی کردن منو" aria-label="مخفی کردن منو">
++<aside class="sidebar @(_isMinimal ? "sidebar-rail" : "sidebar-pinned") @(_stateLoaded ? "sidebar-state-ready" : "")">
++    <div class="sidebar-panel">
++        <label class="sidebar-brand" for="sidebar-pin-toggle"
++               title="@(_isMinimal ? "پین کردن منو" : "جمع کردن منو")"
++               aria-label="@(_isMinimal ? "پین کردن منو" : "جمع کردن منو")">
+             <span class="brand-mark"><svg viewBox="0 0 100 100" aria-hidden="true">
+                     <use href="#jasmine-bloom-outline" />
+                 </svg></span><span class="brand-text">یاس پورتال</span>
+@@ -88,7 +84,8 @@
+                             <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i>
+                                 <div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div>
+                             </div>
+-                        </aside>
++                        </div>
++                    </aside>
+ 
+ @code {
+     private const string StorageKey = "yasportal.sidebar.minimal";
+@@ -136,10 +133,10 @@ _structureExpanded ? "structure" : null }.Where(x => x is not null));
+ 
+     private async Task OnSidebarToggleChanged(ChangeEventArgs args)
+     {
+-        _isMinimal = args.Value is bool value && value; await
+-PersistSidebarState();
++        // The checkbox now represents "pinned open", so minimal is its inverse.
++        _isMinimal = !(args.Value is bool value && value);
++        await PersistSidebarState();
+     }
+-    private async Task ShowSidebar() { _isMinimal = false; await PersistSidebarState(); }
+     private async Task PersistSidebarState()
+     {
+         try
+diff --git a/src/YasPortal.Web/wwwroot/css/base.css b/src/YasPortal.Web/wwwroot/css/base.css
+index d0483c4..d847287 100644
+--- a/src/YasPortal.Web/wwwroot/css/base.css
++++ b/src/YasPortal.Web/wwwroot/css/base.css
+@@ -48,204 +48,369 @@ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;te
+ /* Pass 5: topbar user cluster moved to the left edge (was: ApplicationShell.razor inline style) */
+ .topbar-user{margin-inline-start:auto}
+ 
+-/* Pass 6: collapsible sidebar redesign — jasmine brand mark, grouped nav
+-   sections, floating re-open toggle when minimized (was: PersistentSidebar.razor
+-   inline style). Supersedes the flat .sidebar-nav a list styled above; the
+-   markup now renders .sidebar-group / .sidebar-group-toggle / .sidebar-group-items
+-   instead. Old .sidebar-nav a rules are kept because AuthorizeView/NavLink
+-   anchors inside .sidebar-group-items still use them. */
+-    .sidebar-shell-toggle {
+-        position: absolute;
+-        opacity: 0;
+-        pointer-events: none;
++/* Pass 6: compact icon-rail sidebar. Collapsed, the sidebar is a narrow
++   icon-only rail; hovering it (or focusing anything inside) slides a wider
++   panel over the content without reflowing the page. Pinned, the panel is
++   simply always at full width. Flat treatment throughout — no drop shadows,
++   hairline dividers only, and tighter type/spacing than the previous pass.
++   Was an inline <style> block in PersistentSidebar.razor.
++   Markup: .sidebar > .sidebar-panel > .sidebar-brand + .sidebar-nav + .sidebar-footer,
++   with .sidebar-group / .sidebar-group-toggle / .sidebar-group-items inside nav. */
++:root {
++    --sidebar-rail-w: 60px;
++    --sidebar-open-w: 246px;
++}
++
++.sidebar-shell-toggle {
++    position: absolute;
++    opacity: 0;
++    pointer-events: none;
++}
++
++/* The <aside> reserves layout width; .sidebar-panel is what actually expands,
++   so hover-expansion overlays the content instead of pushing it. */
++/* position:sticky always creates a stacking context, so .sidebar-panel's
++   z-index is scoped inside .sidebar. The rail must therefore outrank the
++   sticky topbar (z-index 1000) itself, or the hover-expanded panel would
++   slide underneath it. */
++.sidebar {
++    visibility: hidden;
++    position: sticky;
++    top: 0;
++    z-index: 1100;
++    height: 100vh;
++    overflow: visible;
++    padding: 0;
++    border: 0;
++    border-left: 0;
++    background: transparent;
++    box-shadow: none;
++    flex: 0 0 var(--sidebar-open-w);
++    width: var(--sidebar-open-w);
++    transition: flex-basis .16s ease, width .16s ease;
++}
++
++.sidebar.sidebar-state-ready {
++    visibility: visible;
++}
++
++.sidebar.sidebar-rail {
++    flex-basis: var(--sidebar-rail-w);
++    width: var(--sidebar-rail-w);
++}
++
++.sidebar-panel {
++    position: absolute;
++    inset-block: 0;
++    inset-inline-start: 0;
++    z-index: 1099;
++    width: var(--sidebar-open-w);
++    display: flex;
++    flex-direction: column;
++    gap: 2px;
++    padding: 10px 8px;
++    overflow-x: hidden;
++    overflow-y: auto;
++    scrollbar-width: thin;
++    background: #fff;
++    border-inline-end: 1px solid #eceff4;
++    transition: width .16s ease;
++}
++
++.sidebar-rail .sidebar-panel {
++    width: var(--sidebar-rail-w);
++}
++
++.sidebar-rail:hover .sidebar-panel,
++.sidebar-rail:focus-within .sidebar-panel {
++    width: var(--sidebar-open-w);
++    border-inline-end-color: #e4e8ee;
++}
++
++/* Brand / pin control */
++.sidebar-brand {
++    display: flex;
++    align-items: center;
++    gap: 9px;
++    min-height: 36px;
++    margin: 0 0 8px;
++    padding: 3px 5px;
++    border-radius: 9px;
++    color: #155eef;
++    cursor: pointer;
++    user-select: none;
++}
++
++.sidebar-brand:hover {
++    background: #f4f7fd;
++}
++
++.sidebar-brand .brand-mark {
++    width: 30px;
++    height: 30px;
++    flex: 0 0 30px;
++    border-radius: 9px;
++    display: grid;
++    place-items: center;
++    background: #155eef;
++    color: #fff;
++    box-shadow: none;
++}
++
++.sidebar-brand .brand-mark svg {
++    width: 18px;
++    height: 18px;
++}
++
++.sidebar-brand .brand-text {
++    font-size: 15px;
++    font-weight: 700;
++    white-space: nowrap;
++}
++
++/* Group headers */
++.sidebar-group {
++    margin-bottom: 1px;
++}
++
++.sidebar-group-toggle {
++    width: 100%;
++    display: flex;
++    align-items: center;
++    gap: 9px;
++    min-height: 34px;
++    padding: 6px 5px;
++    border: 0;
++    border-radius: 8px;
++    background: transparent;
++    color: #475467;
++    font: inherit;
++    font-size: 12.5px;
++    text-align: right;
++    cursor: pointer;
++    transition: background .12s ease, color .12s ease;
++}
++
++.sidebar-group-toggle:hover {
++    background: #f4f6f9;
++    color: #172033;
++}
++
++.sidebar-group-toggle i:first-child {
++    width: 30px;
++    flex: 0 0 30px;
++    text-align: center;
++    font-size: 17px;
++    line-height: 1;
++    color: #667085;
++}
++
++.sidebar-group-toggle .group-title {
++    flex: 1;
++    min-width: 0;
++    font-weight: 600;
++    white-space: nowrap;
++    overflow: hidden;
++    text-overflow: ellipsis;
++}
++
++.sidebar-group-toggle .group-chevron {
++    font-size: 14px;
++    color: #b6becc;
++    transition: transform .15s ease;
++}
++
++.sidebar-group-toggle.expanded .group-chevron {
++    transform: rotate(180deg);
++}
++
++.sidebar-group-toggle.active-parent {
++    color: #155eef;
++    font-weight: 700;
++}
++
++.sidebar-group-toggle.active-parent i:first-child,
++.sidebar-group-toggle.active-parent .group-chevron {
++    color: #155eef;
++}
++
++/* Child links */
++.sidebar-group-items {
++    display: flex;
++    flex-direction: column;
++    gap: 1px;
++    margin: 1px 0 3px;
++    padding-inline-start: 0;
++    padding-inline-end: 19px;
++    border: 0;
++    border-inline-end: 1px solid #eef1f5;
++    overflow: hidden;
++    max-height: 0;
++    opacity: 0;
++    visibility: hidden;
++    transition: max-height .14s ease, opacity .1s ease;
++}
++
++.sidebar-group-items.expanded {
++    max-height: 400px;
++    opacity: 1;
++    visibility: visible;
++}
++
++.sidebar-nav {
++    display: flex;
++    flex-direction: column;
++    gap: 1px;
++}
++
++.sidebar-nav a,
++.sidebar-group-items a {
++    display: flex;
++    align-items: center;
++    gap: 9px;
++    min-height: 31px;
++    padding: 5px 7px;
++    border: 1px solid transparent;
++    border-radius: 7px;
++    font-size: 12.5px;
++    color: #475467;
++    white-space: nowrap;
++    transition: background .12s ease, color .12s ease;
++}
++
++.sidebar-nav a i,
++.sidebar-group-items a i {
++    font-size: 16px;
++    line-height: 1;
++    color: #98a2b3;
++}
++
++.sidebar-nav a:hover,
++.sidebar-group-items a:hover {
++    background: #f4f6f9;
++    color: #172033;
++    border-color: transparent;
++}
++
++.sidebar-nav a.active,
++.sidebar-group-items a.active {
++    background: #eef4ff;
++    color: #155eef;
++    font-weight: 700;
++    border-color: transparent;
++    box-shadow: none;
++}
++
++.sidebar-nav a.active i,
++.sidebar-group-items a.active i {
++    color: #155eef;
++}
++
++/* Ungrouped top-level links (e.g. audit log) keep the rail's icon gutter. */
++.sidebar-nav > a i {
++    width: 30px;
++    flex: 0 0 30px;
++    text-align: center;
++}
++
++/* Footer */
++.sidebar-footer {
++    margin: auto 0 0;
++    display: flex;
++    align-items: center;
++    gap: 9px;
++    padding: 8px 5px 2px;
++    border: 0;
++    border-top: 1px solid #eef1f5;
++    border-radius: 0;
++    background: transparent;
++    white-space: nowrap;
++}
++
++.sidebar-footer i {
++    width: 30px;
++    flex: 0 0 30px;
++    text-align: center;
++    font-size: 17px;
++    color: #98a2b3;
++}
++
++.sidebar-footer strong {
++    display: block;
++    font-size: 11.5px;
++}
++
++.sidebar-footer small {
++    display: block;
++    font-size: 10.5px;
++    color: #98a2b3;
++}
++
++/* Rail state: hide every label, keep only the icon gutter visible. */
++.sidebar-rail .sidebar-panel:not(:hover) .brand-text,
++.sidebar-rail .sidebar-panel:not(:hover) .group-title,
++.sidebar-rail .sidebar-panel:not(:hover) .group-chevron,
++.sidebar-rail .sidebar-panel:not(:hover) .sidebar-nav a span,
++.sidebar-rail .sidebar-panel:not(:hover) .sidebar-footer div {
++    opacity: 0;
++    pointer-events: none;
++}
++
++/* Collapsed groups still show their icon, so expose children on the rail only
++   while it is open; otherwise the rail would show duplicate icon rows. */
++.sidebar-rail .sidebar-panel:not(:hover) .sidebar-group-items {
++    max-height: 0;
++    opacity: 0;
++    visibility: hidden;
++}
++
++.sidebar-rail .sidebar-panel:not(:hover) .sidebar-footer {
++    border-top-color: transparent;
++}
++
++@media (max-width:850px) {
++
++    .sidebar-shell-toggle,
++    .sidebar-brand {
++        display: none;
+     }
+ 
+     .sidebar {
+-        visibility: hidden;
+-    }
+-
+-    .sidebar.sidebar-state-ready {
+         visibility: visible;
+     }
+ 
+-    .sidebar-brand {
+-        display: flex;
+-        align-items: center;
+-        gap: 10px;
+-        min-height: 42px;
+-        margin: 0 2px 18px;
+-        padding: 2px 8px;
+-        border-radius: 11px;
+-        color: #155eef;
+-        cursor: pointer;
+-        user-select: none;
+-    }
+-
+-    .sidebar-brand:hover {
+-        background: #f2f6ff;
+-    }
+-
+-    .sidebar-brand .brand-mark {
+-        width: 38px;
+-        height: 38px;
+-        flex: 0 0 38px;
+-        border-radius: 11px;
+-        display: grid;
+-        place-items: center;
+-        background: #155eef;
+-        color: #fff;
+-        box-shadow: 0 4px 12px rgba(21, 94, 239, .18);
+-    }
+-
+-    .sidebar-brand .brand-mark svg {
+-        width: 22px;
+-        height: 22px;
+-    }
+-
+-    .sidebar-brand .brand-text {
+-        font-size: 18px;
+-        font-weight: 800;
+-        white-space: nowrap;
++    /* No rail on small screens — the panel is static and full width. */
++    .sidebar,
++    .sidebar.sidebar-rail {
++        position: static;
++        height: auto;
++        z-index: auto;
++        flex-basis: auto;
++        width: auto;
+     }
+ 
+-    .sidebar.sidebar-hidden {
+-        position: fixed;
+-        top: 0;
+-        right: 0;
+-        height: 100vh;
+-        z-index: 1099;
+-        opacity: 0;
+-        visibility: hidden;
+-        pointer-events: none;
+-        box-shadow: 0 12px 32px rgba(16, 24, 40, .18);
+-        transition: opacity .12s ease;
++    .sidebar-panel,
++    .sidebar-rail .sidebar-panel,
++    .sidebar-rail:hover .sidebar-panel {
++        position: static;
++        width: auto;
+     }
+ 
+-    .sidebar-floating-brand:hover + .sidebar.sidebar-hidden,
+-    .sidebar.sidebar-hidden:hover {
++    .sidebar-rail .sidebar-panel:not(:hover) .brand-text,
++    .sidebar-rail .sidebar-panel:not(:hover) .group-title,
++    .sidebar-rail .sidebar-panel:not(:hover) .group-chevron,
++    .sidebar-rail .sidebar-panel:not(:hover) .sidebar-nav a span,
++    .sidebar-rail .sidebar-panel:not(:hover) .sidebar-footer div {
+         opacity: 1;
+-        visibility: visible;
+         pointer-events: auto;
+     }
+ 
+-    .sidebar-floating-brand {
+-        position: fixed;
+-        top: 15px;
+-        right: 16px;
+-        z-index: 1101;
+-        width: 40px;
+-        height: 40px;
+-        display: grid;
+-        place-items: center;
+-        padding: 0;
+-        border: 0;
+-        border-radius: 11px;
+-        background: #155eef;
+-        color: #fff;
+-        box-shadow: 0 6px 18px rgba(16, 24, 40, .16);
+-        cursor: pointer;
+-    }
+-
+-    .sidebar-floating-brand svg {
+-        width: 22px;
+-        height: 22px;
+-    }
+-
+-    :global(.shell-main:has(.sidebar-floating-brand)) .topbar {
+-        padding-right: 72px;
+-    }
+-
+-    .sidebar-group {
+-        margin-bottom: 4px;
+-    }
+-
+-    .sidebar-group-toggle {
+-        width: 100%;
+-        display: flex;
+-        align-items: center;
+-        gap: 9px;
+-        padding: 9px 10px;
+-        border: 0;
+-        border-radius: 9px;
+-        background: transparent;
+-        color: inherit;
+-        font: inherit;
+-        text-align: right;
+-        cursor: pointer;
+-    }
+-
+-    .sidebar-group-toggle:hover {
+-        background: #f6f8fb;
+-    }
+-
+-    .sidebar-group-toggle i:first-child {
+-        width: 20px;
+-        text-align: center;
+-        font-size: 18px;
+-        color: #475467;
+-    }
+-
+-    .sidebar-group-toggle .group-title {
+-        flex: 1;
+-        font-weight: 700;
+-    }
+-
+-    .sidebar-group-toggle .group-chevron {
+-        font-size: 15px;
+-        color: #98a2b3;
+-        transition: transform .15s;
+-    }
+-
+-    .sidebar-group-toggle.expanded .group-chevron {
+-        transform: rotate(180deg);
+-    }
+-
+-    .sidebar-group-toggle.active-parent {
+-        background: #eef4ff;
+-        color: #155eef;
+-    }
+-
+-    .sidebar-group-toggle.active-parent i:first-child,
+-    .sidebar-group-toggle.active-parent .group-chevron {
+-        color: #155eef;
+-    }
+-
+-    .sidebar-group-items {
+-        display: flex;
+-        flex-direction: column;
+-        gap: 2px;
+-        margin: 2px 0 5px;
+-        padding-right: 25px;
+-        border-right: 1px solid #e5e7eb;
+-        overflow: hidden;
+-        max-height: 0;
+-        opacity: 0;
+-        visibility: hidden;
+-        transition: max-height .12s ease, opacity .08s ease;
+-    }
+-
+-    .sidebar-group-items.expanded {
+-        max-height: 500px;
++    .sidebar-rail .sidebar-panel:not(:hover) .sidebar-group-items.expanded {
++        max-height: 400px;
+         opacity: 1;
+         visibility: visible;
+     }
+-
+-    .sidebar-group-items a {
+-        min-height: 34px;
+-    }
+-
+-    @media (max-width:850px) {
+-
+-        .sidebar-shell-toggle,
+-        .sidebar-floating-brand,
+-        .sidebar-brand {
+-            display: none;
+-        }
+-
+-        .sidebar {
+-            visibility: visible;
+-        }
+-    }
++}
+ 
+ /* Modal layering: dialogs must always sit above shared date pickers. */
+ .admin-modal-overlay{position:fixed;inset:0;z-index:3000!important;background:rgba(16,24,40,.55);display:flex;align-items:center;justify-content:center;padding:24px}

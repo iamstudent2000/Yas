@@ -2,18 +2,14 @@
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 
-<input id="sidebar-minimal-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@_isMinimal"
+<input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
        @onchange="OnSidebarToggleChanged" />
-@if (_stateLoaded && _isMinimal)
-{
-    <button type="button" class="sidebar-floating-brand" title="نمایش منو" aria-label="نمایش منو" @onclick="ShowSidebar"><svg
-        viewBox="0 0 100 100" aria-hidden="true">
-        <use href="#jasmine-bloom-outline" />
-    </svg></button>
-    }
 
-    <aside class="sidebar @(_isMinimal ? "sidebar-hidden" : "") @(_stateLoaded ? "sidebar-state-ready" : "")">
-        <label class="sidebar-brand" for="sidebar-minimal-toggle" title="مخفی کردن منو" aria-label="مخفی کردن منو">
+<aside class="sidebar @(_isMinimal ? "sidebar-rail" : "sidebar-pinned") @(_stateLoaded ? "sidebar-state-ready" : "")">
+    <div class="sidebar-panel">
+        <label class="sidebar-brand" for="sidebar-pin-toggle"
+               title="@(_isMinimal ? "پین کردن منو" : "جمع کردن منو")"
+               aria-label="@(_isMinimal ? "پین کردن منو" : "جمع کردن منو")">
             <span class="brand-mark"><svg viewBox="0 0 100 100" aria-hidden="true">
                     <use href="#jasmine-bloom-outline" />
                 </svg></span><span class="brand-text">یاس پورتال</span>
@@ -88,7 +84,8 @@
                             <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i>
                                 <div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div>
                             </div>
-                        </aside>
+                        </div>
+                    </aside>
 
 @code {
     private const string StorageKey = "yasportal.sidebar.minimal";
@@ -136,10 +133,10 @@ _structureExpanded ? "structure" : null }.Where(x => x is not null));
 
     private async Task OnSidebarToggleChanged(ChangeEventArgs args)
     {
-        _isMinimal = args.Value is bool value && value; await
-PersistSidebarState();
+        // The checkbox now represents "pinned open", so minimal is its inverse.
+        _isMinimal = !(args.Value is bool value && value);
+        await PersistSidebarState();
     }
-    private async Task ShowSidebar() { _isMinimal = false; await PersistSidebarState(); }
     private async Task PersistSidebarState()
     {
         try
