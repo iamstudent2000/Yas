@@ -21,7 +21,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => { options.Cookie.Name = "YasPortal.Auth"; options.LoginPath = "/login"; options.AccessDeniedPath = "/access-denied"; options.ExpireTimeSpan = TimeSpan.FromHours(8); options.SlidingExpiration = true; });
 builder.Services.AddAuthorization(options => {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog" })
+    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -39,6 +39,7 @@ builder.Services.AddScoped<PermissionChecker>();
 builder.Services.AddScoped<IPermissionChecker>(sp => sp.GetRequiredService<PermissionChecker>());
 builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 builder.Services.AddScoped<AdminQueryService>();
+builder.Services.AddScoped<WorkflowService>();
 
 var app = builder.Build();
 

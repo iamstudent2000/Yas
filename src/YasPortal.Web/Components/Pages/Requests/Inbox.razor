@@ -1,0 +1,221 @@
+@page "/requests/inbox"
+@using System.Security.Claims
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Requests.View")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>کارتابل تاییدات - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-inbox"></i> کارتابل تاییدات</h1>
+            <p class="page-subtitle">درخواست‌هایی که در انتظار تصمیم شما (بر اساس سمت فعال شما) هستند.</p>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بررسی سمت فعال...</div></section>
+    }
+    else if (_approverPositionId is null)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
+    }
+    else if (_items.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-check-circle"></i><strong>کارتابل شما خالی است</strong></div></section>
+    }
+    else
+    {
+        <div class="admin-list-rows">
+            @foreach (var item in _items)
+            {
+                var busy = _actingRequestId == item.Request.Id;
+                <section class="card">
+                    <div class="admin-list-row">
+                        <div class="admin-list-primary">
+                            <span class="admin-list-avatar"><i class="bx bx-file"></i></span>
+                            <span class="admin-list-text">
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                                <span>از طرف @item.RequesterName — @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </span>
+                        </div>
+                        <div class="admin-list-meta"><span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span></div>
+                    </div>
+
+                    <div class="form-fields-summary">
+                        @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
+                        {
+                            var value = GetFieldValue(item.Request, field.Key);
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                <p><strong>@field.Label:</strong> @value</p>
+                            }
+                        }
+                    </div>
+
+                    <label class="form-label">نظر (اختیاری)</label>
+                    <textarea class="form-control" rows="2" value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
+
+                    <div class="form-actions">
+                        <AuthorizeView Policy="Requests.Approve">
+                            <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Requests.Reject">
+                            <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Requests.ReturnToRequester">
+                            <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+                            <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                        </AuthorizeView>
+                    </div>
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep }
+
+    private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
+
+    private bool _ready;
+    private Guid? _employeeId;
+    private Guid? _approverPositionId;
+    private List<InboxItem> _items = [];
+    private Dictionary<Guid, string> _comments = [];
+    private Guid? _actingRequestId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
+        var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
+
+        _employeeId = employeeId;
+        // Re-verified fresh against the database rather than trusted from the cookie claim
+        // alone, so a revoked or changed active position immediately loses this inbox.
+        _approverPositionId = employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, claimedPositionId)
+            ? claimedPositionId
+            : null;
+
+        await LoadAsync();
+        _ready = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_approverPositionId is not Guid positionId)
+        {
+            _items = [];
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var requests = await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps)
+            .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+                        && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId))
+            .OrderBy(x => x.CreatedAtUtc)
+            .ToListAsync();
+
+        var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+        var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        _items = requests.Select(r =>
+        {
+            var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
+            var hasPrevious = r.Steps.Any(s => s.Order < r.CurrentStepOrder);
+            var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
+            return new InboxItem(r, current, name, hasPrevious);
+        }).ToList();
+    }
+
+    private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
+    private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
+
+    private static string? GetFieldValue(WorkflowRequest request, string key)
+    {
+        try
+        {
+            var values = JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson);
+            return values is not null && values.TryGetValue(key, out var value) ? value : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private async Task Act(InboxItem item, WorkflowAction action)
+    {
+        if (_employeeId is not Guid employeeId || _approverPositionId is not Guid positionId)
+            return;
+
+        _actingRequestId = item.Request.Id;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            // Re-verify authority right before acting, not just at page load — a position
+            // reassignment mid-session must not let a stale claim approve anything.
+            if (!await Workflows.HoldsActivePositionAsync(employeeId, positionId))
+            {
+                AppState.AddToast("سمت فعال شما دیگر معتبر نیست. صفحه را دوباره بارگذاری کنید.", ToastLevel.Error);
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var request = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == item.Request.Id);
+            if (request is null || request.Status != WorkflowRequestStatus.PendingApproval)
+            {
+                AppState.AddToast("این درخواست دیگر در این وضعیت نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
+            var currentStep = request.CurrentStep;
+            if (currentStep.ApproverPositionId != positionId)
+            {
+                AppState.AddToast("این مرحله دیگر به سمت شما ارجاع نشده است؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
+            var comment = GetComment(item.Request.Id);
+            try
+            {
+                switch (action)
+                {
+                    case WorkflowAction.Approve: request.Approve(currentStep.Id, employeeId, comment); break;
+                    case WorkflowAction.Reject: request.Reject(currentStep.Id, employeeId, comment); break;
+                    case WorkflowAction.ReturnToRequester: request.ReturnToRequester(currentStep.Id, employeeId, comment); break;
+                    case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment); break;
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppState.AddToast(ex.Message, ToastLevel.Error);
+                return;
+            }
+
+            await db.SaveChangesAsync();
+            _comments.Remove(item.Request.Id);
+            AppState.AddToast("ثبت شد.", ToastLevel.Success);
+            await LoadAsync();
+        }
+        finally
+        {
+            _actingRequestId = null;
+        }
+    }
+}

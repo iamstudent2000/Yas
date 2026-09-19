@@ -1,0 +1,321 @@
+@page "/admin/workflows"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Admin.Workflows")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AdminQueryService AdminQueries
+@inject AppState AppState
+
+<PageTitle>مراحل گردش‌کار - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-git-branch"></i> مراحل گردش‌کار</h1>
+            <p class="page-subtitle">فیلدهای هر نوع گردش‌کار ثابت است؛ مسیر تایید (مراحل) هر نوع را اینجا تعریف کنید.</p>
+        </div>
+    </div>
+
+    <div class="admin-two-col">
+        <section class="card">
+            <div class="card-heading">
+                <div class="card-heading-icon"><i class="bx bx-list-ul"></i></div>
+                <div>
+                    <h2 class="section-title">انواع گردش‌کار</h2>
+                    <p class="muted">یک نوع را انتخاب کنید تا مراحل تایید آن را ببینید.</p>
+                </div>
+            </div>
+            <div class="admin-list-rows">
+                @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                {
+                    var selected = _selectedType == type;
+                    <div class="admin-list-row @(selected ? "admin-list-row-selected" : "")" @onclick="() => SelectType(type)">
+                        <div class="admin-list-primary">
+                            <span class="admin-list-avatar"><i class="bx bx-shape-square"></i></span>
+                            <span class="admin-list-text">
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(type)</strong>
+                                <span class="badge badge-muted">@type</span>
+                            </span>
+                        </div>
+                        <div class="admin-list-meta">
+                            <span class="admin-pill"><i class="bx bx-list-check"></i> @StepCountFor(type) مرحله</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-heading">
+                <div class="card-heading-icon"><i class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i></div>
+                <div>
+                    <h2 class="section-title">@(_editingId is null ? "مرحله جدید" : "ویرایش مرحله")</h2>
+                    <p class="muted">برای «@WorkflowFieldCatalog.GetDisplayName(_selectedType)» یک مرحله تایید تعریف کنید.</p>
+                </div>
+            </div>
+
+            <label class="form-label">نام مرحله</label>
+            <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً تایید مدیر مستقیم" />
+
+            <label class="form-label">نحوه تعیین تاییدکننده</label>
+            <div class="form-radio-group">
+                <label><input type="radio" name="approverKind" checked="@(_ruleKind == ApproverRuleKind.RequesterManagerLevel)" @onchange='() => _ruleKind = ApproverRuleKind.RequesterManagerLevel' /> بر اساس سلسله‌مراتب درخواست‌کننده (چند سطح بالاتر)</label>
+                <label><input type="radio" name="approverKind" checked="@(_ruleKind == ApproverRuleKind.SpecificPosition)" @onchange='() => _ruleKind = ApproverRuleKind.SpecificPosition' /> یک سمت ثابت مشخص</label>
+            </div>
+
+            @if (_ruleKind == ApproverRuleKind.RequesterManagerLevel)
+            {
+                <label class="form-label">چند سطح بالاتر از سمت درخواست‌کننده؟</label>
+                <input class="form-control" type="number" min="1" max="10" @bind="_managerLevel" />
+                <p class="muted">۱ یعنی مدیر مستقیم سمت درخواست‌کننده، ۲ یعنی مدیرِ مدیر او و به همین ترتیب.</p>
+            }
+            else
+            {
+                <label class="form-label">سمت تاییدکننده</label>
+                <ServerSearchableGuidSelect Value="@_approverPositionId" ValueChanged="id => _approverPositionId = id"
+                                            SearchAsync="SearchPositionsAsync" SelectedText="@_approverPositionSearch" Placeholder="یک سمت را انتخاب کنید"
+                                            SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
+            }
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveStep"><i class="bx bx-save"></i> @(_editingId is null ? "افزودن مرحله" : "ذخیره")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                }
+            </div>
+
+            <hr class="section-divider" />
+
+            @if (_loading)
+            {
+                <div class="empty-state">در حال بارگذاری...</div>
+            }
+            else if (_steps.Count == 0)
+            {
+                <div class="empty-state"><i class="bx bx-error-circle"></i><strong>هنوز مرحله‌ای تعریف نشده است</strong><span>تا وقتی حداقل یک مرحله تعریف نشود، کارمندان نمی‌توانند این نوع گردش‌کار را ثبت کنند.</span></div>
+            }
+            else
+            {
+                <div class="admin-list-table-head"><span>ترتیب</span><span>مرحله</span><span>عملیات</span></div>
+                <div class="admin-list-rows">
+                    @foreach (var step in _steps.OrderBy(x => x.Order))
+                    {
+                        <div class="admin-list-row">
+                            <div class="admin-list-primary">
+                                <span class="admin-list-avatar">@step.Order</span>
+                                <span class="admin-list-text">
+                                    <strong>@step.Name</strong>
+                                    <span>@DescribeRule(step)</span>
+                                    @if (!step.IsActive)
+                                    {
+                                        <span class="badge badge-muted">غیرفعال</span>
+                                    }
+                                </span>
+                            </div>
+                            <div class="admin-list-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" title="انتقال به بالا" disabled="@(step.Order == _steps.Min(x => x.Order))" @onclick="() => MoveUp(step.Id)"><i class="bx bx-up-arrow-alt"></i></button>
+                                <button type="button" class="btn btn-secondary btn-sm" title="انتقال به پایین" disabled="@(step.Order == _steps.Max(x => x.Order))" @onclick="() => MoveDown(step.Id)"><i class="bx bx-down-arrow-alt"></i></button>
+                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="bx bx-edit-alt"></i> ویرایش</button>
+                                <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="bx bx-trash"></i> حذف</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
+    private List<WorkflowStepDefinition> _steps = [];
+    private Dictionary<WorkflowTypeCode, int> _stepCounts = [];
+    private Dictionary<Guid, string> _positionNames = [];
+    private bool _loading;
+
+    private Guid? _editingId;
+    private string _name = "";
+    private ApproverRuleKind _ruleKind = ApproverRuleKind.RequesterManagerLevel;
+    private int _managerLevel = 1;
+    private Guid? _approverPositionId;
+    private string _approverPositionSearch = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        foreach (var type in WorkflowFieldCatalog.AllTypes)
+            _stepCounts[type] = await db.WorkflowStepDefinitions.CountAsync(x => x.WorkflowType == type);
+        await LoadStepsAsync();
+    }
+
+    private int StepCountFor(WorkflowTypeCode type) => _stepCounts.TryGetValue(type, out var count) ? count : 0;
+
+    private async Task SelectType(WorkflowTypeCode type)
+    {
+        _selectedType = type;
+        CancelEdit();
+        await LoadStepsAsync();
+    }
+
+    private async Task LoadStepsAsync()
+    {
+        _loading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _steps = await db.WorkflowStepDefinitions.AsNoTracking().Where(x => x.WorkflowType == _selectedType).OrderBy(x => x.Order).ToListAsync();
+            var positionIds = _steps.Where(x => x.ApproverPositionId is not null).Select(x => x.ApproverPositionId!.Value).Distinct().ToList();
+            _positionNames = positionIds.Count == 0
+                ? []
+                : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+            _stepCounts[_selectedType] = _steps.Count;
+        }
+        finally { _loading = false; }
+    }
+
+    private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind == ApproverRuleKind.RequesterManagerLevel
+        ? $"{ToPersianDigits(step.ManagerLevel!.Value.ToString())} سطح بالاتر از درخواست‌کننده"
+        : $"سمت ثابت: {(_positionNames.TryGetValue(step.ApproverPositionId!.Value, out var name) ? name : "؟")}";
+
+    private void EditStep(WorkflowStepDefinition step)
+    {
+        _editingId = step.Id;
+        _name = step.Name;
+        _ruleKind = step.ApproverRuleKind;
+        _managerLevel = step.ManagerLevel ?? 1;
+        _approverPositionId = step.ApproverPositionId;
+        _approverPositionSearch = step.ApproverPositionId is Guid pid && _positionNames.TryGetValue(pid, out var name) ? name : "";
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _name = "";
+        _ruleKind = ApproverRuleKind.RequesterManagerLevel;
+        _managerLevel = 1;
+        _approverPositionId = null;
+        _approverPositionSearch = "";
+    }
+
+    private async Task SaveStep()
+    {
+        var name = _name.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            AppState.AddToast("نام مرحله الزامی است.", ToastLevel.Error);
+            return;
+        }
+        if (_ruleKind == ApproverRuleKind.RequesterManagerLevel && _managerLevel < 1)
+        {
+            AppState.AddToast("سطح مدیریت باید حداقل ۱ باشد.", ToastLevel.Error);
+            return;
+        }
+        if (_ruleKind == ApproverRuleKind.SpecificPosition && _approverPositionId is null)
+        {
+            AppState.AddToast("یک سمت تاییدکننده را انتخاب کنید.", ToastLevel.Error);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (_editingId is Guid id)
+        {
+            var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
+            existing.Rename(name);
+            if (_ruleKind == ApproverRuleKind.RequesterManagerLevel)
+                existing.UseManagerLevel(_managerLevel);
+            else
+                existing.UseSpecificPosition(_approverPositionId!.Value);
+            await db.SaveChangesAsync();
+            AppState.AddToast("مرحله ویرایش شد.", ToastLevel.Success);
+        }
+        else
+        {
+            var nextOrder = (await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).Select(x => (int?)x.Order).MaxAsync() ?? 0) + 1;
+            var step = _ruleKind == ApproverRuleKind.RequesterManagerLevel
+                ? new WorkflowStepDefinition(_selectedType, nextOrder, name, _managerLevel)
+                : new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value);
+            db.WorkflowStepDefinitions.Add(step);
+            await db.SaveChangesAsync();
+            AppState.AddToast("مرحله اضافه شد.", ToastLevel.Success);
+        }
+        CancelEdit();
+        await LoadStepsAsync();
+    }
+
+    private async Task DeleteStep(Guid id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.WorkflowRequestSteps.AnyAsync(x => x.StepDefinitionId == id))
+        {
+            AppState.AddToast("این مرحله در درخواست‌های موجود استفاده شده و قابل حذف نیست؛ می‌توانید آن را غیرفعال کنید.", ToastLevel.Error);
+            return;
+        }
+        var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
+        var removedOrder = existing.Order;
+        db.WorkflowStepDefinitions.Remove(existing);
+        await db.SaveChangesAsync();
+
+        // Close the gap only after the delete is committed, so this never collides
+        // with the unique (WorkflowType, Order) index mid-transaction.
+        var later = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order > removedOrder).OrderBy(x => x.Order).ToListAsync();
+        foreach (var step in later)
+            step.SetOrder(step.Order - 1);
+        await db.SaveChangesAsync();
+
+        AppState.AddToast("مرحله حذف شد.", ToastLevel.Success);
+        if (_editingId == id)
+            CancelEdit();
+        await LoadStepsAsync();
+    }
+
+    private async Task MoveUp(Guid id)
+    {
+        var ordered = _steps.OrderBy(x => x.Order).ToList();
+        var index = ordered.FindIndex(x => x.Id == id);
+        if (index <= 0)
+            return;
+        await SwapOrder(ordered[index].Id, ordered[index - 1].Id);
+    }
+
+    private async Task MoveDown(Guid id)
+    {
+        var ordered = _steps.OrderBy(x => x.Order).ToList();
+        var index = ordered.FindIndex(x => x.Id == id);
+        if (index < 0 || index >= ordered.Count - 1)
+            return;
+        await SwapOrder(ordered[index].Id, ordered[index + 1].Id);
+    }
+
+    private async Task SwapOrder(Guid firstId, Guid secondId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var first = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == firstId);
+        var second = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == secondId);
+        var firstOrder = first.Order;
+        var secondOrder = second.Order;
+        // Move the first step to a temporary, definitely-unused order first so the two
+        // updates never momentarily collide on the unique (WorkflowType, Order) index.
+        first.SetOrder(secondOrder + 1000);
+        await db.SaveChangesAsync();
+        second.SetOrder(firstOrder);
+        first.SetOrder(secondOrder);
+        await db.SaveChangesAsync();
+        await LoadStepsAsync();
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
+
+    private static string ToPersianDigits(string value)
+    {
+        var digits = "۰۱۲۳۴۵۶۷۸۹";
+        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
+        return new string(chars);
+    }
+}

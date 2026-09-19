@@ -1,0 +1,182 @@
+namespace YasPortal.Domain.Workflows;
+
+/// <summary>
+/// An employee's submission of a fixed <see cref="WorkflowTypeCode"/>, carrying its
+/// field values (validated against <see cref="WorkflowFieldCatalog"/> before creation)
+/// and an ordered approval trail resolved from that type's <see cref="WorkflowStepDefinition"/>s
+/// at submission time.
+/// </summary>
+public sealed class WorkflowRequest
+{
+    private WorkflowRequest()
+    {
+    }
+
+    /// <param name="fieldValuesJson">The submitted field values, serialized as JSON.</param>
+    /// <param name="resolvedSteps">
+    /// The request's approval path, in order, already resolved from the type's step
+    /// definitions (see <see cref="Organization.PositionHierarchy"/> for resolving
+    /// "N levels up" steps to a concrete position at submission time).
+    /// </param>
+    public WorkflowRequest(
+        WorkflowTypeCode workflowType,
+        Guid requesterEmployeeId,
+        Guid requesterPositionId,
+        string fieldValuesJson,
+        IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps)
+    {
+        if (requesterEmployeeId == Guid.Empty)
+            throw new ArgumentException("Requester is required.", nameof(requesterEmployeeId));
+        if (requesterPositionId == Guid.Empty)
+            throw new ArgumentException("Requester's active position is required.", nameof(requesterPositionId));
+        if (string.IsNullOrWhiteSpace(fieldValuesJson))
+            throw new ArgumentException("Field values are required.", nameof(fieldValuesJson));
+        if (resolvedSteps is null || resolvedSteps.Count == 0)
+            throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
+
+        WorkflowType = workflowType;
+        RequesterEmployeeId = requesterEmployeeId;
+        RequesterPositionId = requesterPositionId;
+        FieldValuesJson = fieldValuesJson;
+        CreatedAtUtc = DateTime.UtcNow;
+        Status = WorkflowRequestStatus.PendingApproval;
+
+        foreach (var step in resolvedSteps.OrderBy(x => x.Order))
+            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, step.Order, step.Name, step.ApproverPositionId));
+
+        CurrentStepOrder = Steps.First().Order;
+    }
+
+    public Guid Id { get; private set; } = Guid.NewGuid();
+    public WorkflowTypeCode WorkflowType { get; private set; }
+    public Guid RequesterEmployeeId { get; private set; }
+    public Guid RequesterPositionId { get; private set; }
+    public string FieldValuesJson { get; private set; } = null!;
+    public DateTime CreatedAtUtc { get; private set; }
+    public WorkflowRequestStatus Status { get; private set; }
+    public int CurrentStepOrder { get; private set; }
+    public ICollection<WorkflowRequestStep> Steps { get; private set; } = new List<WorkflowRequestStep>();
+
+    public WorkflowRequestStep CurrentStep =>
+        Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
+        ?? throw new InvalidOperationException("The request has no current step.");
+
+    public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+    {
+        var step = RequireActionableCurrentStep(stepId);
+        step.Approve(actingEmployeeId, comment);
+
+        var next = Steps.Where(x => x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
+        if (next is null)
+        {
+            Status = WorkflowRequestStatus.Approved;
+        }
+        else
+        {
+            CurrentStepOrder = next.Order;
+        }
+    }
+
+    public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
+    {
+        var step = RequireActionableCurrentStep(stepId);
+        step.Reject(actingEmployeeId, comment);
+        Status = WorkflowRequestStatus.Rejected;
+    }
+
+    public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+    {
+        var step = RequireActionableCurrentStep(stepId);
+        step.ReturnToRequester(actingEmployeeId, comment);
+        Status = WorkflowRequestStatus.ReturnedToRequester;
+    }
+
+    public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+    {
+        var step = RequireActionableCurrentStep(stepId);
+        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault()
+            ?? throw new InvalidOperationException("There is no previous step to return to.");
+
+        step.ReturnToPreviousStep(actingEmployeeId, comment);
+        previous.Reopen();
+        CurrentStepOrder = previous.Order;
+    }
+
+    public void Cancel()
+    {
+        if (Status != WorkflowRequestStatus.PendingApproval)
+            throw new InvalidOperationException("Only a request that is still pending approval can be cancelled.");
+        Status = WorkflowRequestStatus.Cancelled;
+    }
+
+    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
+    {
+        if (Status != WorkflowRequestStatus.PendingApproval)
+            throw new InvalidOperationException("This request is no longer pending approval.");
+        var step = CurrentStep;
+        if (step.Id != stepId)
+            throw new InvalidOperationException("Only the request's current step can be acted on.");
+        return step;
+    }
+}
+
+/// <summary>One entry in a <see cref="WorkflowRequest"/>'s approval trail.</summary>
+public sealed class WorkflowRequestStep
+{
+    private WorkflowRequestStep()
+    {
+    }
+
+    internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int order, string name, Guid approverPositionId)
+    {
+        RequestId = requestId;
+        StepDefinitionId = stepDefinitionId;
+        Order = order;
+        Name = name;
+        ApproverPositionId = approverPositionId;
+        Status = WorkflowStepStatus.Pending;
+    }
+
+    public Guid Id { get; private set; } = Guid.NewGuid();
+    public Guid RequestId { get; private set; }
+    public Guid StepDefinitionId { get; private set; }
+    public int Order { get; private set; }
+    public string Name { get; private set; } = null!;
+
+    /// <summary>
+    /// The position resolved for this step at submission time. Whoever *currently*
+    /// holds this position may act on the step — this is not a snapshot of a specific
+    /// person, so a mid-flight position reassignment is picked up automatically.
+    /// </summary>
+    public Guid ApproverPositionId { get; private set; }
+    public WorkflowStepStatus Status { get; private set; }
+    public Guid? ActedByEmployeeId { get; private set; }
+    public DateTime? ActedAtUtc { get; private set; }
+    public string? Comment { get; private set; }
+
+    public void Approve(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.Approved, actingEmployeeId, comment);
+    public void Reject(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.Rejected, actingEmployeeId, comment);
+    public void ReturnToRequester(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
+    public void ReturnToPreviousStep(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment);
+
+    /// <summary>Re-opens a previously approved step when a later step sends the request back to it.</summary>
+    internal void Reopen()
+    {
+        Status = WorkflowStepStatus.Pending;
+        ActedByEmployeeId = null;
+        ActedAtUtc = null;
+        Comment = null;
+    }
+
+    private void Act(WorkflowStepStatus status, Guid actingEmployeeId, string? comment)
+    {
+        if (Status != WorkflowStepStatus.Pending)
+            throw new InvalidOperationException("This step has already been acted on.");
+        if (actingEmployeeId == Guid.Empty)
+            throw new ArgumentException("Acting employee is required.", nameof(actingEmployeeId));
+        Status = status;
+        ActedByEmployeeId = actingEmployeeId;
+        ActedAtUtc = DateTime.UtcNow;
+        Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+    }
+}

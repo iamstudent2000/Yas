@@ -54,3 +54,11 @@
 .badge{min-height:21px;padding:3px 7px;font-size:10.5px}
 .subject-card{padding:10px 13px}
 .access-panel .panel-heading,.access-selector,.access-panel{padding:11px 13px}
+.card-heading{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--admin-border)}
+.card-heading .section-title{margin:0}
+.card-heading-icon{width:36px;height:36px;flex:0 0 36px;border-radius:10px;background:var(--admin-primary-soft);color:var(--admin-primary);display:grid;place-items:center;font-size:18px}
+.section-divider{border:0;border-top:1px solid var(--admin-border);margin:16px 0}
+.form-radio-group{display:flex;flex-direction:column;gap:8px;margin:8px 0 16px;font-size:12.5px;color:var(--admin-text)}
+.form-radio-group label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.form-fields-summary{margin-top:14px;padding:12px 14px;border-radius:10px;background:#fafbfc;border:1px solid var(--admin-border);font-size:12.5px;color:var(--admin-text)}
+.form-fields-summary p{margin:4px 0}

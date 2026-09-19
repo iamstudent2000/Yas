@@ -80,6 +80,26 @@
                                 <AuthorizeView Policy="Admin.AuditLog">
                                     <NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink>
                                 </AuthorizeView>
+                                <div class="sidebar-group">
+                                    <button type="button"
+                                            class="sidebar-group-toggle @(_requestsExpanded ? "expanded" : "") @(_requestsActive ? "active-parent" : "")"
+                                            @onclick="ToggleRequestsGroup"><i class="bx bx-git-branch"></i><span class="group-title">درخواست‌ها و
+                                        گردش‌کار</span><i class="bx bx-chevron-down group-chevron"></i></button>
+                                        <div class="sidebar-group-items @(_requestsExpanded ? "expanded" : "")">
+                                            <AuthorizeView Policy="Requests.Create">
+                                                <NavLink href="/requests/new"><i class="bx bx-plus-circle"></i><span>درخواست جدید</span></NavLink>
+                                            </AuthorizeView>
+                                            <AuthorizeView Policy="Requests.View">
+                                                <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span></NavLink>
+                                            </AuthorizeView>
+                                            <AuthorizeView Policy="Requests.View">
+                                                <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span></NavLink>
+                                            </AuthorizeView>
+                                            <AuthorizeView Policy="Admin.Workflows">
+                                                <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
+                                            </AuthorizeView>
+                                        </div>
+                                    </div>
                             </nav>
                             <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i>
                                 <div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div>
@@ -97,6 +117,8 @@
     private bool _structureExpanded;
     private bool _accessActive;
     private bool _structureActive;
+    private bool _requestsExpanded;
+    private bool _requestsActive;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -112,6 +134,7 @@
                 _accountExpanded = values.Contains("account", StringComparer.OrdinalIgnoreCase);
                 _accessExpanded = values.Contains("access", StringComparer.OrdinalIgnoreCase);
                 _structureExpanded = values.Contains("structure", StringComparer.OrdinalIgnoreCase);
+                _requestsExpanded = values.Contains("requests", StringComparer.OrdinalIgnoreCase);
             }
         }
         catch (InvalidOperationException) { }
@@ -121,11 +144,12 @@
     private async Task ToggleAccountGroup() { _accountExpanded = !_accountExpanded; await PersistGroups(); }
     private async Task ToggleAccessGroup() { _accessExpanded = !_accessExpanded; await PersistGroups(); }
     private async Task ToggleStructureGroup() { _structureExpanded = !_structureExpanded; await PersistGroups(); }
+    private async Task ToggleRequestsGroup() { _requestsExpanded = !_requestsExpanded; await PersistGroups(); }
 
     private async Task PersistGroups()
     {
         var value = string.Join('|', new[] { _accountExpanded ? "account" : null, _accessExpanded ? "access" : null,
-_structureExpanded ? "structure" : null }.Where(x => x is not null));
+_structureExpanded ? "structure" : null, _requestsExpanded ? "requests" : null }.Where(x => x is not null));
         try { await JS.InvokeVoidAsync("localStorage.setItem", ExpansionStorageKey, value); }
         catch (InvalidOperationException)
         { }

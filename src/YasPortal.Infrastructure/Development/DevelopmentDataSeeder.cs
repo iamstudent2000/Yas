@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Organization;
+using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Development;
@@ -82,7 +83,8 @@ public static class DevelopmentDataSeeder
             ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها"),
             ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
             ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
-            ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها")
+            ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
+            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار")
         };
 
         foreach (var permission in permissions.Values.ToList())
@@ -147,6 +149,28 @@ public static class DevelopmentDataSeeder
         await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View" }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
+
+        // Default approval paths — seeded once as a sensible starting point; an admin
+        // with Admin.Workflows can add/reorder/remove steps afterward from /admin/workflows,
+        // so this never re-seeds once a type already has at least one step defined.
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.Leave, ct,
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
+            (Order: 2, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.Purchase, ct,
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
+            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.Access, ct,
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
+            (Order: 2, Name: "تایید مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.Loan, ct,
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
+            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id),
+            (Order: 3, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.Helpdesk, ct,
+            (Order: 1, Name: "ارجاع به مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.WorkReport, ct,
+            (Order: 1, Name: "مشاهده مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null));
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task<Position> EnsurePosition(ApplicationDbContext db, string code, string name, Guid? parentPositionId, CancellationToken ct)
@@ -200,5 +224,26 @@ public static class DevelopmentDataSeeder
     {
         foreach (var code in codes)
             await EnsurePermission(db, employee, position, permissions[code], ct);
+    }
+
+    /// <summary>
+    /// Seeds a workflow type's approval steps only if it has none yet, so an admin's own
+    /// edits from /admin/workflows are never overwritten by a later app restart.
+    /// </summary>
+    private static async Task EnsureWorkflowSteps(
+        ApplicationDbContext db,
+        WorkflowTypeCode workflowType,
+        CancellationToken ct,
+        params (int Order, string Name, int? ManagerLevel, Guid? ApproverPositionId)[] steps)
+    {
+        if (await db.WorkflowStepDefinitions.AnyAsync(x => x.WorkflowType == workflowType, ct))
+            return;
+        foreach (var step in steps)
+        {
+            db.WorkflowStepDefinitions.Add(step.ApproverPositionId is Guid positionId
+                ? new WorkflowStepDefinition(workflowType, step.Order, step.Name, positionId)
+                : new WorkflowStepDefinition(workflowType, step.Order, step.Name, step.ManagerLevel!.Value));
+        }
+        await db.SaveChangesAsync(ct);
     }
 }

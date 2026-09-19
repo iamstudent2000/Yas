@@ -1,0 +1,164 @@
+@page "/requests/new"
+@using System.Security.Claims
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Requests.Create")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>درخواست جدید - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-plus-circle"></i> درخواست جدید</h1>
+            <p class="page-subtitle">نوع درخواست را انتخاب کنید و فرم مربوطه را تکمیل نمایید.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/requests/mine"><i class="bx bx-list-check"></i> درخواست‌های من</a>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بررسی سمت فعال...</div></section>
+    }
+    else if (_requesterPositionId is null)
+    {
+        <section class="card">
+            <div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong><span>برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.</span></div>
+        </section>
+    }
+    else
+    {
+        <section class="card">
+            <label class="form-label">نوع درخواست</label>
+            <select class="form-control" value="@_selectedType" @onchange="TypeChanged">
+                @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                {
+                    <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
+                }
+            </select>
+
+            <hr class="section-divider" />
+
+            @foreach (var field in WorkflowFieldCatalog.GetFields(_selectedType))
+            {
+                <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
+                @switch (field.FieldType)
+                {
+                    case WorkflowFieldType.TextArea:
+                        <textarea class="form-control" rows="4" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)"></textarea>
+                        break;
+                    case WorkflowFieldType.Number:
+                        <input class="form-control" type="number" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+                        break;
+                    case WorkflowFieldType.Date:
+                        <input class="form-control" type="date" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+                        break;
+                    case WorkflowFieldType.Select:
+                        <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
+                            <option value="">— انتخاب کنید —</option>
+                            @foreach (var option in field.Options ?? [])
+                            {
+                                <option value="@option">@option</option>
+                            }
+                        </select>
+                        break;
+                    default:
+                        <input class="form-control" type="text" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+                        break;
+                }
+            }
+
+            <div class="form-actions">
+                <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit"><i class="bx bx-send"></i> ثبت درخواست</button>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private bool _ready;
+    private Guid? _requesterEmployeeId;
+    private Guid? _requesterPositionId;
+    private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
+    private Dictionary<string, string?> _values = [];
+    private bool _submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
+        var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
+
+        _requesterEmployeeId = employeeId;
+        // Re-verified fresh against the database rather than trusted from the cookie claim
+        // alone, so a revoked or changed active position can never be used to submit a request.
+        _requesterPositionId = employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, claimedPositionId)
+            ? claimedPositionId
+            : null;
+        _ready = true;
+    }
+
+    private void TypeChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type))
+        {
+            _selectedType = type;
+            _values = [];
+        }
+    }
+
+    private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v ?? "" : "";
+    private void SetValue(string key, ChangeEventArgs e) => _values[key] = e.Value?.ToString();
+
+    private async Task Submit()
+    {
+        if (_requesterEmployeeId is not Guid employeeId || _requesterPositionId is not Guid positionId)
+            return;
+
+        var missing = WorkflowFieldCatalog.ValidateRequiredFields(_selectedType, _values);
+        if (missing.Count > 0)
+        {
+            AppState.AddToast($"تکمیل این فیلدها الزامی است: {string.Join("، ", missing)}", ToastLevel.Error);
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            var resolved = await Workflows.ResolveStepsAsync(_selectedType, positionId);
+            if (!resolved.Success)
+            {
+                AppState.AddToast(resolved.Error!, ToastLevel.Error);
+                return;
+            }
+
+            var fieldValuesJson = JsonSerializer.Serialize(_values);
+            var request = new WorkflowRequest(
+                _selectedType,
+                employeeId,
+                positionId,
+                fieldValuesJson,
+                resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.WorkflowRequests.Add(request);
+            await db.SaveChangesAsync();
+
+            AppState.AddToast("درخواست شما با موفقیت ثبت شد.", ToastLevel.Success);
+            Navigation.NavigateTo("/requests/mine");
+        }
+        finally { _submitting = false; }
+    }
+}

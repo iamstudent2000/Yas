@@ -5,6 +5,7 @@ using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Organization;
+using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Authorization;
 
 namespace YasPortal.Infrastructure.Persistence;
@@ -25,6 +26,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<UserPositionPermissionGroup> UserPositionPermissionGroups => Set<UserPositionPermissionGroup>();
     public DbSet<EmployeePermissionGroup> EmployeePermissionGroups => Set<EmployeePermissionGroup>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
+    public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
+    public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -235,5 +239,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<PermissionGroupPermission>(e => { e.HasKey(x => new { x.GroupId, x.PermissionId }); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<UserPositionPermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+        modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
+        modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Order }).IsUnique(); });
     }
 }
