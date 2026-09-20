@@ -9,6 +9,7 @@
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
@@ -51,6 +52,10 @@
                         <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                     </span>
+                    @if (!request.RequesterHasSeenLatestUpdate)
+                    {
+                        <span class="badge badge-info">جدید</span>
+                    }
                     <span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span>
                     <i class="bx bx-chevron-down request-card-chevron"></i>
                 </div>
@@ -72,15 +77,20 @@
                         <div class="approval-timeline">
                             @foreach (var step in request.Steps.OrderBy(x => x.Order))
                             {
+                                var isCurrent = step.Order == request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
                                 <div class="approval-step">
-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
+                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
                                     <div class="approval-step-body">
                                         <strong>@step.Name</strong>
                                         <div class="approval-step-meta">
-                                            @WorkflowDisplay.StepLabel(step.Status)
+                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
                                             @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name))
                                             {
                                                 <span> — @name</span>
+                                            }
+                                            else if (step.Status == WorkflowStepStatus.Pending)
+                                            {
+                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
                                             }
                                             @if (step.ActedAtUtc is DateTime actedAt)
                                             {
@@ -106,6 +116,7 @@
     private bool _loading = true;
     private List<WorkflowRequest> _requests = [];
     private Dictionary<Guid, string> _employeeNames = [];
+    private Dictionary<Guid, string> _holderNames = [];
     private Guid? _expandedId;
 
     protected override async Task OnInitializedAsync()
@@ -125,13 +136,35 @@
 
         var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
         _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        var pendingPositionIds = _requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
+
         _loading = false;
 
         if (_requests.Count > 0)
             _expandedId = _requests[0].Id;
     }
 
-    private void Toggle(Guid id) => _expandedId = _expandedId == id ? null : id;
+    private async Task Toggle(Guid id)
+    {
+        _expandedId = _expandedId == id ? null : id;
+        if (_expandedId != id)
+            return;
+
+        var request = _requests.FirstOrDefault(x => x.Id == id);
+        if (request is null || request.RequesterHasSeenLatestUpdate)
+            return;
+
+        request.MarkSeenByRequester();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var tracked = await db.WorkflowRequests.FindAsync(id);
+        if (tracked is not null)
+        {
+            tracked.MarkSeenByRequester();
+            await db.SaveChangesAsync();
+        }
+    }
 
     private static string? GetFieldValue(WorkflowRequest request, string key)
     {

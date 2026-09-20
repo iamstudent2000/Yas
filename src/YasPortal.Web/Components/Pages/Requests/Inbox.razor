@@ -69,15 +69,20 @@
                         <div class="approval-timeline">
                             @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
                             {
+                                var isCurrent = step.Order == item.Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
                                 <div class="approval-step">
-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
+                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
                                     <div class="approval-step-body">
                                         <strong>@step.Name</strong>
                                         <div class="approval-step-meta">
-                                            @WorkflowDisplay.StepLabel(step.Status)
+                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
                                             @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
                                             {
                                                 <span> — @actorName</span>
+                                            }
+                                            else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
+                                            {
+                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
                                             }
                                             @if (step.ActedAtUtc is DateTime actedAt)
                                             {
@@ -133,6 +138,7 @@
     private Guid? _approverPositionId;
     private List<InboxItem> _items = [];
     private Dictionary<Guid, string> _employeeNames = [];
+    private Dictionary<Guid, string> _holderNames = [];
     private Dictionary<Guid, string> _comments = [];
     private Guid? _actingRequestId;
 
@@ -173,6 +179,9 @@
 
         var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
         _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        var pendingPositionIds = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
 
         _items = requests.Select(r =>
         {

@@ -133,6 +133,19 @@ public class WorkflowRequestTests
         Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
         Assert.Throws<InvalidOperationException>(() => request.Cancel());
     }
+
+    [Fact]
+    public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        Assert.True(request.RequesterHasSeenLatestUpdate);
+
+        request.Approve(step1Id, Guid.NewGuid(), null);
+        Assert.False(request.RequesterHasSeenLatestUpdate);
+
+        request.MarkSeenByRequester();
+        Assert.True(request.RequesterHasSeenLatestUpdate);
+    }
 }
 
 public class WorkflowStepDefinitionTests

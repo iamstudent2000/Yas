@@ -1,6 +1,12 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
+@using System.Security.Claims
+@using YasPortal.Web.Services
+@implements IDisposable
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject WorkflowService Workflows
 
 <input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
        @onchange="OnSidebarToggleChanged" />
@@ -90,10 +96,16 @@
                                                 <NavLink href="/requests/new"><i class="bx bx-plus-circle"></i><span>درخواست جدید</span></NavLink>
                                             </AuthorizeView>
                                             <AuthorizeView Policy="Requests.View">
-                                                <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span></NavLink>
+                                                <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
+                                                    {
+                                                        <span class="nav-badge">@_myRequestsBadge</span>
+                                                    }</NavLink>
                                             </AuthorizeView>
                                             <AuthorizeView Policy="Requests.View">
-                                                <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span></NavLink>
+                                                <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
+                                                    {
+                                                        <span class="nav-badge">@_inboxBadge</span>
+                                                    }</NavLink>
                                             </AuthorizeView>
                                             <AuthorizeView Policy="Admin.Workflows">
                                                 <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
@@ -119,6 +131,43 @@
     private bool _structureActive;
     private bool _requestsExpanded;
     private bool _requestsActive;
+    private int _inboxBadge;
+    private int _myRequestsBadge;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await RefreshBadgesAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await RefreshBadgesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshBadgesAsync()
+    {
+        try
+        {
+            var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+            var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
+            var activePositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
+
+            _myRequestsBadge = await Workflows.CountUnseenForRequesterAsync(employeeId);
+            _inboxBadge = activePositionId is Guid posId && employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, posId)
+                ? await Workflows.CountInboxAsync(posId)
+                : 0;
+        }
+        catch
+        {
+            // Best-effort UI badge; never let a transient failure break the sidebar itself.
+            _inboxBadge = 0;
+            _myRequestsBadge = 0;
+        }
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

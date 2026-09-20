@@ -49,6 +49,7 @@
 .approval-step:last-child::before{display:none}
 .approval-step-icon{position:relative;z-index:1;width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:#f2f4f7;color:#98a2b3}
 .approval-step-icon.is-pending{background:#eef2ff;color:#1d4ed8}
+.approval-step-icon.is-queued{background:#f2f4f7;color:#98a2b3}
 .approval-step-icon.is-approved{background:#ecfdf3;color:#027a48}
 .approval-step-icon.is-rejected{background:#fef3f2;color:#b42318}
 .approval-step-icon.is-returned{background:#fffaeb;color:#b54708}

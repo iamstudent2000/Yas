@@ -61,9 +61,15 @@ public static class WorkflowDisplay
         _ => "badge-info",
     };
 
-    public static string StepLabel(WorkflowStepStatus status) => status switch
+    /// <summary>
+    /// A step's label/icon depend on whether it's <paramref name="isCurrent"/> (the step a
+    /// request is actually sitting at right now) as well as its own status — two Pending
+    /// steps can mean "awaiting action now" vs "queued, not reached yet".
+    /// </summary>
+    public static string StepLabel(WorkflowStepStatus status, bool isCurrent) => status switch
     {
-        WorkflowStepStatus.Pending => "در انتظار",
+        WorkflowStepStatus.Pending when isCurrent => "در انتظار تایید",
+        WorkflowStepStatus.Pending => "در صف، هنوز به این مرحله نرسیده",
         WorkflowStepStatus.Approved => "تایید شد",
         WorkflowStepStatus.Rejected => "رد شد",
         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
@@ -72,18 +78,20 @@ public static class WorkflowDisplay
     };
 
     /// <summary>CSS state class for <c>.approval-step-icon</c> — controls its background/color.</summary>
-    public static string StepIconClass(WorkflowStepStatus status) => status switch
+    public static string StepIconClass(WorkflowStepStatus status, bool isCurrent) => status switch
     {
-        WorkflowStepStatus.Pending => "is-pending",
+        WorkflowStepStatus.Pending when isCurrent => "is-pending",
+        WorkflowStepStatus.Pending => "is-queued",
         WorkflowStepStatus.Approved => "is-approved",
         WorkflowStepStatus.Rejected => "is-rejected",
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "is-returned",
         _ => "",
     };
 
-    public static string StepIcon(WorkflowStepStatus status) => status switch
+    public static string StepIcon(WorkflowStepStatus status, bool isCurrent) => status switch
     {
-        WorkflowStepStatus.Pending => "bx-time-five",
+        WorkflowStepStatus.Pending when isCurrent => "bx-time-five",
+        WorkflowStepStatus.Pending => "bx-time",
         WorkflowStepStatus.Approved => "bx-check",
         WorkflowStepStatus.Rejected => "bx-x",
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",

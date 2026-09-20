@@ -54,4 +54,40 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.EmployeePositions.AsNoTracking().AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == pid && x.EndedAt == null, ct);
     }
+
+    /// <summary>
+    /// Maps each of the given positions to the full name of whoever currently, actively
+    /// holds it — a position with nobody currently assigned is simply absent from the result,
+    /// so callers can show "position is vacant" for anything missing from the dictionary.
+    /// </summary>
+    public async Task<Dictionary<Guid, string>> GetCurrentHolderNamesAsync(IReadOnlyCollection<Guid> positionIds, CancellationToken ct = default)
+    {
+        if (positionIds.Count == 0)
+            return [];
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.EmployeePositions.AsNoTracking()
+            .Where(x => x.EndedAt == null && positionIds.Contains(x.PositionId))
+            .Join(db.Employees.AsNoTracking(), ep => ep.EmployeeId, e => e.Id, (ep, e) => new { ep.PositionId, e.FullName })
+            .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
+    }
+
+    /// <summary>Number of requests currently sitting at a step assigned to this position — drives the inbox badge.</summary>
+    public async Task<int> CountInboxAsync(Guid? approverPositionId, CancellationToken ct = default)
+    {
+        if (approverPositionId is not Guid positionId)
+            return 0;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.WorkflowRequests.AsNoTracking()
+            .CountAsync(x => x.Status == WorkflowRequestStatus.PendingApproval
+                              && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId), ct);
+    }
+
+    /// <summary>Number of the employee's own requests with a decision they haven't looked at yet — drives the "my requests" badge.</summary>
+    public async Task<int> CountUnseenForRequesterAsync(Guid? employeeId, CancellationToken ct = default)
+    {
+        if (employeeId is not Guid id)
+            return 0;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.WorkflowRequests.AsNoTracking().CountAsync(x => x.RequesterEmployeeId == id && !x.RequesterHasSeenLatestUpdate, ct);
+    }
 }

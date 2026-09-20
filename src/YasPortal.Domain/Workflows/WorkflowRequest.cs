@@ -57,6 +57,16 @@ public sealed class WorkflowRequest
     public int CurrentStepOrder { get; private set; }
     public ICollection<WorkflowRequestStep> Steps { get; private set; } = new List<WorkflowRequestStep>();
 
+    /// <summary>
+    /// False whenever a step decision has happened that the requester hasn't looked at yet —
+    /// drives the "you have updates" badge. Starts true (the requester just submitted it
+    /// themselves, so there's nothing new to tell them), flips false on any step action, and
+    /// back to true via <see cref="MarkSeenByRequester"/>.
+    /// </summary>
+    public bool RequesterHasSeenLatestUpdate { get; private set; } = true;
+
+    public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
+
     public WorkflowRequestStep CurrentStep =>
         Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
         ?? throw new InvalidOperationException("The request has no current step.");
@@ -75,6 +85,7 @@ public sealed class WorkflowRequest
         {
             CurrentStepOrder = next.Order;
         }
+        RequesterHasSeenLatestUpdate = false;
     }
 
     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
@@ -82,6 +93,7 @@ public sealed class WorkflowRequest
         var step = RequireActionableCurrentStep(stepId);
         step.Reject(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.Rejected;
+        RequesterHasSeenLatestUpdate = false;
     }
 
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
@@ -89,6 +101,7 @@ public sealed class WorkflowRequest
         var step = RequireActionableCurrentStep(stepId);
         step.ReturnToRequester(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.ReturnedToRequester;
+        RequesterHasSeenLatestUpdate = false;
     }
 
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
@@ -100,6 +113,7 @@ public sealed class WorkflowRequest
         step.ReturnToPreviousStep(actingEmployeeId, comment);
         previous.Reopen();
         CurrentStepOrder = previous.Order;
+        RequesterHasSeenLatestUpdate = false;
     }
 
     public void Cancel()

@@ -8,6 +8,7 @@
 @attribute [Authorize(Policy = "Admin.Workflows")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
+@inject WorkflowService Workflows
 @inject AppState AppState
 
 <PageTitle>مراحل گردش‌کار - یاس پورتال</PageTitle>
@@ -137,6 +138,7 @@
     private List<WorkflowStepDefinition> _steps = [];
     private Dictionary<WorkflowTypeCode, int> _stepCounts = [];
     private Dictionary<Guid, string> _positionNames = [];
+    private Dictionary<Guid, string> _holderNames = [];
     private bool _loading;
 
     private Guid? _editingId;
@@ -175,6 +177,7 @@
             _positionNames = positionIds.Count == 0
                 ? []
                 : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+            _holderNames = positionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(positionIds);
             _stepCounts[_selectedType] = _steps.Count;
         }
         finally { _loading = false; }
@@ -182,7 +185,8 @@
 
     private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind == ApproverRuleKind.RequesterManagerLevel
         ? $"{ToPersianDigits(step.ManagerLevel!.Value.ToString())} سطح بالاتر از درخواست‌کننده"
-        : $"سمت ثابت: {(_positionNames.TryGetValue(step.ApproverPositionId!.Value, out var name) ? name : "؟")}";
+        : $"سمت ثابت: {(_positionNames.TryGetValue(step.ApproverPositionId!.Value, out var name) ? name : "؟")}" +
+          $" — کارمند فعلی: {(_holderNames.TryGetValue(step.ApproverPositionId!.Value, out var holder) ? holder : "سمت خالی است")}";
 
     private void EditStep(WorkflowStepDefinition step)
     {

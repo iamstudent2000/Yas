@@ -1,0 +1,472 @@
+From 4dec6b0461457c800e6461059acc0a36cb6f323f Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Sun, 20 Sep 2026 05:19:30 +0000
+Subject: [PATCH] Show current position holder on workflow steps; add
+ requester/approver notification badges
+
+---
+ .../Workflows/WorkflowRequest.cs              | 14 +++++
+ .../Components/Layout/PersistentSidebar.razor | 53 ++++++++++++++++++-
+ .../Components/Pages/Admin/Workflows.razor    |  6 ++-
+ .../Components/Pages/Requests/Inbox.razor     | 13 ++++-
+ .../Pages/Requests/MyRequests.razor           | 39 ++++++++++++--
+ src/YasPortal.Web/Services/WorkflowDisplay.cs | 20 ++++---
+ src/YasPortal.Web/Services/WorkflowService.cs | 36 +++++++++++++
+ src/YasPortal.Web/wwwroot/css/base.css        |  2 +-
+ src/YasPortal.Web/wwwroot/css/requests.css    |  1 +
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 13 +++++
+ 10 files changed, 182 insertions(+), 15 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 6d5a879..3bf2281 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -57,6 +57,16 @@ public sealed class WorkflowRequest
+     public int CurrentStepOrder { get; private set; }
+     public ICollection<WorkflowRequestStep> Steps { get; private set; } = new List<WorkflowRequestStep>();
+ 
++    /// <summary>
++    /// False whenever a step decision has happened that the requester hasn't looked at yet —
++    /// drives the "you have updates" badge. Starts true (the requester just submitted it
++    /// themselves, so there's nothing new to tell them), flips false on any step action, and
++    /// back to true via <see cref="MarkSeenByRequester"/>.
++    /// </summary>
++    public bool RequesterHasSeenLatestUpdate { get; private set; } = true;
++
++    public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
++
+     public WorkflowRequestStep CurrentStep =>
+         Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
+         ?? throw new InvalidOperationException("The request has no current step.");
+@@ -75,6 +85,7 @@ public sealed class WorkflowRequest
+         {
+             CurrentStepOrder = next.Order;
+         }
++        RequesterHasSeenLatestUpdate = false;
+     }
+ 
+     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
+@@ -82,6 +93,7 @@ public sealed class WorkflowRequest
+         var step = RequireActionableCurrentStep(stepId);
+         step.Reject(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.Rejected;
++        RequesterHasSeenLatestUpdate = false;
+     }
+ 
+     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+@@ -89,6 +101,7 @@ public sealed class WorkflowRequest
+         var step = RequireActionableCurrentStep(stepId);
+         step.ReturnToRequester(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.ReturnedToRequester;
++        RequesterHasSeenLatestUpdate = false;
+     }
+ 
+     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+@@ -100,6 +113,7 @@ public sealed class WorkflowRequest
+         step.ReturnToPreviousStep(actingEmployeeId, comment);
+         previous.Reopen();
+         CurrentStepOrder = previous.Order;
++        RequesterHasSeenLatestUpdate = false;
+     }
+ 
+     public void Cancel()
+diff --git a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+index 5939ce4..fcc95f8 100644
+--- a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
++++ b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+@@ -1,6 +1,12 @@
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using Microsoft.JSInterop
++@using System.Security.Claims
++@using YasPortal.Web.Services
++@implements IDisposable
+ @inject IJSRuntime JS
++@inject NavigationManager Navigation
++@inject AuthenticationStateProvider AuthenticationStateProvider
++@inject WorkflowService Workflows
+ 
+ <input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
+        @onchange="OnSidebarToggleChanged" />
+@@ -90,10 +96,16 @@
+                                                 <NavLink href="/requests/new"><i class="bx bx-plus-circle"></i><span>درخواست جدید</span></NavLink>
+                                             </AuthorizeView>
+                                             <AuthorizeView Policy="Requests.View">
+-                                                <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span></NavLink>
++                                                <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
++                                                    {
++                                                        <span class="nav-badge">@_myRequestsBadge</span>
++                                                    }</NavLink>
+                                             </AuthorizeView>
+                                             <AuthorizeView Policy="Requests.View">
+-                                                <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span></NavLink>
++                                                <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
++                                                    {
++                                                        <span class="nav-badge">@_inboxBadge</span>
++                                                    }</NavLink>
+                                             </AuthorizeView>
+                                             <AuthorizeView Policy="Admin.Workflows">
+                                                 <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
+@@ -119,6 +131,43 @@
+     private bool _structureActive;
+     private bool _requestsExpanded;
+     private bool _requestsActive;
++    private int _inboxBadge;
++    private int _myRequestsBadge;
++
++    protected override async Task OnInitializedAsync()
++    {
++        Navigation.LocationChanged += OnLocationChanged;
++        await RefreshBadgesAsync();
++    }
++
++    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
++    {
++        await RefreshBadgesAsync();
++        await InvokeAsync(StateHasChanged);
++    }
++
++    private async Task RefreshBadgesAsync()
++    {
++        try
++        {
++            var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
++            var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
++            var activePositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
++
++            _myRequestsBadge = await Workflows.CountUnseenForRequesterAsync(employeeId);
++            _inboxBadge = activePositionId is Guid posId && employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, posId)
++                ? await Workflows.CountInboxAsync(posId)
++                : 0;
++        }
++        catch
++        {
++            // Best-effort UI badge; never let a transient failure break the sidebar itself.
++            _inboxBadge = 0;
++            _myRequestsBadge = 0;
++        }
++    }
++
++    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+ 
+     protected override async Task OnAfterRenderAsync(bool firstRender)
+     {
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+index f58e5dc..70c9c1a 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+@@ -8,6 +8,7 @@
+ @attribute [Authorize(Policy = "Admin.Workflows")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
+ @inject AdminQueryService AdminQueries
++@inject WorkflowService Workflows
+ @inject AppState AppState
+ 
+ <PageTitle>مراحل گردش‌کار - یاس پورتال</PageTitle>
+@@ -137,6 +138,7 @@
+     private List<WorkflowStepDefinition> _steps = [];
+     private Dictionary<WorkflowTypeCode, int> _stepCounts = [];
+     private Dictionary<Guid, string> _positionNames = [];
++    private Dictionary<Guid, string> _holderNames = [];
+     private bool _loading;
+ 
+     private Guid? _editingId;
+@@ -175,6 +177,7 @@
+             _positionNames = positionIds.Count == 0
+                 ? []
+                 : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
++            _holderNames = positionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(positionIds);
+             _stepCounts[_selectedType] = _steps.Count;
+         }
+         finally { _loading = false; }
+@@ -182,7 +185,8 @@
+ 
+     private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind == ApproverRuleKind.RequesterManagerLevel
+         ? $"{ToPersianDigits(step.ManagerLevel!.Value.ToString())} سطح بالاتر از درخواست‌کننده"
+-        : $"سمت ثابت: {(_positionNames.TryGetValue(step.ApproverPositionId!.Value, out var name) ? name : "؟")}";
++        : $"سمت ثابت: {(_positionNames.TryGetValue(step.ApproverPositionId!.Value, out var name) ? name : "؟")}" +
++          $" — کارمند فعلی: {(_holderNames.TryGetValue(step.ApproverPositionId!.Value, out var holder) ? holder : "سمت خالی است")}";
+ 
+     private void EditStep(WorkflowStepDefinition step)
+     {
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index f51aa5e..dddf946 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -69,16 +69,21 @@
+                         <div class="approval-timeline">
+                             @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
+                             {
++                                var isCurrent = step.Order == item.Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+                                 <div class="approval-step">
+-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
++                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+                                     <div class="approval-step-body">
+                                         <strong>@step.Name</strong>
+                                         <div class="approval-step-meta">
+-                                            @WorkflowDisplay.StepLabel(step.Status)
++                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+                                             @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
+                                             {
+                                                 <span> — @actorName</span>
+                                             }
++                                            else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
++                                            {
++                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
++                                            }
+                                             @if (step.ActedAtUtc is DateTime actedAt)
+                                             {
+                                                 <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+@@ -133,6 +138,7 @@
+     private Guid? _approverPositionId;
+     private List<InboxItem> _items = [];
+     private Dictionary<Guid, string> _employeeNames = [];
++    private Dictionary<Guid, string> _holderNames = [];
+     private Dictionary<Guid, string> _comments = [];
+     private Guid? _actingRequestId;
+ 
+@@ -174,6 +180,9 @@
+         var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+         _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+ 
++        var pendingPositionIds = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
++        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++
+         _items = requests.Select(r =>
+         {
+             var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 25e46a2..4718dca 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -9,6 +9,7 @@
+ @using YasPortal.Web.Services
+ @attribute [Authorize(Policy = "Requests.View")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
++@inject WorkflowService Workflows
+ @inject AuthenticationStateProvider AuthenticationStateProvider
+ 
+ <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
+@@ -51,6 +52,10 @@
+                         <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
+                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                     </span>
++                    @if (!request.RequesterHasSeenLatestUpdate)
++                    {
++                        <span class="badge badge-info">جدید</span>
++                    }
+                     <span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span>
+                     <i class="bx bx-chevron-down request-card-chevron"></i>
+                 </div>
+@@ -72,16 +77,21 @@
+                         <div class="approval-timeline">
+                             @foreach (var step in request.Steps.OrderBy(x => x.Order))
+                             {
++                                var isCurrent = step.Order == request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+                                 <div class="approval-step">
+-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
++                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+                                     <div class="approval-step-body">
+                                         <strong>@step.Name</strong>
+                                         <div class="approval-step-meta">
+-                                            @WorkflowDisplay.StepLabel(step.Status)
++                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+                                             @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name))
+                                             {
+                                                 <span> — @name</span>
+                                             }
++                                            else if (step.Status == WorkflowStepStatus.Pending)
++                                            {
++                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
++                                            }
+                                             @if (step.ActedAtUtc is DateTime actedAt)
+                                             {
+                                                 <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+@@ -106,6 +116,7 @@
+     private bool _loading = true;
+     private List<WorkflowRequest> _requests = [];
+     private Dictionary<Guid, string> _employeeNames = [];
++    private Dictionary<Guid, string> _holderNames = [];
+     private Guid? _expandedId;
+ 
+     protected override async Task OnInitializedAsync()
+@@ -125,13 +136,35 @@
+ 
+         var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+         _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
++
++        var pendingPositionIds = _requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
++        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++
+         _loading = false;
+ 
+         if (_requests.Count > 0)
+             _expandedId = _requests[0].Id;
+     }
+ 
+-    private void Toggle(Guid id) => _expandedId = _expandedId == id ? null : id;
++    private async Task Toggle(Guid id)
++    {
++        _expandedId = _expandedId == id ? null : id;
++        if (_expandedId != id)
++            return;
++
++        var request = _requests.FirstOrDefault(x => x.Id == id);
++        if (request is null || request.RequesterHasSeenLatestUpdate)
++            return;
++
++        request.MarkSeenByRequester();
++        await using var db = await DbFactory.CreateDbContextAsync();
++        var tracked = await db.WorkflowRequests.FindAsync(id);
++        if (tracked is not null)
++        {
++            tracked.MarkSeenByRequester();
++            await db.SaveChangesAsync();
++        }
++    }
+ 
+     private static string? GetFieldValue(WorkflowRequest request, string key)
+     {
+diff --git a/src/YasPortal.Web/Services/WorkflowDisplay.cs b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+index 8df55b2..22cadcb 100644
+--- a/src/YasPortal.Web/Services/WorkflowDisplay.cs
++++ b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+@@ -61,9 +61,15 @@ public static class WorkflowDisplay
+         _ => "badge-info",
+     };
+ 
+-    public static string StepLabel(WorkflowStepStatus status) => status switch
++    /// <summary>
++    /// A step's label/icon depend on whether it's <paramref name="isCurrent"/> (the step a
++    /// request is actually sitting at right now) as well as its own status — two Pending
++    /// steps can mean "awaiting action now" vs "queued, not reached yet".
++    /// </summary>
++    public static string StepLabel(WorkflowStepStatus status, bool isCurrent) => status switch
+     {
+-        WorkflowStepStatus.Pending => "در انتظار",
++        WorkflowStepStatus.Pending when isCurrent => "در انتظار تایید",
++        WorkflowStepStatus.Pending => "در صف، هنوز به این مرحله نرسیده",
+         WorkflowStepStatus.Approved => "تایید شد",
+         WorkflowStepStatus.Rejected => "رد شد",
+         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
+@@ -72,18 +78,20 @@ public static class WorkflowDisplay
+     };
+ 
+     /// <summary>CSS state class for <c>.approval-step-icon</c> — controls its background/color.</summary>
+-    public static string StepIconClass(WorkflowStepStatus status) => status switch
++    public static string StepIconClass(WorkflowStepStatus status, bool isCurrent) => status switch
+     {
+-        WorkflowStepStatus.Pending => "is-pending",
++        WorkflowStepStatus.Pending when isCurrent => "is-pending",
++        WorkflowStepStatus.Pending => "is-queued",
+         WorkflowStepStatus.Approved => "is-approved",
+         WorkflowStepStatus.Rejected => "is-rejected",
+         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "is-returned",
+         _ => "",
+     };
+ 
+-    public static string StepIcon(WorkflowStepStatus status) => status switch
++    public static string StepIcon(WorkflowStepStatus status, bool isCurrent) => status switch
+     {
+-        WorkflowStepStatus.Pending => "bx-time-five",
++        WorkflowStepStatus.Pending when isCurrent => "bx-time-five",
++        WorkflowStepStatus.Pending => "bx-time",
+         WorkflowStepStatus.Approved => "bx-check",
+         WorkflowStepStatus.Rejected => "bx-x",
+         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",
+diff --git a/src/YasPortal.Web/Services/WorkflowService.cs b/src/YasPortal.Web/Services/WorkflowService.cs
+index 42007b8..5a1c492 100644
+--- a/src/YasPortal.Web/Services/WorkflowService.cs
++++ b/src/YasPortal.Web/Services/WorkflowService.cs
+@@ -54,4 +54,40 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+         return await db.EmployeePositions.AsNoTracking().AnyAsync(x => x.EmployeeId == employeeId && x.PositionId == pid && x.EndedAt == null, ct);
+     }
++
++    /// <summary>
++    /// Maps each of the given positions to the full name of whoever currently, actively
++    /// holds it — a position with nobody currently assigned is simply absent from the result,
++    /// so callers can show "position is vacant" for anything missing from the dictionary.
++    /// </summary>
++    public async Task<Dictionary<Guid, string>> GetCurrentHolderNamesAsync(IReadOnlyCollection<Guid> positionIds, CancellationToken ct = default)
++    {
++        if (positionIds.Count == 0)
++            return [];
++        await using var db = await dbFactory.CreateDbContextAsync(ct);
++        return await db.EmployeePositions.AsNoTracking()
++            .Where(x => x.EndedAt == null && positionIds.Contains(x.PositionId))
++            .Join(db.Employees.AsNoTracking(), ep => ep.EmployeeId, e => e.Id, (ep, e) => new { ep.PositionId, e.FullName })
++            .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
++    }
++
++    /// <summary>Number of requests currently sitting at a step assigned to this position — drives the inbox badge.</summary>
++    public async Task<int> CountInboxAsync(Guid? approverPositionId, CancellationToken ct = default)
++    {
++        if (approverPositionId is not Guid positionId)
++            return 0;
++        await using var db = await dbFactory.CreateDbContextAsync(ct);
++        return await db.WorkflowRequests.AsNoTracking()
++            .CountAsync(x => x.Status == WorkflowRequestStatus.PendingApproval
++                              && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId), ct);
++    }
++
++    /// <summary>Number of the employee's own requests with a decision they haven't looked at yet — drives the "my requests" badge.</summary>
++    public async Task<int> CountUnseenForRequesterAsync(Guid? employeeId, CancellationToken ct = default)
++    {
++        if (employeeId is not Guid id)
++            return 0;
++        await using var db = await dbFactory.CreateDbContextAsync(ct);
++        return await db.WorkflowRequests.AsNoTracking().CountAsync(x => x.RequesterEmployeeId == id && !x.RequesterHasSeenLatestUpdate, ct);
++    }
+ }
+diff --git a/src/YasPortal.Web/wwwroot/css/base.css b/src/YasPortal.Web/wwwroot/css/base.css
+index 2e59756..cc325bb 100644
+--- a/src/YasPortal.Web/wwwroot/css/base.css
++++ b/src/YasPortal.Web/wwwroot/css/base.css
+@@ -22,7 +22,7 @@
+    ============================================================= */
+ 
+ 
+-@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-Regular.woff2') format('woff2');font-weight:400;font-display:swap}@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-SemiBold.woff2') format('woff2');font-weight:600;font-display:swap}@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-Bold.woff2') format('woff2');font-weight:700 800;font-display:swap}:root{font-family:'Vazirmatn',Tahoma,Arial,sans-serif;font-size:14px;color:#182230;background:#f4f7fb;font-synthesis:none}*{box-sizing:border-box}body{margin:0;background:#f4f7fb;font-size:14px}a{text-decoration:none;color:inherit}button,input,select{font:inherit}.application-shell{min-height:100vh}.topbar{height:68px;padding:0 26px;background:#fff;border-bottom:1px solid #e6ebf2;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(16,24,40,.04)}.brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;color:#155eef}.brand-mark{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:#155eef;color:#fff}.topbar-user{display:flex;align-items:center;gap:9px}.topbar-user small{display:block;color:#98a2b3;font-size:10px}.user-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#155eef}.icon-button{width:34px;height:34px;border:0;border-radius:9px;background:#f8f9fb;color:#667085;cursor:pointer}.icon-button:hover{background:#feeceb;color:#d92d20}.application-body{display:flex;min-height:100vh}.shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:100vh}.sidebar{width:242px;flex:0 0 242px;background:#fff;border-left:1px solid #e6ebf2;padding:20px 13px;display:flex;flex-direction:column}.sidebar-section-title{padding:0 11px 8px;color:#98a2b3;font-size:11px;font-weight:700}.admin-title{margin-top:20px}.sidebar-nav{display:grid;gap:4px}.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:10px;color:#475467;font-weight:600;font-size:13px;transition:.15s}.sidebar-nav a i{font-size:19px;color:#667085}.sidebar-nav a:hover{background:#f2f6ff;color:#155eef}.sidebar-nav a.active{background:#eef4ff;color:#155eef}.sidebar-nav a.active i{color:#155eef}.sidebar-footer{margin-top:auto;padding:11px;border-radius:11px;background:#f8fafc;color:#667085;display:flex;gap:9px;align-items:center}.sidebar-footer i{font-size:20px;color:#12b76a}.sidebar-footer strong{display:block;font-size:11px;color:#344054}.sidebar-footer small{font-size:9px}.content{flex:1;min-width:0;width:100%;max-width:1500px;margin:0 auto;padding:24px clamp(16px,2.2vw,32px)}.page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:21px}.page-title{margin:0;font-size:25px}.page-subtitle{margin:6px 0 0;color:#667085;font-size:12px}.card{background:#fff;border:1px solid #e6ebf2;border-radius:15px;padding:20px;box-shadow:0 6px 24px rgba(16,24,40,.045)}.section-title{margin:0 0 15px;font-size:16px}.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:17px}.stat-card{padding:16px;border:1px solid #e6ebf2;border-radius:14px;background:#fff}.stat-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#eef4ff;color:#155eef;font-size:20px;margin-bottom:10px}.stat-label{font-size:11px;color:#667085}.stat-value{display:block;margin-top:4px;font-size:19px}.table-card{padding:0;overflow:hidden}.table-toolbar{padding:15px 17px;border-bottom:1px solid #eef1f5}.data-table{width:100%;border-collapse:collapse}.data-table th,.data-table td{padding:11px 15px;text-align:right;border-bottom:1px solid #eef1f5}.data-table th{font-size:11px;color:#667085;background:#fafbfc}.data-table td{color:#344054;font-size:12px}.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700}.badge-success{background:#ecfdf3;color:#027a48}.badge-danger{background:#fef3f2;color:#b42318}.badge-warning{background:#fffaeb;color:#b54708}.badge-info{background:#eff8ff;color:#175cd3}.badge-muted{background:#f2f4f7;color:#667085}.btn{border:0;border-radius:9px;padding:8px 12px;display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12px;cursor:pointer}.btn-primary{background:#155eef;color:#fff}.btn-secondary{background:#fff;color:#344054;border:1px solid #d0d5dd}.btn-danger{background:#fff1f0;color:#d92d20;border:1px solid #fecdca}.form-control{width:100%;padding:9px 11px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;outline:none;font-size:13px}.form-control:focus{border-color:#84adff;box-shadow:0 0 0 3px #eef4ff}.form-label{display:block;margin-bottom:6px;font-weight:600;color:#344054;font-size:12px}.alert{padding:10px 12px;border-radius:10px;background:#fff1f0;color:#b42318;border:1px solid #fecdca}.login-form{display:grid;gap:14px}.login-form input{width:100%;padding:10px 12px;border:1px solid #d0d5dd;border-radius:9px}.login-form button{padding:11px;border:0;border-radius:9px;background:#155eef;color:#fff;font-weight:700;cursor:pointer}@media(max-width:850px){.topbar{padding:0 14px}.application-body{display:block}.shell-main{min-height:0}.sidebar{width:100%;padding:10px;border-left:0;border-bottom:1px solid #e6ebf2}.sidebar-nav{display:flex;flex-wrap:wrap}.sidebar-footer{display:none}.content{padding:20px 14px}.page-title{font-size:22px}}
++@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-Regular.woff2') format('woff2');font-weight:400;font-display:swap}@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-SemiBold.woff2') format('woff2');font-weight:600;font-display:swap}@font-face{font-family:'Vazirmatn';src:url('/fonts/Vazirmatn-Bold.woff2') format('woff2');font-weight:700 800;font-display:swap}:root{font-family:'Vazirmatn',Tahoma,Arial,sans-serif;font-size:14px;color:#182230;background:#f4f7fb;font-synthesis:none}*{box-sizing:border-box}body{margin:0;background:#f4f7fb;font-size:14px}a{text-decoration:none;color:inherit}button,input,select{font:inherit}.application-shell{min-height:100vh}.topbar{height:68px;padding:0 26px;background:#fff;border-bottom:1px solid #e6ebf2;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 12px rgba(16,24,40,.04)}.brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;color:#155eef}.brand-mark{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:#155eef;color:#fff}.topbar-user{display:flex;align-items:center;gap:9px}.topbar-user small{display:block;color:#98a2b3;font-size:10px}.user-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#eef4ff;color:#155eef}.icon-button{width:34px;height:34px;border:0;border-radius:9px;background:#f8f9fb;color:#667085;cursor:pointer}.icon-button:hover{background:#feeceb;color:#d92d20}.application-body{display:flex;min-height:100vh}.shell-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:100vh}.sidebar{width:242px;flex:0 0 242px;background:#fff;border-left:1px solid #e6ebf2;padding:20px 13px;display:flex;flex-direction:column}.sidebar-section-title{padding:0 11px 8px;color:#98a2b3;font-size:11px;font-weight:700}.admin-title{margin-top:20px}.sidebar-nav{display:grid;gap:4px}.sidebar-nav a{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:10px;color:#475467;font-weight:600;font-size:13px;transition:.15s}.sidebar-nav a i{font-size:19px;color:#667085}.sidebar-nav a:hover{background:#f2f6ff;color:#155eef}.sidebar-nav a.active{background:#eef4ff;color:#155eef}.sidebar-nav a.active i{color:#155eef}.nav-badge{margin-inline-start:auto;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#155eef;color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;line-height:1}.sidebar-footer{margin-top:auto;padding:11px;border-radius:11px;background:#f8fafc;color:#667085;display:flex;gap:9px;align-items:center}.sidebar-footer i{font-size:20px;color:#12b76a}.sidebar-footer strong{display:block;font-size:11px;color:#344054}.sidebar-footer small{font-size:9px}.content{flex:1;min-width:0;width:100%;max-width:1500px;margin:0 auto;padding:24px clamp(16px,2.2vw,32px)}.page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:21px}.page-title{margin:0;font-size:25px}.page-subtitle{margin:6px 0 0;color:#667085;font-size:12px}.card{background:#fff;border:1px solid #e6ebf2;border-radius:15px;padding:20px;box-shadow:0 6px 24px rgba(16,24,40,.045)}.section-title{margin:0 0 15px;font-size:16px}.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:17px}.stat-card{padding:16px;border:1px solid #e6ebf2;border-radius:14px;background:#fff}.stat-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#eef4ff;color:#155eef;font-size:20px;margin-bottom:10px}.stat-label{font-size:11px;color:#667085}.stat-value{display:block;margin-top:4px;font-size:19px}.table-card{padding:0;overflow:hidden}.table-toolbar{padding:15px 17px;border-bottom:1px solid #eef1f5}.data-table{width:100%;border-collapse:collapse}.data-table th,.data-table td{padding:11px 15px;text-align:right;border-bottom:1px solid #eef1f5}.data-table th{font-size:11px;color:#667085;background:#fafbfc}.data-table td{color:#344054;font-size:12px}.badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700}.badge-success{background:#ecfdf3;color:#027a48}.badge-danger{background:#fef3f2;color:#b42318}.badge-warning{background:#fffaeb;color:#b54708}.badge-info{background:#eff8ff;color:#175cd3}.badge-muted{background:#f2f4f7;color:#667085}.btn{border:0;border-radius:9px;padding:8px 12px;display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12px;cursor:pointer}.btn-primary{background:#155eef;color:#fff}.btn-secondary{background:#fff;color:#344054;border:1px solid #d0d5dd}.btn-danger{background:#fff1f0;color:#d92d20;border:1px solid #fecdca}.form-control{width:100%;padding:9px 11px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;outline:none;font-size:13px}.form-control:focus{border-color:#84adff;box-shadow:0 0 0 3px #eef4ff}.form-label{display:block;margin-bottom:6px;font-weight:600;color:#344054;font-size:12px}.alert{padding:10px 12px;border-radius:10px;background:#fff1f0;color:#b42318;border:1px solid #fecdca}.login-form{display:grid;gap:14px}.login-form input{width:100%;padding:10px 12px;border:1px solid #d0d5dd;border-radius:9px}.login-form button{padding:11px;border:0;border-radius:9px;background:#155eef;color:#fff;font-weight:700;cursor:pointer}@media(max-width:850px){.topbar{padding:0 14px}.application-body{display:block}.shell-main{min-height:0}.sidebar{width:100%;padding:10px;border-left:0;border-bottom:1px solid #e6ebf2}.sidebar-nav{display:flex;flex-wrap:wrap}.sidebar-footer{display:none}.content{padding:20px 14px}.page-title{font-size:22px}}
+ 
+ /* YasPortal shared shell refinements */
+ html,body{min-width:0}body{line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}.page-title{font-size:24px;line-height:1.4;font-weight:800;letter-spacing:-.02em}.page-subtitle{font-size:13px;line-height:1.75}.sidebar-nav a{min-height:42px}.card{box-shadow:0 5px 20px rgba(16,24,40,.04)}.data-table-wrap{width:100%;overflow-x:auto}.data-table{min-width:720px}.data-table th,.data-table td{padding:12px 14px}.data-table th{font-size:12px;font-weight:800}.data-table td{font-size:13px;line-height:1.7}.btn{min-height:38px;padding:8px 13px;font-size:13px}.form-control{min-height:40px;font-size:13px}.form-label{font-size:12px}.stat-label{font-size:12px}.stat-value{font-size:20px;font-weight:700}@media(max-width:1100px){.content{padding:22px clamp(16px,2.2vw,32px)}}@media(max-width:850px){.content{padding:18px 14px}.page-header{gap:14px;margin-bottom:18px}.page-title{font-size:22px}.data-table{min-width:680px}}@media(max-width:520px){.topbar{height:60px}.application-body{min-height:calc(100vh - 60px)}.content{padding:14px 10px}.page-title{font-size:20px}.card{border-radius:12px;padding:15px}.btn{min-height:40px}.data-table{min-width:620px}}
+diff --git a/src/YasPortal.Web/wwwroot/css/requests.css b/src/YasPortal.Web/wwwroot/css/requests.css
+index a2912cd..ddf58ff 100644
+--- a/src/YasPortal.Web/wwwroot/css/requests.css
++++ b/src/YasPortal.Web/wwwroot/css/requests.css
+@@ -49,6 +49,7 @@
+ .approval-step:last-child::before{display:none}
+ .approval-step-icon{position:relative;z-index:1;width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:#f2f4f7;color:#98a2b3}
+ .approval-step-icon.is-pending{background:#eef2ff;color:#1d4ed8}
++.approval-step-icon.is-queued{background:#f2f4f7;color:#98a2b3}
+ .approval-step-icon.is-approved{background:#ecfdf3;color:#027a48}
+ .approval-step-icon.is-rejected{background:#fef3f2;color:#b42318}
+ .approval-step-icon.is-returned{background:#fffaeb;color:#b54708}
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 081d857..8bcbef5 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -133,6 +133,19 @@ public class WorkflowRequestTests
+         Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
+         Assert.Throws<InvalidOperationException>(() => request.Cancel());
+     }
++
++    [Fact]
++    public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        Assert.True(request.RequesterHasSeenLatestUpdate);
++
++        request.Approve(step1Id, Guid.NewGuid(), null);
++        Assert.False(request.RequesterHasSeenLatestUpdate);
++
++        request.MarkSeenByRequester();
++        Assert.True(request.RequesterHasSeenLatestUpdate);
++    }
+ }
+ 
+ public class WorkflowStepDefinitionTests
+-- 
+2.43.0
+
