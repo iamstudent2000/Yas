@@ -1,5 +1,4 @@
 @page "/requests/new"
-@using System.Globalization
 @using System.Security.Claims
 @using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
@@ -58,35 +57,7 @@
         <section class="card request-form-card">
             <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
 
-            @foreach (var field in WorkflowFieldCatalog.GetFields(_selectedType))
-            {
-                <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
-                @switch (field.FieldType)
-                {
-                    case WorkflowFieldType.TextArea:
-                        <textarea class="form-control" rows="4" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)"></textarea>
-                        break;
-                    case WorkflowFieldType.Number:
-                        <input class="form-control" type="number" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
-                        break;
-                    case WorkflowFieldType.Date:
-                        <PersianDatePicker Value="@GetDateValue(field.Key)" ValueChanged="d => SetDateValue(field.Key, d)" Placeholder="انتخاب تاریخ" />
-                        break;
-                    case WorkflowFieldType.Select:
-                        <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
-                            <option value="">— انتخاب کنید —</option>
-                            @foreach (var option in field.Options ?? [])
-                            {
-                                <option value="@option">@option</option>
-                            }
-                        </select>
-                        break;
-                    default:
-                        <input class="form-control" type="text" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
-                        break;
-                }
-            }
-            <p class="request-form-hint">فیلدهای دارای علامت * برای ثبت درخواست الزامی هستند.</p>
+            <WorkflowFieldsForm Type="_selectedType" Values="_values" />
 
             <div class="form-actions">
                 <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
@@ -134,13 +105,6 @@
         _selectedType = type;
         _values = [];
     }
-
-    private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v ?? "" : "";
-    private void SetValue(string key, ChangeEventArgs e) => _values[key] = e.Value?.ToString();
-
-    private DateTime? GetDateValue(string key) =>
-        _values.TryGetValue(key, out var v) && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
-    private void SetDateValue(string key, DateTime? value) => _values[key] = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private async Task Submit()
     {

@@ -39,6 +39,19 @@ public sealed class AppState : IDisposable
         NotifyStateChanged();
     }
 
+    /// <summary>
+    /// Tells anything listening (e.g. the sidebar's request/inbox badge counts) to
+    /// re-fetch, without touching toasts or <see cref="UnreadNotificationCount"/>.
+    /// Call this right after an in-page action changes what those badges should show
+    /// (marking a request seen, acting on an inbox item) so the same circuit's sidebar
+    /// updates immediately instead of waiting for the next page navigation.
+    /// </summary>
+    public void NotifyRequestBadgesChanged()
+    {
+        if (!_disposed)
+            NotifyStateChanged();
+    }
+
     public void AddToast(string message, ToastLevel level = ToastLevel.Info, int durationMs = 4500)
     {
         if (_disposed || string.IsNullOrWhiteSpace(message))

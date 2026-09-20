@@ -146,6 +146,34 @@ public class WorkflowRequestTests
         request.MarkSeenByRequester();
         Assert.True(request.RequesterHasSeenLatestUpdate);
     }
+
+    [Fact]
+    public void Resubmitting_a_returned_request_resumes_at_the_step_that_returned_it()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        request.Approve(step1Id, approver, "اولین تایید");
+        request.ReturnToRequester(step2Id, approver, "لطفا اصلاح شود");
+
+        request.Resubmit("{\"startDate\":\"2026-11-01\"}");
+
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        Assert.Equal(2, request.CurrentStepOrder);
+        Assert.Equal("{\"startDate\":\"2026-11-01\"}", request.FieldValuesJson);
+        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 2).Status);
+        Assert.Null(request.Steps.Single(x => x.Order == 2).ActedByEmployeeId);
+        // The earlier, already-approved step is left alone.
+        Assert.Equal(WorkflowStepStatus.Approved, request.Steps.Single(x => x.Order == 1).Status);
+    }
+
+    [Fact]
+    public void Cannot_resubmit_a_request_that_was_not_returned_to_the_requester()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.Reject(step1Id, Guid.NewGuid(), null);
+
+        Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}"));
+    }
 }
 
 public class WorkflowStepDefinitionTests

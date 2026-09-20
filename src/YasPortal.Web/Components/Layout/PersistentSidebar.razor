@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject WorkflowService Workflows
+@inject AppState AppState
 
 <input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
        @onchange="OnSidebarToggleChanged" />
@@ -137,10 +138,17 @@
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        AppState.OnChange += OnAppStateChanged;
         await RefreshBadgesAsync();
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await RefreshBadgesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnAppStateChanged()
     {
         await RefreshBadgesAsync();
         await InvokeAsync(StateHasChanged);
@@ -167,7 +175,11 @@
         }
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        AppState.OnChange -= OnAppStateChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

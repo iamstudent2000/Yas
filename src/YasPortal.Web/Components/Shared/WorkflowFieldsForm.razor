@@ -1,0 +1,55 @@
+@using System.Globalization
+@using YasPortal.Domain.Workflows
+
+@foreach (var field in WorkflowFieldCatalog.GetFields(Type))
+{
+    <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
+    @switch (field.FieldType)
+    {
+        case WorkflowFieldType.TextArea:
+            <textarea class="form-control" rows="4" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)"></textarea>
+            break;
+        case WorkflowFieldType.Number:
+            <input class="form-control" type="number" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+            break;
+        case WorkflowFieldType.Date:
+            <PersianDatePicker Value="@GetDateValue(field.Key)" ValueChanged="d => SetDateValue(field.Key, d)" Placeholder="انتخاب تاریخ" />
+            break;
+        case WorkflowFieldType.Select:
+            <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
+                <option value="">— انتخاب کنید —</option>
+                @foreach (var option in field.Options ?? [])
+                {
+                    <option value="@option">@option</option>
+                }
+            </select>
+            break;
+        default:
+            <input class="form-control" type="text" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+            break;
+    }
+}
+<p class="request-form-hint">فیلدهای دارای علامت * برای ثبت الزامی هستند.</p>
+
+@code {
+    [Parameter, EditorRequired] public WorkflowTypeCode Type { get; set; }
+    [Parameter, EditorRequired] public Dictionary<string, string?> Values { get; set; } = [];
+    [Parameter] public EventCallback ValuesChanged { get; set; }
+
+    private string GetValue(string key) => Values.TryGetValue(key, out var v) ? v ?? "" : "";
+
+    private async Task SetValue(string key, ChangeEventArgs e)
+    {
+        Values[key] = e.Value?.ToString();
+        await ValuesChanged.InvokeAsync();
+    }
+
+    private DateTime? GetDateValue(string key) =>
+        Values.TryGetValue(key, out var v) && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+
+    private async Task SetDateValue(string key, DateTime? value)
+    {
+        Values[key] = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        await ValuesChanged.InvokeAsync();
+    }
+}

@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
@@ -32,98 +33,170 @@
     {
         <section class="card"><div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
     }
-    else if (_items.Count == 0)
-    {
-        <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
-    }
     else
     {
-        @foreach (var item in _items)
+        <div class="inbox-tabs">
+            <button type="button" class="inbox-tab @(!_historyMode ? "is-active" : "")" @onclick="ShowPending"><i class="bx bx-time-five"></i> در انتظار من @(_items.Count > 0 ? $"({ToPersianDigits(_items.Count.ToString())})" : "")</button>
+            <button type="button" class="inbox-tab @(_historyMode ? "is-active" : "")" @onclick="ShowHistory"><i class="bx bx-history"></i> تاریخچه تصمیمات من</button>
+        </div>
+
+        @if (!_historyMode)
         {
-            var busy = _actingRequestId == item.Request.Id;
-            <div class="request-card">
-                <div class="request-card-header">
-                    <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
-                    <span class="request-card-title">
-                        <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
-                        <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                    </span>
-                    <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
-                </div>
+            @if (_items.Count == 0)
+            {
+                <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
+            }
+            else
+            {
+                @foreach (var item in _items)
+                {
+                    var busy = _actingRequestId == item.Request.Id;
+                    <div class="request-card">
+                        <div class="request-card-header">
+                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-title">
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                                <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </span>
+                            <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
+                        </div>
 
-                <div class="request-card-body">
-                    <div class="field-summary">
-                        @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
-                        {
-                            var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(item.Request, field.Key));
-                            if (!string.IsNullOrWhiteSpace(value))
-                            {
-                                <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
-                            }
-                        }
-                    </div>
+                        <div class="request-card-body">
+                            <div class="field-summary">
+                                @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
+                                {
+                                    var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(item.Request, field.Key));
+                                    if (!string.IsNullOrWhiteSpace(value))
+                                    {
+                                        <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
+                                    }
+                                }
+                            </div>
 
-                    @if (item.HasPreviousStep)
-                    {
-                        <h3 class="section-title" style="font-size:12.5px;margin:14px 0 4px">روند تایید تا این مرحله</h3>
-                        <div class="approval-timeline">
-                            @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
+                            @if (item.HasPreviousStep)
                             {
-                                var isCurrent = step.Order == item.Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
-                                <div class="approval-step">
-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
-                                    <div class="approval-step-body">
-                                        <strong>@step.Name</strong>
-                                        <div class="approval-step-meta">
-                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
-                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
-                                            {
-                                                <span> — @actorName</span>
-                                            }
-                                            else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
-                                            {
-                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
-                                            }
-                                            @if (step.ActedAtUtc is DateTime actedAt)
-                                            {
-                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                                            }
+                                <h3 class="section-title" style="font-size:12.5px;margin:14px 0 4px">روند تایید تا این مرحله</h3>
+                                <div class="approval-timeline">
+                                    @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
+                                    {
+                                        var isCurrent = step.Order == item.Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+                                        <div class="approval-step">
+                                            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+                                            <div class="approval-step-body">
+                                                <strong>@step.Name</strong>
+                                                <div class="approval-step-meta">
+                                                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+                                                    @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
+                                                    {
+                                                        <span> — @actorName</span>
+                                                    }
+                                                    else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
+                                                    {
+                                                        <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+                                                    }
+                                                    @if (step.ActedAtUtc is DateTime actedAt)
+                                                    {
+                                                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                                    }
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(step.Comment))
+                                                {
+                                                    <div class="approval-step-comment">«@step.Comment»</div>
+                                                }
+                                            </div>
                                         </div>
-                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
-                                        {
-                                            <div class="approval-step-comment">«@step.Comment»</div>
-                                        }
-                                    </div>
+                                    }
                                 </div>
                             }
+
+                            <div class="inbox-comment">
+                                <label class="form-label">نظر (اختیاری)</label>
+                                <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
+                            </div>
+
+                            <div class="inbox-actions">
+                                <AuthorizeView Policy="Requests.Approve">
+                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                                </AuthorizeView>
+                                <AuthorizeView Policy="Requests.Reject">
+                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                                </AuthorizeView>
+                                <AuthorizeView Policy="Requests.ReturnToRequester">
+                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                </AuthorizeView>
+                                <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+                                    <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                </AuthorizeView>
+                                @if (busy)
+                                {
+                                    <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                                }
+                            </div>
                         </div>
-                    }
-
-                    <div class="inbox-comment">
-                        <label class="form-label">نظر (اختیاری)</label>
-                        <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
                     </div>
-
-                    <div class="inbox-actions">
-                        <AuthorizeView Policy="Requests.Approve">
-                            <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="Requests.Reject">
-                            <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="Requests.ReturnToRequester">
-                            <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="Requests.ReturnToPreviousStep">
-                            <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
-                        </AuthorizeView>
-                        @if (busy)
-                        {
-                            <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
-                        }
+                }
+            }
+        }
+        else
+        {
+            <section class="card">
+                <div class="admin-filters">
+                    <div class="admin-filter">
+                        <label class="form-label">نوع درخواست</label>
+                        <select class="form-control" value="@(_historyTypeFilter?.ToString() ?? "")" @onchange="HistoryTypeChanged">
+                            <option value="">همه انواع</option>
+                            @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                            {
+                                <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
+                            }
+                        </select>
                     </div>
+                    <div class="admin-filter">
+                        <label class="form-label">نتیجه</label>
+                        <select class="form-control" value="@(_historyStatusFilter?.ToString() ?? "")" @onchange="HistoryStatusChanged">
+                            <option value="">همه نتایج</option>
+                            <option value="@WorkflowStepStatus.Approved">تایید شد</option>
+                            <option value="@WorkflowStepStatus.Rejected">رد شد</option>
+                            <option value="@WorkflowStepStatus.ReturnedToRequester">بازگشت به درخواست‌کننده</option>
+                            <option value="@WorkflowStepStatus.ReturnedToPreviousStep">بازگشت به مرحله قبل</option>
+                        </select>
+                    </div>
+                    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_historyFrom" ValueChanged="HistoryFromChanged" Placeholder="تاریخ شروع" /></div>
+                    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_historyTo" ValueChanged="HistoryToChanged" Placeholder="تاریخ پایان" /></div>
                 </div>
-            </div>
+            </section>
+
+            @if (_historyLoading)
+            {
+                <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div></section>
+            }
+            else if (_historyItems.Count == 0)
+            {
+                <section class="card"><div class="empty-state"><i class="bx bx-history"></i><strong>موردی یافت نشد</strong><span>با این فیلترها هنوز تصمیمی ثبت نکرده‌اید.</span></div></section>
+            }
+            else
+            {
+                @foreach (var item in _historyItems)
+                {
+                    <div class="request-card">
+                        <div class="request-card-header">
+                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-title">
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                                <span>از طرف @item.RequesterName · @item.Step.Name</span>
+                            </span>
+                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Step.Status)">@WorkflowDisplay.StepLabel(item.Step.Status, isCurrent: false)</span>
+                        </div>
+                        <div class="request-card-body">
+                            <div class="approval-step-meta" style="margin-top:10px">@item.Step.ActedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+                            @if (!string.IsNullOrWhiteSpace(item.Step.Comment))
+                            {
+                                <div class="approval-step-comment">«@item.Step.Comment»</div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
         }
     }
 </div>
@@ -132,6 +205,7 @@
     private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep }
 
     private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
+    private sealed record HistoryItem(WorkflowRequest Request, WorkflowRequestStep Step, string RequesterName);
 
     private bool _ready;
     private Guid? _employeeId;
@@ -141,6 +215,14 @@
     private Dictionary<Guid, string> _holderNames = [];
     private Dictionary<Guid, string> _comments = [];
     private Guid? _actingRequestId;
+
+    private bool _historyMode;
+    private bool _historyLoading;
+    private List<HistoryItem> _historyItems = [];
+    private WorkflowTypeCode? _historyTypeFilter;
+    private WorkflowStepStatus? _historyStatusFilter;
+    private DateTime? _historyFrom;
+    private DateTime? _historyTo;
 
     protected override async Task OnInitializedAsync()
     {
@@ -157,6 +239,18 @@
 
         await LoadAsync();
         _ready = true;
+    }
+
+    private async Task ShowPending()
+    {
+        _historyMode = false;
+        await LoadAsync();
+    }
+
+    private async Task ShowHistory()
+    {
+        _historyMode = true;
+        await LoadHistoryAsync();
     }
 
     private async Task LoadAsync()
@@ -190,6 +284,74 @@
             var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
             return new InboxItem(r, current, name, hasPrevious);
         }).ToList();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        if (_approverPositionId is not Guid positionId)
+        {
+            _historyItems = [];
+            return;
+        }
+
+        _historyLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.WorkflowRequests.AsNoTracking()
+                .SelectMany(
+                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.Status != WorkflowStepStatus.Pending),
+                    (r, s) => new { Request = r, Step = s });
+
+            if (_historyTypeFilter is WorkflowTypeCode typeFilter)
+                query = query.Where(x => x.Request.WorkflowType == typeFilter);
+            if (_historyStatusFilter is WorkflowStepStatus statusFilter)
+                query = query.Where(x => x.Step.Status == statusFilter);
+            if (_historyFrom is DateTime from)
+                query = query.Where(x => x.Step.ActedAtUtc >= from);
+            if (_historyTo is DateTime to)
+                query = query.Where(x => x.Step.ActedAtUtc < to.AddDays(1));
+
+            var rows = await query.OrderByDescending(x => x.Step.ActedAtUtc).Take(100).ToListAsync();
+
+            var requesterIds = rows.Select(x => x.Request.RequesterEmployeeId).Distinct().ToList();
+            var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => requesterIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
+
+            _historyItems = rows.Select(x => new HistoryItem(x.Request, x.Step, requesterNames.TryGetValue(x.Request.RequesterEmployeeId, out var n) ? n : "—")).ToList();
+        }
+        finally { _historyLoading = false; }
+    }
+
+    private async Task HistoryTypeChanged(ChangeEventArgs e)
+    {
+        _historyTypeFilter = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) ? type : null;
+        await LoadHistoryAsync();
+    }
+
+    private async Task HistoryStatusChanged(ChangeEventArgs e)
+    {
+        _historyStatusFilter = Enum.TryParse<WorkflowStepStatus>(e.Value?.ToString(), out var status) ? status : null;
+        await LoadHistoryAsync();
+    }
+
+    private async Task HistoryFromChanged(DateTime? value)
+    {
+        _historyFrom = value;
+        await LoadHistoryAsync();
+    }
+
+    private async Task HistoryToChanged(DateTime? value)
+    {
+        _historyTo = value;
+        await LoadHistoryAsync();
+    }
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
+        return new string(chars);
     }
 
     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
@@ -259,6 +421,7 @@
             await db.SaveChangesAsync();
             _comments.Remove(item.Request.Id);
             AppState.AddToast("ثبت شد.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
             await LoadAsync();
         }
         finally

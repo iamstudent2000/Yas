@@ -6,10 +6,12 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
+@inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
@@ -22,6 +24,10 @@
             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
         </div>
         <div class="form-actions">
+            @if (_requests.Any(x => !x.RequesterHasSeenLatestUpdate))
+            {
+                <button class="btn btn-secondary" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
+            }
             <a class="btn btn-primary" href="/requests/new"><i class="bx bx-plus-circle"></i> درخواست جدید</a>
         </div>
     </div>
@@ -105,6 +111,28 @@
                                 </div>
                             }
                         </div>
+
+                        @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && _editValues.TryGetValue(request.Id, out var editValues))
+                        {
+                            <div class="resubmit-panel">
+                                <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px">این درخواست به شما بازگشته — پس از اصلاح، دوباره ارسال کنید</h3>
+                                <WorkflowFieldsForm Type="request.WorkflowType" Values="editValues" />
+                                <div class="form-actions">
+                                    <button class="btn btn-primary" disabled="@(_resubmittingId == request.Id)" @onclick="() => ResubmitAsync(request.Id)">
+                                        @if (_resubmittingId == request.Id)
+                                        {
+                                            <i class="bx bx-loader-alt bx-spin"></i>
+                                            <span>در حال ارسال...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bx bx-send"></i>
+                                            <span>ارسال مجدد</span>
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -114,36 +142,49 @@
 
 @code {
     private bool _loading = true;
+    private Guid? _employeeId;
     private List<WorkflowRequest> _requests = [];
     private Dictionary<Guid, string> _employeeNames = [];
     private Dictionary<Guid, string> _holderNames = [];
+    private Dictionary<Guid, Dictionary<string, string?>> _editValues = [];
     private Guid? _expandedId;
+    private Guid? _resubmittingId;
 
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
-        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
-        {
-            _loading = false;
-            return;
-        }
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _requests = await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps)
-            .Where(x => x.RequesterEmployeeId == employeeId)
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .ToListAsync();
-
-        var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
-        _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
-
-        var pendingPositionIds = _requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
-        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
-
-        _loading = false;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        await LoadAsync();
 
         if (_requests.Count > 0)
             _expandedId = _requests[0].Id;
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (_employeeId is not Guid employeeId)
+                return;
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _requests = await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps)
+                .Where(x => x.RequesterEmployeeId == employeeId)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .ToListAsync();
+
+            var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+            _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+            var pendingPositionIds = _requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+            _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
+
+            _editValues = _requests.Where(x => x.Status == WorkflowRequestStatus.ReturnedToRequester)
+                .ToDictionary(x => x.Id, x => ParseFieldValues(x.FieldValuesJson));
+        }
+        finally { _loading = false; }
     }
 
     private async Task Toggle(Guid id)
@@ -163,16 +204,80 @@
         {
             tracked.MarkSeenByRequester();
             await db.SaveChangesAsync();
+            AppState.NotifyRequestBadgesChanged();
         }
+    }
+
+    private async Task MarkAllSeenAsync()
+    {
+        var unseenIds = _requests.Where(x => !x.RequesterHasSeenLatestUpdate).Select(x => x.Id).ToList();
+        if (unseenIds.Count == 0)
+            return;
+
+        foreach (var request in _requests)
+            request.MarkSeenByRequester();
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var tracked = await db.WorkflowRequests.Where(x => unseenIds.Contains(x.Id)).ToListAsync();
+        foreach (var request in tracked)
+            request.MarkSeenByRequester();
+        await db.SaveChangesAsync();
+
+        AppState.AddToast("همه درخواست‌ها به‌عنوان دیده‌شده علامت خوردند.", ToastLevel.Success);
+        AppState.NotifyRequestBadgesChanged();
+    }
+
+    private async Task ResubmitAsync(Guid requestId)
+    {
+        if (!_editValues.TryGetValue(requestId, out var values))
+            return;
+        var summary = _requests.FirstOrDefault(x => x.Id == requestId);
+        if (summary is null)
+            return;
+
+        var missing = WorkflowFieldCatalog.ValidateRequiredFields(summary.WorkflowType, values);
+        if (missing.Count > 0)
+        {
+            AppState.AddToast($"تکمیل این فیلدها الزامی است: {string.Join("، ", missing)}", ToastLevel.Error);
+            return;
+        }
+
+        _resubmittingId = requestId;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
+            if (tracked is null || tracked.Status != WorkflowRequestStatus.ReturnedToRequester)
+            {
+                AppState.AddToast("این درخواست دیگر در وضعیت بازگشتی نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
+            tracked.Resubmit(JsonSerializer.Serialize(values));
+            await db.SaveChangesAsync();
+
+            AppState.AddToast("درخواست شما دوباره ارسال شد.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
+            await LoadAsync();
+            _expandedId = requestId;
+        }
+        finally { _resubmittingId = null; }
     }
 
     private static string? GetFieldValue(WorkflowRequest request, string key)
     {
+        var values = ParseFieldValues(request.FieldValuesJson);
+        return values.TryGetValue(key, out var value) ? value : null;
+    }
+
+    private static Dictionary<string, string?> ParseFieldValues(string json)
+    {
         try
         {
-            var values = JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson);
-            return values is not null && values.TryGetValue(key, out var value) ? value : null;
+            return JsonSerializer.Deserialize<Dictionary<string, string?>>(json) ?? [];
         }
-        catch (JsonException) { return null; }
+        catch (JsonException) { return []; }
     }
 }

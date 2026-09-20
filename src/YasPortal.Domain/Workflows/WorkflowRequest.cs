@@ -123,6 +123,28 @@ public sealed class WorkflowRequest
         Status = WorkflowRequestStatus.Cancelled;
     }
 
+    /// <summary>
+    /// Puts a request that was sent back to the requester (<see cref="WorkflowRequestStatus.ReturnedToRequester"/>)
+    /// back into the approval flow, resuming at the step that returned it — earlier steps
+    /// that already approved it are left untouched, since only the step that flagged a
+    /// problem needs to look at it again.
+    /// </summary>
+    public void Resubmit(string fieldValuesJson)
+    {
+        if (Status != WorkflowRequestStatus.ReturnedToRequester)
+            throw new InvalidOperationException("Only a request returned to the requester can be resubmitted.");
+        if (string.IsNullOrWhiteSpace(fieldValuesJson))
+            throw new ArgumentException("Field values are required.", nameof(fieldValuesJson));
+
+        var returnedStep = Steps.SingleOrDefault(x => x.Status == WorkflowStepStatus.ReturnedToRequester)
+            ?? throw new InvalidOperationException("No step is currently marked as returned to the requester.");
+
+        FieldValuesJson = fieldValuesJson;
+        returnedStep.Reopen();
+        CurrentStepOrder = returnedStep.Order;
+        Status = WorkflowRequestStatus.PendingApproval;
+    }
+
     private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
     {
         if (Status != WorkflowRequestStatus.PendingApproval)

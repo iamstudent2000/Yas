@@ -97,4 +97,13 @@ public static class WorkflowDisplay
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",
         _ => "bx-circle",
     };
+
+    /// <summary>Badge color class for a completed step's own outcome (history views, not the live timeline).</summary>
+    public static string StepBadgeClass(WorkflowStepStatus status) => status switch
+    {
+        WorkflowStepStatus.Approved => "badge-success",
+        WorkflowStepStatus.Rejected => "badge-danger",
+        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "badge-warning",
+        _ => "badge-muted",
+    };
 }
