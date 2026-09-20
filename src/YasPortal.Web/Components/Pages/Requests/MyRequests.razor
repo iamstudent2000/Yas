@@ -61,7 +61,7 @@
                         <div class="field-summary">
                             @foreach (var field in WorkflowFieldCatalog.GetFields(request.WorkflowType))
                             {
-                                var value = GetFieldValue(request, field.Key);
+                                var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(request, field.Key));
                                 if (!string.IsNullOrWhiteSpace(value))
                                 {
                                     <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>

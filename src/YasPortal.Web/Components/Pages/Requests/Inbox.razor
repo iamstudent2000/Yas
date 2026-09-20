@@ -55,13 +55,44 @@
                     <div class="field-summary">
                         @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
                         {
-                            var value = GetFieldValue(item.Request, field.Key);
+                            var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(item.Request, field.Key));
                             if (!string.IsNullOrWhiteSpace(value))
                             {
                                 <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
                             }
                         }
                     </div>
+
+                    @if (item.HasPreviousStep)
+                    {
+                        <h3 class="section-title" style="font-size:12.5px;margin:14px 0 4px">روند تایید تا این مرحله</h3>
+                        <div class="approval-timeline">
+                            @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
+                            {
+                                <div class="approval-step">
+                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
+                                    <div class="approval-step-body">
+                                        <strong>@step.Name</strong>
+                                        <div class="approval-step-meta">
+                                            @WorkflowDisplay.StepLabel(step.Status)
+                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
+                                            {
+                                                <span> — @actorName</span>
+                                            }
+                                            @if (step.ActedAtUtc is DateTime actedAt)
+                                            {
+                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
+                                        {
+                                            <div class="approval-step-comment">«@step.Comment»</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
 
                     <div class="inbox-comment">
                         <label class="form-label">نظر (اختیاری)</label>
@@ -101,6 +132,7 @@
     private Guid? _employeeId;
     private Guid? _approverPositionId;
     private List<InboxItem> _items = [];
+    private Dictionary<Guid, string> _employeeNames = [];
     private Dictionary<Guid, string> _comments = [];
     private Guid? _actingRequestId;
 
@@ -138,6 +170,9 @@
 
         var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
         var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+        _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
         _items = requests.Select(r =>
         {

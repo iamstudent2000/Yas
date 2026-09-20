@@ -1,3 +1,4 @@
+using System.Globalization;
 using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Web.Services;
@@ -15,6 +16,31 @@ public static class WorkflowDisplay
         WorkflowTypeCode.WorkReport => "bx-file-blank",
         _ => "bx-file",
     };
+
+    /// <summary>Formats a submitted field value for display, converting Date fields to the Persian calendar.</summary>
+    public static string FormatFieldValue(WorkflowFieldDefinition field, string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+            return "";
+        if (field.FieldType == WorkflowFieldType.Date
+            && DateTime.TryParse(rawValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return ToPersianDate(date);
+        return rawValue;
+    }
+
+    public static string ToPersianDate(DateTime date)
+    {
+        var calendar = new PersianCalendar();
+        var text = $"{calendar.GetYear(date):0000}/{calendar.GetMonth(date):00}/{calendar.GetDayOfMonth(date):00}";
+        return ToPersianDigits(text);
+    }
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
+        return new string(chars);
+    }
 
     public static string StatusLabel(WorkflowRequestStatus status) => status switch
     {

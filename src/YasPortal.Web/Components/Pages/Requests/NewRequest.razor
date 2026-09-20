@@ -1,4 +1,5 @@
 @page "/requests/new"
+@using System.Globalization
 @using System.Security.Claims
 @using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
@@ -6,6 +7,7 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.Create")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
@@ -68,7 +70,7 @@
                         <input class="form-control" type="number" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
                         break;
                     case WorkflowFieldType.Date:
-                        <input class="form-control" type="date" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+                        <PersianDatePicker Value="@GetDateValue(field.Key)" ValueChanged="d => SetDateValue(field.Key, d)" Placeholder="انتخاب تاریخ" />
                         break;
                     case WorkflowFieldType.Select:
                         <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
@@ -135,6 +137,10 @@
 
     private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v ?? "" : "";
     private void SetValue(string key, ChangeEventArgs e) => _values[key] = e.Value?.ToString();
+
+    private DateTime? GetDateValue(string key) =>
+        _values.TryGetValue(key, out var v) && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+    private void SetDateValue(string key, DateTime? value) => _values[key] = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private async Task Submit()
     {

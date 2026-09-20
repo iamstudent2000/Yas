@@ -1,0 +1,177 @@
+From 96ef6c7041beb85c8616fc4a2931ae3411083871 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Sun, 20 Sep 2026 05:01:20 +0000
+Subject: [PATCH] Show approval history to approvers in the inbox; use Persian
+ date picker for date fields
+
+---
+ .../Components/Pages/Requests/Inbox.razor     | 37 ++++++++++++++++++-
+ .../Pages/Requests/MyRequests.razor           |  2 +-
+ .../Pages/Requests/NewRequest.razor           |  8 +++-
+ src/YasPortal.Web/Services/WorkflowDisplay.cs | 26 +++++++++++++
+ 4 files changed, 70 insertions(+), 3 deletions(-)
+
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index c548ecb..f51aa5e 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -55,7 +55,7 @@
+                     <div class="field-summary">
+                         @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
+                         {
+-                            var value = GetFieldValue(item.Request, field.Key);
++                            var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(item.Request, field.Key));
+                             if (!string.IsNullOrWhiteSpace(value))
+                             {
+                                 <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
+@@ -63,6 +63,37 @@
+                         }
+                     </div>
+ 
++                    @if (item.HasPreviousStep)
++                    {
++                        <h3 class="section-title" style="font-size:12.5px;margin:14px 0 4px">روند تایید تا این مرحله</h3>
++                        <div class="approval-timeline">
++                            @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
++                            {
++                                <div class="approval-step">
++                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
++                                    <div class="approval-step-body">
++                                        <strong>@step.Name</strong>
++                                        <div class="approval-step-meta">
++                                            @WorkflowDisplay.StepLabel(step.Status)
++                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
++                                            {
++                                                <span> — @actorName</span>
++                                            }
++                                            @if (step.ActedAtUtc is DateTime actedAt)
++                                            {
++                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
++                                            }
++                                        </div>
++                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
++                                        {
++                                            <div class="approval-step-comment">«@step.Comment»</div>
++                                        }
++                                    </div>
++                                </div>
++                            }
++                        </div>
++                    }
++
+                     <div class="inbox-comment">
+                         <label class="form-label">نظر (اختیاری)</label>
+                         <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
+@@ -101,6 +132,7 @@
+     private Guid? _employeeId;
+     private Guid? _approverPositionId;
+     private List<InboxItem> _items = [];
++    private Dictionary<Guid, string> _employeeNames = [];
+     private Dictionary<Guid, string> _comments = [];
+     private Guid? _actingRequestId;
+ 
+@@ -139,6 +171,9 @@
+         var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+         var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+ 
++        var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
++        _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
++
+         _items = requests.Select(r =>
+         {
+             var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 9cce682..25e46a2 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -61,7 +61,7 @@
+                         <div class="field-summary">
+                             @foreach (var field in WorkflowFieldCatalog.GetFields(request.WorkflowType))
+                             {
+-                                var value = GetFieldValue(request, field.Key);
++                                var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(request, field.Key));
+                                 if (!string.IsNullOrWhiteSpace(value))
+                                 {
+                                     <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor b/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
+index 6428115..38e7017 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
+@@ -1,4 +1,5 @@
+ @page "/requests/new"
++@using System.Globalization
+ @using System.Security.Claims
+ @using System.Text.Json
+ @using Microsoft.AspNetCore.Authorization
+@@ -6,6 +7,7 @@
+ @using Microsoft.EntityFrameworkCore
+ @using YasPortal.Domain.Workflows
+ @using YasPortal.Infrastructure.Persistence
++@using YasPortal.Web.Components.Shared
+ @using YasPortal.Web.Services
+ @attribute [Authorize(Policy = "Requests.Create")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@@ -68,7 +70,7 @@
+                         <input class="form-control" type="number" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
+                         break;
+                     case WorkflowFieldType.Date:
+-                        <input class="form-control" type="date" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
++                        <PersianDatePicker Value="@GetDateValue(field.Key)" ValueChanged="d => SetDateValue(field.Key, d)" Placeholder="انتخاب تاریخ" />
+                         break;
+                     case WorkflowFieldType.Select:
+                         <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
+@@ -136,6 +138,10 @@
+     private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v ?? "" : "";
+     private void SetValue(string key, ChangeEventArgs e) => _values[key] = e.Value?.ToString();
+ 
++    private DateTime? GetDateValue(string key) =>
++        _values.TryGetValue(key, out var v) && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
++    private void SetDateValue(string key, DateTime? value) => _values[key] = value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
++
+     private async Task Submit()
+     {
+         if (_requesterEmployeeId is not Guid employeeId || _requesterPositionId is not Guid positionId)
+diff --git a/src/YasPortal.Web/Services/WorkflowDisplay.cs b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+index 8698fd9..8df55b2 100644
+--- a/src/YasPortal.Web/Services/WorkflowDisplay.cs
++++ b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+@@ -1,3 +1,4 @@
++using System.Globalization;
+ using YasPortal.Domain.Workflows;
+ 
+ namespace YasPortal.Web.Services;
+@@ -16,6 +17,31 @@ public static class WorkflowDisplay
+         _ => "bx-file",
+     };
+ 
++    /// <summary>Formats a submitted field value for display, converting Date fields to the Persian calendar.</summary>
++    public static string FormatFieldValue(WorkflowFieldDefinition field, string? rawValue)
++    {
++        if (string.IsNullOrWhiteSpace(rawValue))
++            return "";
++        if (field.FieldType == WorkflowFieldType.Date
++            && DateTime.TryParse(rawValue, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
++            return ToPersianDate(date);
++        return rawValue;
++    }
++
++    public static string ToPersianDate(DateTime date)
++    {
++        var calendar = new PersianCalendar();
++        var text = $"{calendar.GetYear(date):0000}/{calendar.GetMonth(date):00}/{calendar.GetDayOfMonth(date):00}";
++        return ToPersianDigits(text);
++    }
++
++    private static string ToPersianDigits(string value)
++    {
++        const string digits = "۰۱۲۳۴۵۶۷۸۹";
++        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
++        return new string(chars);
++    }
++
+     public static string StatusLabel(WorkflowRequestStatus status) => status switch
+     {
+         WorkflowRequestStatus.PendingApproval => "در انتظار تایید",
+-- 
+2.43.0
+
