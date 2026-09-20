@@ -1,0 +1,69 @@
+/* =============================================================
+   Requests & workflow — New Request, My Requests, Inbox
+   Scoped under .requests-page so nothing here leaks elsewhere.
+   Extends the personal-pages visual language (soft cards, blue
+   accent, gradient hero blocks) rather than the admin table look,
+   since this is a daily tool for employees and managers, not a
+   CRUD screen.
+   ============================================================= */
+
+.requests-page .page-header{margin-bottom:18px}
+
+/* ---- type picker (New Request) ---- */
+.request-type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:10px;margin-bottom:22px}
+.request-type-card{display:flex;flex-direction:column;align-items:center;gap:9px;padding:18px 10px;border:1.5px solid #e6ebf2;border-radius:14px;background:#fff;cursor:pointer;transition:border-color .14s,background .14s,transform .1s;text-align:center}
+.request-type-card:hover{border-color:#c7d7ff;background:#f7f9ff}
+.request-type-card:active{transform:scale(.98)}
+.request-type-card.is-selected{border-color:#1d4ed8;background:#eef2ff;box-shadow:0 0 0 3px rgba(29,78,216,.08)}
+.request-type-card-icon{width:42px;height:42px;flex:0 0 42px;border-radius:12px;display:grid;place-items:center;font-size:21px;background:#f2f4f7;color:#667085;transition:background .14s,color .14s}
+.request-type-card.is-selected .request-type-card-icon{background:#1d4ed8;color:#fff}
+.request-type-card span{font-size:12.5px;font-weight:700;color:#1b2333;line-height:1.4}
+
+.request-form-card .form-label{margin-top:16px}
+.request-form-card .form-label:first-of-type{margin-top:0}
+.request-form-hint{margin:6px 0 0;font-size:11.5px;color:#98a2b3}
+
+/* ---- request cards (My Requests + Inbox shared header) ---- */
+.request-card{background:#fff;border:1px solid #e6ebf2;border-radius:16px;box-shadow:0 6px 24px rgba(16,24,40,.045);margin-bottom:12px;overflow:hidden}
+.request-card-header{display:flex;align-items:center;gap:14px;padding:16px 18px}
+.request-card-header.is-clickable{cursor:pointer}
+.request-card-icon{width:44px;height:44px;flex:0 0 44px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:#eef2ff;color:#1d4ed8}
+.request-card-title{flex:1;min-width:0}
+.request-card-title strong{display:block;font-size:14px;color:#141c2c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.request-card-title span{font-size:11.5px;color:#667085}
+.request-card-chevron{color:#98a2b3;font-size:20px;flex:0 0 auto;transition:transform .15s}
+.request-card.is-expanded .request-card-chevron{transform:rotate(180deg)}
+.request-card-body{padding:2px 18px 18px;border-top:1px solid #eef1f5}
+
+/* ---- submitted field values, shown as a quiet definition grid ---- */
+.field-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px 16px;margin:14px 0;padding:14px 16px;background:#fafbfc;border:1px solid #eef1f5;border-radius:12px}
+.field-summary-item{min-width:0}
+.field-summary-item span{display:block;font-size:11px;color:#667085;margin-bottom:3px}
+.field-summary-item strong{font-size:13px;color:#1b2333;font-weight:700;word-break:break-word}
+
+/* ---- approval timeline: this content really is a sequence ---- */
+.approval-timeline{display:flex;flex-direction:column;margin-top:6px}
+.approval-step{position:relative;display:flex;gap:14px;padding-bottom:18px}
+.approval-step:last-child{padding-bottom:0}
+.approval-step::before{content:'';position:absolute;top:32px;bottom:-2px;right:16px;width:2px;background:#e6ebf2}
+.approval-step:last-child::before{display:none}
+.approval-step-icon{position:relative;z-index:1;width:34px;height:34px;flex:0 0 34px;border-radius:50%;display:grid;place-items:center;font-size:16px;background:#f2f4f7;color:#98a2b3}
+.approval-step-icon.is-pending{background:#eef2ff;color:#1d4ed8}
+.approval-step-icon.is-approved{background:#ecfdf3;color:#027a48}
+.approval-step-icon.is-rejected{background:#fef3f2;color:#b42318}
+.approval-step-icon.is-returned{background:#fffaeb;color:#b54708}
+.approval-step-body{flex:1;min-width:0;padding-top:5px}
+.approval-step-body strong{display:block;font-size:13px;color:#1b2333}
+.approval-step-meta{font-size:11.5px;color:#667085;margin-top:2px}
+.approval-step-comment{margin-top:7px;padding:8px 11px;background:#f8fafc;border-radius:9px;font-size:12px;color:#475467;line-height:1.7}
+
+/* ---- inbox action area ---- */
+.inbox-comment{margin-top:14px}
+.inbox-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.inbox-empty-icon{color:#12b76a}
+
+@media(max-width:600px){
+    .request-type-grid{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))}
+    .request-card-header{padding:14px}
+    .field-summary{grid-template-columns:1fr 1fr}
+}

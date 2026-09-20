@@ -6,13 +6,14 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
 
-<div class="admin-page" dir="rtl">
+<div class="requests-page" dir="rtl">
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
@@ -30,56 +31,74 @@
     }
     else if (_requests.Count == 0)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-inbox"></i><strong>هنوز درخواستی ثبت نکرده‌اید</strong></div></section>
+        <section class="card">
+            <div class="empty-state">
+                <i class="bx bx-inbox"></i><strong>هنوز درخواستی ثبت نکرده‌اید</strong>
+                <span>هر وقت آماده بودید، اولین درخواست خود را ثبت کنید.</span>
+                <a class="btn btn-primary" href="/requests/new" style="margin-top:14px"><i class="bx bx-plus-circle"></i> ثبت درخواست جدید</a>
+            </div>
+        </section>
     }
     else
     {
-        <div class="admin-list-rows">
-            @foreach (var request in _requests)
-            {
-                var expanded = _expandedId == request.Id;
-                <section class="card">
-                    <div class="admin-list-row" @onclick="() => Toggle(request.Id)">
-                        <div class="admin-list-primary">
-                            <span class="admin-list-avatar"><i class="bx bx-file"></i></span>
-                            <span class="admin-list-text">
-                                <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
-                                <span>@request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                            </span>
-                        </div>
-                        <div class="admin-list-meta"><span class="badge @StatusBadgeClass(request.Status)">@StatusLabel(request.Status)</span></div>
-                    </div>
-                    @if (expanded)
-                    {
-                        <div class="admin-list-table-head"><span>مرحله</span><span>تاییدکننده</span><span>وضعیت</span></div>
-                        @foreach (var step in request.Steps.OrderBy(x => x.Order))
-                        {
-                            <div class="admin-list-row">
-                                <div class="admin-list-primary"><span class="admin-list-text"><strong>@step.Name</strong></span></div>
-                                <div class="admin-list-meta"><span>@(step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name) ? name : "—")</span></div>
-                                <div class="admin-list-actions">
-                                    <span class="badge @StepBadgeClass(step.Status)">@StepStatusLabel(step.Status)</span>
-                                    @if (!string.IsNullOrWhiteSpace(step.Comment))
-                                    {
-                                        <span class="muted">«@step.Comment»</span>
-                                    }
-                                </div>
-                            </div>
-                        }
-                        <div class="form-fields-summary">
+        @foreach (var request in _requests)
+        {
+            var expanded = _expandedId == request.Id;
+            <div class="request-card @(expanded ? "is-expanded" : "")">
+                <div class="request-card-header is-clickable" @onclick="() => Toggle(request.Id)">
+                    <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(request.WorkflowType)"></i></span>
+                    <span class="request-card-title">
+                        <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
+                        <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                    </span>
+                    <span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span>
+                    <i class="bx bx-chevron-down request-card-chevron"></i>
+                </div>
+
+                @if (expanded)
+                {
+                    <div class="request-card-body">
+                        <div class="field-summary">
                             @foreach (var field in WorkflowFieldCatalog.GetFields(request.WorkflowType))
                             {
                                 var value = GetFieldValue(request, field.Key);
                                 if (!string.IsNullOrWhiteSpace(value))
                                 {
-                                    <p><strong>@field.Label:</strong> @value</p>
+                                    <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
                                 }
                             }
                         </div>
-                    }
-                </section>
-            }
-        </div>
+
+                        <div class="approval-timeline">
+                            @foreach (var step in request.Steps.OrderBy(x => x.Order))
+                            {
+                                <div class="approval-step">
+                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status)"><i class="bx @WorkflowDisplay.StepIcon(step.Status)"></i></span>
+                                    <div class="approval-step-body">
+                                        <strong>@step.Name</strong>
+                                        <div class="approval-step-meta">
+                                            @WorkflowDisplay.StepLabel(step.Status)
+                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name))
+                                            {
+                                                <span> — @name</span>
+                                            }
+                                            @if (step.ActedAtUtc is DateTime actedAt)
+                                            {
+                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
+                                        {
+                                            <div class="approval-step-comment">«@step.Comment»</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -107,6 +126,9 @@
         var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
         _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
         _loading = false;
+
+        if (_requests.Count > 0)
+            _expandedId = _requests[0].Id;
     }
 
     private void Toggle(Guid id) => _expandedId = _expandedId == id ? null : id;
@@ -120,41 +142,4 @@
         }
         catch (JsonException) { return null; }
     }
-
-    private static string StatusLabel(WorkflowRequestStatus status) => status switch
-    {
-        WorkflowRequestStatus.PendingApproval => "در انتظار تایید",
-        WorkflowRequestStatus.Approved => "تایید شده",
-        WorkflowRequestStatus.Rejected => "رد شده",
-        WorkflowRequestStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
-        WorkflowRequestStatus.Cancelled => "لغو شده",
-        _ => status.ToString(),
-    };
-
-    private static string StatusBadgeClass(WorkflowRequestStatus status) => status switch
-    {
-        WorkflowRequestStatus.Approved => "badge-success",
-        WorkflowRequestStatus.Rejected => "badge-danger",
-        WorkflowRequestStatus.ReturnedToRequester => "badge-warning",
-        WorkflowRequestStatus.Cancelled => "badge-muted",
-        _ => "badge-info",
-    };
-
-    private static string StepStatusLabel(WorkflowStepStatus status) => status switch
-    {
-        WorkflowStepStatus.Pending => "در انتظار",
-        WorkflowStepStatus.Approved => "تایید شد",
-        WorkflowStepStatus.Rejected => "رد شد",
-        WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
-        WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
-        _ => status.ToString(),
-    };
-
-    private static string StepBadgeClass(WorkflowStepStatus status) => status switch
-    {
-        WorkflowStepStatus.Approved => "badge-success",
-        WorkflowStepStatus.Rejected => "badge-danger",
-        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "badge-warning",
-        _ => "badge-muted",
-    };
 }

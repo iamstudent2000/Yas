@@ -16,7 +16,7 @@
 
 <PageTitle>درخواست جدید - یاس پورتال</PageTitle>
 
-<div class="admin-page" dir="rtl">
+<div class="requests-page" dir="rtl">
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
@@ -41,15 +41,20 @@
     else
     {
         <section class="card">
-            <label class="form-label">نوع درخواست</label>
-            <select class="form-control" value="@_selectedType" @onchange="TypeChanged">
+            <h2 class="section-title">نوع درخواست</h2>
+            <div class="request-type-grid">
                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
                 {
-                    <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
+                    <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
+                        <span class="request-type-card-icon"><i class="bx @WorkflowDisplay.IconFor(type)"></i></span>
+                        <span>@WorkflowFieldCatalog.GetDisplayName(type)</span>
+                    </div>
                 }
-            </select>
+            </div>
+        </section>
 
-            <hr class="section-divider" />
+        <section class="card request-form-card">
+            <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
 
             @foreach (var field in WorkflowFieldCatalog.GetFields(_selectedType))
             {
@@ -79,9 +84,21 @@
                         break;
                 }
             }
+            <p class="request-form-hint">فیلدهای دارای علامت * برای ثبت درخواست الزامی هستند.</p>
 
             <div class="form-actions">
-                <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit"><i class="bx bx-send"></i> ثبت درخواست</button>
+                <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
+                    @if (_submitting)
+                    {
+                        <i class="bx bx-loader-alt bx-spin"></i>
+                        <span>در حال ثبت...</span>
+                    }
+                    else
+                    {
+                        <i class="bx bx-send"></i>
+                        <span>ثبت درخواست</span>
+                    }
+                </button>
             </div>
         </section>
     }
@@ -110,13 +127,10 @@
         _ready = true;
     }
 
-    private void TypeChanged(ChangeEventArgs e)
+    private void SelectType(WorkflowTypeCode type)
     {
-        if (Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type))
-        {
-            _selectedType = type;
-            _values = [];
-        }
+        _selectedType = type;
+        _values = [];
     }
 
     private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v ?? "" : "";

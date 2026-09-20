@@ -15,7 +15,7 @@
 
 <PageTitle>کارتابل تاییدات - یاس پورتال</PageTitle>
 
-<div class="admin-page" dir="rtl">
+<div class="requests-page" dir="rtl">
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
@@ -34,41 +34,41 @@
     }
     else if (_items.Count == 0)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-check-circle"></i><strong>کارتابل شما خالی است</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
     }
     else
     {
-        <div class="admin-list-rows">
-            @foreach (var item in _items)
-            {
-                var busy = _actingRequestId == item.Request.Id;
-                <section class="card">
-                    <div class="admin-list-row">
-                        <div class="admin-list-primary">
-                            <span class="admin-list-avatar"><i class="bx bx-file"></i></span>
-                            <span class="admin-list-text">
-                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
-                                <span>از طرف @item.RequesterName — @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                            </span>
-                        </div>
-                        <div class="admin-list-meta"><span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span></div>
-                    </div>
+        @foreach (var item in _items)
+        {
+            var busy = _actingRequestId == item.Request.Id;
+            <div class="request-card">
+                <div class="request-card-header">
+                    <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                    <span class="request-card-title">
+                        <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                        <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                    </span>
+                    <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
+                </div>
 
-                    <div class="form-fields-summary">
+                <div class="request-card-body">
+                    <div class="field-summary">
                         @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
                         {
                             var value = GetFieldValue(item.Request, field.Key);
                             if (!string.IsNullOrWhiteSpace(value))
                             {
-                                <p><strong>@field.Label:</strong> @value</p>
+                                <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
                             }
                         }
                     </div>
 
-                    <label class="form-label">نظر (اختیاری)</label>
-                    <textarea class="form-control" rows="2" value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
+                    <div class="inbox-comment">
+                        <label class="form-label">نظر (اختیاری)</label>
+                        <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
+                    </div>
 
-                    <div class="form-actions">
+                    <div class="inbox-actions">
                         <AuthorizeView Policy="Requests.Approve">
                             <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
                         </AuthorizeView>
@@ -81,10 +81,14 @@
                         <AuthorizeView Policy="Requests.ReturnToPreviousStep">
                             <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
                         </AuthorizeView>
+                        @if (busy)
+                        {
+                            <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                        }
                     </div>
-                </section>
-            }
-        </div>
+                </div>
+            </div>
+        }
     }
 </div>
 
