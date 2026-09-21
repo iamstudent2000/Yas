@@ -99,11 +99,14 @@ public class WorkflowRequestTests
     }
 
     [Fact]
-    public void Cannot_return_to_previous_step_from_the_first_step()
+    public void Returning_to_previous_step_from_the_first_step_falls_back_to_returning_to_requester()
     {
         var request = CreateTwoStepRequest(out var step1Id, out _);
 
-        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), null));
+        request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), "بازگشت از اولین مرحله");
+
+        Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
+        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Order == 1).Status);
     }
 
     [Fact]

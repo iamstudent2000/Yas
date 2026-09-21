@@ -1,0 +1,81 @@
+From b1996c20f8ea1b21b07cbaf094e48309aa21ee0a Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Mon, 21 Sep 2026 03:02:33 +0000
+Subject: [PATCH] Fix: return-to-previous-step on the first step now falls back
+ to return-to-requester instead of failing
+
+---
+ .../Workflows/WorkflowRequest.cs              | 20 ++++++++++++++-----
+ .../Components/Pages/Requests/Inbox.razor     |  2 +-
+ tests/YasPortal.Tests/WorkflowRequestTests.cs |  7 +++++--
+ 3 files changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index b3fac86..01d79a7 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -107,12 +107,22 @@ public sealed class WorkflowRequest
+     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+-        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault()
+-            ?? throw new InvalidOperationException("There is no previous step to return to.");
++        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
+ 
+-        step.ReturnToPreviousStep(actingEmployeeId, comment);
+-        previous.Reopen();
+-        CurrentStepOrder = previous.Order;
++        if (previous is null)
++        {
++            // There is no approval step earlier than the first one — the only meaningful
++            // "previous" stop from here is the requester themselves, so this falls back to
++            // exactly the same outcome as ReturnToRequester rather than failing.
++            step.ReturnToRequester(actingEmployeeId, comment);
++            Status = WorkflowRequestStatus.ReturnedToRequester;
++        }
++        else
++        {
++            step.ReturnToPreviousStep(actingEmployeeId, comment);
++            previous.Reopen();
++            CurrentStepOrder = previous.Order;
++        }
+         RequesterHasSeenLatestUpdate = false;
+     }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 79fea66..52ca758 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -125,7 +125,7 @@
+                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+-                                    <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
++                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                 </AuthorizeView>
+                                 @if (busy)
+                                 {
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 75dcd8c..bba8899 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -99,11 +99,14 @@ public class WorkflowRequestTests
+     }
+ 
+     [Fact]
+-    public void Cannot_return_to_previous_step_from_the_first_step()
++    public void Returning_to_previous_step_from_the_first_step_falls_back_to_returning_to_requester()
+     {
+         var request = CreateTwoStepRequest(out var step1Id, out _);
+ 
+-        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), null));
++        request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), "بازگشت از اولین مرحله");
++
++        Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
++        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Order == 1).Status);
+     }
+ 
+     [Fact]
+-- 
+2.43.0
+

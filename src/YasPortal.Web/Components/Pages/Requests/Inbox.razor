@@ -125,7 +125,7 @@
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
-                                    <button class="btn btn-secondary" disabled="@(busy || !item.HasPreviousStep)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
                                 </AuthorizeView>
                                 @if (busy)
                                 {

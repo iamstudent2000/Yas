@@ -107,12 +107,22 @@ public sealed class WorkflowRequest
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
     {
         var step = RequireActionableCurrentStep(stepId);
-        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault()
-            ?? throw new InvalidOperationException("There is no previous step to return to.");
+        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
 
-        step.ReturnToPreviousStep(actingEmployeeId, comment);
-        previous.Reopen();
-        CurrentStepOrder = previous.Order;
+        if (previous is null)
+        {
+            // There is no approval step earlier than the first one — the only meaningful
+            // "previous" stop from here is the requester themselves, so this falls back to
+            // exactly the same outcome as ReturnToRequester rather than failing.
+            step.ReturnToRequester(actingEmployeeId, comment);
+            Status = WorkflowRequestStatus.ReturnedToRequester;
+        }
+        else
+        {
+            step.ReturnToPreviousStep(actingEmployeeId, comment);
+            previous.Reopen();
+            CurrentStepOrder = previous.Order;
+        }
         RequesterHasSeenLatestUpdate = false;
     }
 
