@@ -177,6 +177,44 @@ public class WorkflowRequestTests
 
         Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}"));
     }
+
+    [Fact]
+    public void Reapproving_after_a_bounce_back_reopens_the_step_ahead_instead_of_leaving_it_stuck()
+    {
+        // 3 steps: approve 1, approve 2, step 3 sends it back to step 2, step 2 re-approves.
+        // Step 3 must become Pending again — not stay stuck in ReturnedToPreviousStep forever.
+        var step1Def = Guid.NewGuid();
+        var step2Def = Guid.NewGuid();
+        var step3Def = Guid.NewGuid();
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.Purchase, Guid.NewGuid(), Guid.NewGuid(), "{}",
+            new[]
+            {
+                (step1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
+                (step2Def, 2, "مالی", Guid.NewGuid()),
+                (step3Def, 3, "منابع انسانی", Guid.NewGuid()),
+            });
+        var step1Id = request.Steps.Single(x => x.Order == 1).Id;
+        var step2Id = request.Steps.Single(x => x.Order == 2).Id;
+        var step3Id = request.Steps.Single(x => x.Order == 3).Id;
+        var approver = Guid.NewGuid();
+
+        request.Approve(step1Id, approver, null);
+        request.Approve(step2Id, approver, null);
+        request.ReturnToPreviousStep(step3Id, approver, "بررسی دوباره لازم است");
+
+        Assert.Equal(2, request.CurrentStepOrder);
+        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 2).Status);
+        Assert.Equal(WorkflowStepStatus.ReturnedToPreviousStep, request.Steps.Single(x => x.Order == 3).Status);
+
+        // Step 2 re-approves — step 3 must come back to life as Pending, not stay bounced.
+        request.Approve(step2Id, approver, "دوباره تایید شد");
+
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        Assert.Equal(3, request.CurrentStepOrder);
+        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 3).Status);
+        Assert.Null(request.Steps.Single(x => x.Order == 3).ActedByEmployeeId);
+    }
 }
 
 public class WorkflowStepDefinitionTests

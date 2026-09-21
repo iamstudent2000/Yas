@@ -24,10 +24,7 @@
             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
         </div>
         <div class="form-actions">
-            @if (_requests.Any(x => !x.RequesterHasSeenLatestUpdate))
-            {
-                <button class="btn btn-secondary" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
-            }
+            <button class="btn btn-secondary" disabled="@(!_requests.Any(x => !x.RequesterHasSeenLatestUpdate))" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
             <a class="btn btn-primary" href="/requests/new"><i class="bx bx-plus-circle"></i> درخواست جدید</a>
         </div>
     </div>
@@ -69,48 +66,7 @@
                 @if (expanded)
                 {
                     <div class="request-card-body">
-                        <div class="field-summary">
-                            @foreach (var field in WorkflowFieldCatalog.GetFields(request.WorkflowType))
-                            {
-                                var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(request, field.Key));
-                                if (!string.IsNullOrWhiteSpace(value))
-                                {
-                                    <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
-                                }
-                            }
-                        </div>
-
-                        <div class="approval-timeline">
-                            @foreach (var step in request.Steps.OrderBy(x => x.Order))
-                            {
-                                var isCurrent = step.Order == request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
-                                <div class="approval-step">
-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
-                                    <div class="approval-step-body">
-                                        <strong>@step.Name</strong>
-                                        <div class="approval-step-meta">
-                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
-                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name))
-                                            {
-                                                <span> — @name</span>
-                                            }
-                                            else if (step.Status == WorkflowStepStatus.Pending)
-                                            {
-                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
-                                            }
-                                            @if (step.ActedAtUtc is DateTime actedAt)
-                                            {
-                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                                            }
-                                        </div>
-                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
-                                        {
-                                            <div class="approval-step-comment">«@step.Comment»</div>
-                                        }
-                                    </div>
-                                </div>
-                            }
-                        </div>
+                        <RequestSummary Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
 
                         @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && _editValues.TryGetValue(request.Id, out var editValues))
                         {
@@ -264,12 +220,6 @@
             _expandedId = requestId;
         }
         finally { _resubmittingId = null; }
-    }
-
-    private static string? GetFieldValue(WorkflowRequest request, string key)
-    {
-        var values = ParseFieldValues(request.FieldValuesJson);
-        return values.TryGetValue(key, out var value) ? value : null;
     }
 
     private static Dictionary<string, string?> ParseFieldValues(string json)

@@ -83,6 +83,11 @@ public sealed class WorkflowRequest
         }
         else
         {
+            // The step ahead can be sitting in a non-Pending state here (e.g. it previously
+            // sent the request back via ReturnToPreviousStep) if this is a second pass through
+            // it. It must become actionable again for its approver, not stay stuck.
+            if (next.Status != WorkflowStepStatus.Pending)
+                next.Reopen();
             CurrentStepOrder = next.Order;
         }
         RequesterHasSeenLatestUpdate = false;

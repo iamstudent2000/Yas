@@ -1,0 +1,400 @@
+From fd8cf5c3cdee44830b35b703403cc1586fd157f3 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Mon, 21 Sep 2026 03:13:06 +0000
+Subject: [PATCH] Fix stuck requests after a bounce-back+re-approve; richer
+ inbox history; always-visible mark-all-read
+
+---
+ .../Workflows/WorkflowRequest.cs              |   5 +
+ .../Components/Pages/Requests/Inbox.razor     | 111 ++++++------------
+ .../Pages/Requests/MyRequests.razor           |  54 +--------
+ .../Components/Shared/RequestSummary.razor    |  68 +++++++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs |  38 ++++++
+ 5 files changed, 152 insertions(+), 124 deletions(-)
+ create mode 100644 src/YasPortal.Web/Components/Shared/RequestSummary.razor
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 01d79a7..4b50baf 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -83,6 +83,11 @@ public sealed class WorkflowRequest
+         }
+         else
+         {
++            // The step ahead can be sitting in a non-Pending state here (e.g. it previously
++            // sent the request back via ReturnToPreviousStep) if this is a second pass through
++            // it. It must become actionable again for its approver, not stay stuck.
++            if (next.Status != WorkflowStepStatus.Pending)
++                next.Reopen();
+             CurrentStepOrder = next.Order;
+         }
+         RequesterHasSeenLatestUpdate = false;
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 52ca758..31f32fb 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -1,6 +1,5 @@
+ @page "/requests/inbox"
+ @using System.Security.Claims
+-@using System.Text.Json
+ @using Microsoft.AspNetCore.Authorization
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using Microsoft.EntityFrameworkCore
+@@ -62,52 +61,7 @@
+                         </div>
+ 
+                         <div class="request-card-body">
+-                            <div class="field-summary">
+-                                @foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType))
+-                                {
+-                                    var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(item.Request, field.Key));
+-                                    if (!string.IsNullOrWhiteSpace(value))
+-                                    {
+-                                        <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
+-                                    }
+-                                }
+-                            </div>
+-
+-                            @if (item.HasPreviousStep)
+-                            {
+-                                <h3 class="section-title" style="font-size:12.5px;margin:14px 0 4px">روند تایید تا این مرحله</h3>
+-                                <div class="approval-timeline">
+-                                    @foreach (var step in item.Request.Steps.OrderBy(x => x.Order))
+-                                    {
+-                                        var isCurrent = step.Order == item.Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+-                                        <div class="approval-step">
+-                                            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+-                                            <div class="approval-step-body">
+-                                                <strong>@step.Name</strong>
+-                                                <div class="approval-step-meta">
+-                                                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+-                                                    @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var actorName))
+-                                                    {
+-                                                        <span> — @actorName</span>
+-                                                    }
+-                                                    else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
+-                                                    {
+-                                                        <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+-                                                    }
+-                                                    @if (step.ActedAtUtc is DateTime actedAt)
+-                                                    {
+-                                                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+-                                                    }
+-                                                </div>
+-                                                @if (!string.IsNullOrWhiteSpace(step.Comment))
+-                                                {
+-                                                    <div class="approval-step-comment">«@step.Comment»</div>
+-                                                }
+-                                            </div>
+-                                        </div>
+-                                    }
+-                                </div>
+-                            }
++                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
+ 
+                             <div class="inbox-comment">
+                                 <label class="form-label">نظر (اختیاری)</label>
+@@ -183,16 +137,12 @@
+                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                             <span class="request-card-title">
+                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+-                                <span>از طرف @item.RequesterName · @item.Step.Name</span>
++                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.Step.Name»</span>
+                             </span>
+                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Step.Status)">@WorkflowDisplay.StepLabel(item.Step.Status, isCurrent: false)</span>
+                         </div>
+                         <div class="request-card-body">
+-                            <div class="approval-step-meta" style="margin-top:10px">@item.Step.ActedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+-                            @if (!string.IsNullOrWhiteSpace(item.Step.Comment))
+-                            {
+-                                <div class="approval-step-comment">«@item.Step.Comment»</div>
+-                            }
++                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Step.Id" />
+                         </div>
+                     </div>
+                 }
+@@ -299,26 +249,53 @@
+         try
+         {
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            var query = db.WorkflowRequests.AsNoTracking()
++
++            // First, find just the (request id, step id) pairs matching the filters — cheap,
++            // and lets the database do the filtering/ordering/paging.
++            var matchQuery = db.WorkflowRequests.AsNoTracking()
+                 .SelectMany(
+                     r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.Status != WorkflowStepStatus.Pending),
+-                    (r, s) => new { Request = r, Step = s });
++                    (r, s) => new { RequestId = r.Id, StepId = s.Id, r.WorkflowType, s.Status, s.ActedAtUtc });
+ 
+             if (_historyTypeFilter is WorkflowTypeCode typeFilter)
+-                query = query.Where(x => x.Request.WorkflowType == typeFilter);
++                matchQuery = matchQuery.Where(x => x.WorkflowType == typeFilter);
+             if (_historyStatusFilter is WorkflowStepStatus statusFilter)
+-                query = query.Where(x => x.Step.Status == statusFilter);
++                matchQuery = matchQuery.Where(x => x.Status == statusFilter);
+             if (_historyFrom is DateTime from)
+-                query = query.Where(x => x.Step.ActedAtUtc >= from);
++                matchQuery = matchQuery.Where(x => x.ActedAtUtc >= from);
+             if (_historyTo is DateTime to)
+-                query = query.Where(x => x.Step.ActedAtUtc < to.AddDays(1));
++                matchQuery = matchQuery.Where(x => x.ActedAtUtc < to.AddDays(1));
++
++            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc).Take(100).ToListAsync();
+ 
+-            var rows = await query.OrderByDescending(x => x.Step.ActedAtUtc).Take(100).ToListAsync();
++            // Then load the full request (with every step, not just the matched one) for each
++            // match, so the card can show the whole picture — every submitted field and the
++            // complete approval timeline — not just this one decision in isolation.
++            var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
++            var requestsById = requestIds.Count == 0
++                ? []
++                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Where(x => requestIds.Contains(x.Id)).ToListAsync())
++                    .ToDictionary(x => x.Id);
+ 
+-            var requesterIds = rows.Select(x => x.Request.RequesterEmployeeId).Distinct().ToList();
++            var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+             var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => requesterIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
+ 
+-            _historyItems = rows.Select(x => new HistoryItem(x.Request, x.Step, requesterNames.TryGetValue(x.Request.RequesterEmployeeId, out var n) ? n : "—")).ToList();
++            var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
++            _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => actorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
++
++            var pendingPositionIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
++            _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++
++            _historyItems = matches
++                .Where(x => requestsById.ContainsKey(x.RequestId))
++                .Select(x =>
++                {
++                    var request = requestsById[x.RequestId];
++                    var step = request.Steps.Single(s => s.Id == x.StepId);
++                    var requesterName = requesterNames.TryGetValue(request.RequesterEmployeeId, out var n) ? n : "—";
++                    return new HistoryItem(request, step, requesterName);
++                })
++                .ToList();
+         }
+         finally { _historyLoading = false; }
+     }
+@@ -357,16 +334,6 @@
+     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
+     private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
+ 
+-    private static string? GetFieldValue(WorkflowRequest request, string key)
+-    {
+-        try
+-        {
+-            var values = JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson);
+-            return values is not null && values.TryGetValue(key, out var value) ? value : null;
+-        }
+-        catch (JsonException) { return null; }
+-    }
+-
+     private async Task Act(InboxItem item, WorkflowAction action)
+     {
+         if (_employeeId is not Guid employeeId || _approverPositionId is not Guid positionId)
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index e036e1a..68eb972 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -24,10 +24,7 @@
+             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
+         </div>
+         <div class="form-actions">
+-            @if (_requests.Any(x => !x.RequesterHasSeenLatestUpdate))
+-            {
+-                <button class="btn btn-secondary" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
+-            }
++            <button class="btn btn-secondary" disabled="@(!_requests.Any(x => !x.RequesterHasSeenLatestUpdate))" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
+             <a class="btn btn-primary" href="/requests/new"><i class="bx bx-plus-circle"></i> درخواست جدید</a>
+         </div>
+     </div>
+@@ -69,48 +66,7 @@
+                 @if (expanded)
+                 {
+                     <div class="request-card-body">
+-                        <div class="field-summary">
+-                            @foreach (var field in WorkflowFieldCatalog.GetFields(request.WorkflowType))
+-                            {
+-                                var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(request, field.Key));
+-                                if (!string.IsNullOrWhiteSpace(value))
+-                                {
+-                                    <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
+-                                }
+-                            }
+-                        </div>
+-
+-                        <div class="approval-timeline">
+-                            @foreach (var step in request.Steps.OrderBy(x => x.Order))
+-                            {
+-                                var isCurrent = step.Order == request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+-                                <div class="approval-step">
+-                                    <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+-                                    <div class="approval-step-body">
+-                                        <strong>@step.Name</strong>
+-                                        <div class="approval-step-meta">
+-                                            @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+-                                            @if (step.ActedByEmployeeId is Guid actorId && _employeeNames.TryGetValue(actorId, out var name))
+-                                            {
+-                                                <span> — @name</span>
+-                                            }
+-                                            else if (step.Status == WorkflowStepStatus.Pending)
+-                                            {
+-                                                <span> — نزد: @(_holderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+-                                            }
+-                                            @if (step.ActedAtUtc is DateTime actedAt)
+-                                            {
+-                                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+-                                            }
+-                                        </div>
+-                                        @if (!string.IsNullOrWhiteSpace(step.Comment))
+-                                        {
+-                                            <div class="approval-step-comment">«@step.Comment»</div>
+-                                        }
+-                                    </div>
+-                                </div>
+-                            }
+-                        </div>
++                        <RequestSummary Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
+ 
+                         @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && _editValues.TryGetValue(request.Id, out var editValues))
+                         {
+@@ -266,12 +222,6 @@
+         finally { _resubmittingId = null; }
+     }
+ 
+-    private static string? GetFieldValue(WorkflowRequest request, string key)
+-    {
+-        var values = ParseFieldValues(request.FieldValuesJson);
+-        return values.TryGetValue(key, out var value) ? value : null;
+-    }
+-
+     private static Dictionary<string, string?> ParseFieldValues(string json)
+     {
+         try
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+new file mode 100644
+index 0000000..f0674af
+--- /dev/null
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -0,0 +1,68 @@
++@using System.Text.Json
++@using YasPortal.Domain.Workflows
++
++<div class="field-summary">
++    @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType))
++    {
++        var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(field.Key));
++        if (!string.IsNullOrWhiteSpace(value))
++        {
++            <div class="field-summary-item"><span>@field.Label</span><strong>@value</strong></div>
++        }
++    }
++</div>
++
++<div class="approval-timeline">
++    @foreach (var step in Request.Steps.OrderBy(x => x.Order))
++    {
++        var isCurrent = step.Order == Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
++        <div class="approval-step">
++            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
++            <div class="approval-step-body">
++                <strong>@step.Name</strong>
++                @if (HighlightStepId == step.Id)
++                {
++                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
++                }
++                <div class="approval-step-meta">
++                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
++                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
++                    {
++                        <span> — @actorName</span>
++                    }
++                    else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
++                    {
++                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
++                    }
++                    @if (step.ActedAtUtc is DateTime actedAt)
++                    {
++                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
++                    }
++                </div>
++                @if (!string.IsNullOrWhiteSpace(step.Comment))
++                {
++                    <div class="approval-step-comment">«@step.Comment»</div>
++                }
++            </div>
++        </div>
++    }
++</div>
++
++@code {
++    [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
++    [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
++    [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
++
++    /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
++    [Parameter] public Guid? HighlightStepId { get; set; }
++
++    private string? GetFieldValue(string key)
++    {
++        try
++        {
++            var values = JsonSerializer.Deserialize<Dictionary<string, string?>>(Request.FieldValuesJson);
++            return values is not null && values.TryGetValue(key, out var value) ? value : null;
++        }
++        catch (JsonException) { return null; }
++    }
++}
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index bba8899..85a7b70 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -177,6 +177,44 @@ public class WorkflowRequestTests
+ 
+         Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}"));
+     }
++
++    [Fact]
++    public void Reapproving_after_a_bounce_back_reopens_the_step_ahead_instead_of_leaving_it_stuck()
++    {
++        // 3 steps: approve 1, approve 2, step 3 sends it back to step 2, step 2 re-approves.
++        // Step 3 must become Pending again — not stay stuck in ReturnedToPreviousStep forever.
++        var step1Def = Guid.NewGuid();
++        var step2Def = Guid.NewGuid();
++        var step3Def = Guid.NewGuid();
++        var request = new WorkflowRequest(
++            WorkflowTypeCode.Purchase, Guid.NewGuid(), Guid.NewGuid(), "{}",
++            new[]
++            {
++                (step1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
++                (step2Def, 2, "مالی", Guid.NewGuid()),
++                (step3Def, 3, "منابع انسانی", Guid.NewGuid()),
++            });
++        var step1Id = request.Steps.Single(x => x.Order == 1).Id;
++        var step2Id = request.Steps.Single(x => x.Order == 2).Id;
++        var step3Id = request.Steps.Single(x => x.Order == 3).Id;
++        var approver = Guid.NewGuid();
++
++        request.Approve(step1Id, approver, null);
++        request.Approve(step2Id, approver, null);
++        request.ReturnToPreviousStep(step3Id, approver, "بررسی دوباره لازم است");
++
++        Assert.Equal(2, request.CurrentStepOrder);
++        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 2).Status);
++        Assert.Equal(WorkflowStepStatus.ReturnedToPreviousStep, request.Steps.Single(x => x.Order == 3).Status);
++
++        // Step 2 re-approves — step 3 must come back to life as Pending, not stay bounced.
++        request.Approve(step2Id, approver, "دوباره تایید شد");
++
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++        Assert.Equal(3, request.CurrentStepOrder);
++        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 3).Status);
++        Assert.Null(request.Steps.Single(x => x.Order == 3).ActedByEmployeeId);
++    }
+ }
+ 
+ public class WorkflowStepDefinitionTests
+-- 
+2.43.0
+
