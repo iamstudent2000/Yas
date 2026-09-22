@@ -1,0 +1,54 @@
+From f7bdc1ac9e82f770f40de8babf1605fdf96f5142 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Tue, 22 Sep 2026 05:05:19 +0000
+Subject: [PATCH] Fix: show current approver's name on My Requests (was
+ suppressed by an inbox-only rule)
+
+---
+ src/YasPortal.Web/Components/Pages/Requests/Inbox.razor  | 2 +-
+ src/YasPortal.Web/Components/Shared/RequestSummary.razor | 9 ++++++++-
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 31f32fb..b46ffb9 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -61,7 +61,7 @@
+                         </div>
+ 
+                         <div class="request-card-body">
+-                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
++                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" />
+ 
+                             <div class="inbox-comment">
+                                 <label class="form-label">نظر (اختیاری)</label>
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+index 6531e85..e5ba5f5 100644
+--- a/src/YasPortal.Web/Components/Shared/RequestSummary.razor
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -31,7 +31,7 @@
+                     {
+                         <span> — @actorName</span>
+                     }
+-                    else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
++                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
+                     {
+                         <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+                     }
+@@ -57,6 +57,13 @@
+     /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
+     [Parameter] public Guid? HighlightStepId { get; set; }
+ 
++    /// <summary>
++    /// Whether to show the current holder's name on the current (awaiting-action) step too,
++    /// not just queued ones. Set to false in the inbox's own pending list, where the current
++    /// step is always the viewer's own — showing their own name there is just noise.
++    /// </summary>
++    [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
++
+     private string? GetFieldValue(string key)
+     {
+         try
+-- 
+2.43.0
+

@@ -31,7 +31,7 @@
                     {
                         <span> — @actorName</span>
                     }
-                    else if (step.Status == WorkflowStepStatus.Pending && !isCurrent)
+                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
                     {
                         <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
                     }
@@ -56,6 +56,13 @@
 
     /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
     [Parameter] public Guid? HighlightStepId { get; set; }
+
+    /// <summary>
+    /// Whether to show the current holder's name on the current (awaiting-action) step too,
+    /// not just queued ones. Set to false in the inbox's own pending list, where the current
+    /// step is always the viewer's own — showing their own name there is just noise.
+    /// </summary>
+    [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
     private string? GetFieldValue(string key)
     {
