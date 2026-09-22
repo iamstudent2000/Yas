@@ -14,8 +14,11 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     /// <summary>
     /// Loads the active step definitions for <paramref name="type"/> and resolves each one's
     /// approver position for <paramref name="requesterPositionId"/> (walking up the hierarchy
-    /// for "N levels up" steps). Fails with a human-readable reason if there are no active
-    /// steps configured, or if a manager-level step has no ancestor that high up.
+    /// for "N levels up" steps). A manager-level step whose requester doesn't have anyone that
+    /// far up the chain clamps to the highest manager that does exist, rather than failing the
+    /// whole submission — and if a requester has no manager at all, that one step is simply
+    /// skipped (there is nobody to review it). Only fails if every step ends up skipped, i.e.
+    /// there is truly nobody left to approve anything.
     /// </summary>
     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
     {
@@ -31,14 +34,22 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         var resolved = new List<ResolvedStep>();
         foreach (var def in definitions)
         {
-            var approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
+            Guid? approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
                 ? def.ApproverPositionId
-                : PositionHierarchy.GetAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
+                : PositionHierarchy.GetClosestAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
             if (approverPositionId is not Guid pid)
-                return new ResolveResult(false, $"مرحله «{def.Name}» قابل تعیین تاییدکننده نیست؛ سلسله‌مراتب سمت شما به اندازه کافی بالا نمی‌رود.", []);
+                continue; // no manager at all above this requester — nothing to assign this step to, so skip it
             resolved.Add(new ResolvedStep(def.Id, def.Order, def.Name, pid));
         }
-        return new ResolveResult(true, null, resolved);
+
+        if (resolved.Count == 0)
+            return new ResolveResult(false, "برای سمت شما هیچ تاییدکننده‌ای در مسیر این گردش‌کار قابل تعیین نیست (ظاهراً سمت شما بالاترین سطح سازمان است). از مدیر سامانه بخواهید حداقل یک مرحله با سمت ثابت برای این نوع گردش‌کار تعریف کند.", []);
+
+        // Re-number consecutively in case a step was skipped, so the trail's order stays 1..N.
+        var reindexed = resolved.OrderBy(x => x.Order)
+            .Select((x, i) => x with { Order = i + 1 })
+            .ToList();
+        return new ResolveResult(true, null, reindexed);
     }
 
     /// <summary>

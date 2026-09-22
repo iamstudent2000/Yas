@@ -30,4 +30,31 @@ public static class PositionHierarchy
         }
         return current;
     }
+
+    /// <summary>
+    /// Like <see cref="GetAncestorPositionId"/>, but never fails outright on a shallow
+    /// hierarchy: it walks up at most <paramref name="levelsUp"/> hops and returns whatever
+    /// ancestor it reached — the requested level if the chain is long enough, otherwise the
+    /// highest one actually available. Returns null only when there is no ancestor at all
+    /// (i.e. <paramref name="positionId"/> is itself already at the top).
+    /// </summary>
+    public static Guid? GetClosestAncestorPositionId(
+        Guid positionId,
+        int levelsUp,
+        IReadOnlyDictionary<Guid, Guid?> parentByPosition)
+    {
+        if (levelsUp <= 0)
+            throw new ArgumentOutOfRangeException(nameof(levelsUp), "Levels up must be at least 1.");
+
+        var current = positionId;
+        Guid? lastAncestor = null;
+        for (var i = 0; i < levelsUp; i++)
+        {
+            if (!parentByPosition.TryGetValue(current, out var parent) || parent is not Guid parentId)
+                break;
+            current = parentId;
+            lastAncestor = parentId;
+        }
+        return lastAncestor;
+    }
 }

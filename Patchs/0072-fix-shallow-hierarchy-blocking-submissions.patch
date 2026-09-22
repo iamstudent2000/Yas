@@ -1,0 +1,133 @@
+From 6bbbe02da4784d194a71717d294a7b1f3955bf5d Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Mon, 21 Sep 2026 03:17:47 +0000
+Subject: [PATCH] Fix: requesters with a shallow or top-of-org position no
+ longer get blocked from submitting requests
+
+---
+ .../Organization/PositionHierarchy.cs         | 27 ++++++++++++++++++
+ src/YasPortal.Web/Services/WorkflowService.cs | 23 +++++++++++----
+ .../YasPortal.Tests/PositionHierarchyTests.cs | 28 +++++++++++++++++++
+ 3 files changed, 72 insertions(+), 6 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Organization/PositionHierarchy.cs b/src/YasPortal.Domain/Organization/PositionHierarchy.cs
+index 095f416..01238f7 100644
+--- a/src/YasPortal.Domain/Organization/PositionHierarchy.cs
++++ b/src/YasPortal.Domain/Organization/PositionHierarchy.cs
+@@ -30,4 +30,31 @@ public static class PositionHierarchy
+         }
+         return current;
+     }
++
++    /// <summary>
++    /// Like <see cref="GetAncestorPositionId"/>, but never fails outright on a shallow
++    /// hierarchy: it walks up at most <paramref name="levelsUp"/> hops and returns whatever
++    /// ancestor it reached — the requested level if the chain is long enough, otherwise the
++    /// highest one actually available. Returns null only when there is no ancestor at all
++    /// (i.e. <paramref name="positionId"/> is itself already at the top).
++    /// </summary>
++    public static Guid? GetClosestAncestorPositionId(
++        Guid positionId,
++        int levelsUp,
++        IReadOnlyDictionary<Guid, Guid?> parentByPosition)
++    {
++        if (levelsUp <= 0)
++            throw new ArgumentOutOfRangeException(nameof(levelsUp), "Levels up must be at least 1.");
++
++        var current = positionId;
++        Guid? lastAncestor = null;
++        for (var i = 0; i < levelsUp; i++)
++        {
++            if (!parentByPosition.TryGetValue(current, out var parent) || parent is not Guid parentId)
++                break;
++            current = parentId;
++            lastAncestor = parentId;
++        }
++        return lastAncestor;
++    }
+ }
+diff --git a/src/YasPortal.Web/Services/WorkflowService.cs b/src/YasPortal.Web/Services/WorkflowService.cs
+index 5a1c492..b30721b 100644
+--- a/src/YasPortal.Web/Services/WorkflowService.cs
++++ b/src/YasPortal.Web/Services/WorkflowService.cs
+@@ -14,8 +14,11 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+     /// <summary>
+     /// Loads the active step definitions for <paramref name="type"/> and resolves each one's
+     /// approver position for <paramref name="requesterPositionId"/> (walking up the hierarchy
+-    /// for "N levels up" steps). Fails with a human-readable reason if there are no active
+-    /// steps configured, or if a manager-level step has no ancestor that high up.
++    /// for "N levels up" steps). A manager-level step whose requester doesn't have anyone that
++    /// far up the chain clamps to the highest manager that does exist, rather than failing the
++    /// whole submission — and if a requester has no manager at all, that one step is simply
++    /// skipped (there is nobody to review it). Only fails if every step ends up skipped, i.e.
++    /// there is truly nobody left to approve anything.
+     /// </summary>
+     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
+     {
+@@ -31,14 +34,22 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+         var resolved = new List<ResolvedStep>();
+         foreach (var def in definitions)
+         {
+-            var approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
++            Guid? approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
+                 ? def.ApproverPositionId
+-                : PositionHierarchy.GetAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
++                : PositionHierarchy.GetClosestAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
+             if (approverPositionId is not Guid pid)
+-                return new ResolveResult(false, $"مرحله «{def.Name}» قابل تعیین تاییدکننده نیست؛ سلسله‌مراتب سمت شما به اندازه کافی بالا نمی‌رود.", []);
++                continue; // no manager at all above this requester — nothing to assign this step to, so skip it
+             resolved.Add(new ResolvedStep(def.Id, def.Order, def.Name, pid));
+         }
+-        return new ResolveResult(true, null, resolved);
++
++        if (resolved.Count == 0)
++            return new ResolveResult(false, "برای سمت شما هیچ تاییدکننده‌ای در مسیر این گردش‌کار قابل تعیین نیست (ظاهراً سمت شما بالاترین سطح سازمان است). از مدیر سامانه بخواهید حداقل یک مرحله با سمت ثابت برای این نوع گردش‌کار تعریف کند.", []);
++
++        // Re-number consecutively in case a step was skipped, so the trail's order stays 1..N.
++        var reindexed = resolved.OrderBy(x => x.Order)
++            .Select((x, i) => x with { Order = i + 1 })
++            .ToList();
++        return new ResolveResult(true, null, reindexed);
+     }
+ 
+     /// <summary>
+diff --git a/tests/YasPortal.Tests/PositionHierarchyTests.cs b/tests/YasPortal.Tests/PositionHierarchyTests.cs
+index a572efc..1f3eeea 100644
+--- a/tests/YasPortal.Tests/PositionHierarchyTests.cs
++++ b/tests/YasPortal.Tests/PositionHierarchyTests.cs
+@@ -59,4 +59,32 @@ public class PositionHierarchyTests
+ 
+         Assert.Throws<ArgumentOutOfRangeException>(() => PositionHierarchy.GetAncestorPositionId(employee, 0, parents));
+     }
++
++    [Fact]
++    public void Closest_ancestor_returns_the_exact_level_when_the_chain_is_long_enough()
++    {
++        var (ceo, unitManager, employee, parents) = BuildChain();
++
++        Assert.Equal(unitManager, PositionHierarchy.GetClosestAncestorPositionId(employee, 1, parents));
++        Assert.Equal(ceo, PositionHierarchy.GetClosestAncestorPositionId(employee, 2, parents));
++    }
++
++    [Fact]
++    public void Closest_ancestor_clamps_to_the_highest_available_instead_of_failing()
++    {
++        var (ceo, unitManager, employee, parents) = BuildChain();
++
++        // Asking for "2 levels up" from the unit manager would run off the top of a
++        // 3-level chain — this employee's manager (unitManager) has no manager of their
++        // own beyond the CEO, so it should clamp to the CEO rather than return null.
++        Assert.Equal(ceo, PositionHierarchy.GetClosestAncestorPositionId(unitManager, 5, parents));
++    }
++
++    [Fact]
++    public void Closest_ancestor_returns_null_only_when_there_is_no_manager_at_all()
++    {
++        var (ceo, _, _, parents) = BuildChain();
++
++        Assert.Null(PositionHierarchy.GetClosestAncestorPositionId(ceo, 1, parents));
++    }
+ }
+-- 
+2.43.0
+

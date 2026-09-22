@@ -1,0 +1,202 @@
+From 0d18c5b3a0294d3b29bfc0e7c259a8b45f863df4 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Tue, 22 Sep 2026 04:43:23 +0000
+Subject: [PATCH] Redesign admin workflow-steps page: visual timeline, step
+ duplication, employee path preview
+
+---
+ .../Components/Pages/Admin/Workflows.razor    | 148 +++++++++++++++---
+ 1 file changed, 129 insertions(+), 19 deletions(-)
+
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+index 6ca2734..5133d53 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+@@ -103,27 +103,25 @@
+             }
+             else
+             {
+-                <div class="admin-list-table-head"><span>ترتیب</span><span>مرحله</span><span>عملیات</span></div>
+-                <div class="admin-list-rows">
++                <div class="approval-timeline admin-workflow-timeline">
+                     @foreach (var step in _steps.OrderBy(x => x.Order))
+                     {
+-                        <div class="admin-list-row">
+-                            <div class="admin-list-primary">
+-                                <span class="admin-list-avatar">@step.Order</span>
+-                                <span class="admin-list-text">
+-                                    <strong>@step.Name</strong>
+-                                    <span>@DescribeRule(step)</span>
+-                                    @if (!step.IsActive)
+-                                    {
+-                                        <span class="badge badge-muted">غیرفعال</span>
+-                                    }
+-                                </span>
+-                            </div>
+-                            <div class="admin-list-actions">
+-                                <button type="button" class="btn btn-secondary btn-sm" title="انتقال به بالا" disabled="@(step.Order == _steps.Min(x => x.Order))" @onclick="() => MoveUp(step.Id)"><i class="bx bx-up-arrow-alt"></i></button>
+-                                <button type="button" class="btn btn-secondary btn-sm" title="انتقال به پایین" disabled="@(step.Order == _steps.Max(x => x.Order))" @onclick="() => MoveDown(step.Id)"><i class="bx bx-down-arrow-alt"></i></button>
+-                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="bx bx-edit-alt"></i> ویرایش</button>
+-                                <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="bx bx-trash"></i> حذف</button>
++                        <div class="approval-step">
++                            <span class="approval-step-icon is-pending">@step.Order</span>
++                            <div class="approval-step-body">
++                                <strong>@step.Name</strong>
++                                @if (!step.IsActive)
++                                {
++                                    <span class="badge badge-muted" style="margin-inline-start:6px">غیرفعال</span>
++                                }
++                                <div class="approval-step-meta">@DescribeRule(step)</div>
++                                <div class="admin-list-actions" style="margin-top:8px">
++                                    <button type="button" class="btn btn-secondary btn-sm" title="انتقال به بالا" disabled="@(step.Order == _steps.Min(x => x.Order))" @onclick="() => MoveUp(step.Id)"><i class="bx bx-up-arrow-alt"></i></button>
++                                    <button type="button" class="btn btn-secondary btn-sm" title="انتقال به پایین" disabled="@(step.Order == _steps.Max(x => x.Order))" @onclick="() => MoveDown(step.Id)"><i class="bx bx-down-arrow-alt"></i></button>
++                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => DuplicateStep(step)"><i class="bx bx-copy"></i> کپی</button>
++                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="bx bx-edit-alt"></i> ویرایش</button>
++                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="bx bx-trash"></i> حذف</button>
++                                </div>
+                             </div>
+                         </div>
+                     }
+@@ -131,6 +129,59 @@
+             }
+         </section>
+     </div>
++
++    <section class="card">
++        <div class="card-heading">
++            <div class="card-heading-icon"><i class="bx bx-search-alt"></i></div>
++            <div>
++                <h2 class="section-title">پیش‌نمایش مسیر تایید</h2>
++                <p class="muted">مسیر واقعی «@WorkflowFieldCatalog.GetDisplayName(_selectedType)» را برای یک کارمند مشخص، بر اساس سمت فعلی او، پیش‌نمایش کنید — همان چیزی که اگر او همین حالا درخواست ثبت کند اتفاق می‌افتد.</p>
++            </div>
++        </div>
++
++        <label class="form-label">کارمند</label>
++        <ServerSearchableGuidSelect Value="@_previewEmployeeId" ValueChanged="PreviewEmployeeChanged"
++                                    SearchAsync="SearchEmployeesAsync" SelectedText="@_previewEmployeeSearch" Placeholder="یک کارمند را انتخاب کنید"
++                                    SearchPlaceholder="نام، نام کاربری یا کد کارمند را جستجو کنید..." />
++
++        @if (_previewLoading)
++        {
++            <div class="empty-state" style="margin-top:12px"><i class="bx bx-loader-alt bx-spin"></i> در حال محاسبه مسیر...</div>
++        }
++        else if (_previewEmployeeId is not null)
++        {
++            @if (_previewResults.Count == 0)
++            {
++                <div class="empty-state" style="margin-top:12px"><i class="bx bx-error-circle"></i><span>این کارمند در حال حاضر سمت فعالی ندارد.</span></div>
++            }
++            else
++            {
++                @foreach (var (positionName, result) in _previewResults)
++                {
++                    <p class="muted" style="margin:16px 0 4px"><strong>بر اساس سمت: @positionName</strong></p>
++                    @if (!result.Success)
++                    {
++                        <div class="empty-state"><i class="bx bx-error-circle"></i><span>@result.Error</span></div>
++                    }
++                    else
++                    {
++                        <div class="approval-timeline">
++                            @foreach (var step in result.Steps)
++                            {
++                                <div class="approval-step">
++                                    <span class="approval-step-icon is-pending">@step.Order</span>
++                                    <div class="approval-step-body">
++                                        <strong>@step.Name</strong>
++                                        <div class="approval-step-meta">نزد: @(_previewHolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</div>
++                                    </div>
++                                </div>
++                            }
++                        </div>
++                    }
++                }
++            }
++        }
++    </section>
+ </div>
+ 
+ @code {
+@@ -148,6 +199,12 @@
+     private Guid? _approverPositionId;
+     private string _approverPositionSearch = "";
+ 
++    private Guid? _previewEmployeeId;
++    private string _previewEmployeeSearch = "";
++    private bool _previewLoading;
++    private List<(string PositionName, WorkflowService.ResolveResult Result)> _previewResults = [];
++    private Dictionary<Guid, string> _previewHolderNames = [];
++
+     protected override async Task OnInitializedAsync()
+     {
+         await using var db = await DbFactory.CreateDbContextAsync();
+@@ -163,6 +220,8 @@
+         _selectedType = type;
+         CancelEdit();
+         await LoadStepsAsync();
++        if (_previewEmployeeId is Guid employeeId)
++            await PreviewEmployeeChanged(employeeId);
+     }
+ 
+     private async Task LoadStepsAsync()
+@@ -315,6 +374,57 @@
+     }
+ 
+     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
++    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
++
++    private async Task PreviewEmployeeChanged(Guid? employeeId)
++    {
++        _previewEmployeeId = employeeId;
++        _previewResults = [];
++        _previewHolderNames = [];
++        if (employeeId is not Guid id)
++            return;
++
++        _previewLoading = true;
++        await InvokeAsync(StateHasChanged);
++        try
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var positions = await db.EmployeePositions.AsNoTracking()
++                .Where(x => x.EmployeeId == id && x.EndedAt == null)
++                .Join(db.Positions.AsNoTracking(), ep => ep.PositionId, p => p.Id, (ep, p) => new { p.Id, p.Name })
++                .ToListAsync();
++
++            var results = new List<(string, WorkflowService.ResolveResult)>();
++            var allApproverIds = new HashSet<Guid>();
++            foreach (var position in positions)
++            {
++                var result = await WorkflowSvc.ResolveStepsAsync(_selectedType, position.Id);
++                results.Add((position.Name, result));
++                if (result.Success)
++                    foreach (var step in result.Steps)
++                        allApproverIds.Add(step.ApproverPositionId);
++            }
++            _previewResults = results;
++            _previewHolderNames = allApproverIds.Count == 0 ? [] : await WorkflowSvc.GetCurrentHolderNamesAsync(allApproverIds);
++        }
++        finally { _previewLoading = false; }
++    }
++
++    /// <summary>Adds a copy of an existing step at the end of the list — a quick way to build
++    /// out a similar path (e.g. the same fixed-position step reused for another workflow type
++    /// isn't supported directly here, but duplicating within a type to tweak one field is).</summary>
++    private async Task DuplicateStep(WorkflowStepDefinition step)
++    {
++        await using var db = await DbFactory.CreateDbContextAsync();
++        var nextOrder = (await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).Select(x => (int?)x.Order).MaxAsync() ?? 0) + 1;
++        var copy = step.ApproverRuleKind == ApproverRuleKind.RequesterManagerLevel
++            ? new WorkflowStepDefinition(_selectedType, nextOrder, step.Name + " (کپی)", step.ManagerLevel!.Value)
++            : new WorkflowStepDefinition(_selectedType, nextOrder, step.Name + " (کپی)", step.ApproverPositionId!.Value);
++        db.WorkflowStepDefinitions.Add(copy);
++        await db.SaveChangesAsync();
++        AppState.AddToast("مرحله کپی شد؛ می‌توانید آن را ویرایش کنید.", ToastLevel.Success);
++        await LoadStepsAsync();
++    }
+ 
+     private static string ToPersianDigits(string value)
+     {
+-- 
+2.43.0
+
