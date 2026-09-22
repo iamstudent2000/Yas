@@ -133,8 +133,8 @@ public sealed class WorkflowRequest
 
     public void Cancel()
     {
-        if (Status != WorkflowRequestStatus.PendingApproval)
-            throw new InvalidOperationException("Only a request that is still pending approval can be cancelled.");
+        if (Status is not (WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester))
+            throw new InvalidOperationException("Only a request that is pending approval or returned to the requester can be cancelled.");
         Status = WorkflowRequestStatus.Cancelled;
     }
 

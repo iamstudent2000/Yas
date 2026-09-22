@@ -89,6 +89,24 @@
                                 </div>
                             </div>
                         }
+
+                        @if (request.Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester)
+                        {
+                            <div class="form-actions" style="margin-top:14px">
+                                <button class="btn btn-danger" disabled="@(_cancellingId == request.Id)" @onclick="() => CancelAsync(request.Id)">
+                                    @if (_cancellingId == request.Id)
+                                    {
+                                        <i class="bx bx-loader-alt bx-spin"></i>
+                                        <span>در حال لغو...</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bx bx-x-circle"></i>
+                                        <span>لغو درخواست</span>
+                                    }
+                                </button>
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -105,6 +123,7 @@
     private Dictionary<Guid, Dictionary<string, string?>> _editValues = [];
     private Guid? _expandedId;
     private Guid? _resubmittingId;
+    private Guid? _cancellingId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -220,6 +239,39 @@
             _expandedId = requestId;
         }
         finally { _resubmittingId = null; }
+    }
+
+    private async Task CancelAsync(Guid requestId)
+    {
+        _cancellingId = requestId;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var tracked = await db.WorkflowRequests.SingleOrDefaultAsync(x => x.Id == requestId);
+            if (tracked is null)
+            {
+                await LoadAsync();
+                return;
+            }
+
+            try
+            {
+                tracked.Cancel();
+            }
+            catch (InvalidOperationException ex)
+            {
+                AppState.AddToast(ex.Message, ToastLevel.Error);
+                await LoadAsync();
+                return;
+            }
+
+            await db.SaveChangesAsync();
+            AppState.AddToast("درخواست لغو شد.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
+            await LoadAsync();
+        }
+        finally { _cancellingId = null; }
     }
 
     private static Dictionary<string, string?> ParseFieldValues(string json)

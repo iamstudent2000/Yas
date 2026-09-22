@@ -1,0 +1,140 @@
+From fbdbdcce9b841cba31acf001367b76e0e6ed26db Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Tue, 22 Sep 2026 05:08:28 +0000
+Subject: [PATCH] Allow cancelling a returned request; add the Cancel button to
+ My Requests (was never wired up)
+
+---
+ .../Workflows/WorkflowRequest.cs              |  4 +-
+ .../Pages/Requests/MyRequests.razor           | 52 +++++++++++++++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 22 ++++++++
+ 3 files changed, 76 insertions(+), 2 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 4b50baf..1e70a3e 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -133,8 +133,8 @@ public sealed class WorkflowRequest
+ 
+     public void Cancel()
+     {
+-        if (Status != WorkflowRequestStatus.PendingApproval)
+-            throw new InvalidOperationException("Only a request that is still pending approval can be cancelled.");
++        if (Status is not (WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester))
++            throw new InvalidOperationException("Only a request that is pending approval or returned to the requester can be cancelled.");
+         Status = WorkflowRequestStatus.Cancelled;
+     }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 68eb972..e1acfbe 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -89,6 +89,24 @@
+                                 </div>
+                             </div>
+                         }
++
++                        @if (request.Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester)
++                        {
++                            <div class="form-actions" style="margin-top:14px">
++                                <button class="btn btn-danger" disabled="@(_cancellingId == request.Id)" @onclick="() => CancelAsync(request.Id)">
++                                    @if (_cancellingId == request.Id)
++                                    {
++                                        <i class="bx bx-loader-alt bx-spin"></i>
++                                        <span>در حال لغو...</span>
++                                    }
++                                    else
++                                    {
++                                        <i class="bx bx-x-circle"></i>
++                                        <span>لغو درخواست</span>
++                                    }
++                                </button>
++                            </div>
++                        }
+                     </div>
+                 }
+             </div>
+@@ -105,6 +123,7 @@
+     private Dictionary<Guid, Dictionary<string, string?>> _editValues = [];
+     private Guid? _expandedId;
+     private Guid? _resubmittingId;
++    private Guid? _cancellingId;
+ 
+     protected override async Task OnInitializedAsync()
+     {
+@@ -222,6 +241,39 @@
+         finally { _resubmittingId = null; }
+     }
+ 
++    private async Task CancelAsync(Guid requestId)
++    {
++        _cancellingId = requestId;
++        await InvokeAsync(StateHasChanged);
++        try
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var tracked = await db.WorkflowRequests.SingleOrDefaultAsync(x => x.Id == requestId);
++            if (tracked is null)
++            {
++                await LoadAsync();
++                return;
++            }
++
++            try
++            {
++                tracked.Cancel();
++            }
++            catch (InvalidOperationException ex)
++            {
++                AppState.AddToast(ex.Message, ToastLevel.Error);
++                await LoadAsync();
++                return;
++            }
++
++            await db.SaveChangesAsync();
++            AppState.AddToast("درخواست لغو شد.", ToastLevel.Success);
++            AppState.NotifyRequestBadgesChanged();
++            await LoadAsync();
++        }
++        finally { _cancellingId = null; }
++    }
++
+     private static Dictionary<string, string?> ParseFieldValues(string json)
+     {
+         try
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 85a7b70..bc7e413 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -137,6 +137,28 @@ public class WorkflowRequestTests
+         Assert.Throws<InvalidOperationException>(() => request.Cancel());
+     }
+ 
++    [Fact]
++    public void A_request_returned_to_the_requester_can_also_be_cancelled()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), "نیاز به اصلاح دارد");
++
++        request.Cancel();
++
++        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
++    }
++
++    [Fact]
++    public void An_already_approved_request_cannot_be_cancelled()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
++        var approver = Guid.NewGuid();
++        request.Approve(step1Id, approver, null);
++        request.Approve(step2Id, approver, null);
++
++        Assert.Throws<InvalidOperationException>(() => request.Cancel());
++    }
++
+     [Fact]
+     public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
+     {
+-- 
+2.43.0
+

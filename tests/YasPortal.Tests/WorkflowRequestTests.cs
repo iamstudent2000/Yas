@@ -138,6 +138,28 @@ public class WorkflowRequestTests
     }
 
     [Fact]
+    public void A_request_returned_to_the_requester_can_also_be_cancelled()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), "نیاز به اصلاح دارد");
+
+        request.Cancel();
+
+        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
+    }
+
+    [Fact]
+    public void An_already_approved_request_cannot_be_cancelled()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        request.Approve(step1Id, approver, null);
+        request.Approve(step2Id, approver, null);
+
+        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+    }
+
+    [Fact]
     public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
     {
         var request = CreateTwoStepRequest(out var step1Id, out _);
