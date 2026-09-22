@@ -1,0 +1,24 @@
+From c2511610043997db47d7b97dc8805a7252257338 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Tue, 22 Sep 2026 04:50:21 +0000
+Subject: [PATCH] Fix build: add missing WorkflowDisplay using in
+ RequestSummary.razor
+
+---
+ src/YasPortal.Web/Components/Shared/RequestSummary.razor | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+index f0674af..6531e85 100644
+--- a/src/YasPortal.Web/Components/Shared/RequestSummary.razor
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -1,5 +1,6 @@
+ @using System.Text.Json
+ @using YasPortal.Domain.Workflows
++@using YasPortal.Web.Services
+ 
+ <div class="field-summary">
+     @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType))
+-- 
+2.43.0
+
