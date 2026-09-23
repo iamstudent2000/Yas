@@ -90,7 +90,7 @@
                             </div>
                         }
 
-                        @if (request.Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester)
+                        @if (request.CanBeCancelled)
                         {
                             <div class="form-actions" style="margin-top:14px">
                                 <button class="btn btn-danger" disabled="@(_cancellingId == request.Id)" @onclick="() => CancelAsync(request.Id)">

@@ -160,6 +160,30 @@ public class WorkflowRequestTests
     }
 
     [Fact]
+    public void Cannot_cancel_once_any_step_has_already_approved_it()
+    {
+        // Still technically "PendingApproval" (sitting at step 2), but step 1 already
+        // approved — cancelling now would silently discard that approval.
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+
+        Assert.False(request.CanBeCancelled);
+        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+    }
+
+    [Fact]
+    public void Cannot_cancel_a_request_returned_to_requester_after_an_earlier_approval()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        request.Approve(step1Id, approver, null);
+        request.ReturnToRequester(step2Id, approver, "نیاز به اصلاح دارد");
+
+        Assert.False(request.CanBeCancelled);
+        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+    }
+
+    [Fact]
     public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
     {
         var request = CreateTwoStepRequest(out var step1Id, out _);

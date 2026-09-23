@@ -71,6 +71,16 @@ public sealed class WorkflowRequest
         Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
         ?? throw new InvalidOperationException("The request has no current step.");
 
+    /// <summary>
+    /// Whether the requester can still cancel this request. Only true while it is still
+    /// pending (or bounced straight back before anyone downstream acted) and — critically —
+    /// no step has approved it yet: once some approver has already signed off, cancelling
+    /// would silently throw away their decision, so that approval must be respected instead.
+    /// </summary>
+    public bool CanBeCancelled =>
+        Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester
+        && Steps.All(s => s.Status != WorkflowStepStatus.Approved);
+
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {
         var step = RequireActionableCurrentStep(stepId);
@@ -133,8 +143,8 @@ public sealed class WorkflowRequest
 
     public void Cancel()
     {
-        if (Status is not (WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester))
-            throw new InvalidOperationException("Only a request that is pending approval or returned to the requester can be cancelled.");
+        if (!CanBeCancelled)
+            throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
         Status = WorkflowRequestStatus.Cancelled;
     }
 

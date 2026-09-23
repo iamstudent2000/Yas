@@ -1,0 +1,126 @@
+From 63a910b20728b6cc6aceef21b530c6ee266d4762 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Wed, 23 Sep 2026 09:24:12 +0000
+Subject: [PATCH] Cancel only allowed before any step has approved; fix
+ overlapping workflow-type list in admin
+
+---
+ .../Workflows/WorkflowRequest.cs              | 14 +++++++++--
+ .../Components/Pages/Admin/Workflows.razor    |  2 +-
+ .../Pages/Requests/MyRequests.razor           |  2 +-
+ .../wwwroot/css/admin/admin-core.css          |  8 +++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 24 +++++++++++++++++++
+ 5 files changed, 46 insertions(+), 4 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 1e70a3e..7332e21 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -71,6 +71,16 @@ public sealed class WorkflowRequest
+         Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
+         ?? throw new InvalidOperationException("The request has no current step.");
+ 
++    /// <summary>
++    /// Whether the requester can still cancel this request. Only true while it is still
++    /// pending (or bounced straight back before anyone downstream acted) and — critically —
++    /// no step has approved it yet: once some approver has already signed off, cancelling
++    /// would silently throw away their decision, so that approval must be respected instead.
++    /// </summary>
++    public bool CanBeCancelled =>
++        Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester
++        && Steps.All(s => s.Status != WorkflowStepStatus.Approved);
++
+     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+@@ -133,8 +143,8 @@ public sealed class WorkflowRequest
+ 
+     public void Cancel()
+     {
+-        if (Status is not (WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester))
+-            throw new InvalidOperationException("Only a request that is pending approval or returned to the requester can be cancelled.");
++        if (!CanBeCancelled)
++            throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
+         Status = WorkflowRequestStatus.Cancelled;
+     }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+index 5133d53..621b222 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+@@ -31,7 +31,7 @@
+                     <p class="muted">یک نوع را انتخاب کنید تا مراحل تایید آن را ببینید.</p>
+                 </div>
+             </div>
+-            <div class="admin-list-rows">
++            <div class="admin-list-rows workflow-type-list">
+                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                 {
+                     var selected = _selectedType == type;
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 702beeb..b55ee23 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -90,7 +90,7 @@
+                             </div>
+                         }
+ 
+-                        @if (request.Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester)
++                        @if (request.CanBeCancelled)
+                         {
+                             <div class="form-actions" style="margin-top:14px">
+                                 <button class="btn btn-danger" disabled="@(_cancellingId == request.Id)" @onclick="() => CancelAsync(request.Id)">
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/admin-core.css b/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
+index bd17357..44cd478 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/admin-core.css
+@@ -62,3 +62,11 @@
+ .form-radio-group label{display:flex;align-items:center;gap:8px;cursor:pointer}
+ .form-fields-summary{margin-top:14px;padding:12px 14px;border-radius:10px;background:#fafbfc;border:1px solid var(--admin-border);font-size:12.5px;color:var(--admin-text)}
+ .form-fields-summary p{margin:4px 0}
++/* The workflow-type picker sits in the narrower column of a two-column admin layout and
++   only has two sections (name + step count), not the three fixed-width columns
++   (1fr 200px 210px) the generic .admin-list-row grid assumes for wide admin tables —
++   that mismatch caused rows to overflow/overlap here. Give it a flexible layout instead. */
++.workflow-type-list .admin-list-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;cursor:pointer}
++.workflow-type-list .admin-list-primary{flex:1 1 auto;min-width:0}
++.workflow-type-list .admin-list-meta{flex:0 0 auto}
++.workflow-type-list .admin-list-row-selected{background:var(--admin-primary-soft)}
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index bc7e413..be1b1bd 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -159,6 +159,30 @@ public class WorkflowRequestTests
+         Assert.Throws<InvalidOperationException>(() => request.Cancel());
+     }
+ 
++    [Fact]
++    public void Cannot_cancel_once_any_step_has_already_approved_it()
++    {
++        // Still technically "PendingApproval" (sitting at step 2), but step 1 already
++        // approved — cancelling now would silently discard that approval.
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++
++        Assert.False(request.CanBeCancelled);
++        Assert.Throws<InvalidOperationException>(() => request.Cancel());
++    }
++
++    [Fact]
++    public void Cannot_cancel_a_request_returned_to_requester_after_an_earlier_approval()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
++        var approver = Guid.NewGuid();
++        request.Approve(step1Id, approver, null);
++        request.ReturnToRequester(step2Id, approver, "نیاز به اصلاح دارد");
++
++        Assert.False(request.CanBeCancelled);
++        Assert.Throws<InvalidOperationException>(() => request.Cancel());
++    }
++
+     [Fact]
+     public void Requester_seen_flag_starts_true_and_flips_on_any_step_action()
+     {
+-- 
+2.43.0
+
