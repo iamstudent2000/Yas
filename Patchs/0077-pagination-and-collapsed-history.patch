@@ -1,0 +1,394 @@
+From f6029618ebf2d6559e4240d9cf25858fd36c4681 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Wed, 23 Sep 2026 04:30:37 +0000
+Subject: [PATCH] Add server-side pagination to My Requests and both Inbox
+ tabs; collapse history results by default
+
+---
+ .../Components/Pages/Requests/Inbox.razor     | 134 ++++++++++++++----
+ .../Pages/Requests/MyRequests.razor           |  57 ++++++--
+ 2 files changed, 151 insertions(+), 40 deletions(-)
+
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index b46ffb9..d04078f 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -35,7 +35,7 @@
+     else
+     {
+         <div class="inbox-tabs">
+-            <button type="button" class="inbox-tab @(!_historyMode ? "is-active" : "")" @onclick="ShowPending"><i class="bx bx-time-five"></i> در انتظار من @(_items.Count > 0 ? $"({ToPersianDigits(_items.Count.ToString())})" : "")</button>
++            <button type="button" class="inbox-tab @(!_historyMode ? "is-active" : "")" @onclick="ShowPending"><i class="bx bx-time-five"></i> در انتظار من @(_pendingTotalCount > 0 ? $"({ToPersianDigits(_pendingTotalCount.ToString())})" : "")</button>
+             <button type="button" class="inbox-tab @(_historyMode ? "is-active" : "")" @onclick="ShowHistory"><i class="bx bx-history"></i> تاریخچه تصمیمات من</button>
+         </div>
+ 
+@@ -89,6 +89,7 @@
+                         </div>
+                     </div>
+                 }
++                <ServerPagination Page="_pendingPage" PageSize="_pendingPageSize" TotalCount="_pendingTotalCount" Busy="_pendingLoading" PageChanged="GoToPendingPageAsync" PageSizeChanged="OnPendingPageSizeChangedAsync" />
+             }
+         }
+         else
+@@ -132,20 +133,26 @@
+             {
+                 @foreach (var item in _historyItems)
+                 {
+-                    <div class="request-card">
+-                        <div class="request-card-header">
++                    var expanded = _expandedHistoryId == item.Step.Id;
++                    <div class="request-card @(expanded ? "is-expanded" : "")">
++                        <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Step.Id)">
+                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                             <span class="request-card-title">
+                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+-                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.Step.Name»</span>
++                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.Step.Name» · @item.Step.ActedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                             </span>
+                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Step.Status)">@WorkflowDisplay.StepLabel(item.Step.Status, isCurrent: false)</span>
++                            <i class="bx bx-chevron-down request-card-chevron"></i>
+                         </div>
+-                        <div class="request-card-body">
+-                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Step.Id" />
+-                        </div>
++                        @if (expanded)
++                        {
++                            <div class="request-card-body">
++                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Step.Id" />
++                            </div>
++                        }
+                     </div>
+                 }
++                <ServerPagination Page="_historyPage" PageSize="_historyPageSize" TotalCount="_historyTotalCount" Busy="_historyLoading" PageChanged="GoToHistoryPageAsync" PageSizeChanged="OnHistoryPageSizeChangedAsync" />
+             }
+         }
+     }
+@@ -173,6 +180,16 @@
+     private WorkflowStepStatus? _historyStatusFilter;
+     private DateTime? _historyFrom;
+     private DateTime? _historyTo;
++    private Guid? _expandedHistoryId;
++
++    private int _pendingPage = 1;
++    private int _pendingPageSize = 20;
++    private int _pendingTotalCount;
++    private bool _pendingLoading;
++
++    private int _historyPage = 1;
++    private int _historyPageSize = 20;
++    private int _historyTotalCount;
+ 
+     protected override async Task OnInitializedAsync()
+     {
+@@ -194,46 +211,91 @@
+     private async Task ShowPending()
+     {
+         _historyMode = false;
++        _pendingPage = 1;
+         await LoadAsync();
+     }
+ 
+     private async Task ShowHistory()
+     {
+         _historyMode = true;
++        _historyPage = 1;
+         await LoadHistoryAsync();
+     }
+ 
++    private async Task GoToPendingPageAsync(int page)
++    {
++        _pendingPage = page;
++        await LoadAsync();
++    }
++
++    private async Task OnPendingPageSizeChangedAsync(int size)
++    {
++        _pendingPageSize = size;
++        _pendingPage = 1;
++        await LoadAsync();
++    }
++
++    private async Task GoToHistoryPageAsync(int page)
++    {
++        _historyPage = page;
++        await LoadHistoryAsync();
++    }
++
++    private async Task OnHistoryPageSizeChangedAsync(int size)
++    {
++        _historyPageSize = size;
++        _historyPage = 1;
++        await LoadHistoryAsync();
++    }
++
++    private void ToggleHistory(Guid stepId) => _expandedHistoryId = _expandedHistoryId == stepId ? null : stepId;
++
+     private async Task LoadAsync()
+     {
+         if (_approverPositionId is not Guid positionId)
+         {
+             _items = [];
++            _pendingTotalCount = 0;
+             return;
+         }
+ 
+-        await using var db = await DbFactory.CreateDbContextAsync();
+-        var requests = await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps)
+-            .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+-                        && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId))
+-            .OrderBy(x => x.CreatedAtUtc)
+-            .ToListAsync();
++        _pendingLoading = true;
++        await InvokeAsync(StateHasChanged);
++        try
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var query = db.WorkflowRequests.AsNoTracking()
++                .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
++                            && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
+ 
+-        var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+-        var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
++            _pendingTotalCount = await query.CountAsync();
++            if (_pendingPage > 1 && (_pendingPage - 1) * _pendingPageSize >= _pendingTotalCount)
++                _pendingPage = Math.Max(1, (int)Math.Ceiling(_pendingTotalCount / (double)_pendingPageSize));
+ 
+-        var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+-        _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
++            var requests = await query.Include(x => x.Steps)
++                .OrderBy(x => x.CreatedAtUtc)
++                .Skip((_pendingPage - 1) * _pendingPageSize)
++                .Take(_pendingPageSize)
++                .ToListAsync();
+ 
+-        var pendingPositionIds = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+-        _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++            var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
++            var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+ 
+-        _items = requests.Select(r =>
+-        {
+-            var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
+-            var hasPrevious = r.Steps.Any(s => s.Order < r.CurrentStepOrder);
+-            var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
+-            return new InboxItem(r, current, name, hasPrevious);
+-        }).ToList();
++            var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
++            _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
++
++            var pendingPositionIds = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
++            _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++
++            _items = requests.Select(r =>
++            {
++                var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
++                var hasPrevious = r.Steps.Any(s => s.Order < r.CurrentStepOrder);
++                var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
++                return new InboxItem(r, current, name, hasPrevious);
++            }).ToList();
++        }
++        finally { _pendingLoading = false; }
+     }
+ 
+     private async Task LoadHistoryAsync()
+@@ -241,6 +303,7 @@
+         if (_approverPositionId is not Guid positionId)
+         {
+             _historyItems = [];
++            _historyTotalCount = 0;
+             return;
+         }
+ 
+@@ -251,7 +314,7 @@
+             await using var db = await DbFactory.CreateDbContextAsync();
+ 
+             // First, find just the (request id, step id) pairs matching the filters — cheap,
+-            // and lets the database do the filtering/ordering/paging.
++            // and lets the database do the filtering/ordering/paging/counting.
+             var matchQuery = db.WorkflowRequests.AsNoTracking()
+                 .SelectMany(
+                     r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.Status != WorkflowStepStatus.Pending),
+@@ -266,11 +329,18 @@
+             if (_historyTo is DateTime to)
+                 matchQuery = matchQuery.Where(x => x.ActedAtUtc < to.AddDays(1));
+ 
+-            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc).Take(100).ToListAsync();
++            _historyTotalCount = await matchQuery.CountAsync();
++            if (_historyPage > 1 && (_historyPage - 1) * _historyPageSize >= _historyTotalCount)
++                _historyPage = Math.Max(1, (int)Math.Ceiling(_historyTotalCount / (double)_historyPageSize));
++
++            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc)
++                .Skip((_historyPage - 1) * _historyPageSize)
++                .Take(_historyPageSize)
++                .ToListAsync();
+ 
+             // Then load the full request (with every step, not just the matched one) for each
+-            // match, so the card can show the whole picture — every submitted field and the
+-            // complete approval timeline — not just this one decision in isolation.
++            // match, so an expanded card can show the whole picture — every submitted field and
++            // the complete approval timeline — not just this one decision in isolation.
+             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
+             var requestsById = requestIds.Count == 0
+                 ? []
+@@ -303,24 +373,28 @@
+     private async Task HistoryTypeChanged(ChangeEventArgs e)
+     {
+         _historyTypeFilter = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) ? type : null;
++        _historyPage = 1;
+         await LoadHistoryAsync();
+     }
+ 
+     private async Task HistoryStatusChanged(ChangeEventArgs e)
+     {
+         _historyStatusFilter = Enum.TryParse<WorkflowStepStatus>(e.Value?.ToString(), out var status) ? status : null;
++        _historyPage = 1;
+         await LoadHistoryAsync();
+     }
+ 
+     private async Task HistoryFromChanged(DateTime? value)
+     {
+         _historyFrom = value;
++        _historyPage = 1;
+         await LoadHistoryAsync();
+     }
+ 
+     private async Task HistoryToChanged(DateTime? value)
+     {
+         _historyTo = value;
++        _historyPage = 1;
+         await LoadHistoryAsync();
+     }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index e1acfbe..702beeb 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -24,7 +24,7 @@
+             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
+         </div>
+         <div class="form-actions">
+-            <button class="btn btn-secondary" disabled="@(!_requests.Any(x => !x.RequesterHasSeenLatestUpdate))" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
++            <button class="btn btn-secondary" disabled="@(_unseenCount == 0)" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه@(_unseenCount > 0 ? $" ({ToPersianDigits(_unseenCount.ToString())})" : "")</button>
+             <a class="btn btn-primary" href="/requests/new"><i class="bx bx-plus-circle"></i> درخواست جدید</a>
+         </div>
+     </div>
+@@ -111,6 +111,7 @@
+                 }
+             </div>
+         }
++        <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_totalCount" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
+     }
+ </div>
+ 
+@@ -124,6 +125,10 @@
+     private Guid? _expandedId;
+     private Guid? _resubmittingId;
+     private Guid? _cancellingId;
++    private int _page = 1;
++    private int _pageSize = 20;
++    private int _totalCount;
++    private int _unseenCount;
+ 
+     protected override async Task OnInitializedAsync()
+     {
+@@ -135,6 +140,19 @@
+             _expandedId = _requests[0].Id;
+     }
+ 
++    private async Task GoToPageAsync(int page)
++    {
++        _page = page;
++        await LoadAsync();
++    }
++
++    private async Task OnPageSizeChangedAsync(int size)
++    {
++        _pageSize = size;
++        _page = 1;
++        await LoadAsync();
++    }
++
+     private async Task LoadAsync()
+     {
+         _loading = true;
+@@ -145,9 +163,16 @@
+                 return;
+ 
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            _requests = await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps)
+-                .Where(x => x.RequesterEmployeeId == employeeId)
++            var query = db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == employeeId);
++
++            _totalCount = await query.CountAsync();
++            if (_page > 1 && (_page - 1) * _pageSize >= _totalCount)
++                _page = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
++
++            _requests = await query.Include(x => x.Steps)
+                 .OrderByDescending(x => x.CreatedAtUtc)
++                .Skip((_page - 1) * _pageSize)
++                .Take(_pageSize)
+                 .ToListAsync();
+ 
+             var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+@@ -158,6 +183,8 @@
+ 
+             _editValues = _requests.Where(x => x.Status == WorkflowRequestStatus.ReturnedToRequester)
+                 .ToDictionary(x => x.Id, x => ParseFieldValues(x.FieldValuesJson));
++
++            _unseenCount = await Workflows.CountUnseenForRequesterAsync(employeeId);
+         }
+         finally { _loading = false; }
+     }
+@@ -179,27 +206,30 @@
+         {
+             tracked.MarkSeenByRequester();
+             await db.SaveChangesAsync();
++            _unseenCount = Math.Max(0, _unseenCount - 1);
+             AppState.NotifyRequestBadgesChanged();
+         }
+     }
+ 
+     private async Task MarkAllSeenAsync()
+     {
+-        var unseenIds = _requests.Where(x => !x.RequesterHasSeenLatestUpdate).Select(x => x.Id).ToList();
+-        if (unseenIds.Count == 0)
++        if (_employeeId is not Guid employeeId || _unseenCount == 0)
+             return;
+ 
+-        foreach (var request in _requests)
+-            request.MarkSeenByRequester();
+-
+         await using var db = await DbFactory.CreateDbContextAsync();
+-        var tracked = await db.WorkflowRequests.Where(x => unseenIds.Contains(x.Id)).ToListAsync();
+-        foreach (var request in tracked)
++        // Marks every unseen request for this employee, not just the ones on the current
++        // page — "mark all" has to mean all, especially once results are paginated.
++        var unseen = await db.WorkflowRequests.Where(x => x.RequesterEmployeeId == employeeId && !x.RequesterHasSeenLatestUpdate).ToListAsync();
++        foreach (var request in unseen)
+             request.MarkSeenByRequester();
+         await db.SaveChangesAsync();
+ 
++        foreach (var request in _requests)
++            request.MarkSeenByRequester();
++
+         AppState.AddToast("همه درخواست‌ها به‌عنوان دیده‌شده علامت خوردند.", ToastLevel.Success);
+         AppState.NotifyRequestBadgesChanged();
++        _unseenCount = 0;
+     }
+ 
+     private async Task ResubmitAsync(Guid requestId)
+@@ -282,4 +312,11 @@
+         }
+         catch (JsonException) { return []; }
+     }
++
++    private static string ToPersianDigits(string value)
++    {
++        const string digits = "۰۱۲۳۴۵۶۷۸۹";
++        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
++        return new string(chars);
++    }
+ }
+-- 
+2.43.0
+
