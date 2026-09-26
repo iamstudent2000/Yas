@@ -53,4 +53,11 @@ public enum WorkflowStepStatus
     Rejected,
     ReturnedToRequester,
     ReturnedToPreviousStep,
+
+    /// <summary>
+    /// This step's round was closed out by a resubmission before the step was ever reached
+    /// (an earlier step in the same round already returned the request). Not an outcome
+    /// anyone chose — just marks it as moot rather than leaving it looking eternally Pending.
+    /// </summary>
+    Superseded,
 }

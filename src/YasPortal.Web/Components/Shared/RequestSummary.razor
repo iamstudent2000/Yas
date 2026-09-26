@@ -13,41 +13,38 @@
     }
 </div>
 
-<div class="approval-timeline">
-    @foreach (var step in Request.Steps.OrderBy(x => x.Order))
+@{
+    var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
+}
+
+@foreach (var round in rounds)
+{
+    var isCurrentRound = round.Key == Request.CurrentRound;
+    if (isCurrentRound)
     {
-        var isCurrent = step.Order == Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
-        <div class="approval-step">
-            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
-            <div class="approval-step-body">
-                <strong>@step.Name</strong>
-                @if (HighlightStepId == step.Id)
-                {
-                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
-                }
-                <div class="approval-step-meta">
-                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
-                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
-                    {
-                        <span> — @actorName</span>
-                    }
-                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
-                    {
-                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
-                    }
-                    @if (step.ActedAtUtc is DateTime actedAt)
-                    {
-                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                    }
-                </div>
-                @if (!string.IsNullOrWhiteSpace(step.Comment))
-                {
-                    <div class="approval-step-comment">«@step.Comment»</div>
-                }
-            </div>
+        @if (rounds.Count > 1)
+        {
+            <p class="round-heading">دور @ToPersianDigits(round.Key.ToString()) (فعلی)</p>
+        }
+        <WorkflowStepTimeline Steps="round.OrderBy(x => x.Order)" CurrentRound="Request.CurrentRound" CurrentStepOrder="Request.CurrentStepOrder"
+                              EmployeeNames="EmployeeNames" HolderNames="HolderNames" HighlightStepId="HighlightStepId" ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
+    }
+    else
+    {
+        var expanded = _expandedRounds.Contains(round.Key);
+        <div class="round-history">
+            <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(round.Key)">
+                <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
+                <span>دور @ToPersianDigits(round.Key.ToString()) (پیشین — بازگشت به درخواست‌کننده)</span>
+            </button>
+            @if (expanded)
+            {
+                <WorkflowStepTimeline Steps="round.OrderBy(x => x.Order)" CurrentRound="Request.CurrentRound" CurrentStepOrder="Request.CurrentStepOrder"
+                                      EmployeeNames="EmployeeNames" HolderNames="HolderNames" HighlightStepId="HighlightStepId" ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
+            }
         </div>
     }
-</div>
+}
 
 @code {
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
@@ -64,6 +61,14 @@
     /// </summary>
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
+    private readonly HashSet<int> _expandedRounds = [];
+
+    private void ToggleRound(int round)
+    {
+        if (!_expandedRounds.Add(round))
+            _expandedRounds.Remove(round);
+    }
+
     private string? GetFieldValue(string key)
     {
         try
@@ -72,5 +77,12 @@
             return values is not null && values.TryGetValue(key, out var value) ? value : null;
         }
         catch (JsonException) { return null; }
+    }
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
+        return new string(chars);
     }
 }

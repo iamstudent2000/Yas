@@ -1,0 +1,608 @@
+From 1b3689a8639907ab96be3613f6d7b567970bfbe5 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Sat, 26 Sep 2026 09:49:11 +0000
+Subject: [PATCH] Resubmission now restarts the full approval path as a new
+ round, keeping every prior round as permanent history
+
+---
+ .../Workflows/WorkflowEnums.cs                |  7 ++
+ .../Workflows/WorkflowRequest.cs              | 83 ++++++++++++++-----
+ .../Persistence/ApplicationDbContext.cs       |  2 +-
+ .../Components/Pages/Requests/Inbox.razor     | 11 ++-
+ .../Pages/Requests/MyRequests.razor           | 13 ++-
+ .../Components/Shared/RequestSummary.razor    | 76 ++++++++++-------
+ .../Shared/WorkflowStepTimeline.razor         | 52 ++++++++++++
+ src/YasPortal.Web/Services/WorkflowDisplay.cs |  3 +
+ src/YasPortal.Web/wwwroot/css/requests.css    |  4 +
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 79 ++++++++++++++++--
+ 10 files changed, 263 insertions(+), 67 deletions(-)
+ create mode 100644 src/YasPortal.Web/Components/Shared/WorkflowStepTimeline.razor
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowEnums.cs b/src/YasPortal.Domain/Workflows/WorkflowEnums.cs
+index 2071345..9e42f3b 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowEnums.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowEnums.cs
+@@ -53,4 +53,11 @@ public enum WorkflowStepStatus
+     Rejected,
+     ReturnedToRequester,
+     ReturnedToPreviousStep,
++
++    /// <summary>
++    /// This step's round was closed out by a resubmission before the step was ever reached
++    /// (an earlier step in the same round already returned the request). Not an outcome
++    /// anyone chose — just marks it as moot rather than leaving it looking eternally Pending.
++    /// </summary>
++    Superseded,
+ }
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 7332e21..2276420 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -5,6 +5,12 @@ namespace YasPortal.Domain.Workflows;
+ /// field values (validated against <see cref="WorkflowFieldCatalog"/> before creation)
+ /// and an ordered approval trail resolved from that type's <see cref="WorkflowStepDefinition"/>s
+ /// at submission time.
++///
++/// A request can go through multiple "rounds": if it is returned to the requester and they
++/// resubmit, the whole path restarts from the first step (<see cref="Resubmit"/>) as a new
++/// round, with every approver signing off again — but every earlier round's steps are left
++/// exactly as they were, standing as a permanent historical record rather than being reused
++/// or overwritten.
+ /// </summary>
+ public sealed class WorkflowRequest
+ {
+@@ -40,11 +46,12 @@ public sealed class WorkflowRequest
+         FieldValuesJson = fieldValuesJson;
+         CreatedAtUtc = DateTime.UtcNow;
+         Status = WorkflowRequestStatus.PendingApproval;
++        CurrentRound = 1;
+ 
+         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
+-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, step.Order, step.Name, step.ApproverPositionId));
++            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
+ 
+-        CurrentStepOrder = Steps.First().Order;
++        CurrentStepOrder = Steps.Min(x => x.Order);
+     }
+ 
+     public Guid Id { get; private set; } = Guid.NewGuid();
+@@ -55,6 +62,15 @@ public sealed class WorkflowRequest
+     public DateTime CreatedAtUtc { get; private set; }
+     public WorkflowRequestStatus Status { get; private set; }
+     public int CurrentStepOrder { get; private set; }
++
++    /// <summary>Which round of the approval path is currently live. Starts at 1 and increments by one on every <see cref="Resubmit"/>.</summary>
++    public int CurrentRound { get; private set; } = 1;
++
++    /// <summary>
++    /// Every step from every round, current and historical alike. Use <see cref="CurrentStep"/>
++    /// for the one live step; group by <see cref="WorkflowRequestStep.Round"/> to present past
++    /// rounds as history.
++    /// </summary>
+     public ICollection<WorkflowRequestStep> Steps { get; private set; } = new List<WorkflowRequestStep>();
+ 
+     /// <summary>
+@@ -68,25 +84,25 @@ public sealed class WorkflowRequest
+     public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
+ 
+     public WorkflowRequestStep CurrentStep =>
+-        Steps.SingleOrDefault(x => x.Order == CurrentStepOrder)
++        Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == CurrentStepOrder)
+         ?? throw new InvalidOperationException("The request has no current step.");
+ 
+     /// <summary>
+     /// Whether the requester can still cancel this request. Only true while it is still
+     /// pending (or bounced straight back before anyone downstream acted) and — critically —
+-    /// no step has approved it yet: once some approver has already signed off, cancelling
+-    /// would silently throw away their decision, so that approval must be respected instead.
++    /// no step in the current round has approved it yet: once some approver has already
++    /// signed off this round, cancelling would silently throw away their decision.
+     /// </summary>
+     public bool CanBeCancelled =>
+         Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester
+-        && Steps.All(s => s.Status != WorkflowStepStatus.Approved);
++        && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved);
+ 
+     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+         step.Approve(actingEmployeeId, comment);
+ 
+-        var next = Steps.Where(x => x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
++        var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
+         if (next is null)
+         {
+             Status = WorkflowRequestStatus.Approved;
+@@ -122,13 +138,13 @@ public sealed class WorkflowRequest
+     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+-        var previous = Steps.Where(x => x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
++        var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
+ 
+         if (previous is null)
+         {
+-            // There is no approval step earlier than the first one — the only meaningful
+-            // "previous" stop from here is the requester themselves, so this falls back to
+-            // exactly the same outcome as ReturnToRequester rather than failing.
++            // There is no approval step earlier than the first one in this round — the only
++            // meaningful "previous" stop from here is the requester themselves, so this falls
++            // back to exactly the same outcome as ReturnToRequester rather than failing.
+             step.ReturnToRequester(actingEmployeeId, comment);
+             Status = WorkflowRequestStatus.ReturnedToRequester;
+         }
+@@ -150,23 +166,36 @@ public sealed class WorkflowRequest
+ 
+     /// <summary>
+     /// Puts a request that was sent back to the requester (<see cref="WorkflowRequestStatus.ReturnedToRequester"/>)
+-    /// back into the approval flow, resuming at the step that returned it — earlier steps
+-    /// that already approved it are left untouched, since only the step that flagged a
+-    /// problem needs to look at it again.
++    /// back into the approval flow as a brand new round, starting from the first step again —
++    /// every approver signs off again, since the requester may have changed anything. The
++    /// round just closed (including any step in it that was never reached, now marked
++    /// <see cref="WorkflowStepStatus.Superseded"/>) is left completely untouched as history.
+     /// </summary>
+-    public void Resubmit(string fieldValuesJson)
++    /// <param name="resolvedSteps">
++    /// A freshly resolved approval path for the new round (see <see cref="Organization.PositionHierarchy"/>) —
++    /// resolved again rather than reusing the original round's, since the org hierarchy or a
++    /// fixed position's holder may have changed since the request was first submitted.
++    /// </param>
++    public void Resubmit(string fieldValuesJson, IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps)
+     {
+         if (Status != WorkflowRequestStatus.ReturnedToRequester)
+             throw new InvalidOperationException("Only a request returned to the requester can be resubmitted.");
+         if (string.IsNullOrWhiteSpace(fieldValuesJson))
+             throw new ArgumentException("Field values are required.", nameof(fieldValuesJson));
++        if (resolvedSteps is null || resolvedSteps.Count == 0)
++            throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
+ 
+-        var returnedStep = Steps.SingleOrDefault(x => x.Status == WorkflowStepStatus.ReturnedToRequester)
+-            ?? throw new InvalidOperationException("No step is currently marked as returned to the requester.");
++        // Any step in the round being closed that was never reached (because an earlier step
++        // already returned the request) is now moot — mark it Superseded so it doesn't sit
++        // there looking like it's still awaiting action forever.
++        foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
++            step.Supersede();
+ 
+         FieldValuesJson = fieldValuesJson;
+-        returnedStep.Reopen();
+-        CurrentStepOrder = returnedStep.Order;
++        CurrentRound++;
++        foreach (var step in resolvedSteps.OrderBy(x => x.Order))
++            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
++        CurrentStepOrder = resolvedSteps.Min(x => x.Order);
+         Status = WorkflowRequestStatus.PendingApproval;
+     }
+ 
+@@ -181,17 +210,18 @@ public sealed class WorkflowRequest
+     }
+ }
+ 
+-/// <summary>One entry in a <see cref="WorkflowRequest"/>'s approval trail.</summary>
++/// <summary>One entry in a <see cref="WorkflowRequest"/>'s approval trail, scoped to a single <see cref="Round"/>.</summary>
+ public sealed class WorkflowRequestStep
+ {
+     private WorkflowRequestStep()
+     {
+     }
+ 
+-    internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int order, string name, Guid approverPositionId)
++    internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int round, int order, string name, Guid approverPositionId)
+     {
+         RequestId = requestId;
+         StepDefinitionId = stepDefinitionId;
++        Round = round;
+         Order = order;
+         Name = name;
+         ApproverPositionId = approverPositionId;
+@@ -201,6 +231,9 @@ public sealed class WorkflowRequestStep
+     public Guid Id { get; private set; } = Guid.NewGuid();
+     public Guid RequestId { get; private set; }
+     public Guid StepDefinitionId { get; private set; }
++
++    /// <summary>Which resubmission round this step belongs to — see <see cref="WorkflowRequest.CurrentRound"/>.</summary>
++    public int Round { get; private set; }
+     public int Order { get; private set; }
+     public string Name { get; private set; } = null!;
+ 
+@@ -229,6 +262,14 @@ public sealed class WorkflowRequestStep
+         Comment = null;
+     }
+ 
++    /// <summary>Marks a step that was never reached in its round as moot, once that round is closed out by a resubmission.</summary>
++    internal void Supersede()
++    {
++        if (Status != WorkflowStepStatus.Pending)
++            return;
++        Status = WorkflowStepStatus.Superseded;
++    }
++
+     private void Act(WorkflowStepStatus status, Guid actingEmployeeId, string? comment)
+     {
+         if (Status != WorkflowStepStatus.Pending)
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index 928cc9e..255eb1d 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -241,6 +241,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
+         modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
+-        modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Order }).IsUnique(); });
++        modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
+     }
+ }
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index d04078f..8e3938c 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -266,7 +266,7 @@
+             await using var db = await DbFactory.CreateDbContextAsync();
+             var query = db.WorkflowRequests.AsNoTracking()
+                 .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+-                            && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
++                            && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
+ 
+             _pendingTotalCount = await query.CountAsync();
+             if (_pendingPage > 1 && (_pendingPage - 1) * _pendingPageSize >= _pendingTotalCount)
+@@ -289,8 +289,8 @@
+ 
+             _items = requests.Select(r =>
+             {
+-                var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
+-                var hasPrevious = r.Steps.Any(s => s.Order < r.CurrentStepOrder);
++                var current = r.Steps.Single(s => s.Round == r.CurrentRound && s.Order == r.CurrentStepOrder);
++                var hasPrevious = r.Steps.Any(s => s.Round == r.CurrentRound && s.Order < r.CurrentStepOrder);
+                 var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
+                 return new InboxItem(r, current, name, hasPrevious);
+             }).ToList();
+@@ -317,7 +317,10 @@
+             // and lets the database do the filtering/ordering/paging/counting.
+             var matchQuery = db.WorkflowRequests.AsNoTracking()
+                 .SelectMany(
+-                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.Status != WorkflowStepStatus.Pending),
++                    // ActedByEmployeeId != null (rather than Status != Pending) so a step that
++                    // got auto-closed as Superseded by a resubmission — without this approver
++                    // ever actually deciding anything — doesn't show up as if it were a decision.
++                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.ActedByEmployeeId != null),
+                     (r, s) => new { RequestId = r.Id, StepId = s.Id, r.WorkflowType, s.Status, s.ActedAtUtc });
+ 
+             if (_historyTypeFilter is WorkflowTypeCode typeFilter)
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index b55ee23..b1c631a 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -260,7 +260,18 @@
+                 return;
+             }
+ 
+-            tracked.Resubmit(JsonSerializer.Serialize(values));
++            // Resolved fresh, not reused from the original round — the org hierarchy or a
++            // fixed position's current holder may have changed since the first submission.
++            var resolved = await Workflows.ResolveStepsAsync(tracked.WorkflowType, tracked.RequesterPositionId);
++            if (!resolved.Success)
++            {
++                AppState.AddToast(resolved.Error!, ToastLevel.Error);
++                return;
++            }
++
++            tracked.Resubmit(
++                JsonSerializer.Serialize(values),
++                resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+             await db.SaveChangesAsync();
+ 
+             AppState.AddToast("درخواست شما دوباره ارسال شد.", ToastLevel.Success);
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+index e5ba5f5..6f14070 100644
+--- a/src/YasPortal.Web/Components/Shared/RequestSummary.razor
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -13,41 +13,38 @@
+     }
+ </div>
+ 
+-<div class="approval-timeline">
+-    @foreach (var step in Request.Steps.OrderBy(x => x.Order))
++@{
++    var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
++}
++
++@foreach (var round in rounds)
++{
++    var isCurrentRound = round.Key == Request.CurrentRound;
++    if (isCurrentRound)
++    {
++        @if (rounds.Count > 1)
++        {
++            <p class="round-heading">دور @ToPersianDigits(round.Key.ToString()) (فعلی)</p>
++        }
++        <WorkflowStepTimeline Steps="round.OrderBy(x => x.Order)" CurrentRound="Request.CurrentRound" CurrentStepOrder="Request.CurrentStepOrder"
++                              EmployeeNames="EmployeeNames" HolderNames="HolderNames" HighlightStepId="HighlightStepId" ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
++    }
++    else
+     {
+-        var isCurrent = step.Order == Request.CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+-        <div class="approval-step">
+-            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+-            <div class="approval-step-body">
+-                <strong>@step.Name</strong>
+-                @if (HighlightStepId == step.Id)
+-                {
+-                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
+-                }
+-                <div class="approval-step-meta">
+-                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+-                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
+-                    {
+-                        <span> — @actorName</span>
+-                    }
+-                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
+-                    {
+-                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+-                    }
+-                    @if (step.ActedAtUtc is DateTime actedAt)
+-                    {
+-                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+-                    }
+-                </div>
+-                @if (!string.IsNullOrWhiteSpace(step.Comment))
+-                {
+-                    <div class="approval-step-comment">«@step.Comment»</div>
+-                }
+-            </div>
++        var expanded = _expandedRounds.Contains(round.Key);
++        <div class="round-history">
++            <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(round.Key)">
++                <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
++                <span>دور @ToPersianDigits(round.Key.ToString()) (پیشین — بازگشت به درخواست‌کننده)</span>
++            </button>
++            @if (expanded)
++            {
++                <WorkflowStepTimeline Steps="round.OrderBy(x => x.Order)" CurrentRound="Request.CurrentRound" CurrentStepOrder="Request.CurrentStepOrder"
++                                      EmployeeNames="EmployeeNames" HolderNames="HolderNames" HighlightStepId="HighlightStepId" ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
++            }
+         </div>
+     }
+-</div>
++}
+ 
+ @code {
+     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
+@@ -64,6 +61,14 @@
+     /// </summary>
+     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
+ 
++    private readonly HashSet<int> _expandedRounds = [];
++
++    private void ToggleRound(int round)
++    {
++        if (!_expandedRounds.Add(round))
++            _expandedRounds.Remove(round);
++    }
++
+     private string? GetFieldValue(string key)
+     {
+         try
+@@ -73,4 +78,11 @@
+         }
+         catch (JsonException) { return null; }
+     }
++
++    private static string ToPersianDigits(string value)
++    {
++        const string digits = "۰۱۲۳۴۵۶۷۸۹";
++        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
++        return new string(chars);
++    }
+ }
+diff --git a/src/YasPortal.Web/Components/Shared/WorkflowStepTimeline.razor b/src/YasPortal.Web/Components/Shared/WorkflowStepTimeline.razor
+new file mode 100644
+index 0000000..ef499ea
+--- /dev/null
++++ b/src/YasPortal.Web/Components/Shared/WorkflowStepTimeline.razor
+@@ -0,0 +1,52 @@
++@using YasPortal.Domain.Workflows
++@using YasPortal.Web.Services
++
++<div class="approval-timeline">
++    @foreach (var step in Steps)
++    {
++        var isCurrent = step.Round == CurrentRound && step.Order == CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
++        <div class="approval-step">
++            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
++            <div class="approval-step-body">
++                <strong>@step.Name</strong>
++                @if (HighlightStepId == step.Id)
++                {
++                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
++                }
++                <div class="approval-step-meta">
++                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
++                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
++                    {
++                        <span> — @actorName</span>
++                    }
++                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
++                    {
++                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
++                    }
++                    @if (step.ActedAtUtc is DateTime actedAt)
++                    {
++                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
++                    }
++                </div>
++                @if (!string.IsNullOrWhiteSpace(step.Comment))
++                {
++                    <div class="approval-step-comment">«@step.Comment»</div>
++                }
++            </div>
++        </div>
++    }
++</div>
++
++@code {
++    [Parameter, EditorRequired] public IEnumerable<WorkflowRequestStep> Steps { get; set; } = [];
++    [Parameter] public int CurrentRound { get; set; }
++    [Parameter] public int CurrentStepOrder { get; set; }
++    [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
++    [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
++
++    /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
++    [Parameter] public Guid? HighlightStepId { get; set; }
++
++    /// <summary>Whether to show the current holder's name on the current (awaiting-action) step too, not just queued ones.</summary>
++    [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
++}
+diff --git a/src/YasPortal.Web/Services/WorkflowDisplay.cs b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+index a5b1cd1..6792c71 100644
+--- a/src/YasPortal.Web/Services/WorkflowDisplay.cs
++++ b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+@@ -74,6 +74,7 @@ public static class WorkflowDisplay
+         WorkflowStepStatus.Rejected => "رد شد",
+         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
+         WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
++        WorkflowStepStatus.Superseded => "این دور دیگر معتبر نیست (درخواست دوباره ارسال شد)",
+         _ => status.ToString(),
+     };
+ 
+@@ -85,6 +86,7 @@ public static class WorkflowDisplay
+         WorkflowStepStatus.Approved => "is-approved",
+         WorkflowStepStatus.Rejected => "is-rejected",
+         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "is-returned",
++        WorkflowStepStatus.Superseded => "is-queued",
+         _ => "",
+     };
+ 
+@@ -95,6 +97,7 @@ public static class WorkflowDisplay
+         WorkflowStepStatus.Approved => "bx-check",
+         WorkflowStepStatus.Rejected => "bx-x",
+         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",
++        WorkflowStepStatus.Superseded => "bx-minus-circle",
+         _ => "bx-circle",
+     };
+ 
+diff --git a/src/YasPortal.Web/wwwroot/css/requests.css b/src/YasPortal.Web/wwwroot/css/requests.css
+index 4d18899..6cc2a44 100644
+--- a/src/YasPortal.Web/wwwroot/css/requests.css
++++ b/src/YasPortal.Web/wwwroot/css/requests.css
+@@ -63,6 +63,10 @@
+ .inbox-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+ .inbox-empty-icon{color:#12b76a}
+ .resubmit-panel{margin-top:16px;padding:14px 16px;background:#fffaeb;border:1px solid #fef0c7;border-radius:12px}
++.round-heading{margin:16px 0 6px;font-size:12px;font-weight:800;color:#1d4ed8}
++.round-history{margin-top:14px;padding-top:14px;border-top:1px dashed #e6ebf2}
++.round-history-toggle{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:#667085;font-size:12px;font-weight:700;cursor:pointer;padding:0}
++.round-history-toggle:hover{color:#1d4ed8}
+ .inbox-tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid #e6ebf2;padding-bottom:0}
+ .inbox-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border:0;background:transparent;color:#667085;font-size:12.5px;font-weight:700;border-bottom:2px solid transparent;cursor:pointer;transition:color .12s,border-color .12s}
+ .inbox-tab:hover{color:#1d4ed8}
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index be1b1bd..6064c49 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -197,22 +197,64 @@ public class WorkflowRequestTests
+     }
+ 
+     [Fact]
+-    public void Resubmitting_a_returned_request_resumes_at_the_step_that_returned_it()
++    public void Resubmitting_restarts_the_whole_path_as_a_new_round_and_keeps_the_old_round_as_history()
+     {
+         var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+         var approver = Guid.NewGuid();
+         request.Approve(step1Id, approver, "اولین تایید");
+         request.ReturnToRequester(step2Id, approver, "لطفا اصلاح شود");
+ 
+-        request.Resubmit("{\"startDate\":\"2026-11-01\"}");
++        var newStep1Def = Guid.NewGuid();
++        var newStep2Def = Guid.NewGuid();
++        request.Resubmit("{\"startDate\":\"2026-11-01\"}", new[]
++        {
++            (newStep1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
++            (newStep2Def, 2, "مدیر منابع انسانی", Guid.NewGuid()),
++        });
+ 
+         Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+-        Assert.Equal(2, request.CurrentStepOrder);
++        Assert.Equal(2, request.CurrentRound);
++        Assert.Equal(1, request.CurrentStepOrder);
+         Assert.Equal("{\"startDate\":\"2026-11-01\"}", request.FieldValuesJson);
+-        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 2).Status);
+-        Assert.Null(request.Steps.Single(x => x.Order == 2).ActedByEmployeeId);
+-        // The earlier, already-approved step is left alone.
+-        Assert.Equal(WorkflowStepStatus.Approved, request.Steps.Single(x => x.Order == 1).Status);
++
++        // The new round starts completely fresh at step 1, not resuming where it left off.
++        var round2Step1 = request.Steps.Single(x => x.Round == 2 && x.Order == 1);
++        Assert.Equal(WorkflowStepStatus.Pending, round2Step1.Status);
++        Assert.Equal(round2Step1.Id, request.CurrentStep.Id);
++
++        // Round 1 is left exactly as it was — a permanent historical record, not reused.
++        Assert.Equal(WorkflowStepStatus.Approved, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Status);
++        Assert.Equal(step1Id, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Id);
++        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Status);
++        Assert.Equal(step2Id, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Id);
++
++        // 2 steps from round 1 + 2 fresh steps from round 2.
++        Assert.Equal(4, request.Steps.Count);
++    }
++
++    [Fact]
++    public void Resubmit_marks_unreached_steps_in_the_closed_round_as_superseded()
++    {
++        // 3 steps; step 1 returns immediately, so steps 2 and 3 were never reached.
++        var step1Def = Guid.NewGuid();
++        var step2Def = Guid.NewGuid();
++        var step3Def = Guid.NewGuid();
++        var request = new WorkflowRequest(
++            WorkflowTypeCode.Purchase, Guid.NewGuid(), Guid.NewGuid(), "{}",
++            new[]
++            {
++                (step1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
++                (step2Def, 2, "مالی", Guid.NewGuid()),
++                (step3Def, 3, "منابع انسانی", Guid.NewGuid()),
++            });
++        var step1Id = request.Steps.Single(x => x.Order == 1).Id;
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), "اصلاح شود");
++
++        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Status);
++        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Status);
++        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.Single(x => x.Round == 1 && x.Order == 3).Status);
+     }
+ 
+     [Fact]
+@@ -221,7 +263,28 @@ public class WorkflowRequestTests
+         var request = CreateTwoStepRequest(out var step1Id, out _);
+         request.Reject(step1Id, Guid.NewGuid(), null);
+ 
+-        Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}"));
++        Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "x", Guid.NewGuid()) }));
++    }
++
++    [Fact]
++    public void Cancelling_a_second_round_is_independent_of_what_happened_in_the_first_round()
++    {
++        // Round 1: step 1 approved, then returned at step 2 — round 1 has an Approved step.
++        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
++        var approver = Guid.NewGuid();
++        request.Approve(step1Id, approver, null);
++        request.ReturnToRequester(step2Id, approver, "اصلاح شود");
++        request.Resubmit("{}", new[]
++        {
++            (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
++            (Guid.NewGuid(), 2, "مدیر منابع انسانی", Guid.NewGuid()),
++        });
++
++        // Round 2 hasn't had anything approved yet, so it should be cancellable even though
++        // round 1 (now history) did have an approval in it.
++        Assert.True(request.CanBeCancelled);
++        request.Cancel();
++        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
+     }
+ 
+     [Fact]
+-- 
+2.43.0
+

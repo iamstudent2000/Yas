@@ -266,7 +266,7 @@
             await using var db = await DbFactory.CreateDbContextAsync();
             var query = db.WorkflowRequests.AsNoTracking()
                 .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
-                            && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
+                            && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
 
             _pendingTotalCount = await query.CountAsync();
             if (_pendingPage > 1 && (_pendingPage - 1) * _pendingPageSize >= _pendingTotalCount)
@@ -289,8 +289,8 @@
 
             _items = requests.Select(r =>
             {
-                var current = r.Steps.Single(s => s.Order == r.CurrentStepOrder);
-                var hasPrevious = r.Steps.Any(s => s.Order < r.CurrentStepOrder);
+                var current = r.Steps.Single(s => s.Round == r.CurrentRound && s.Order == r.CurrentStepOrder);
+                var hasPrevious = r.Steps.Any(s => s.Round == r.CurrentRound && s.Order < r.CurrentStepOrder);
                 var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
                 return new InboxItem(r, current, name, hasPrevious);
             }).ToList();
@@ -317,7 +317,10 @@
             // and lets the database do the filtering/ordering/paging/counting.
             var matchQuery = db.WorkflowRequests.AsNoTracking()
                 .SelectMany(
-                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.Status != WorkflowStepStatus.Pending),
+                    // ActedByEmployeeId != null (rather than Status != Pending) so a step that
+                    // got auto-closed as Superseded by a resubmission — without this approver
+                    // ever actually deciding anything — doesn't show up as if it were a decision.
+                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.ActedByEmployeeId != null),
                     (r, s) => new { RequestId = r.Id, StepId = s.Id, r.WorkflowType, s.Status, s.ActedAtUtc });
 
             if (_historyTypeFilter is WorkflowTypeCode typeFilter)

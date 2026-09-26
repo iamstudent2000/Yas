@@ -1,0 +1,52 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+
+<div class="approval-timeline">
+    @foreach (var step in Steps)
+    {
+        var isCurrent = step.Round == CurrentRound && step.Order == CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+        <div class="approval-step">
+            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+            <div class="approval-step-body">
+                <strong>@step.Name</strong>
+                @if (HighlightStepId == step.Id)
+                {
+                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
+                }
+                <div class="approval-step-meta">
+                    @WorkflowDisplay.StepLabel(step.Status, isCurrent)
+                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
+                    {
+                        <span> — @actorName</span>
+                    }
+                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
+                    {
+                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+                    }
+                    @if (step.ActedAtUtc is DateTime actedAt)
+                    {
+                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(step.Comment))
+                {
+                    <div class="approval-step-comment">«@step.Comment»</div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<WorkflowRequestStep> Steps { get; set; } = [];
+    [Parameter] public int CurrentRound { get; set; }
+    [Parameter] public int CurrentStepOrder { get; set; }
+    [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
+    [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
+
+    /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
+    [Parameter] public Guid? HighlightStepId { get; set; }
+
+    /// <summary>Whether to show the current holder's name on the current (awaiting-action) step too, not just queued ones.</summary>
+    [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
+}

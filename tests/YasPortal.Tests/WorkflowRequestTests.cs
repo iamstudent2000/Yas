@@ -197,22 +197,64 @@ public class WorkflowRequestTests
     }
 
     [Fact]
-    public void Resubmitting_a_returned_request_resumes_at_the_step_that_returned_it()
+    public void Resubmitting_restarts_the_whole_path_as_a_new_round_and_keeps_the_old_round_as_history()
     {
         var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
         var approver = Guid.NewGuid();
         request.Approve(step1Id, approver, "اولین تایید");
         request.ReturnToRequester(step2Id, approver, "لطفا اصلاح شود");
 
-        request.Resubmit("{\"startDate\":\"2026-11-01\"}");
+        var newStep1Def = Guid.NewGuid();
+        var newStep2Def = Guid.NewGuid();
+        request.Resubmit("{\"startDate\":\"2026-11-01\"}", new[]
+        {
+            (newStep1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
+            (newStep2Def, 2, "مدیر منابع انسانی", Guid.NewGuid()),
+        });
 
         Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
-        Assert.Equal(2, request.CurrentStepOrder);
+        Assert.Equal(2, request.CurrentRound);
+        Assert.Equal(1, request.CurrentStepOrder);
         Assert.Equal("{\"startDate\":\"2026-11-01\"}", request.FieldValuesJson);
-        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 2).Status);
-        Assert.Null(request.Steps.Single(x => x.Order == 2).ActedByEmployeeId);
-        // The earlier, already-approved step is left alone.
-        Assert.Equal(WorkflowStepStatus.Approved, request.Steps.Single(x => x.Order == 1).Status);
+
+        // The new round starts completely fresh at step 1, not resuming where it left off.
+        var round2Step1 = request.Steps.Single(x => x.Round == 2 && x.Order == 1);
+        Assert.Equal(WorkflowStepStatus.Pending, round2Step1.Status);
+        Assert.Equal(round2Step1.Id, request.CurrentStep.Id);
+
+        // Round 1 is left exactly as it was — a permanent historical record, not reused.
+        Assert.Equal(WorkflowStepStatus.Approved, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Status);
+        Assert.Equal(step1Id, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Id);
+        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Status);
+        Assert.Equal(step2Id, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Id);
+
+        // 2 steps from round 1 + 2 fresh steps from round 2.
+        Assert.Equal(4, request.Steps.Count);
+    }
+
+    [Fact]
+    public void Resubmit_marks_unreached_steps_in_the_closed_round_as_superseded()
+    {
+        // 3 steps; step 1 returns immediately, so steps 2 and 3 were never reached.
+        var step1Def = Guid.NewGuid();
+        var step2Def = Guid.NewGuid();
+        var step3Def = Guid.NewGuid();
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.Purchase, Guid.NewGuid(), Guid.NewGuid(), "{}",
+            new[]
+            {
+                (step1Def, 1, "مدیر مستقیم", Guid.NewGuid()),
+                (step2Def, 2, "مالی", Guid.NewGuid()),
+                (step3Def, 3, "منابع انسانی", Guid.NewGuid()),
+            });
+        var step1Id = request.Steps.Single(x => x.Order == 1).Id;
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), "اصلاح شود");
+
+        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, request.Steps.Single(x => x.Round == 1 && x.Order == 1).Status);
+        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.Single(x => x.Round == 1 && x.Order == 2).Status);
+        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.Single(x => x.Round == 1 && x.Order == 3).Status);
     }
 
     [Fact]
@@ -221,7 +263,28 @@ public class WorkflowRequestTests
         var request = CreateTwoStepRequest(out var step1Id, out _);
         request.Reject(step1Id, Guid.NewGuid(), null);
 
-        Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}"));
+        Assert.Throws<InvalidOperationException>(() => request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "x", Guid.NewGuid()) }));
+    }
+
+    [Fact]
+    public void Cancelling_a_second_round_is_independent_of_what_happened_in_the_first_round()
+    {
+        // Round 1: step 1 approved, then returned at step 2 — round 1 has an Approved step.
+        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        request.Approve(step1Id, approver, null);
+        request.ReturnToRequester(step2Id, approver, "اصلاح شود");
+        request.Resubmit("{}", new[]
+        {
+            (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
+            (Guid.NewGuid(), 2, "مدیر منابع انسانی", Guid.NewGuid()),
+        });
+
+        // Round 2 hasn't had anything approved yet, so it should be cancellable even though
+        // round 1 (now history) did have an approval in it.
+        Assert.True(request.CanBeCancelled);
+        request.Cancel();
+        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
     }
 
     [Fact]

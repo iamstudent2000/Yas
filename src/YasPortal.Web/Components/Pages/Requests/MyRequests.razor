@@ -260,7 +260,18 @@
                 return;
             }
 
-            tracked.Resubmit(JsonSerializer.Serialize(values));
+            // Resolved fresh, not reused from the original round — the org hierarchy or a
+            // fixed position's current holder may have changed since the first submission.
+            var resolved = await Workflows.ResolveStepsAsync(tracked.WorkflowType, tracked.RequesterPositionId);
+            if (!resolved.Success)
+            {
+                AppState.AddToast(resolved.Error!, ToastLevel.Error);
+                return;
+            }
+
+            tracked.Resubmit(
+                JsonSerializer.Serialize(values),
+                resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
             await db.SaveChangesAsync();
 
             AppState.AddToast("درخواست شما دوباره ارسال شد.", ToastLevel.Success);

@@ -74,6 +74,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Rejected => "رد شد",
         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
         WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
+        WorkflowStepStatus.Superseded => "این دور دیگر معتبر نیست (درخواست دوباره ارسال شد)",
         _ => status.ToString(),
     };
 
@@ -85,6 +86,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Approved => "is-approved",
         WorkflowStepStatus.Rejected => "is-rejected",
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "is-returned",
+        WorkflowStepStatus.Superseded => "is-queued",
         _ => "",
     };
 
@@ -95,6 +97,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Approved => "bx-check",
         WorkflowStepStatus.Rejected => "bx-x",
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",
+        WorkflowStepStatus.Superseded => "bx-minus-circle",
         _ => "bx-circle",
     };
 
