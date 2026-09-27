@@ -283,7 +283,7 @@
         {
             // Never let an unexpected failure here leave the button stuck on "در حال
             // ارسال..." forever — surface it and let the finally block below reset the UI.
-            AppState.AddToast($"ثبت مجدد درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+            LogAndToastFailure(ex, "ثبت مجدد درخواست");
         }
         finally { _resubmittingId = null; }
     }
@@ -320,7 +320,7 @@
         }
         catch (Exception ex)
         {
-            AppState.AddToast($"لغو درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+            LogAndToastFailure(ex, "لغو درخواست");
         }
         finally { _cancellingId = null; }
     }
@@ -339,5 +339,21 @@
         const string digits = "۰۱۲۳۴۵۶۷۸۹";
         var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
         return new string(chars);
+    }
+
+    /// <summary>
+    /// Logs full diagnostic detail to the server console (the toast itself only shows a short
+    /// summary, and for a DbUpdateConcurrencyException in particular the useful part — exactly
+    /// which entities were involved — isn't in .Message at all, only in .Entries).
+    /// </summary>
+    private void LogAndToastFailure(Exception ex, string actionDescription)
+    {
+        Console.WriteLine($"[{actionDescription}] {ex}");
+        if (ex is DbUpdateConcurrencyException concurrencyEx)
+        {
+            foreach (var entry in concurrencyEx.Entries)
+                Console.WriteLine($"  -> Entity: {entry.Entity.GetType().Name}, State: {entry.State}");
+        }
+        AppState.AddToast($"{actionDescription} با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
     }
 }

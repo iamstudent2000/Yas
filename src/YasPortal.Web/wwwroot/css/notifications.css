@@ -106,6 +106,18 @@
     -webkit-line-clamp: 2;
 }
 
+.app-toast-container > .app-toast.app-toast-expanded {
+    overflow: visible !important;
+}
+
+.app-toast-expanded .app-toast-message {
+    display: block;
+    -webkit-line-clamp: unset;
+    max-height: 240px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
 .app-toast-close {
     flex: 0 0 22px;
     width: 22px;
