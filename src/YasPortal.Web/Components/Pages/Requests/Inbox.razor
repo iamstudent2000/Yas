@@ -468,6 +468,12 @@
             AppState.NotifyRequestBadgesChanged();
             await LoadAsync();
         }
+        catch (Exception ex)
+        {
+            // Never let an unexpected failure here leave the buttons stuck on "در حال
+            // ثبت..." forever — surface it and let the finally block below reset the UI.
+            AppState.AddToast($"ثبت تصمیم با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+        }
         finally
         {
             _actingRequestId = null;

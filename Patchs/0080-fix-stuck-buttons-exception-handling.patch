@@ -1,0 +1,59 @@
+From 61ca9cc4aebc2062cd4dff06474a85c9db6cdb7d Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Sun, 27 Sep 2026 10:34:29 +0000
+Subject: [PATCH] Add exception handling so an unexpected failure can't leave
+ resubmit/cancel/act buttons stuck forever
+
+---
+ .../Components/Pages/Requests/Inbox.razor              |  6 ++++++
+ .../Components/Pages/Requests/MyRequests.razor         | 10 ++++++++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 8e3938c..2f8f900 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -468,6 +468,12 @@
+             AppState.NotifyRequestBadgesChanged();
+             await LoadAsync();
+         }
++        catch (Exception ex)
++        {
++            // Never let an unexpected failure here leave the buttons stuck on "در حال
++            // ثبت..." forever — surface it and let the finally block below reset the UI.
++            AppState.AddToast($"ثبت تصمیم با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
++        }
+         finally
+         {
+             _actingRequestId = null;
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index b1c631a..482be30 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -279,6 +279,12 @@
+             await LoadAsync();
+             _expandedId = requestId;
+         }
++        catch (Exception ex)
++        {
++            // Never let an unexpected failure here leave the button stuck on "در حال
++            // ارسال..." forever — surface it and let the finally block below reset the UI.
++            AppState.AddToast($"ثبت مجدد درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
++        }
+         finally { _resubmittingId = null; }
+     }
+ 
+@@ -312,6 +318,10 @@
+             AppState.NotifyRequestBadgesChanged();
+             await LoadAsync();
+         }
++        catch (Exception ex)
++        {
++            AppState.AddToast($"لغو درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
++        }
+         finally { _cancellingId = null; }
+     }
+ 
+-- 
+2.43.0
+

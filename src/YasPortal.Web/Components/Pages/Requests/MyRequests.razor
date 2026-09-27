@@ -279,6 +279,12 @@
             await LoadAsync();
             _expandedId = requestId;
         }
+        catch (Exception ex)
+        {
+            // Never let an unexpected failure here leave the button stuck on "در حال
+            // ارسال..." forever — surface it and let the finally block below reset the UI.
+            AppState.AddToast($"ثبت مجدد درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+        }
         finally { _resubmittingId = null; }
     }
 
@@ -311,6 +317,10 @@
             AppState.AddToast("درخواست لغو شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();
             await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            AppState.AddToast($"لغو درخواست با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
         }
         finally { _cancellingId = null; }
     }
