@@ -432,6 +432,65 @@ public class WorkflowRequestTests
         Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
     }
 
+    [Fact]
+    public void Submitting_records_a_submitted_action_for_the_requester_in_round_one()
+    {
+        var requester = Guid.NewGuid();
+        var request = CreateRequestFiledBy(requester, out _, out _);
+
+        var action = Assert.Single(request.RequesterActions);
+        Assert.Equal(WorkflowRequesterActionKind.Submitted, action.Kind);
+        Assert.Equal(requester, action.EmployeeId);
+        Assert.Equal(1, action.Round);
+        Assert.Equal(request.Id, action.RequestId);
+        Assert.True(action.AtUtc <= DateTime.UtcNow && action.AtUtc > DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
+    public void Resubmitting_appends_a_resubmitted_action_for_the_new_round_and_keeps_the_old_ones()
+    {
+        var requester = Guid.NewGuid();
+        var request = CreateRequestFiledBy(requester, out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), "fix");
+        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "s", Guid.NewGuid()) });
+
+        var actions = request.RequesterActions.OrderBy(x => x.AtUtc).ToList();
+        Assert.Equal(2, actions.Count);
+        Assert.Equal(WorkflowRequesterActionKind.Submitted, actions[0].Kind);
+        Assert.Equal(1, actions[0].Round);
+        Assert.Equal(WorkflowRequesterActionKind.Resubmitted, actions[1].Kind);
+        Assert.Equal(2, actions[1].Round);
+        Assert.Equal(requester, actions[1].EmployeeId);
+    }
+
+    [Fact]
+    public void Cancelling_appends_a_cancelled_action_but_a_refused_cancel_records_nothing()
+    {
+        var requester = Guid.NewGuid();
+        var cancelled = CreateRequestFiledBy(requester, out _, out _);
+        cancelled.Cancel();
+        Assert.Equal(WorkflowRequesterActionKind.Cancelled, cancelled.RequesterActions.Last().Kind);
+        Assert.Equal(requester, cancelled.RequesterActions.Last().EmployeeId);
+        Assert.Equal(2, cancelled.RequesterActions.Count);
+
+        var approved = CreateRequestFiledBy(requester, out var step1Id, out _);
+        approved.Approve(step1Id, Guid.NewGuid(), null);
+        Assert.Throws<InvalidOperationException>(() => approved.Cancel());
+        Assert.Equal(1, approved.RequesterActions.Count);
+    }
+
+    [Fact]
+    public void Approver_actions_do_not_add_requester_actions()
+    {
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        request.Approve(step1Id, approver, null);
+        request.ReturnToPreviousStep(step2Id, approver, null);
+        request.Reject(step1Id, approver, null);
+
+        Assert.Equal(1, request.RequesterActions.Count);
+    }
+
 }
 
 public class WorkflowStepDefinitionTests

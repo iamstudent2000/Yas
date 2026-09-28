@@ -52,6 +52,7 @@ public sealed class WorkflowRequest
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
 
         CurrentStepOrder = Steps.Min(x => x.Order);
+        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, requesterEmployeeId));
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
@@ -72,6 +73,13 @@ public sealed class WorkflowRequest
     /// rounds as history.
     /// </summary>
     public ICollection<WorkflowRequestStep> Steps { get; private set; } = new List<WorkflowRequestStep>();
+
+    /// <summary>
+    /// Append-only record of what the requester themselves did (submit, resubmit, cancel), each with
+    /// the round and a real timestamp. Nothing here is ever updated or removed, so the timeline can
+    /// show requester events from stored facts rather than inferring them from the request's state.
+    /// </summary>
+    public ICollection<WorkflowRequesterAction> RequesterActions { get; private set; } = new List<WorkflowRequesterAction>();
 
     /// <summary>
     /// False whenever a step decision has happened that the requester hasn't looked at yet —
@@ -183,6 +191,7 @@ public sealed class WorkflowRequest
         if (!CanBeCancelled)
             throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
         Status = WorkflowRequestStatus.Cancelled;
+        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Cancelled, RequesterEmployeeId));
         Revision++;
     }
 
@@ -218,6 +227,7 @@ public sealed class WorkflowRequest
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
+        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Resubmitted, RequesterEmployeeId));
         Status = WorkflowRequestStatus.PendingApproval;
         // The requester just performed the resubmit themselves — there is nothing new for them to notice.
         RequesterHasSeenLatestUpdate = true;

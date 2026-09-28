@@ -90,6 +90,54 @@ public class WorkflowPersistenceTests
         Assert.Equal(2, saved.CurrentStepOrder);
     }
 
+    [Fact]
+    public async Task Requester_actions_are_inserted_on_submit_resubmit_and_cancel_without_loading_them()
+    {
+        // Each step runs in a fresh context that loads only Steps (like the pages do), so the new
+        // actions are added to an unloaded collection. They must be INSERTed, never UPDATEd.
+        var databaseName = Guid.NewGuid().ToString();
+        var requester = Guid.NewGuid();
+        Guid requestId;
+
+        await using (var submit = CreateContext(databaseName))
+        {
+            var request = new WorkflowRequest(
+                WorkflowTypeCode.Leave, requester, Guid.NewGuid(), "{}",
+                new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()), (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()) });
+            submit.WorkflowRequests.Add(request);
+            await submit.SaveChangesAsync();
+            requestId = request.Id;
+        }
+
+        await using (var returning = CreateContext(databaseName))
+        {
+            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), "اصلاح شود");
+            await returning.SaveChangesAsync();
+        }
+
+        await using (var resubmitting = CreateContext(databaseName))
+        {
+            var request = await resubmitting.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+            await resubmitting.SaveChangesAsync();
+        }
+
+        await using (var cancelling = CreateContext(databaseName))
+        {
+            var request = await cancelling.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Cancel();
+            await cancelling.SaveChangesAsync();
+        }
+
+        await using var verify = CreateContext(databaseName);
+        var saved = await verify.WorkflowRequests.Include(x => x.RequesterActions).SingleAsync(x => x.Id == requestId);
+        var actions = saved.RequesterActions.OrderBy(x => x.AtUtc).ToList();
+        Assert.Equal(new[] { WorkflowRequesterActionKind.Submitted, WorkflowRequesterActionKind.Resubmitted, WorkflowRequesterActionKind.Cancelled }, actions.Select(x => x.Kind).ToArray());
+        Assert.Equal(new[] { 1, 2, 2 }, actions.Select(x => x.Round).ToArray());
+        Assert.All(actions, a => Assert.Equal(requester, a.EmployeeId));
+    }
+
     private static ApplicationDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
