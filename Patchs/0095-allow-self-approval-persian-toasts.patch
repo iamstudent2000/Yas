@@ -1,0 +1,186 @@
+From 196d4dc59026371a6eb9af5132946f6b1b4a4896 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.invalid>
+Date: Mon, 28 Sep 2026 09:51:48 +0000
+Subject: [PATCH] Allow requesters to act on their own request; Persian toasts
+ for refused actions
+
+---
+ .../Workflows/WorkflowRequest.cs              | 14 ++++-----
+ .../Components/Pages/Requests/Inbox.razor     | 19 +++++-------
+ .../Pages/Requests/MyRequests.razor           |  5 ++--
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 30 +++++--------------
+ 4 files changed, 24 insertions(+), 44 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 4ce3854..b8708ce 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -122,7 +122,7 @@ public sealed class WorkflowRequest
+ 
+     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
++        var step = RequireActionableCurrentStep(stepId);
+         step.Approve(actingEmployeeId, comment);
+ 
+         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
+@@ -145,7 +145,7 @@ public sealed class WorkflowRequest
+ 
+     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
++        var step = RequireActionableCurrentStep(stepId);
+         step.Reject(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.Rejected;
+         RequesterHasSeenLatestUpdate = false;
+@@ -154,7 +154,7 @@ public sealed class WorkflowRequest
+ 
+     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
++        var step = RequireActionableCurrentStep(stepId);
+         step.ReturnToRequester(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.ReturnedToRequester;
+         RequesterHasSeenLatestUpdate = false;
+@@ -163,7 +163,7 @@ public sealed class WorkflowRequest
+ 
+     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
++        var step = RequireActionableCurrentStep(stepId);
+         var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
+ 
+         if (previous is null)
+@@ -234,14 +234,10 @@ public sealed class WorkflowRequest
+         Revision++;
+     }
+ 
+-    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId, Guid actingEmployeeId)
++    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
+     {
+         if (Status != WorkflowRequestStatus.PendingApproval)
+             throw new InvalidOperationException("This request is no longer pending approval.");
+-        // Nobody decides on their own request, even when their position happens to be the resolved
+-        // approver (e.g. a fixed HR step filed by the HR manager, or a top-level position).
+-        if (actingEmployeeId == RequesterEmployeeId)
+-            throw new InvalidOperationException("The requester cannot act on their own request.");
+         var step = CurrentStep;
+         if (step.Id != stepId)
+             throw new InvalidOperationException("Only the request's current step can be acted on.");
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index d18d27a..dd63996 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -50,7 +50,6 @@
+                 @foreach (var item in _items)
+                 {
+                     var busy = _actingRequestId == item.Request.Id;
+-                    var isOwn = item.Request.RequesterEmployeeId == _employeeId;
+                     <div class="request-card">
+                         <div class="request-card-header">
+                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+@@ -71,21 +70,17 @@
+ 
+                             <div class="inbox-actions">
+                                 <AuthorizeView Policy="Requests.Approve">
+-                                    <button class="btn btn-primary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
++                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.Reject">
+-                                    <button class="btn btn-danger" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
++                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.ReturnToRequester">
+-                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
++                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+-                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
++                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                 </AuthorizeView>
+-                                @if (isOwn)
+-                                {
+-                                    <span class="muted"><i class="bx bx-lock-alt"></i> این درخواست متعلق به خود شماست و نمی‌توانید درباره آن تصمیم بگیرید.</span>
+-                                }
+                                 @if (busy)
+                                 {
+                                     <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+@@ -465,9 +460,11 @@
+                     case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment); break;
+                 }
+             }
+-            catch (InvalidOperationException ex)
++            catch (InvalidOperationException)
+             {
+-                AppState.AddToast(ex.Message, ToastLevel.Error);
++                // Domain rules are English and internal; the user gets a Persian message instead.
++                AppState.AddToast("این درخواست دیگر در وضعیتی نیست که بتوان درباره آن تصمیم گرفت؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                await LoadAsync();
+                 return;
+             }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index fe8e39c..f562922 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -346,9 +346,10 @@
+             {
+                 tracked.Cancel();
+             }
+-            catch (InvalidOperationException ex)
++            catch (InvalidOperationException)
+             {
+-                AppState.AddToast(ex.Message, ToastLevel.Error);
++                // Domain rules are English and internal; the user gets a Persian message instead.
++                AppState.AddToast("این درخواست دیگر قابل لغو نیست؛ یکی از مراحل قبلاً آن را تایید کرده یا وضعیت آن تغییر کرده است.", ToastLevel.Error);
+                 await LoadAsync();
+                 return;
+             }
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index cd7f920..5913214 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -345,32 +345,18 @@ public class WorkflowRequestTests
+     }
+ 
+     [Fact]
+-    public void Requester_cannot_approve_reject_or_return_their_own_request()
+-    {
+-        var requester = Guid.NewGuid();
+-        var request = CreateRequestFiledBy(requester, out var step1Id, out _);
+-
+-        Assert.Throws<InvalidOperationException>(() => request.Approve(step1Id, requester, null));
+-        Assert.Throws<InvalidOperationException>(() => request.Reject(step1Id, requester, null));
+-        Assert.Throws<InvalidOperationException>(() => request.ReturnToRequester(step1Id, requester, null));
+-        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, requester, null));
+-
+-        // Nothing changed, and someone else can still decide.
+-        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+-        Assert.Equal(WorkflowStepStatus.Pending, request.CurrentStep.Status);
+-        request.Approve(step1Id, Guid.NewGuid(), null);
+-        Assert.Equal(2, request.CurrentStepOrder);
+-    }
+-
+-    [Fact]
+-    public void Requester_cannot_approve_a_later_step_of_their_own_request_either()
++    public void Requester_may_act_on_their_own_request_when_they_hold_the_approver_position()
+     {
++        // Deliberate policy: authority comes from the position, so the requester is not blocked
++        // from deciding on their own request. The acting employee is still recorded on the step.
+         var requester = Guid.NewGuid();
+         var request = CreateRequestFiledBy(requester, out var step1Id, out var step2Id);
+-        request.Approve(step1Id, Guid.NewGuid(), null);
+ 
+-        Assert.Throws<InvalidOperationException>(() => request.Approve(step2Id, requester, null));
+-        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++        request.Approve(step1Id, requester, null);
++        request.Approve(step2Id, requester, null);
++
++        Assert.Equal(WorkflowRequestStatus.Approved, request.Status);
++        Assert.Equal(requester, request.Steps.First(x => x.Order == 1).ActedByEmployeeId);
+     }
+ 
+     [Fact]
+-- 
+2.43.0
+

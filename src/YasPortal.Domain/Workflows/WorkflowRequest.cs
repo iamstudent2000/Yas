@@ -122,7 +122,7 @@ public sealed class WorkflowRequest
 
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+        var step = RequireActionableCurrentStep(stepId);
         step.Approve(actingEmployeeId, comment);
 
         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
@@ -145,7 +145,7 @@ public sealed class WorkflowRequest
 
     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+        var step = RequireActionableCurrentStep(stepId);
         step.Reject(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.Rejected;
         RequesterHasSeenLatestUpdate = false;
@@ -154,7 +154,7 @@ public sealed class WorkflowRequest
 
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+        var step = RequireActionableCurrentStep(stepId);
         step.ReturnToRequester(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.ReturnedToRequester;
         RequesterHasSeenLatestUpdate = false;
@@ -163,7 +163,7 @@ public sealed class WorkflowRequest
 
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+        var step = RequireActionableCurrentStep(stepId);
         var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
 
         if (previous is null)
@@ -234,14 +234,10 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
-    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId, Guid actingEmployeeId)
+    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
     {
         if (Status != WorkflowRequestStatus.PendingApproval)
             throw new InvalidOperationException("This request is no longer pending approval.");
-        // Nobody decides on their own request, even when their position happens to be the resolved
-        // approver (e.g. a fixed HR step filed by the HR manager, or a top-level position).
-        if (actingEmployeeId == RequesterEmployeeId)
-            throw new InvalidOperationException("The requester cannot act on their own request.");
         var step = CurrentStep;
         if (step.Id != stepId)
             throw new InvalidOperationException("Only the request's current step can be acted on.");

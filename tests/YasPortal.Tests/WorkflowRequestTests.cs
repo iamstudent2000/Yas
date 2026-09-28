@@ -345,32 +345,18 @@ public class WorkflowRequestTests
     }
 
     [Fact]
-    public void Requester_cannot_approve_reject_or_return_their_own_request()
+    public void Requester_may_act_on_their_own_request_when_they_hold_the_approver_position()
     {
-        var requester = Guid.NewGuid();
-        var request = CreateRequestFiledBy(requester, out var step1Id, out _);
-
-        Assert.Throws<InvalidOperationException>(() => request.Approve(step1Id, requester, null));
-        Assert.Throws<InvalidOperationException>(() => request.Reject(step1Id, requester, null));
-        Assert.Throws<InvalidOperationException>(() => request.ReturnToRequester(step1Id, requester, null));
-        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, requester, null));
-
-        // Nothing changed, and someone else can still decide.
-        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
-        Assert.Equal(WorkflowStepStatus.Pending, request.CurrentStep.Status);
-        request.Approve(step1Id, Guid.NewGuid(), null);
-        Assert.Equal(2, request.CurrentStepOrder);
-    }
-
-    [Fact]
-    public void Requester_cannot_approve_a_later_step_of_their_own_request_either()
-    {
+        // Deliberate policy: authority comes from the position, so the requester is not blocked
+        // from deciding on their own request. The acting employee is still recorded on the step.
         var requester = Guid.NewGuid();
         var request = CreateRequestFiledBy(requester, out var step1Id, out var step2Id);
-        request.Approve(step1Id, Guid.NewGuid(), null);
 
-        Assert.Throws<InvalidOperationException>(() => request.Approve(step2Id, requester, null));
-        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        request.Approve(step1Id, requester, null);
+        request.Approve(step2Id, requester, null);
+
+        Assert.Equal(WorkflowRequestStatus.Approved, request.Status);
+        Assert.Equal(requester, request.Steps.First(x => x.Order == 1).ActedByEmployeeId);
     }
 
     [Fact]

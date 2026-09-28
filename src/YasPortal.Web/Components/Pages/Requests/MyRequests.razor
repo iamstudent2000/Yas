@@ -346,9 +346,10 @@
             {
                 tracked.Cancel();
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
-                AppState.AddToast(ex.Message, ToastLevel.Error);
+                // Domain rules are English and internal; the user gets a Persian message instead.
+                AppState.AddToast("این درخواست دیگر قابل لغو نیست؛ یکی از مراحل قبلاً آن را تایید کرده یا وضعیت آن تغییر کرده است.", ToastLevel.Error);
                 await LoadAsync();
                 return;
             }
