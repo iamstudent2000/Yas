@@ -281,7 +281,9 @@
             var requesterIds = requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
             var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
-            var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+            var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(requesterIds);
+            actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
             var pendingPositionIds = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
@@ -353,7 +355,9 @@
             var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();
             var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => requesterIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
 
-            var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+            var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(requesterIds);
+            actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => actorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
 
             var pendingPositionIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();

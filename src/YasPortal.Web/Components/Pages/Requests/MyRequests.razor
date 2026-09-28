@@ -175,7 +175,9 @@
                 .Take(_pageSize)
                 .ToListAsync();
 
-            var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).Distinct().ToList();
+            var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
+            actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
             var pendingPositionIds = _requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
