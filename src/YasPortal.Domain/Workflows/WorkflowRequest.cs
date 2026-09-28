@@ -88,14 +88,17 @@ public sealed class WorkflowRequest
         ?? throw new InvalidOperationException("The request has no current step.");
 
     /// <summary>
-    /// Whether the requester can still cancel this request. Only true while it is still
-    /// pending (or bounced straight back before anyone downstream acted) and — critically —
-    /// no step in the current round has approved it yet: once some approver has already
-    /// signed off this round, cancelling would silently throw away their decision.
+    /// Whether the requester can still cancel this request.
+    /// <list type="bullet">
+    /// <item>Always allowed when the request was returned to the requester (they own the next move).</item>
+    /// <item>While still pending approval, only allowed if no step in the current round has
+    /// approved yet — cancelling after a partial approval would silently discard that decision.</item>
+    /// </list>
     /// </summary>
     public bool CanBeCancelled =>
-        Status is WorkflowRequestStatus.PendingApproval or WorkflowRequestStatus.ReturnedToRequester
-        && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved);
+        Status == WorkflowRequestStatus.ReturnedToRequester
+        || (Status == WorkflowRequestStatus.PendingApproval
+            && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
 
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {

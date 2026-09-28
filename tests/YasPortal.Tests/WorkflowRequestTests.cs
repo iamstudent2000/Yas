@@ -172,15 +172,18 @@ public class WorkflowRequestTests
     }
 
     [Fact]
-    public void Cannot_cancel_a_request_returned_to_requester_after_an_earlier_approval()
+    public void A_request_returned_to_requester_can_be_cancelled_even_after_an_earlier_approval()
     {
+        // Once returned, the requester owns the next move — they may cancel even if
+        // an earlier step in this round had already approved.
         var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
         var approver = Guid.NewGuid();
         request.Approve(step1Id, approver, null);
         request.ReturnToRequester(step2Id, approver, "نیاز به اصلاح دارد");
 
-        Assert.False(request.CanBeCancelled);
-        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+        Assert.True(request.CanBeCancelled);
+        request.Cancel();
+        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
     }
 
     [Fact]
