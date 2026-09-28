@@ -81,6 +81,15 @@ public sealed class WorkflowRequest
     /// </summary>
     public bool RequesterHasSeenLatestUpdate { get; private set; } = true;
 
+    /// <summary>
+    /// Optimistic-concurrency token. Incremented by every state-changing action (approve, reject,
+    /// return, cancel, resubmit) and mapped as a concurrency token, so two people acting on the
+    /// same request from stale copies can never both succeed — the second save fails with a
+    /// <c>DbUpdateConcurrencyException</c> instead of silently overwriting the first decision.
+    /// Deliberately not bumped by <see cref="MarkSeenByRequester"/>.
+    /// </summary>
+    public int Revision { get; private set; }
+
     public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
 
     public WorkflowRequestStep CurrentStep =>
@@ -98,11 +107,14 @@ public sealed class WorkflowRequest
     public bool CanBeCancelled =>
         Status == WorkflowRequestStatus.ReturnedToRequester
         || (Status == WorkflowRequestStatus.PendingApproval
+            // Fails closed: a request always has at least one step, so an empty collection means
+            // the steps were not loaded (missing .Include) — never treat that as "nobody approved yet".
+            && Steps.Count > 0
             && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
 
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
         step.Approve(actingEmployeeId, comment);
 
         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
@@ -120,27 +132,30 @@ public sealed class WorkflowRequest
             CurrentStepOrder = next.Order;
         }
         RequesterHasSeenLatestUpdate = false;
+        Revision++;
     }
 
     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
         step.Reject(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.Rejected;
         RequesterHasSeenLatestUpdate = false;
+        Revision++;
     }
 
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
         step.ReturnToRequester(actingEmployeeId, comment);
         Status = WorkflowRequestStatus.ReturnedToRequester;
         RequesterHasSeenLatestUpdate = false;
+        Revision++;
     }
 
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
         var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
 
         if (previous is null)
@@ -158,13 +173,17 @@ public sealed class WorkflowRequest
             CurrentStepOrder = previous.Order;
         }
         RequesterHasSeenLatestUpdate = false;
+        Revision++;
     }
 
     public void Cancel()
     {
+        if (Steps.Count == 0)
+            throw new InvalidOperationException("The request's steps must be loaded before it can be cancelled.");
         if (!CanBeCancelled)
             throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
         Status = WorkflowRequestStatus.Cancelled;
+        Revision++;
     }
 
     /// <summary>
@@ -202,12 +221,17 @@ public sealed class WorkflowRequest
         Status = WorkflowRequestStatus.PendingApproval;
         // The requester just performed the resubmit themselves — there is nothing new for them to notice.
         RequesterHasSeenLatestUpdate = true;
+        Revision++;
     }
 
-    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
+    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId, Guid actingEmployeeId)
     {
         if (Status != WorkflowRequestStatus.PendingApproval)
             throw new InvalidOperationException("This request is no longer pending approval.");
+        // Nobody decides on their own request, even when their position happens to be the resolved
+        // approver (e.g. a fixed HR step filed by the HR manager, or a top-level position).
+        if (actingEmployeeId == RequesterEmployeeId)
+            throw new InvalidOperationException("The requester cannot act on their own request.");
         var step = CurrentStep;
         if (step.Id != stepId)
             throw new InvalidOperationException("Only the request's current step can be acted on.");

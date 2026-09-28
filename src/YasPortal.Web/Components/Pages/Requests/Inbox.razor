@@ -50,6 +50,7 @@
                 @foreach (var item in _items)
                 {
                     var busy = _actingRequestId == item.Request.Id;
+                    var isOwn = item.Request.RequesterEmployeeId == _employeeId;
                     <div class="request-card">
                         <div class="request-card-header">
                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
@@ -70,17 +71,21 @@
 
                             <div class="inbox-actions">
                                 <AuthorizeView Policy="Requests.Approve">
-                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                                    <button class="btn btn-primary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="Requests.Reject">
-                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                                    <button class="btn btn-danger" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="Requests.ReturnToRequester">
-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
                                 </AuthorizeView>
+                                @if (isOwn)
+                                {
+                                    <span class="muted"><i class="bx bx-lock-alt"></i> این درخواست متعلق به خود شماست و نمی‌توانید درباره آن تصمیم بگیرید.</span>
+                                }
                                 @if (busy)
                                 {
                                     <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
@@ -466,7 +471,18 @@
                 return;
             }
 
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Someone else (or another tab) decided on this request between our read and write.
+                AppState.AddToast("این درخواست هم‌زمان توسط شخص دیگری تغییر کرد و تصمیم شما ثبت نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                AppState.NotifyRequestBadgesChanged();
+                await LoadAsync();
+                return;
+            }
             _comments.Remove(item.Request.Id);
             AppState.AddToast("ثبت شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();

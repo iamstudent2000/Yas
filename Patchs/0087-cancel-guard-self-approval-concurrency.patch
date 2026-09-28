@@ -1,0 +1,486 @@
+From 31bdf57b64cd7c0fd922bb794299ce360013f190 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.invalid>
+Date: Mon, 28 Sep 2026 09:08:24 +0000
+Subject: [PATCH] Fix cancel guard, block self-decisions, add optimistic
+ concurrency to workflow requests
+
+---
+ .../Workflows/WorkflowRequest.cs              |  34 +++++-
+ .../Development/DevelopmentDataSeeder.cs      |   4 +-
+ .../Persistence/ApplicationDbContext.cs       |   2 +-
+ .../Components/Pages/Requests/Inbox.razor     |  26 ++++-
+ .../Pages/Requests/MyRequests.razor           |  60 +++++++++-
+ .../WorkflowPersistenceTests.cs               |  39 +++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 105 ++++++++++++++++++
+ 7 files changed, 252 insertions(+), 18 deletions(-)
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 9976691..bcc476d 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -81,6 +81,15 @@ public sealed class WorkflowRequest
+     /// </summary>
+     public bool RequesterHasSeenLatestUpdate { get; private set; } = true;
+ 
++    /// <summary>
++    /// Optimistic-concurrency token. Incremented by every state-changing action (approve, reject,
++    /// return, cancel, resubmit) and mapped as a concurrency token, so two people acting on the
++    /// same request from stale copies can never both succeed — the second save fails with a
++    /// <c>DbUpdateConcurrencyException</c> instead of silently overwriting the first decision.
++    /// Deliberately not bumped by <see cref="MarkSeenByRequester"/>.
++    /// </summary>
++    public int Revision { get; private set; }
++
+     public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
+ 
+     public WorkflowRequestStep CurrentStep =>
+@@ -98,11 +107,14 @@ public sealed class WorkflowRequest
+     public bool CanBeCancelled =>
+         Status == WorkflowRequestStatus.ReturnedToRequester
+         || (Status == WorkflowRequestStatus.PendingApproval
++            // Fails closed: a request always has at least one step, so an empty collection means
++            // the steps were not loaded (missing .Include) — never treat that as "nobody approved yet".
++            && Steps.Count > 0
+             && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
+ 
+     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId);
++        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+         step.Approve(actingEmployeeId, comment);
+ 
+         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
+@@ -120,27 +132,30 @@ public sealed class WorkflowRequest
+             CurrentStepOrder = next.Order;
+         }
+         RequesterHasSeenLatestUpdate = false;
++        Revision++;
+     }
+ 
+     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId);
++        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+         step.Reject(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.Rejected;
+         RequesterHasSeenLatestUpdate = false;
++        Revision++;
+     }
+ 
+     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId);
++        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+         step.ReturnToRequester(actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.ReturnedToRequester;
+         RequesterHasSeenLatestUpdate = false;
++        Revision++;
+     }
+ 
+     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+-        var step = RequireActionableCurrentStep(stepId);
++        var step = RequireActionableCurrentStep(stepId, actingEmployeeId);
+         var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
+ 
+         if (previous is null)
+@@ -158,13 +173,17 @@ public sealed class WorkflowRequest
+             CurrentStepOrder = previous.Order;
+         }
+         RequesterHasSeenLatestUpdate = false;
++        Revision++;
+     }
+ 
+     public void Cancel()
+     {
++        if (Steps.Count == 0)
++            throw new InvalidOperationException("The request's steps must be loaded before it can be cancelled.");
+         if (!CanBeCancelled)
+             throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
+         Status = WorkflowRequestStatus.Cancelled;
++        Revision++;
+     }
+ 
+     /// <summary>
+@@ -202,12 +221,17 @@ public sealed class WorkflowRequest
+         Status = WorkflowRequestStatus.PendingApproval;
+         // The requester just performed the resubmit themselves — there is nothing new for them to notice.
+         RequesterHasSeenLatestUpdate = true;
++        Revision++;
+     }
+ 
+-    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
++    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId, Guid actingEmployeeId)
+     {
+         if (Status != WorkflowRequestStatus.PendingApproval)
+             throw new InvalidOperationException("This request is no longer pending approval.");
++        // Nobody decides on their own request, even when their position happens to be the resolved
++        // approver (e.g. a fixed HR step filed by the HR manager, or a top-level position).
++        if (actingEmployeeId == RequesterEmployeeId)
++            throw new InvalidOperationException("The requester cannot act on their own request.");
+         var step = CurrentStep;
+         if (step.Id != stepId)
+             throw new InvalidOperationException("Only the request's current step can be acted on.");
+diff --git a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+index 0965007..abcdbc2 100644
+--- a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
++++ b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+@@ -17,7 +17,9 @@ public static class DevelopmentDataSeeder
+             var organizationsTableExists = await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Organizations]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct);
+             var lastActivePositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+             var parentPositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Positions]', N'ParentPositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists)
++            // COL_LENGTH is NULL when either the table or the column is missing.
++            var workflowRevisionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'Revision') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
++            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists)
+                 await db.Database.EnsureDeletedAsync(ct);
+         }
+ 
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index 6e02bfa..a56c729 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -240,7 +240,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+         modelBuilder.Entity<UserPositionPermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
+-        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
++        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
+         modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
+     }
+ }
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 2f8f900..ac4ef89 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -50,6 +50,7 @@
+                 @foreach (var item in _items)
+                 {
+                     var busy = _actingRequestId == item.Request.Id;
++                    var isOwn = item.Request.RequesterEmployeeId == _employeeId;
+                     <div class="request-card">
+                         <div class="request-card-header">
+                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+@@ -70,17 +71,21 @@
+ 
+                             <div class="inbox-actions">
+                                 <AuthorizeView Policy="Requests.Approve">
+-                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
++                                    <button class="btn btn-primary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.Reject">
+-                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
++                                    <button class="btn btn-danger" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.ReturnToRequester">
+-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
++                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                 </AuthorizeView>
+                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
++                                    <button class="btn btn-secondary" disabled="@(busy || isOwn)" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                 </AuthorizeView>
++                                @if (isOwn)
++                                {
++                                    <span class="muted"><i class="bx bx-lock-alt"></i> این درخواست متعلق به خود شماست و نمی‌توانید درباره آن تصمیم بگیرید.</span>
++                                }
+                                 @if (busy)
+                                 {
+                                     <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+@@ -462,7 +467,18 @@
+                 return;
+             }
+ 
+-            await db.SaveChangesAsync();
++            try
++            {
++                await db.SaveChangesAsync();
++            }
++            catch (DbUpdateConcurrencyException)
++            {
++                // Someone else (or another tab) decided on this request between our read and write.
++                AppState.AddToast("این درخواست هم‌زمان توسط شخص دیگری تغییر کرد و تصمیم شما ثبت نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                AppState.NotifyRequestBadgesChanged();
++                await LoadAsync();
++                return;
++            }
+             _comments.Remove(item.Request.Id);
+             AppState.AddToast("ثبت شد.", ToastLevel.Success);
+             AppState.NotifyRequestBadgesChanged();
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 2c173ae..0a22a93 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -205,7 +205,16 @@
+         if (tracked is not null)
+         {
+             tracked.MarkSeenByRequester();
+-            await db.SaveChangesAsync();
++            try
++            {
++                await db.SaveChangesAsync();
++            }
++            catch (DbUpdateConcurrencyException)
++            {
++                // A new decision arrived while expanding — it is genuinely unseen, so leave the flag alone.
++                await LoadAsync();
++                return;
++            }
+             _unseenCount = Math.Max(0, _unseenCount - 1);
+             AppState.NotifyRequestBadgesChanged();
+         }
+@@ -222,7 +231,17 @@
+         var unseen = await db.WorkflowRequests.Where(x => x.RequesterEmployeeId == employeeId && !x.RequesterHasSeenLatestUpdate).ToListAsync();
+         foreach (var request in unseen)
+             request.MarkSeenByRequester();
+-        await db.SaveChangesAsync();
++        try
++        {
++            await db.SaveChangesAsync();
++        }
++        catch (DbUpdateConcurrencyException)
++        {
++            // Some request changed underneath us; nothing was marked. Refresh and let the user retry.
++            AppState.AddToast("برخی درخواست‌ها هم‌زمان تغییر کردند؛ فهرست به‌روزرسانی شد. دوباره تلاش کنید.", ToastLevel.Info);
++            await LoadAsync();
++            return;
++        }
+ 
+         foreach (var request in _requests)
+             request.MarkSeenByRequester();
+@@ -251,8 +270,12 @@
+         await InvokeAsync(StateHasChanged);
+         try
+         {
++            if (_employeeId is not Guid requesterId)
++                return;
++
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            var tracked = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
++            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
++                .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == requesterId);
+             if (tracked is null || tracked.Status != WorkflowRequestStatus.ReturnedToRequester)
+             {
+                 AppState.AddToast("این درخواست دیگر در وضعیت بازگشتی نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+@@ -272,7 +295,17 @@
+             tracked.Resubmit(
+                 JsonSerializer.Serialize(values),
+                 resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+-            await db.SaveChangesAsync();
++            try
++            {
++                await db.SaveChangesAsync();
++            }
++            catch (DbUpdateConcurrencyException)
++            {
++                AppState.AddToast("وضعیت درخواست هم‌زمان تغییر کرد و ارسال مجدد انجام نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                AppState.NotifyRequestBadgesChanged();
++                await LoadAsync();
++                return;
++            }
+ 
+             AppState.AddToast("درخواست شما دوباره ارسال شد.", ToastLevel.Success);
+             AppState.NotifyRequestBadgesChanged();
+@@ -294,8 +327,13 @@
+         await InvokeAsync(StateHasChanged);
+         try
+         {
++            if (_employeeId is not Guid employeeId)
++                return;
++
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            var tracked = await db.WorkflowRequests.SingleOrDefaultAsync(x => x.Id == requestId);
++            // Steps must be loaded: CanBeCancelled inspects them. Scoped to the current requester.
++            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
++                .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == employeeId);
+             if (tracked is null)
+             {
+                 await LoadAsync();
+@@ -313,7 +351,17 @@
+                 return;
+             }
+ 
+-            await db.SaveChangesAsync();
++            try
++            {
++                await db.SaveChangesAsync();
++            }
++            catch (DbUpdateConcurrencyException)
++            {
++                AppState.AddToast("وضعیت درخواست هم‌زمان تغییر کرد و لغو انجام نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                AppState.NotifyRequestBadgesChanged();
++                await LoadAsync();
++                return;
++            }
+             AppState.AddToast("درخواست لغو شد.", ToastLevel.Success);
+             AppState.NotifyRequestBadgesChanged();
+             await LoadAsync();
+diff --git a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+index 4f3b0e6..c1dcbf1 100644
+--- a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
++++ b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+@@ -51,6 +51,45 @@ public class WorkflowPersistenceTests
+         Assert.Equal(WorkflowStepStatus.Pending, saved.CurrentStep.Status);
+     }
+ 
++    [Fact]
++    public async Task A_stale_decision_is_rejected_instead_of_overwriting_the_first_one()
++    {
++        // Two sessions load the same pending request. The first approves it; the second (stale)
++        // tries to reject it. Without the Revision concurrency token the second write would win.
++        var databaseName = Guid.NewGuid().ToString();
++        Guid requestId;
++
++        await using (var setup = CreateContext(databaseName))
++        {
++            var request = new WorkflowRequest(
++                WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
++                new[]
++                {
++                    (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
++                    (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()),
++                });
++            setup.WorkflowRequests.Add(request);
++            await setup.SaveChangesAsync();
++            requestId = request.Id;
++        }
++
++        await using var first = CreateContext(databaseName);
++        await using var second = CreateContext(databaseName);
++        var a = await first.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++        var b = await second.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++
++        a.Approve(a.CurrentStep.Id, Guid.NewGuid(), null);
++        await first.SaveChangesAsync();
++
++        b.Reject(b.CurrentStep.Id, Guid.NewGuid(), null);
++        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
++
++        await using var verify = CreateContext(databaseName);
++        var saved = await verify.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, saved.Status);
++        Assert.Equal(2, saved.CurrentStepOrder);
++    }
++
+     private static ApplicationDbContext CreateContext(string databaseName)
+     {
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index d1c7907..ec5f926 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -327,6 +327,111 @@ public class WorkflowRequestTests
+         Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 3).Status);
+         Assert.Null(request.Steps.Single(x => x.Order == 3).ActedByEmployeeId);
+     }
++    private static WorkflowRequest CreateRequestFiledBy(Guid requesterId, out Guid step1Id, out Guid step2Id)
++    {
++        var request = new WorkflowRequest(
++            WorkflowTypeCode.Leave,
++            requesterEmployeeId: requesterId,
++            requesterPositionId: Guid.NewGuid(),
++            fieldValuesJson: "{}",
++            resolvedSteps: new[]
++            {
++                (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
++                (Guid.NewGuid(), 2, "مدیر منابع انسانی", Guid.NewGuid()),
++            });
++        step1Id = request.Steps.First(x => x.Order == 1).Id;
++        step2Id = request.Steps.First(x => x.Order == 2).Id;
++        return request;
++    }
++
++    [Fact]
++    public void Requester_cannot_approve_reject_or_return_their_own_request()
++    {
++        var requester = Guid.NewGuid();
++        var request = CreateRequestFiledBy(requester, out var step1Id, out _);
++
++        Assert.Throws<InvalidOperationException>(() => request.Approve(step1Id, requester, null));
++        Assert.Throws<InvalidOperationException>(() => request.Reject(step1Id, requester, null));
++        Assert.Throws<InvalidOperationException>(() => request.ReturnToRequester(step1Id, requester, null));
++        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, requester, null));
++
++        // Nothing changed, and someone else can still decide.
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++        Assert.Equal(WorkflowStepStatus.Pending, request.CurrentStep.Status);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++        Assert.Equal(2, request.CurrentStepOrder);
++    }
++
++    [Fact]
++    public void Requester_cannot_approve_a_later_step_of_their_own_request_either()
++    {
++        var requester = Guid.NewGuid();
++        var request = CreateRequestFiledBy(requester, out var step1Id, out var step2Id);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++
++        Assert.Throws<InvalidOperationException>(() => request.Approve(step2Id, requester, null));
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++    }
++
++    [Fact]
++    public void Revision_increases_on_every_state_changing_action()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
++        var approver = Guid.NewGuid();
++        var r0 = request.Revision;
++
++        request.Approve(step1Id, approver, null);
++        var r1 = request.Revision;
++        request.ReturnToRequester(step2Id, approver, "fix");
++        var r2 = request.Revision;
++        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "s", Guid.NewGuid()) });
++        var r3 = request.Revision;
++        request.Cancel();
++        var r4 = request.Revision;
++
++        Assert.True(r0 < r1 && r1 < r2 && r2 < r3 && r3 < r4);
++    }
++
++    [Fact]
++    public void Rejecting_and_returning_to_previous_step_also_bump_the_revision()
++    {
++        var reject = CreateTwoStepRequest(out var rejectStep1, out _);
++        var before = reject.Revision;
++        reject.Reject(rejectStep1, Guid.NewGuid(), null);
++        Assert.True(reject.Revision > before);
++
++        var back = CreateTwoStepRequest(out var backStep1, out var backStep2);
++        back.Approve(backStep1, Guid.NewGuid(), null);
++        before = back.Revision;
++        back.ReturnToPreviousStep(backStep2, Guid.NewGuid(), null);
++        Assert.True(back.Revision > before);
++    }
++
++    [Fact]
++    public void Marking_seen_does_not_change_the_revision()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++        var before = request.Revision;
++
++        request.MarkSeenByRequester();
++
++        Assert.Equal(before, request.Revision);
++    }
++
++    [Fact]
++    public void Cancel_fails_closed_when_the_steps_were_not_loaded()
++    {
++        // Simulates a query without .Include(x => x.Steps): the request is pending but has an
++        // empty Steps collection. That must never be read as "no step has approved yet".
++        var request = CreateTwoStepRequest(out _, out _);
++        request.Steps.Clear();
++
++        Assert.False(request.CanBeCancelled);
++        Assert.Throws<InvalidOperationException>(() => request.Cancel());
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++    }
++
+ }
+ 
+ public class WorkflowStepDefinitionTests
+-- 
+2.43.0
+

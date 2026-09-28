@@ -51,6 +51,45 @@ public class WorkflowPersistenceTests
         Assert.Equal(WorkflowStepStatus.Pending, saved.CurrentStep.Status);
     }
 
+    [Fact]
+    public async Task A_stale_decision_is_rejected_instead_of_overwriting_the_first_one()
+    {
+        // Two sessions load the same pending request. The first approves it; the second (stale)
+        // tries to reject it. Without the Revision concurrency token the second write would win.
+        var databaseName = Guid.NewGuid().ToString();
+        Guid requestId;
+
+        await using (var setup = CreateContext(databaseName))
+        {
+            var request = new WorkflowRequest(
+                WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
+                new[]
+                {
+                    (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
+                    (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()),
+                });
+            setup.WorkflowRequests.Add(request);
+            await setup.SaveChangesAsync();
+            requestId = request.Id;
+        }
+
+        await using var first = CreateContext(databaseName);
+        await using var second = CreateContext(databaseName);
+        var a = await first.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+        var b = await second.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+
+        a.Approve(a.CurrentStep.Id, Guid.NewGuid(), null);
+        await first.SaveChangesAsync();
+
+        b.Reject(b.CurrentStep.Id, Guid.NewGuid(), null);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+
+        await using var verify = CreateContext(databaseName);
+        var saved = await verify.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, saved.Status);
+        Assert.Equal(2, saved.CurrentStepOrder);
+    }
+
     private static ApplicationDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

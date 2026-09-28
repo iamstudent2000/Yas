@@ -327,6 +327,111 @@ public class WorkflowRequestTests
         Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Order == 3).Status);
         Assert.Null(request.Steps.Single(x => x.Order == 3).ActedByEmployeeId);
     }
+    private static WorkflowRequest CreateRequestFiledBy(Guid requesterId, out Guid step1Id, out Guid step2Id)
+    {
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.Leave,
+            requesterEmployeeId: requesterId,
+            requesterPositionId: Guid.NewGuid(),
+            fieldValuesJson: "{}",
+            resolvedSteps: new[]
+            {
+                (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
+                (Guid.NewGuid(), 2, "مدیر منابع انسانی", Guid.NewGuid()),
+            });
+        step1Id = request.Steps.First(x => x.Order == 1).Id;
+        step2Id = request.Steps.First(x => x.Order == 2).Id;
+        return request;
+    }
+
+    [Fact]
+    public void Requester_cannot_approve_reject_or_return_their_own_request()
+    {
+        var requester = Guid.NewGuid();
+        var request = CreateRequestFiledBy(requester, out var step1Id, out _);
+
+        Assert.Throws<InvalidOperationException>(() => request.Approve(step1Id, requester, null));
+        Assert.Throws<InvalidOperationException>(() => request.Reject(step1Id, requester, null));
+        Assert.Throws<InvalidOperationException>(() => request.ReturnToRequester(step1Id, requester, null));
+        Assert.Throws<InvalidOperationException>(() => request.ReturnToPreviousStep(step1Id, requester, null));
+
+        // Nothing changed, and someone else can still decide.
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        Assert.Equal(WorkflowStepStatus.Pending, request.CurrentStep.Status);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+        Assert.Equal(2, request.CurrentStepOrder);
+    }
+
+    [Fact]
+    public void Requester_cannot_approve_a_later_step_of_their_own_request_either()
+    {
+        var requester = Guid.NewGuid();
+        var request = CreateRequestFiledBy(requester, out var step1Id, out var step2Id);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+
+        Assert.Throws<InvalidOperationException>(() => request.Approve(step2Id, requester, null));
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+    }
+
+    [Fact]
+    public void Revision_increases_on_every_state_changing_action()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out var step2Id);
+        var approver = Guid.NewGuid();
+        var r0 = request.Revision;
+
+        request.Approve(step1Id, approver, null);
+        var r1 = request.Revision;
+        request.ReturnToRequester(step2Id, approver, "fix");
+        var r2 = request.Revision;
+        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "s", Guid.NewGuid()) });
+        var r3 = request.Revision;
+        request.Cancel();
+        var r4 = request.Revision;
+
+        Assert.True(r0 < r1 && r1 < r2 && r2 < r3 && r3 < r4);
+    }
+
+    [Fact]
+    public void Rejecting_and_returning_to_previous_step_also_bump_the_revision()
+    {
+        var reject = CreateTwoStepRequest(out var rejectStep1, out _);
+        var before = reject.Revision;
+        reject.Reject(rejectStep1, Guid.NewGuid(), null);
+        Assert.True(reject.Revision > before);
+
+        var back = CreateTwoStepRequest(out var backStep1, out var backStep2);
+        back.Approve(backStep1, Guid.NewGuid(), null);
+        before = back.Revision;
+        back.ReturnToPreviousStep(backStep2, Guid.NewGuid(), null);
+        Assert.True(back.Revision > before);
+    }
+
+    [Fact]
+    public void Marking_seen_does_not_change_the_revision()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+        var before = request.Revision;
+
+        request.MarkSeenByRequester();
+
+        Assert.Equal(before, request.Revision);
+    }
+
+    [Fact]
+    public void Cancel_fails_closed_when_the_steps_were_not_loaded()
+    {
+        // Simulates a query without .Include(x => x.Steps): the request is pending but has an
+        // empty Steps collection. That must never be read as "no step has approved yet".
+        var request = CreateTwoStepRequest(out _, out _);
+        request.Steps.Clear();
+
+        Assert.False(request.CanBeCancelled);
+        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+    }
+
 }
 
 public class WorkflowStepDefinitionTests

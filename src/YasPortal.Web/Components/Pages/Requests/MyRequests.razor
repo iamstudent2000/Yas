@@ -207,7 +207,16 @@
         if (tracked is not null)
         {
             tracked.MarkSeenByRequester();
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A new decision arrived while expanding — it is genuinely unseen, so leave the flag alone.
+                await LoadAsync();
+                return;
+            }
             _unseenCount = Math.Max(0, _unseenCount - 1);
             AppState.NotifyRequestBadgesChanged();
         }
@@ -224,7 +233,17 @@
         var unseen = await db.WorkflowRequests.Where(x => x.RequesterEmployeeId == employeeId && !x.RequesterHasSeenLatestUpdate).ToListAsync();
         foreach (var request in unseen)
             request.MarkSeenByRequester();
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Some request changed underneath us; nothing was marked. Refresh and let the user retry.
+            AppState.AddToast("برخی درخواست‌ها هم‌زمان تغییر کردند؛ فهرست به‌روزرسانی شد. دوباره تلاش کنید.", ToastLevel.Info);
+            await LoadAsync();
+            return;
+        }
 
         foreach (var request in _requests)
             request.MarkSeenByRequester();
@@ -253,8 +272,12 @@
         await InvokeAsync(StateHasChanged);
         try
         {
+            if (_employeeId is not Guid requesterId)
+                return;
+
             await using var db = await DbFactory.CreateDbContextAsync();
-            var tracked = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
+                .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == requesterId);
             if (tracked is null || tracked.Status != WorkflowRequestStatus.ReturnedToRequester)
             {
                 AppState.AddToast("این درخواست دیگر در وضعیت بازگشتی نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
@@ -274,7 +297,17 @@
             tracked.Resubmit(
                 JsonSerializer.Serialize(values),
                 resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                AppState.AddToast("وضعیت درخواست هم‌زمان تغییر کرد و ارسال مجدد انجام نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                AppState.NotifyRequestBadgesChanged();
+                await LoadAsync();
+                return;
+            }
 
             AppState.AddToast("درخواست شما دوباره ارسال شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();
@@ -296,8 +329,13 @@
         await InvokeAsync(StateHasChanged);
         try
         {
+            if (_employeeId is not Guid employeeId)
+                return;
+
             await using var db = await DbFactory.CreateDbContextAsync();
-            var tracked = await db.WorkflowRequests.SingleOrDefaultAsync(x => x.Id == requestId);
+            // Steps must be loaded: CanBeCancelled inspects them. Scoped to the current requester.
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
+                .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == employeeId);
             if (tracked is null)
             {
                 await LoadAsync();
@@ -315,7 +353,17 @@
                 return;
             }
 
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                AppState.AddToast("وضعیت درخواست هم‌زمان تغییر کرد و لغو انجام نشد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                AppState.NotifyRequestBadgesChanged();
+                await LoadAsync();
+                return;
+            }
             AppState.AddToast("درخواست لغو شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();
             await LoadAsync();

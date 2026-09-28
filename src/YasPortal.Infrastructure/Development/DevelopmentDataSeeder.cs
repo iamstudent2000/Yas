@@ -17,7 +17,9 @@ public static class DevelopmentDataSeeder
             var organizationsTableExists = await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Organizations]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct);
             var lastActivePositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var parentPositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Positions]', N'ParentPositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists)
+            // COL_LENGTH is NULL when either the table or the column is missing.
+            var workflowRevisionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'Revision') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
