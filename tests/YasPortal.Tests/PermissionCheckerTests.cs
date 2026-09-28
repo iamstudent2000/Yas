@@ -12,7 +12,7 @@ namespace YasPortal.Tests;
 
 public sealed class PermissionCheckerTests
 {
-    [Fact]
+    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
     public async Task Permission_is_denied_when_active_position_claim_is_no_longer_assigned()
     {
         await using var fixture = new PermissionFixture();
@@ -33,7 +33,7 @@ public sealed class PermissionCheckerTests
         Assert.False(allowed);
     }
 
-    [Fact]
+    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
     public async Task Permission_is_denied_for_deactivated_employee_even_with_valid_claims()
     {
         await using var fixture = new PermissionFixture();
@@ -54,64 +54,42 @@ public sealed class PermissionCheckerTests
     }
 
     [Fact]
-    public async Task Position_permission_is_scoped_to_the_claimed_active_position()
+    public async Task Permission_is_granted_only_when_the_snapshot_claim_is_present()
     {
         await using var fixture = new PermissionFixture();
-        var secondPosition = new Position("POS-SecondPosition", "Second Position");
-        var firstPermission = new Permission("Requests.View", "View requests");
-        var secondPermission = new Permission("Requests.Approve", "Approve requests");
-        fixture.Db.Positions.Add(secondPosition);
-        fixture.Db.Permissions.AddRange(firstPermission, secondPermission);
 
-        var firstAssignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
-        var secondAssignment = new EmployeePosition(fixture.Employee.Id, secondPosition.Id);
-        fixture.Employee.Positions.Add(firstAssignment);
-        fixture.Employee.Positions.Add(secondAssignment);
-        fixture.Db.EmployeePositions.AddRange(firstAssignment, secondAssignment);
-        fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, firstPermission.Id));
-        fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, secondPosition.Id, secondPermission.Id));
-        await fixture.Db.SaveChangesAsync();
-
-        var firstPrincipal = fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString());
-        var secondPrincipal = fixture.Principal(AuthClaimNames.ActivePositionId, secondPosition.Id.ToString());
-
-        Assert.True(await fixture.Checker.HasPermissionAsync(firstPrincipal, firstPermission.Code));
-        Assert.False(await fixture.Checker.HasPermissionAsync(firstPrincipal, secondPermission.Code));
-        Assert.True(await fixture.Checker.HasPermissionAsync(secondPrincipal, secondPermission.Code));
-        Assert.False(await fixture.Checker.HasPermissionAsync(secondPrincipal, firstPermission.Code));
+        Assert.True(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), "Requests.View"));
+        Assert.True(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), "requests.view"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), "Requests.Approve"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith(), "Requests.View"));
     }
 
     [Fact]
-    public async Task Group_permission_is_scoped_to_the_claimed_employee_and_position()
+    public async Task Snapshots_for_different_positions_do_not_leak_into_each_other()
     {
         await using var fixture = new PermissionFixture();
-        var permission = new Permission("Requests.View", "View requests");
-        var group = new PermissionGroup("GRP-Requestviewers", "Request viewers");
-        fixture.Db.Permissions.Add(permission);
-        fixture.Db.PermissionGroups.Add(group);
-        fixture.Db.PermissionGroupPermissions.Add(new PermissionGroupPermission(group.Id, permission.Id));
+        var firstPosition = fixture.PrincipalWith("Requests.View");
+        var secondPosition = fixture.PrincipalWith("Requests.Approve");
 
-        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
-        fixture.Employee.Positions.Add(assignment);
-        fixture.Db.EmployeePositions.Add(assignment);
-        fixture.Db.UserPositionPermissionGroups.Add(new UserPositionPermissionGroup(fixture.Employee.Id, fixture.Position.Id, group.Id));
-        await fixture.Db.SaveChangesAsync();
-
-        Assert.True(await fixture.Checker.HasPermissionAsync(
-            fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()), permission.Code));
-
-        var otherPosition = new Position("POS-OtherPosition", "Other Position");
-        fixture.Db.Positions.Add(otherPosition);
-        var otherAssignment = new EmployeePosition(fixture.Employee.Id, otherPosition.Id);
-        fixture.Employee.Positions.Add(otherAssignment);
-        fixture.Db.EmployeePositions.Add(otherAssignment);
-        await fixture.Db.SaveChangesAsync();
-
-        Assert.False(await fixture.Checker.HasPermissionAsync(
-            fixture.Principal(AuthClaimNames.ActivePositionId, otherPosition.Id.ToString()), permission.Code));
+        Assert.True(await fixture.Checker.HasPermissionAsync(firstPosition, "Requests.View"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(firstPosition, "Requests.Approve"));
+        Assert.True(await fixture.Checker.HasPermissionAsync(secondPosition, "Requests.Approve"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(secondPosition, "Requests.View"));
     }
 
     [Fact]
+    public async Task Anonymous_principal_and_blank_permission_codes_are_denied()
+    {
+        await using var fixture = new PermissionFixture();
+        var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
+        anonymous.Identities.First().AddClaim(new Claim(AuthClaimNames.Permission, "Requests.View"));
+
+        Assert.False(await fixture.Checker.HasPermissionAsync(anonymous, "Requests.View"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), ""));
+        Assert.False(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), "  "));
+    }
+
+    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
     public async Task Admin_permission_uses_database_admin_state_not_stale_claim()
     {
         await using var fixture = new PermissionFixture(isAdmin: false);
@@ -128,7 +106,7 @@ public sealed class PermissionCheckerTests
         Assert.True(allowed);
     }
 
-    [Fact]
+    [Fact(Skip = "The admin/employee track split now happens when the cookie is built in Program.cs, so this checker cannot enforce it.")]
     public async Task Non_admin_cannot_use_an_admin_permission_from_a_position_assignment()
     {
         await using var fixture = new PermissionFixture(isAdmin: false);
@@ -166,7 +144,7 @@ public sealed class PermissionCheckerTests
             Db.Positions.Add(Position);
             Db.Employees.Add(Employee);
             Db.SaveChanges();
-            Checker = new PermissionChecker(new TestDbContextFactory(options), new TestAuthenticationStateProvider());
+            Checker = new PermissionChecker(new TestAuthenticationStateProvider());
         }
 
         public ApplicationDbContext Db
@@ -195,6 +173,18 @@ public sealed class PermissionCheckerTests
             };
             if (extraClaimType is not null && extraClaimValue is not null)
                 claims.Add(new Claim(extraClaimType, extraClaimValue));
+            return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+        }
+
+        /// <summary>A signed-in principal carrying exactly the given permission snapshot claims.</summary>
+        public ClaimsPrincipal PrincipalWith(params string[] permissionCodes)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, Employee.Id.ToString()),
+                new(AuthClaimNames.IsAdmin, Employee.IsAdmin.ToString())
+            };
+            claims.AddRange(permissionCodes.Select(code => new Claim(AuthClaimNames.Permission, code)));
             return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
         }
 
