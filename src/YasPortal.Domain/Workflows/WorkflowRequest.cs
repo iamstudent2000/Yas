@@ -197,6 +197,8 @@ public sealed class WorkflowRequest
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
         Status = WorkflowRequestStatus.PendingApproval;
+        // The requester just performed the resubmit themselves — there is nothing new for them to notice.
+        RequesterHasSeenLatestUpdate = true;
     }
 
     private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)

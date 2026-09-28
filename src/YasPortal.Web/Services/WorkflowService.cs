@@ -90,7 +90,10 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.WorkflowRequests.AsNoTracking()
             .CountAsync(x => x.Status == WorkflowRequestStatus.PendingApproval
-                              && x.Steps.Any(s => s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId), ct);
+                              && x.Steps.Any(s => s.Round == x.CurrentRound
+                                                  && s.Order == x.CurrentStepOrder
+                                                  && s.Status == WorkflowStepStatus.Pending
+                                                  && s.ApproverPositionId == positionId), ct);
     }
 
     /// <summary>Number of the employee's own requests with a decision they haven't looked at yet — drives the "my requests" badge.</summary>
