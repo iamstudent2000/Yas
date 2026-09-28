@@ -61,3 +61,16 @@ public enum WorkflowStepStatus
     /// </summary>
     Superseded,
 }
+
+/// <summary>Lifecycle actions the requester themselves take on a request (shown in the approval timeline).</summary>
+public enum WorkflowRequesterActionKind
+{
+    /// <summary>Initial submission that opened round 1.</summary>
+    Submitted,
+
+    /// <summary>Resubmission that opened a new round after a return.</summary>
+    Resubmitted,
+
+    /// <summary>Requester cancelled the request.</summary>
+    Cancelled,
+}
