@@ -1,0 +1,98 @@
+From cff23cee76b1b0d76d27365bc209c441caad2671 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.com>
+Date: Mon, 28 Sep 2026 03:26:38 +0000
+Subject: [PATCH] Fix resubmit concurrency error: workflow entities use
+ client-assigned Guid keys (ValueGeneratedNever)
+
+---
+ .../Persistence/ApplicationDbContext.cs       |  6 +-
+ .../WorkflowPersistenceTests.cs               | 61 +++++++++++++++++++
+ 2 files changed, 64 insertions(+), 3 deletions(-)
+ create mode 100644 tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index 255eb1d..6e02bfa 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -239,8 +239,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+         modelBuilder.Entity<PermissionGroupPermission>(e => { e.HasKey(x => new { x.GroupId, x.PermissionId }); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Permission).WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<UserPositionPermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+-        modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
+-        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
+-        modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
++        modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
++        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
++        modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
+     }
+ }
+diff --git a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+new file mode 100644
+index 0000000..4f3b0e6
+--- /dev/null
++++ b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+@@ -0,0 +1,61 @@
++using Microsoft.EntityFrameworkCore;
++using Xunit;
++using YasPortal.Domain.Workflows;
++using YasPortal.Infrastructure.Persistence;
++
++namespace YasPortal.Tests;
++
++public class WorkflowPersistenceTests
++{
++    [Fact]
++    public async Task Resubmitting_a_returned_request_inserts_the_new_rounds_steps_instead_of_updating_them()
++    {
++        // Regression: new steps added to an already-tracked request carry a client-generated
++        // Guid key. Without ValueGeneratedNever, EF treats them as existing rows (Modified),
++        // issues an UPDATE that matches 0 rows, and throws DbUpdateConcurrencyException.
++        var databaseName = Guid.NewGuid().ToString();
++        Guid requestId;
++
++        await using (var setup = CreateContext(databaseName))
++        {
++            var request = new WorkflowRequest(
++                WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
++                new[]
++                {
++                    (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
++                    (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()),
++                });
++            setup.WorkflowRequests.Add(request);
++            await setup.SaveChangesAsync();
++            requestId = request.Id;
++        }
++
++        await using (var returning = CreateContext(databaseName))
++        {
++            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), "اصلاح شود");
++            await returning.SaveChangesAsync();
++        }
++
++        await using (var resubmitting = CreateContext(databaseName))
++        {
++            var request = await resubmitting.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++            await resubmitting.SaveChangesAsync();
++        }
++
++        await using var verify = CreateContext(databaseName);
++        var saved = await verify.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++        Assert.Equal(2, saved.CurrentRound);
++        Assert.Equal(3, saved.Steps.Count);
++        Assert.Equal(WorkflowStepStatus.Pending, saved.CurrentStep.Status);
++    }
++
++    private static ApplicationDbContext CreateContext(string databaseName)
++    {
++        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
++            .UseInMemoryDatabase(databaseName)
++            .Options;
++        return new ApplicationDbContext(options);
++    }
++}
+-- 
+2.43.0
+
