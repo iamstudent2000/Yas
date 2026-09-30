@@ -111,6 +111,9 @@
                                             <AuthorizeView Policy="Admin.Workflows">
                                                 <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                                             </AuthorizeView>
+                                            <AuthorizeView Policy="Requests.ForceClose">
+                                                <NavLink href="/admin/active-requests"><i class="bx bx-error-circle"></i><span>درخواست‌های فعال</span></NavLink>
+                                            </AuthorizeView>
                                         </div>
                                     </div>
                             </nav>

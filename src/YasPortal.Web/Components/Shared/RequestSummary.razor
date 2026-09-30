@@ -1,5 +1,6 @@
 @using System.Text.Json
 @using YasPortal.Domain.Workflows
+@using System.Linq
 @using YasPortal.Web.Services
 
 <div class="field-summary">
@@ -20,6 +21,7 @@
         rounds = new[] { Request.Steps.GroupBy(x => 1).FirstOrDefault() }.Where(x => x != null).ToList()!;
     }
     var requesterName = EmployeeNames.TryGetValue(Request.RequesterEmployeeId, out var rn) ? rn : null;
+    var stepDecisions = Request.StepDecisions.ToList();
     var allRoundKeys = rounds.Select(g => g.Key).DefaultIfEmpty(1).ToList();
 }
 
@@ -66,6 +68,11 @@
                             {
                                 <span> — @requesterName</span>
                             }
+                            @{ var resubmittedAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Resubmitted); }
+                            @if (resubmittedAt is not null)
+                            {
+                                <span> · @resubmittedAt</span>
+                            }
                         </div>
                     </div>
                 </div>
@@ -75,6 +82,7 @@
                                   CurrentRound="Request.CurrentRound"
                                   CurrentStepOrder="Request.CurrentStepOrder"
                                   EmployeeNames="EmployeeNames"
+                                  Decisions="stepDecisions"
                                   HolderNames="HolderNames"
                                   HighlightStepId="HighlightStepId"
                                   ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
@@ -90,6 +98,11 @@
                             @if (requesterName is not null)
                             {
                                 <span> — @requesterName</span>
+                            }
+                            @{ var cancelledAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Cancelled); }
+                            @if (cancelledAt is not null)
+                            {
+                                <span> · @cancelledAt</span>
                             }
                         </div>
                     </div>
@@ -137,6 +150,11 @@
                                     {
                                         <span> — @requesterName</span>
                                     }
+                                    @{ var historyResubmittedAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Resubmitted); }
+                                    @if (historyResubmittedAt is not null)
+                                    {
+                                        <span> · @historyResubmittedAt</span>
+                                    }
                                 </div>
                             </div>
                         </div>
@@ -145,6 +163,7 @@
                                           CurrentRound="Request.CurrentRound"
                                           CurrentStepOrder="Request.CurrentStepOrder"
                                           EmployeeNames="EmployeeNames"
+                                          Decisions="stepDecisions"
                                           HolderNames="HolderNames"
                                           HighlightStepId="HighlightStepId"
                                           ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
@@ -177,6 +196,21 @@
             return values is not null && values.TryGetValue(key, out var value) ? value : null;
         }
         catch (JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// Formats a real WorkflowRequesterAction timestamp for a round, when one was recorded.
+    /// Requests submitted before RequesterActions existed have none for round 1 — CreatedAtUtc is
+    /// used for that row instead — but resubmit/cancel on old data will render without a time,
+    /// same as before this feature, rather than showing a wrong or made-up timestamp.
+    /// </summary>
+    private string? GetActionTime(int round, WorkflowRequesterActionKind kind)
+    {
+        var action = Request.RequesterActions
+            .Where(a => a.Round == round && a.Kind == kind)
+            .OrderByDescending(a => a.AtUtc)
+            .FirstOrDefault();
+        return action?.AtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
     }
 
     private static string ToPersianDigits(string value)

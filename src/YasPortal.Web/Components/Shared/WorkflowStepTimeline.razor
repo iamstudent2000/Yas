@@ -5,6 +5,10 @@
     @foreach (var step in Steps)
     {
         var isCurrent = step.Round == CurrentRound && step.Order == CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
+        // Earlier passes on this same step within this round — e.g. it was approved, then a
+        // later step returned the request to it, resetting it for a fresh decision. The step
+        // itself only shows its current pass; every pass it ever went through is in Decisions.
+        var earlierPasses = Decisions.Where(d => d.StepId == step.Id).OrderBy(d => d.ActedAtUtc).SkipLast(step.ActedAtUtc is null ? 0 : 1).ToList();
         <div class="approval-step">
             <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
             <div class="approval-step-body">
@@ -12,6 +16,10 @@
                 @if (HighlightStepId == step.Id)
                 {
                     <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
+                }
+                @if (earlierPasses.Count > 0)
+                {
+                    <span class="badge badge-muted" style="margin-inline-start:6px">بازگشت خورده — @ToPersianDigits((earlierPasses.Count + 1).ToString())مین بار در حال بررسی</span>
                 }
                 <div class="approval-step-meta">
                     @WorkflowDisplay.StepLabel(step.Status, isCurrent)
@@ -32,6 +40,26 @@
                 {
                     <div class="approval-step-comment">«@step.Comment»</div>
                 }
+                @if (earlierPasses.Count > 0)
+                {
+                    <div class="approval-step-earlier-passes">
+                        @foreach (var earlier in earlierPasses)
+                        {
+                            <div class="approval-step-earlier-pass">
+                                <span>@WorkflowDisplay.StepLabel(earlier.Outcome, isCurrent: false)</span>
+                                @if (EmployeeNames.TryGetValue(earlier.ActedByEmployeeId, out var earlierActor))
+                                {
+                                    <span> — @earlierActor</span>
+                                }
+                                <span> · @earlier.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                @if (!string.IsNullOrWhiteSpace(earlier.Comment))
+                                {
+                                    <span> — «@earlier.Comment»</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </div>
     }
@@ -44,9 +72,23 @@
     [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
     [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
 
+    /// <summary>
+    /// The request's full decision history (<see cref="WorkflowRequest.StepDecisions"/>), used to
+    /// show earlier passes of a step that was reopened after a later step returned to it. Optional —
+    /// callers that don't load it simply show each step's current state only, as before.
+    /// </summary>
+    [Parameter] public IReadOnlyList<WorkflowStepDecision> Decisions { get; set; } = [];
+
     /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
     [Parameter] public Guid? HighlightStepId { get; set; }
 
     /// <summary>Whether to show the current holder's name on the current (awaiting-action) step too, not just queued ones.</summary>
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();
+        return new string(chars);
+    }
 }

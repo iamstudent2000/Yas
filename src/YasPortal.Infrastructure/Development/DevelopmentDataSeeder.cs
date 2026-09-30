@@ -20,7 +20,9 @@ public static class DevelopmentDataSeeder
             // COL_LENGTH is NULL when either the table or the column is missing.
             var workflowRevisionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'Revision') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var requesterActionsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowRequesterActions]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists)
+            var stepDecisionsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowStepDecisions]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            var forceCloseColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'ForceCloseReason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
@@ -87,7 +89,8 @@ public static class DevelopmentDataSeeder
             ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
             ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
             ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
-            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار")
+            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار"),
+            ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده")
         };
 
         foreach (var permission in permissions.Values.ToList())

@@ -82,6 +82,19 @@ public sealed class WorkflowRequest
     public ICollection<WorkflowRequesterAction> RequesterActions { get; private set; } = new List<WorkflowRequesterAction>();
 
     /// <summary>
+    /// Every decision ever made on any step, across every pass and every round — see
+    /// <see cref="WorkflowStepDecision"/>. This is the authoritative approval history;
+    /// <see cref="WorkflowRequestStep"/>'s own ActedBy/ActedAt/Comment only ever reflect its
+    /// current, possibly-since-reopened state.
+    /// </summary>
+    public ICollection<WorkflowStepDecision> StepDecisions { get; private set; } = new List<WorkflowStepDecision>();
+
+    /// <summary>Set once, permanently, if an admin ever force-closes this request — see <see cref="ForceClose"/>.</summary>
+    public Guid? ForceClosedByEmployeeId { get; private set; }
+    public DateTime? ForceClosedAtUtc { get; private set; }
+    public string? ForceCloseReason { get; private set; }
+
+    /// <summary>
     /// False whenever a step decision has happened that the requester hasn't looked at yet —
     /// drives the "you have updates" badge. Starts true (the requester just submitted it
     /// themselves, so there's nothing new to tell them), flips false on any step action, and
@@ -112,6 +125,9 @@ public sealed class WorkflowRequest
     /// approved yet — cancelling after a partial approval would silently discard that decision.</item>
     /// </list>
     /// </summary>
+    /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
+    public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
+
     public bool CanBeCancelled =>
         Status == WorkflowRequestStatus.ReturnedToRequester
         || (Status == WorkflowRequestStatus.PendingApproval
@@ -120,10 +136,35 @@ public sealed class WorkflowRequest
             && Steps.Count > 0
             && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
 
+    /// <summary>
+    /// SuperAdmin-only escape hatch (§22.1): force-closes a request stuck for any reason — most
+    /// commonly a vacant approver position (§5.4) that no requester action can resolve — from
+    /// whatever step it is currently on. Unlike <see cref="Cancel"/>, this works even after a step
+    /// has already approved, and requires no cooperation from anyone in the approval chain. The
+    /// reason is mandatory and, like the rest of this record, permanent: force-close cannot be undone.
+    /// </summary>
+    public void ForceClose(Guid adminEmployeeId, string reason)
+    {
+        if (adminEmployeeId == Guid.Empty)
+            throw new ArgumentException("Admin employee is required.", nameof(adminEmployeeId));
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A reason is required to force-close a request.", nameof(reason));
+        if (IsTerminal)
+            throw new InvalidOperationException("This request is already closed.");
+
+        Status = WorkflowRequestStatus.Cancelled;
+        ForceClosedByEmployeeId = adminEmployeeId;
+        ForceClosedAtUtc = DateTime.UtcNow;
+        ForceCloseReason = reason.Trim();
+        RequesterHasSeenLatestUpdate = false;
+        Revision++;
+    }
+
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {
         var step = RequireActionableCurrentStep(stepId);
         step.Approve(actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment);
 
         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
         if (next is null)
@@ -147,6 +188,7 @@ public sealed class WorkflowRequest
     {
         var step = RequireActionableCurrentStep(stepId);
         step.Reject(actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment);
         Status = WorkflowRequestStatus.Rejected;
         RequesterHasSeenLatestUpdate = false;
         Revision++;
@@ -156,6 +198,7 @@ public sealed class WorkflowRequest
     {
         var step = RequireActionableCurrentStep(stepId);
         step.ReturnToRequester(actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
         Status = WorkflowRequestStatus.ReturnedToRequester;
         RequesterHasSeenLatestUpdate = false;
         Revision++;
@@ -172,11 +215,16 @@ public sealed class WorkflowRequest
             // meaningful "previous" stop from here is the requester themselves, so this falls
             // back to exactly the same outcome as ReturnToRequester rather than failing.
             step.ReturnToRequester(actingEmployeeId, comment);
+            RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
             Status = WorkflowRequestStatus.ReturnedToRequester;
         }
         else
         {
             step.ReturnToPreviousStep(actingEmployeeId, comment);
+            RecordDecision(step, WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment);
+            // previous.Reopen() below resets the target step's own ActedBy/ActedAt/Comment so it
+            // can be decided on again — but its original decision is never lost, because it was
+            // already appended to StepDecisions the first time it was acted on.
             previous.Reopen();
             CurrentStepOrder = previous.Order;
         }
@@ -233,6 +281,9 @@ public sealed class WorkflowRequest
         RequesterHasSeenLatestUpdate = true;
         Revision++;
     }
+
+    private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment) =>
+        StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment));
 
     private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
     {

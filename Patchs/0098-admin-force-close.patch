@@ -1,0 +1,427 @@
+From 8d4c79ec6adb251ee58de22f8f7772901231aea9 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.invalid>
+Date: Wed, 30 Sep 2026 04:51:47 +0000
+Subject: [PATCH] Add SuperAdmin force-close for stuck requests (vacant
+ positions, deadlocks)
+
+---
+ .../Workflows/WorkflowRequest.cs              |  32 +++
+ .../Development/DevelopmentDataSeeder.cs      |   6 +-
+ .../Persistence/ApplicationDbContext.cs       |   2 +-
+ .../Components/Layout/PersistentSidebar.razor |   3 +
+ .../Pages/Admin/ActiveRequests.razor          | 200 ++++++++++++++++++
+ src/YasPortal.Web/Program.cs                  |   2 +-
+ .../css/admin/admin-tables-and-lists.css      |   2 +
+ tests/YasPortal.Tests/WorkflowRequestTests.cs |  58 +++++
+ 8 files changed, 301 insertions(+), 4 deletions(-)
+ create mode 100644 src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 2415d83..ca8427f 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -89,6 +89,11 @@ public sealed class WorkflowRequest
+     /// </summary>
+     public ICollection<WorkflowStepDecision> StepDecisions { get; private set; } = new List<WorkflowStepDecision>();
+ 
++    /// <summary>Set once, permanently, if an admin ever force-closes this request — see <see cref="ForceClose"/>.</summary>
++    public Guid? ForceClosedByEmployeeId { get; private set; }
++    public DateTime? ForceClosedAtUtc { get; private set; }
++    public string? ForceCloseReason { get; private set; }
++
+     /// <summary>
+     /// False whenever a step decision has happened that the requester hasn't looked at yet —
+     /// drives the "you have updates" badge. Starts true (the requester just submitted it
+@@ -120,6 +125,9 @@ public sealed class WorkflowRequest
+     /// approved yet — cancelling after a partial approval would silently discard that decision.</item>
+     /// </list>
+     /// </summary>
++    /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
++    public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
++
+     public bool CanBeCancelled =>
+         Status == WorkflowRequestStatus.ReturnedToRequester
+         || (Status == WorkflowRequestStatus.PendingApproval
+@@ -128,6 +136,30 @@ public sealed class WorkflowRequest
+             && Steps.Count > 0
+             && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
+ 
++    /// <summary>
++    /// SuperAdmin-only escape hatch (§22.1): force-closes a request stuck for any reason — most
++    /// commonly a vacant approver position (§5.4) that no requester action can resolve — from
++    /// whatever step it is currently on. Unlike <see cref="Cancel"/>, this works even after a step
++    /// has already approved, and requires no cooperation from anyone in the approval chain. The
++    /// reason is mandatory and, like the rest of this record, permanent: force-close cannot be undone.
++    /// </summary>
++    public void ForceClose(Guid adminEmployeeId, string reason)
++    {
++        if (adminEmployeeId == Guid.Empty)
++            throw new ArgumentException("Admin employee is required.", nameof(adminEmployeeId));
++        if (string.IsNullOrWhiteSpace(reason))
++            throw new ArgumentException("A reason is required to force-close a request.", nameof(reason));
++        if (IsTerminal)
++            throw new InvalidOperationException("This request is already closed.");
++
++        Status = WorkflowRequestStatus.Cancelled;
++        ForceClosedByEmployeeId = adminEmployeeId;
++        ForceClosedAtUtc = DateTime.UtcNow;
++        ForceCloseReason = reason.Trim();
++        RequesterHasSeenLatestUpdate = false;
++        Revision++;
++    }
++
+     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+diff --git a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+index f0c1b3b..ad21ba1 100644
+--- a/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
++++ b/src/YasPortal.Infrastructure/Development/DevelopmentDataSeeder.cs
+@@ -21,7 +21,8 @@ public static class DevelopmentDataSeeder
+             var workflowRevisionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'Revision') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+             var requesterActionsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowRequesterActions]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+             var stepDecisionsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowStepDecisions]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists)
++            var forceCloseColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'ForceCloseReason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
++            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists)
+                 await db.Database.EnsureDeletedAsync(ct);
+         }
+ 
+@@ -88,7 +89,8 @@ public static class DevelopmentDataSeeder
+             ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
+             ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
+             ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
+-            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار")
++            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار"),
++            ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده")
+         };
+ 
+         foreach (var permission in permissions.Values.ToList())
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index 572db9e..a71c7d5 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -242,7 +242,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+         modelBuilder.Entity<UserPositionPermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<EmployeePermissionGroup>(e => { e.HasKey(x => new { x.EmployeeId, x.GroupId }); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Group).WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade); });
+         modelBuilder.Entity<WorkflowStepDefinition>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.ApproverRuleKind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasIndex(x => new { x.WorkflowType, x.Order }).IsUnique(); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); });
+-        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
++        modelBuilder.Entity<WorkflowRequest>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); e.Property(x => x.ForceCloseReason).HasMaxLength(1000); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ForceClosedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.WorkflowType).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.FieldValuesJson).HasColumnType("nvarchar(max)").IsRequired(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.RequesterPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequesterEmployeeId, x.CreatedAtUtc }); e.HasIndex(x => new { x.WorkflowType, x.Status }); });
+         modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
+         modelBuilder.Entity<WorkflowRequesterAction>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.RequesterActions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.AtUtc }); });
+         modelBuilder.Entity<WorkflowStepDecision>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.StepDecisions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.Order, x.ActedAtUtc }); e.HasIndex(x => x.StepId); });
+diff --git a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+index 0eca060..b067dc9 100644
+--- a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
++++ b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+@@ -111,6 +111,9 @@
+                                             <AuthorizeView Policy="Admin.Workflows">
+                                                 <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
+                                             </AuthorizeView>
++                                            <AuthorizeView Policy="Requests.ForceClose">
++                                                <NavLink href="/admin/active-requests"><i class="bx bx-error-circle"></i><span>درخواست‌های فعال</span></NavLink>
++                                            </AuthorizeView>
+                                         </div>
+                                     </div>
+                             </nav>
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor b/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
+new file mode 100644
+index 0000000..726d7e9
+--- /dev/null
++++ b/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
+@@ -0,0 +1,200 @@
++@page "/admin/active-requests"
++@using System.Security.Claims
++@using Microsoft.AspNetCore.Authorization
++@using Microsoft.AspNetCore.Components.Authorization
++@using Microsoft.EntityFrameworkCore
++@using YasPortal.Domain.Workflows
++@using YasPortal.Infrastructure.Persistence
++@using YasPortal.Web.Services
++@attribute [Authorize(Policy = "Requests.ForceClose")]
++@inject IDbContextFactory<ApplicationDbContext> DbFactory
++@inject WorkflowService Workflows
++@inject AuthenticationStateProvider AuthenticationStateProvider
++@inject AppState AppState
++
++<PageTitle>درخواست‌های فعال - یاس پورتال</PageTitle>
++
++<div class="admin-page" dir="rtl">
++    <div class="page-header">
++        <div>
++            <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
++            <h1 class="page-title"><i class="bx bx-error-circle"></i> درخواست‌های فعال</h1>
++            <p class="page-subtitle">
++                هر درخواستی که هنوز در جریان است، صرف‌نظر از این‌که چه کسی آن را ثبت کرده یا در چه مرحله‌ای گیر کرده است.
++                بستن اجباری یک اقدام برگشت‌ناپذیر SuperAdmin است — درخواست بدون نیاز به تایید هیچ‌یک از تاییدکنندگان بسته می‌شود
++                و دلیل آن برای همیشه در سوابق ثبت می‌گردد.
++            </p>
++        </div>
++    </div>
++
++    @if (_loading)
++    {
++        <p class="muted">در حال بارگذاری...</p>
++    }
++    else if (_requests.Count == 0)
++    {
++        <p class="muted">در حال حاضر هیچ درخواست فعالی در سامانه وجود ندارد.</p>
++    }
++    else
++    {
++        <div class="admin-table-wrap">
++            <table class="admin-table">
++                <thead>
++                    <tr>
++                        <th>نوع</th>
++                        <th>درخواست‌کننده</th>
++                        <th>وضعیت</th>
++                        <th>مرحله جاری</th>
++                        <th>نزد سمت</th>
++                        <th>تاریخ ثبت</th>
++                        <th></th>
++                    </tr>
++                </thead>
++                <tbody>
++                    @foreach (var request in _requests)
++                    {
++                        var currentStep = request.CurrentStep;
++                        var vacant = currentStep is not null && !_holderNames.ContainsKey(currentStep.ApproverPositionId);
++                        <tr>
++                            <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
++                            <td>@(_employeeNames.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")</td>
++                            <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
++                            <td>@(currentStep?.Name ?? "—")</td>
++                            <td>
++                                @if (currentStep is null)
++                                {
++                                    <span class="muted">—</span>
++                                }
++                                else if (vacant)
++                                {
++                                    <span class="badge badge-danger">سمت خالی است</span>
++                                }
++                                else
++                                {
++                                    @(_holderNames.TryGetValue(currentStep.ApproverPositionId, out var holder) ? holder : "—")
++                                }
++                            </td>
++                            <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
++                            <td>
++                                @if (_openReasonFor == request.Id)
++                                {
++                                    <div class="force-close-panel">
++                                        <input type="text" class="form-control" placeholder="دلیل بستن اجباری (الزامی)"
++                                               value="@GetReason(request.Id)" @oninput="e => SetReason(request.Id, e)" />
++                                        <div class="force-close-actions">
++                                            <button type="button" class="btn btn-danger btn-sm" disabled="@(_busyId == request.Id || string.IsNullOrWhiteSpace(GetReason(request.Id)))"
++                                                    @onclick="() => ForceCloseAsync(request.Id)">
++                                                @if (_busyId == request.Id)
++                                                {
++                                                    <span><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
++                                                }
++                                                else
++                                                {
++                                                    <span>تایید بستن اجباری</span>
++                                                }
++                                            </button>
++                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openReasonFor = null">انصراف</button>
++                                        </div>
++                                    </div>
++                                }
++                                else
++                                {
++                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => _openReasonFor = request.Id">
++                                        <i class="bx bx-x-circle"></i> بستن اجباری
++                                    </button>
++                                }
++                            </td>
++                        </tr>
++                    }
++                </tbody>
++            </table>
++        </div>
++    }
++</div>
++
++@code {
++    private bool _loading = true;
++    private List<WorkflowRequest> _requests = [];
++    private Dictionary<Guid, string> _employeeNames = [];
++    private Dictionary<Guid, string> _holderNames = [];
++    private Dictionary<Guid, string> _reasons = [];
++    private Guid? _openReasonFor;
++    private Guid? _busyId;
++    private Guid? _employeeId;
++
++    protected override async Task OnInitializedAsync()
++    {
++        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
++        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
++        await LoadAsync();
++    }
++
++    private async Task LoadAsync()
++    {
++        _loading = true;
++        await using var db = await DbFactory.CreateDbContextAsync();
++
++        // "Active" here means still able to move — the same two statuses CanBeCancelled cares
++        // about. Approved/Rejected/Cancelled requests are terminal and need no admin attention.
++        _requests = await db.WorkflowRequests
++            .Where(x => x.Status == WorkflowRequestStatus.PendingApproval || x.Status == WorkflowRequestStatus.ReturnedToRequester)
++            .Include(x => x.Steps)
++            .OrderBy(x => x.CreatedAtUtc)
++            .ToListAsync();
++
++        var requesterIds = _requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
++        _employeeNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking()
++            .Where(x => requesterIds.Contains(x.Id))
++            .ToDictionaryAsync(x => x.Id, x => x.FullName);
++
++        var pendingPositionIds = _requests.Select(x => x.CurrentStep).Where(x => x is not null).Select(x => x!.ApproverPositionId).Distinct().ToList();
++        _holderNames = await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
++
++        _loading = false;
++    }
++
++    private string GetReason(Guid requestId) => _reasons.TryGetValue(requestId, out var r) ? r : "";
++    private void SetReason(Guid requestId, ChangeEventArgs e) => _reasons[requestId] = e.Value?.ToString() ?? "";
++
++    private async Task ForceCloseAsync(Guid requestId)
++    {
++        if (_employeeId is not Guid adminId)
++            return;
++        var reason = GetReason(requestId).Trim();
++        if (string.IsNullOrWhiteSpace(reason))
++            return;
++
++        _busyId = requestId;
++        try
++        {
++            await using var db = await DbFactory.CreateDbContextAsync();
++            var tracked = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
++            if (tracked is null)
++            {
++                await LoadAsync();
++                return;
++            }
++
++            tracked.ForceClose(adminId, reason);
++            try
++            {
++                await db.SaveChangesAsync();
++            }
++            catch (DbUpdateConcurrencyException)
++            {
++                AppState.AddToast("وضعیت این درخواست هم‌زمان تغییر کرد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                await LoadAsync();
++                return;
++            }
++
++            AppState.AddToast("درخواست با موفقیت بسته شد.", ToastLevel.Success);
++            _reasons.Remove(requestId);
++            _openReasonFor = null;
++            await LoadAsync();
++        }
++        finally
++        {
++            _busyId = null;
++        }
++    }
++}
+diff --git a/src/YasPortal.Web/Program.cs b/src/YasPortal.Web/Program.cs
+index ac48409..c1ff774 100644
+--- a/src/YasPortal.Web/Program.cs
++++ b/src/YasPortal.Web/Program.cs
+@@ -33,7 +33,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
+     options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
+ });
+ builder.Services.AddAuthorization(options => {
+-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
++    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ForceClose", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
+         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
+ });
+ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+diff --git a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+index 589fd0a..af2c0b4 100644
+--- a/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
++++ b/src/YasPortal.Web/wwwroot/css/admin/admin-tables-and-lists.css
+@@ -218,3 +218,5 @@
+ .sortable-th-inner i{font-size:13px;color:#98a2b3}
+ .sortable-th:hover .sortable-th-inner i{color:#667085}
+ 
++.force-close-panel{display:flex;flex-direction:column;gap:6px;min-width:220px}
++.force-close-actions{display:flex;gap:6px}
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 39c233b..0ede7eb 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -556,6 +556,64 @@ public class WorkflowRequestTests
+         Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
+     }
+ 
++    [Fact]
++    public void ForceClose_closes_a_request_from_any_non_terminal_state_with_a_reason()
++    {
++        var pending = CreateTwoStepRequest(out _, out _);
++        var admin = Guid.NewGuid();
++        pending.ForceClose(admin, "سمت خالی است و راهی برای پیشروی وجود ندارد");
++
++        Assert.Equal(WorkflowRequestStatus.Cancelled, pending.Status);
++        Assert.Equal(admin, pending.ForceClosedByEmployeeId);
++        Assert.Equal("سمت خالی است و راهی برای پیشروی وجود ندارد", pending.ForceCloseReason);
++        Assert.NotNull(pending.ForceClosedAtUtc);
++    }
++
++    [Fact]
++    public void ForceClose_works_even_after_a_step_has_already_approved_unlike_Cancel()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++        Assert.False(request.CanBeCancelled);
++
++        request.ForceClose(Guid.NewGuid(), "دلیل مدیریتی");
++
++        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
++    }
++
++    [Fact]
++    public void ForceClose_requires_a_reason_and_a_real_admin_and_cannot_reclose_a_terminal_request()
++    {
++        var noReason = CreateTwoStepRequest(out _, out _);
++        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.NewGuid(), ""));
++        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.NewGuid(), "   "));
++        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.Empty, "دلیل"));
++
++        var alreadyClosed = CreateTwoStepRequest(out _, out _);
++        alreadyClosed.ForceClose(Guid.NewGuid(), "بار اول");
++        Assert.Throws<InvalidOperationException>(() => alreadyClosed.ForceClose(Guid.NewGuid(), "بار دوم"));
++    }
++
++    [Fact]
++    public void IsTerminal_matches_exactly_the_three_closed_statuses()
++    {
++        var approved = CreateTwoStepRequest(out var s1, out var s2);
++        approved.Approve(s1, Guid.NewGuid(), null);
++        approved.Approve(s2, Guid.NewGuid(), null);
++        Assert.True(approved.IsTerminal);
++
++        var rejected = CreateTwoStepRequest(out var rs, out _);
++        rejected.Reject(rs, Guid.NewGuid(), null);
++        Assert.True(rejected.IsTerminal);
++
++        var pending = CreateTwoStepRequest(out _, out _);
++        Assert.False(pending.IsTerminal);
++
++        var returned = CreateTwoStepRequest(out var retS, out _);
++        returned.ReturnToRequester(retS, Guid.NewGuid(), null);
++        Assert.False(returned.IsTerminal);
++    }
++
+ }
+ 
+ public class WorkflowStepDefinitionTests
+-- 
+2.43.0
+

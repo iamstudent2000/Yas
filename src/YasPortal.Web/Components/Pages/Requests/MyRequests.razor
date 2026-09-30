@@ -170,12 +170,15 @@
                 _page = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
             _requests = await query.Include(x => x.Steps)
+                .Include(x => x.RequesterActions)
+                .Include(x => x.StepDecisions)
                 .OrderByDescending(x => x.CreatedAtUtc)
                 .Skip((_page - 1) * _pageSize)
                 .Take(_pageSize)
                 .ToListAsync();
 
             var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);

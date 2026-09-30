@@ -477,6 +477,143 @@ public class WorkflowRequestTests
         Assert.Equal(1, request.RequesterActions.Count);
     }
 
+    [Fact]
+    public void Approving_records_a_step_decision_that_survives_the_step_being_reopened()
+    {
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out var step2Id);
+        var firstApprover = Guid.NewGuid();
+        var secondPosition = request.Steps.First(x => x.Order == 2).ApproverPositionId;
+
+        request.Approve(step1Id, firstApprover, "اولین تایید");
+        request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), "برگشت به مرحله قبل");
+
+        // The live step was reset by Reopen() for its second pass...
+        var step1 = request.Steps.Single(x => x.Id == step1Id);
+        Assert.Equal(WorkflowStepStatus.Pending, step1.Status);
+        Assert.Null(step1.ActedByEmployeeId);
+        Assert.Null(step1.Comment);
+
+        // ...but the original decision is still there, exactly as it was made.
+        var firstDecision = Assert.Single(request.StepDecisions, d => d.StepId == step1Id);
+        Assert.Equal(WorkflowStepStatus.Approved, firstDecision.Outcome);
+        Assert.Equal(firstApprover, firstDecision.ActedByEmployeeId);
+        Assert.Equal("اولین تایید", firstDecision.Comment);
+        Assert.Equal(1, firstDecision.Round);
+        Assert.Equal(1, firstDecision.Order);
+    }
+
+    [Fact]
+    public void A_step_acted_on_twice_in_the_same_round_has_two_ordered_decisions()
+    {
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out var step2Id);
+        var firstApprover = Guid.NewGuid();
+        var secondApprover = Guid.NewGuid();
+
+        request.Approve(step1Id, firstApprover, "بار اول");
+        request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), null);
+        request.Approve(step1Id, secondApprover, "بار دوم");
+
+        var decisions = request.StepDecisions.Where(d => d.StepId == step1Id).OrderBy(d => d.ActedAtUtc).ToList();
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(firstApprover, decisions[0].ActedByEmployeeId);
+        Assert.Equal("بار اول", decisions[0].Comment);
+        Assert.Equal(secondApprover, decisions[1].ActedByEmployeeId);
+        Assert.Equal("بار دوم", decisions[1].Comment);
+        // The live step only ever shows the most recent pass.
+        Assert.Equal(secondApprover, request.Steps.Single(x => x.Id == step1Id).ActedByEmployeeId);
+    }
+
+    [Fact]
+    public void Reject_and_return_to_requester_are_also_recorded_as_step_decisions()
+    {
+        var rejected = CreateRequestFiledBy(Guid.NewGuid(), out var rejectStep, out _);
+        var rejector = Guid.NewGuid();
+        rejected.Reject(rejectStep, rejector, "رد شد");
+        var rejectDecision = Assert.Single(rejected.StepDecisions);
+        Assert.Equal(WorkflowStepStatus.Rejected, rejectDecision.Outcome);
+        Assert.Equal(rejector, rejectDecision.ActedByEmployeeId);
+
+        var returned = CreateRequestFiledBy(Guid.NewGuid(), out var returnStep, out _);
+        var returner = Guid.NewGuid();
+        returned.ReturnToRequester(returnStep, returner, "اصلاح شود");
+        var returnDecision = Assert.Single(returned.StepDecisions);
+        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, returnDecision.Outcome);
+        Assert.Equal(returner, returnDecision.ActedByEmployeeId);
+    }
+
+    [Fact]
+    public void Returning_from_the_first_step_to_the_requester_records_the_position_that_did_it()
+    {
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out _);
+        var step1Position = request.Steps.Single(x => x.Id == step1Id).ApproverPositionId;
+        var actor = Guid.NewGuid();
+
+        request.ReturnToPreviousStep(step1Id, actor, "بازگشت از اولین مرحله");
+
+        var decision = Assert.Single(request.StepDecisions);
+        Assert.Equal(WorkflowStepStatus.ReturnedToRequester, decision.Outcome);
+        Assert.Equal(step1Position, decision.ApproverPositionId);
+        Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
+    }
+
+    [Fact]
+    public void ForceClose_closes_a_request_from_any_non_terminal_state_with_a_reason()
+    {
+        var pending = CreateTwoStepRequest(out _, out _);
+        var admin = Guid.NewGuid();
+        pending.ForceClose(admin, "سمت خالی است و راهی برای پیشروی وجود ندارد");
+
+        Assert.Equal(WorkflowRequestStatus.Cancelled, pending.Status);
+        Assert.Equal(admin, pending.ForceClosedByEmployeeId);
+        Assert.Equal("سمت خالی است و راهی برای پیشروی وجود ندارد", pending.ForceCloseReason);
+        Assert.NotNull(pending.ForceClosedAtUtc);
+    }
+
+    [Fact]
+    public void ForceClose_works_even_after_a_step_has_already_approved_unlike_Cancel()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+        Assert.False(request.CanBeCancelled);
+
+        request.ForceClose(Guid.NewGuid(), "دلیل مدیریتی");
+
+        Assert.Equal(WorkflowRequestStatus.Cancelled, request.Status);
+    }
+
+    [Fact]
+    public void ForceClose_requires_a_reason_and_a_real_admin_and_cannot_reclose_a_terminal_request()
+    {
+        var noReason = CreateTwoStepRequest(out _, out _);
+        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.NewGuid(), ""));
+        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.NewGuid(), "   "));
+        Assert.Throws<ArgumentException>(() => noReason.ForceClose(Guid.Empty, "دلیل"));
+
+        var alreadyClosed = CreateTwoStepRequest(out _, out _);
+        alreadyClosed.ForceClose(Guid.NewGuid(), "بار اول");
+        Assert.Throws<InvalidOperationException>(() => alreadyClosed.ForceClose(Guid.NewGuid(), "بار دوم"));
+    }
+
+    [Fact]
+    public void IsTerminal_matches_exactly_the_three_closed_statuses()
+    {
+        var approved = CreateTwoStepRequest(out var s1, out var s2);
+        approved.Approve(s1, Guid.NewGuid(), null);
+        approved.Approve(s2, Guid.NewGuid(), null);
+        Assert.True(approved.IsTerminal);
+
+        var rejected = CreateTwoStepRequest(out var rs, out _);
+        rejected.Reject(rs, Guid.NewGuid(), null);
+        Assert.True(rejected.IsTerminal);
+
+        var pending = CreateTwoStepRequest(out _, out _);
+        Assert.False(pending.IsTerminal);
+
+        var returned = CreateTwoStepRequest(out var retS, out _);
+        returned.ReturnToRequester(retS, Guid.NewGuid(), null);
+        Assert.False(returned.IsTerminal);
+    }
+
 }
 
 public class WorkflowStepDefinitionTests

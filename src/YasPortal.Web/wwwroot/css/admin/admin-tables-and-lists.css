@@ -218,3 +218,5 @@
 .sortable-th-inner i{font-size:13px;color:#98a2b3}
 .sortable-th:hover .sortable-th-inner i{color:#667085}
 
+.force-close-panel{display:flex;flex-direction:column;gap:6px;min-width:220px}
+.force-close-actions{display:flex;gap:6px}

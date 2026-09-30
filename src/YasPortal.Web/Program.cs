@@ -19,9 +19,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => { options.Cookie.Name = "YasPortal.Auth"; options.LoginPath = "/login"; options.AccessDeniedPath = "/access-denied"; options.ExpireTimeSpan = TimeSpan.FromHours(8); options.SlidingExpiration = true; });
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
+    options.Cookie.Name = "YasPortal.Auth";
+    options.LoginPath = "/login";
+    options.AccessDeniedPath = "/access-denied";
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+    // The 8-hour sliding cookie otherwise carries a snapshot of permissions taken at sign-in for
+    // its whole life, so deactivating an employee, ending their position, or revoking a permission
+    // would not take effect until they happen to sign in again. This re-checks against the
+    // database periodically (throttled — see ValidateAndRefreshPrincipalAsync) and either signs
+    // the user out or reissues the cookie with a fresh permission snapshot.
+    options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
+});
 builder.Services.AddAuthorization(options => {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
+    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ForceClose", "Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -163,6 +175,73 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) => { await antiforgery.ValidateRequestAsync(http); await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect("/login"); });
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
+
+// How often OnValidatePrincipal actually hits the database for a given cookie, rather than on
+// every single request. Stored as a claim on the principal itself so it survives across requests
+// without needing any server-side cache.
+const string LastValidatedClaimType = "yas_last_validated_utc";
+
+static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContext context)
+{
+    var principal = context.Principal;
+    if (principal is null)
+    {
+        context.RejectPrincipal();
+        return;
+    }
+
+    if (DateTime.TryParse(principal.FindFirstValue(LastValidatedClaimType), System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.RoundtripKind, out var lastValidatedUtc)
+        && DateTime.UtcNow - lastValidatedUtc < TimeSpan.FromMinutes(2))
+    {
+        return; // Recently checked — skip the database round trip on this request.
+    }
+
+    if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+    {
+        context.RejectPrincipal();
+        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return;
+    }
+
+    var dbFactory = context.HttpContext.RequestServices.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+    await using var db = await dbFactory.CreateDbContextAsync(context.HttpContext.RequestAborted);
+    var employee = await db.Employees.AsNoTracking().Include(x => x.Positions)
+        .SingleOrDefaultAsync(x => x.Id == employeeId, context.HttpContext.RequestAborted);
+
+    var claimedIsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdminValue) && isAdminValue;
+    Guid? claimedPositionId = Guid.TryParse(principal.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionValue) ? positionValue : null;
+
+    // Deactivated employee, or their admin state changed, or (for a non-admin) the position they
+    // are claiming is no longer their active one: none of these can be fixed by reissuing claims,
+    // since the identity itself is no longer valid the way the cookie describes it.
+    var stillValidIdentity = employee is not null && employee.IsActive && employee.IsAdmin == claimedIsAdmin
+        && (claimedIsAdmin || (claimedPositionId is Guid cp && employee.Positions.Any(x => x.PositionId == cp && x.IsActive)));
+    if (!stillValidIdentity)
+    {
+        context.RejectPrincipal();
+        await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return;
+    }
+
+    // Identity still holds — but permissions may have been revoked or granted since sign-in.
+    // Reissue the cookie with a fresh snapshot so that takes effect without forcing a re-login.
+    var currentPermissionClaims = principal.FindAll(AuthClaimNames.Permission).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
+
+    var claims = principal.Claims
+        .Where(c => c.Type != AuthClaimNames.Permission && c.Type != LastValidatedClaimType)
+        .ToList();
+    claims.AddRange(freshPermissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
+    claims.Add(new Claim(LastValidatedClaimType, DateTime.UtcNow.ToString("O")));
+
+    context.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+    // ShouldRenew must be true here regardless of whether permissions actually changed: it is what
+    // makes the cookie middleware write the replaced principal back to the browser's cookie. Without
+    // it the refreshed LastValidatedClaimType never reaches the client, and every single request
+    // would hit the database again instead of only once per RevalidationInterval.
+    context.ShouldRenew = true;
+}
 
 static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
     ApplicationDbContext db,

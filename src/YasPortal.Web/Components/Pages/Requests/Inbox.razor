@@ -273,6 +273,8 @@
                 _pendingPage = Math.Max(1, (int)Math.Ceiling(_pendingTotalCount / (double)_pendingPageSize));
 
             var requests = await query.Include(x => x.Steps)
+                .Include(x => x.RequesterActions)
+                .Include(x => x.StepDecisions)
                 .OrderBy(x => x.CreatedAtUtc)
                 .Skip((_pendingPage - 1) * _pendingPageSize)
                 .Take(_pendingPageSize)
@@ -282,6 +284,7 @@
             var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => requesterIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
             var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
             actorIds.AddRange(requesterIds);
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
@@ -349,13 +352,14 @@
             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
             var requestsById = requestIds.Count == 0
                 ? []
-                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Where(x => requestIds.Contains(x.Id)).ToListAsync())
+                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Where(x => requestIds.Contains(x.Id)).ToListAsync())
                     .ToDictionary(x => x.Id);
 
             var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();
             var requesterNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => requesterIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
 
             var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            actorIds.AddRange(requestsById.Values.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
             actorIds.AddRange(requesterIds);
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => actorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);

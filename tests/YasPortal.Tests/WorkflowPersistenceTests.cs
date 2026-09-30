@@ -138,6 +138,64 @@ public class WorkflowPersistenceTests
         Assert.All(actions, a => Assert.Equal(requester, a.EmployeeId));
     }
 
+    [Fact]
+    public async Task Step_decisions_survive_a_reopen_even_when_loaded_in_separate_contexts()
+    {
+        // Round-trips through the database in separate contexts (like the pages do), covering
+        // the exact case Reopen() used to destroy: an approval, then a return-to-previous-step
+        // that resets the step, then a second approval. Both decisions must still be there.
+        var databaseName = Guid.NewGuid().ToString();
+        var firstApprover = Guid.NewGuid();
+        var secondApprover = Guid.NewGuid();
+        Guid requestId, step1Id, step2Id;
+
+        await using (var setup = CreateContext(databaseName))
+        {
+            var request = new WorkflowRequest(
+                WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
+                new[]
+                {
+                    (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()),
+                    (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()),
+                });
+            setup.WorkflowRequests.Add(request);
+            await setup.SaveChangesAsync();
+            requestId = request.Id;
+            step1Id = request.Steps.Single(x => x.Order == 1).Id;
+            step2Id = request.Steps.Single(x => x.Order == 2).Id;
+        }
+
+        await using (var approving1 = CreateContext(databaseName))
+        {
+            var request = await approving1.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Approve(step1Id, firstApprover, "بار اول");
+            await approving1.SaveChangesAsync();
+        }
+
+        await using (var returning = CreateContext(databaseName))
+        {
+            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), "برگشت");
+            await returning.SaveChangesAsync();
+        }
+
+        await using (var approving2 = CreateContext(databaseName))
+        {
+            var request = await approving2.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Approve(step1Id, secondApprover, "بار دوم");
+            await approving2.SaveChangesAsync();
+        }
+
+        await using var verify = CreateContext(databaseName);
+        var saved = await verify.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions).SingleAsync(x => x.Id == requestId);
+        var decisions = saved.StepDecisions.Where(d => d.StepId == step1Id).OrderBy(d => d.ActedAtUtc).ToList();
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(firstApprover, decisions[0].ActedByEmployeeId);
+        Assert.Equal(secondApprover, decisions[1].ActedByEmployeeId);
+        // The live step only shows the latest pass; the log shows both.
+        Assert.Equal(secondApprover, saved.Steps.Single(x => x.Id == step1Id).ActedByEmployeeId);
+    }
+
     private static ApplicationDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
