@@ -196,6 +196,48 @@ public class WorkflowPersistenceTests
         Assert.Equal(secondApprover, saved.Steps.Single(x => x.Id == step1Id).ActedByEmployeeId);
     }
 
+    [Fact]
+    public async Task Cancel_is_refused_after_a_reopen_even_when_fetched_fresh_with_Steps_and_StepDecisions_loaded()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var requester = Guid.NewGuid();
+        Guid requestId, step1Id, step2Id;
+
+        await using (var setup = CreateContext(databaseName))
+        {
+            var request = new WorkflowRequest(
+                WorkflowTypeCode.Leave, requester, Guid.NewGuid(), "{}",
+                new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()), (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()) });
+            setup.WorkflowRequests.Add(request);
+            await setup.SaveChangesAsync();
+            requestId = request.Id;
+            step1Id = request.Steps.Single(x => x.Order == 1).Id;
+            step2Id = request.Steps.Single(x => x.Order == 2).Id;
+        }
+
+        await using (var approving in CreateContext(databaseName))
+        {
+            var request = await approving.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Approve(step1Id, Guid.NewGuid(), null);
+            await approving.SaveChangesAsync();
+        }
+
+        await using (var returning = CreateContext(databaseName))
+        {
+            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), null);
+            await returning.SaveChangesAsync();
+        }
+
+        // Exactly what MyRequests.razor's CancelAsync does: fetch with both Includes, then cancel.
+        await using var cancelling = CreateContext(databaseName);
+        var tracked = await cancelling.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions)
+            .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == requester);
+        Assert.NotNull(tracked);
+        Assert.False(tracked!.CanBeCancelled);
+        Assert.Throws<InvalidOperationException>(() => tracked.Cancel());
+    }
+
     private static ApplicationDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

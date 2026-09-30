@@ -1,0 +1,77 @@
+@implements IAsyncDisposable
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Infrastructure.Authorization
+@using YasPortal.Infrastructure.Persistence
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+@* No markup: this component only runs a background check for as long as it stays mounted. *@
+
+@code {
+    // The cookie's own revalidation (Program.cs, OnValidatePrincipal) only runs on a real HTTP
+    // request. A Blazor Server circuit can sit on one page, or move only between pages within the
+    // app, for hours without making another one — the whole session stays on the same SignalR
+    // connection. This is what actually closes that gap: it periodically re-checks the same
+    // identity facts independently, from inside the circuit, and forces a real page load through
+    // /account/reauth-check (which does hit the full HTTP pipeline) the moment something no longer
+    // matches. Shorter than the cookie's own throttle window on purpose, since detecting an admin
+    // deactivating someone quickly is the point of this component.
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(45);
+
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(CheckInterval);
+        _ = RunAsync(_cts.Token);
+    }
+
+    private async Task RunAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+            {
+                if (await IsStillValidAsync(ct))
+                    continue;
+
+                var returnUrl = Uri.EscapeDataString(new Uri(NavigationManager.Uri).PathAndQuery);
+                NavigationManager.NavigateTo($"/account/reauth-check?returnUrl={returnUrl}", forceLoad: true);
+                return;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The circuit was torn down (navigated away, tab closed, connection dropped) — nothing to do.
+        }
+    }
+
+    private async Task<bool> IsStillValidAsync(CancellationToken ct)
+    {
+        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (principal.Identity?.IsAuthenticated != true)
+            return true; // Nothing to enforce on an anonymous view.
+        if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+            return false;
+
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        var employee = await db.Employees.AsNoTracking().Include(x => x.Positions)
+            .SingleOrDefaultAsync(x => x.Id == employeeId, ct);
+        var claimedIsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdminValue) && isAdminValue;
+        Guid? claimedPositionId = Guid.TryParse(principal.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionValue) ? positionValue : null;
+
+        return IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+    }
+}

@@ -87,7 +87,27 @@
                                   HighlightStepId="HighlightStepId"
                                   ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
 
-            @if (Request.Status == WorkflowRequestStatus.Cancelled)
+            @if (Request.Status == WorkflowRequestStatus.Cancelled && Request.ForceClosedByEmployeeId is Guid forceCloserId)
+            {
+                <div class="approval-step">
+                    <span class="approval-step-icon is-cancelled"><i class="bx bx-shield-x"></i></span>
+                    <div class="approval-step-body">
+                        <strong>بستن اجباری توسط مدیر سامانه</strong>
+                        <div class="approval-step-meta">
+                            @(EmployeeNames.TryGetValue(forceCloserId, out var forceCloserName) ? forceCloserName : "مدیر سامانه")
+                            @if (Request.ForceClosedAtUtc is DateTime forceClosedAt)
+                            {
+                                <span> · @forceClosedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(Request.ForceCloseReason))
+                        {
+                            <div class="approval-step-comment">«@Request.ForceCloseReason»</div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (Request.Status == WorkflowRequestStatus.Cancelled)
             {
                 <div class="approval-step">
                     <span class="approval-step-icon is-cancelled"><i class="bx bx-x-circle"></i></span>

@@ -614,6 +614,38 @@ public class WorkflowRequestTests
         Assert.False(returned.IsTerminal);
     }
 
+    [Fact]
+    public void Requester_cannot_cancel_after_a_step_approved_even_once_and_was_then_reopened()
+    {
+        // The exact scenario: step 1 approves, step 2 sends it back to step 1 (reopening it),
+        // and now step 1 is Pending again — indistinguishable from "never touched" if you only
+        // look at the live step. The requester must not be able to cancel and erase that approval.
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out var step2Id);
+        request.Approve(step1Id, Guid.NewGuid(), null);
+        request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), null);
+
+        // Confirm the setup actually reproduces the deceptive state before asserting the fix.
+        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Id == step1Id).Status);
+
+        Assert.False(request.CanBeCancelled);
+        Assert.Throws<InvalidOperationException>(() => request.Cancel());
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+    }
+
+    [Fact]
+    public void Requester_can_still_cancel_when_a_step_only_ever_returned_and_never_approved()
+    {
+        // Contrast case: step 2 returns to step 1 WITHOUT step 1 ever having approved anything
+        // (falls back to ReturnToRequester when there's no earlier step, or simply nothing has
+        // been decided yet on step 1) — this must remain cancellable.
+        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out _);
+        Assert.True(request.CanBeCancelled);
+
+        request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), null); // no earlier step -> falls back to ReturnToRequester
+        Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
+        Assert.True(request.CanBeCancelled);
+    }
+
 }
 
 public class WorkflowStepDefinitionTests

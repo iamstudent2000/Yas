@@ -179,6 +179,7 @@
 
             var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
             actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            actorIds.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
@@ -336,8 +337,10 @@
                 return;
 
             await using var db = await DbFactory.CreateDbContextAsync();
-            // Steps must be loaded: CanBeCancelled inspects them. Scoped to the current requester.
-            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
+            // Steps must be loaded: CanBeCancelled inspects them. StepDecisions too — a step that
+            // approved once and was later reopened by a return-to-previous-step no longer shows
+            // Approved on the live step, only in this permanent log, and CanBeCancelled checks both.
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions)
                 .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == employeeId);
             if (tracked is null)
             {

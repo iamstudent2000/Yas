@@ -17,6 +17,13 @@ using YasPortal.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Claim type used to throttle how often OnValidatePrincipal / SessionGuard actually hit the
+// database for a given cookie, rather than on every request. Declared here, at the top, because
+// it is referenced both by the /account/reauth-check endpoint below and by OnValidatePrincipal
+// further down, and a local const in top-level statements must be declared before any lambda or
+// local function that closes over it, regardless of when that lambda actually runs.
+const string LastValidatedClaimType = "yas_last_validated_utc";
+
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
@@ -173,13 +180,52 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
 });
 
 app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) => { await antiforgery.ValidateRequestAsync(http); await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect("/login"); });
+
+// Called by SessionGuard (a component mounted in every authenticated page) when it notices, from
+// inside a long-lived Blazor Server circuit, that the signed-in identity may no longer be valid.
+// A circuit can run for hours without making another HTTP request — in-app navigation stays on
+// the same SignalR connection — so OnValidatePrincipal below, which only runs on real requests,
+// cannot catch that on its own; this endpoint is what a forced page reload actually lands on.
+// Deliberately a plain GET, no antiforgery token: every value this reads (identity, admin flag,
+// active position, permissions) comes from the authenticated cookie and the database, not from
+// the request, so a crafted link cannot make it produce anything other than what the visiting
+// user's own account already legitimately has. The only effect of an unwanted visit is the same
+// early-logout nuisance any GET logout link already carries.
+app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, string? returnUrl) =>
+{
+    var principal = http.User;
+    if (principal.Identity?.IsAuthenticated != true)
+        return Results.Redirect("/login");
+    if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+    {
+        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Results.Redirect("/login");
+    }
+
+    await using var db = await dbFactory.CreateDbContextAsync(http.RequestAborted);
+    var employee = await db.Employees.AsNoTracking().Include(x => x.Positions)
+        .SingleOrDefaultAsync(x => x.Id == employeeId, http.RequestAborted);
+    var claimedIsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdminValue) && isAdminValue;
+    Guid? claimedPositionId = Guid.TryParse(principal.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionValue) ? positionValue : null;
+
+    if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
+    {
+        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Results.Redirect("/login");
+    }
+
+    // Identity still holds — refresh permissions here too, same as OnValidatePrincipal, since a
+    // grant or revocation is exactly the kind of change SessionGuard exists to catch quickly.
+    var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
+    var claims = principal.Claims.Where(c => c.Type != AuthClaimNames.Permission && c.Type != LastValidatedClaimType).ToList();
+    claims.AddRange(freshPermissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
+    claims.Add(new Claim(LastValidatedClaimType, DateTime.UtcNow.ToString("O")));
+    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
+
+    return Results.Redirect(IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/");
+});
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
-
-// How often OnValidatePrincipal actually hits the database for a given cookie, rather than on
-// every single request. Stored as a claim on the principal itself so it survives across requests
-// without needing any server-side cache.
-const string LastValidatedClaimType = "yas_last_validated_utc";
 
 static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContext context)
 {
@@ -215,9 +261,7 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
     // Deactivated employee, or their admin state changed, or (for a non-admin) the position they
     // are claiming is no longer their active one: none of these can be fixed by reissuing claims,
     // since the identity itself is no longer valid the way the cookie describes it.
-    var stillValidIdentity = employee is not null && employee.IsActive && employee.IsAdmin == claimedIsAdmin
-        && (claimedIsAdmin || (claimedPositionId is Guid cp && employee.Positions.Any(x => x.PositionId == cp && x.IsActive)));
-    if (!stillValidIdentity)
+    if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
     {
         context.RejectPrincipal();
         await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

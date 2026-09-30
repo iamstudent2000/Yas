@@ -117,24 +117,31 @@ public sealed class WorkflowRequest
         Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == CurrentStepOrder)
         ?? throw new InvalidOperationException("The request has no current step.");
 
-    /// <summary>
-    /// Whether the requester can still cancel this request.
-    /// <list type="bullet">
-    /// <item>Always allowed when the request was returned to the requester (they own the next move).</item>
-    /// <item>While still pending approval, only allowed if no step in the current round has
-    /// approved yet — cancelling after a partial approval would silently discard that decision.</item>
-    /// </list>
-    /// </summary>
     /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
     public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
 
+    /// <summary>
+    /// Whether the requester can still cancel this request themselves.
+    /// <list type="bullet">
+    /// <item>Always allowed when the request was returned to the requester (they own the next move).</item>
+    /// <item>While still pending approval, only allowed if no step in the current round has ever
+    /// approved — including a step that approved once and was later reset to Pending by
+    /// <see cref="WorkflowRequestStep.Reopen"/> after a return-to-previous-step. Looking only at the
+    /// live step status is not enough here: Reopen() intentionally resets it for a fresh decision,
+    /// which would otherwise make a request that a manager already approved look, to this check,
+    /// exactly like one nobody has touched yet. <see cref="StepDecisions"/> is the permanent record
+    /// that catches that case, so once real progress has been made the requester can no longer
+    /// unilaterally withdraw it — from that point on, only <see cref="ForceClose"/> can close it.</item>
+    /// </list>
+    /// </summary>
     public bool CanBeCancelled =>
         Status == WorkflowRequestStatus.ReturnedToRequester
         || (Status == WorkflowRequestStatus.PendingApproval
             // Fails closed: a request always has at least one step, so an empty collection means
             // the steps were not loaded (missing .Include) — never treat that as "nobody approved yet".
             && Steps.Count > 0
-            && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
+            && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved)
+            && StepDecisions.Where(d => d.Round == CurrentRound).All(d => d.Outcome != WorkflowStepStatus.Approved));
 
     /// <summary>
     /// SuperAdmin-only escape hatch (§22.1): force-closes a request stuck for any reason — most

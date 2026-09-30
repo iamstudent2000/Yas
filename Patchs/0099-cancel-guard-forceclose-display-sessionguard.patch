@@ -1,0 +1,451 @@
+From 96d35164f6ecd19fc16cd0745e6f8d32c375a4a1 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.invalid>
+Date: Wed, 30 Sep 2026 09:49:45 +0000
+Subject: [PATCH] Fix: block cancel after a step approved-then-reopened; show
+ real force-close actor in timeline; catch permission/identity revocation
+ mid-circuit via SessionGuard
+
+---
+ .../Workflows/WorkflowRequest.cs              | 21 +++--
+ .../IdentitySnapshotValidator.cs              | 20 +++++
+ .../Components/Layout/ApplicationShell.razor  |  1 +
+ .../Components/Pages/Requests/Inbox.razor     |  2 +
+ .../Pages/Requests/MyRequests.razor           |  7 +-
+ .../Components/Shared/RequestSummary.razor    | 22 +++++-
+ .../Components/Shared/SessionGuard.razor      | 77 +++++++++++++++++++
+ src/YasPortal.Web/Program.cs                  | 60 +++++++++++++--
+ .../WorkflowPersistenceTests.cs               | 42 ++++++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 32 ++++++++
+ 10 files changed, 266 insertions(+), 18 deletions(-)
+ create mode 100644 src/YasPortal.Infrastructure/Authorization/IdentitySnapshotValidator.cs
+ create mode 100644 src/YasPortal.Web/Components/Shared/SessionGuard.razor
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index ca8427f..2bd26d2 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -117,24 +117,31 @@ public sealed class WorkflowRequest
+         Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == CurrentStepOrder)
+         ?? throw new InvalidOperationException("The request has no current step.");
+ 
++    /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
++    public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
++
+     /// <summary>
+-    /// Whether the requester can still cancel this request.
++    /// Whether the requester can still cancel this request themselves.
+     /// <list type="bullet">
+     /// <item>Always allowed when the request was returned to the requester (they own the next move).</item>
+-    /// <item>While still pending approval, only allowed if no step in the current round has
+-    /// approved yet — cancelling after a partial approval would silently discard that decision.</item>
++    /// <item>While still pending approval, only allowed if no step in the current round has ever
++    /// approved — including a step that approved once and was later reset to Pending by
++    /// <see cref="WorkflowRequestStep.Reopen"/> after a return-to-previous-step. Looking only at the
++    /// live step status is not enough here: Reopen() intentionally resets it for a fresh decision,
++    /// which would otherwise make a request that a manager already approved look, to this check,
++    /// exactly like one nobody has touched yet. <see cref="StepDecisions"/> is the permanent record
++    /// that catches that case, so once real progress has been made the requester can no longer
++    /// unilaterally withdraw it — from that point on, only <see cref="ForceClose"/> can close it.</item>
+     /// </list>
+     /// </summary>
+-    /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
+-    public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
+-
+     public bool CanBeCancelled =>
+         Status == WorkflowRequestStatus.ReturnedToRequester
+         || (Status == WorkflowRequestStatus.PendingApproval
+             // Fails closed: a request always has at least one step, so an empty collection means
+             // the steps were not loaded (missing .Include) — never treat that as "nobody approved yet".
+             && Steps.Count > 0
+-            && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved));
++            && Steps.Where(s => s.Round == CurrentRound).All(s => s.Status != WorkflowStepStatus.Approved)
++            && StepDecisions.Where(d => d.Round == CurrentRound).All(d => d.Outcome != WorkflowStepStatus.Approved));
+ 
+     /// <summary>
+     /// SuperAdmin-only escape hatch (§22.1): force-closes a request stuck for any reason — most
+diff --git a/src/YasPortal.Infrastructure/Authorization/IdentitySnapshotValidator.cs b/src/YasPortal.Infrastructure/Authorization/IdentitySnapshotValidator.cs
+new file mode 100644
+index 0000000..7257b92
+--- /dev/null
++++ b/src/YasPortal.Infrastructure/Authorization/IdentitySnapshotValidator.cs
+@@ -0,0 +1,20 @@
++using YasPortal.Domain.Organization;
++
++namespace YasPortal.Infrastructure.Authorization;
++
++/// <summary>
++/// Whether a principal's claimed identity — employee, admin flag, active position — still matches
++/// the database. This is the one place that check is written: it backs both the cookie's periodic
++/// <c>OnValidatePrincipal</c> check (which only runs on a real HTTP request — see Program.cs) and
++/// <c>SessionGuard</c>'s in-circuit check (which covers a long-lived Blazor Server session that
++/// makes no further HTTP requests after the page first loads). Keeping both paths calling the same
++/// method means they can never quietly drift apart and disagree about who is still valid.
++/// </summary>
++public static class IdentitySnapshotValidator
++{
++    public static bool IsStillValid(Employee? employee, bool claimedIsAdmin, Guid? claimedPositionId) =>
++        employee is not null
++        && employee.IsActive
++        && employee.IsAdmin == claimedIsAdmin
++        && (claimedIsAdmin || (claimedPositionId is Guid activePositionId && employee.Positions.Any(p => p.PositionId == activePositionId && p.IsActive)));
++}
+diff --git a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+index 6374ffb..785c417 100644
+--- a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
++++ b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+@@ -20,6 +20,7 @@
+         <AuthorizeView>
+             <Authorized>
+                 <PersistentSidebar />
++                <SessionGuard />
+             </Authorized>
+         </AuthorizeView>
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 34be095..1931f33 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -285,6 +285,7 @@
+ 
+             var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+             actorIds.AddRange(requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
++            actorIds.AddRange(requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
+             actorIds.AddRange(requesterIds);
+             actorIds = actorIds.Distinct().ToList();
+             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+@@ -360,6 +361,7 @@
+ 
+             var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+             actorIds.AddRange(requestsById.Values.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
++            actorIds.AddRange(requestsById.Values.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
+             actorIds.AddRange(requesterIds);
+             actorIds = actorIds.Distinct().ToList();
+             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => actorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 8809337..a46ba22 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -179,6 +179,7 @@
+ 
+             var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+             actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
++            actorIds.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
+             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
+             actorIds = actorIds.Distinct().ToList();
+             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+@@ -336,8 +337,10 @@
+                 return;
+ 
+             await using var db = await DbFactory.CreateDbContextAsync();
+-            // Steps must be loaded: CanBeCancelled inspects them. Scoped to the current requester.
+-            var tracked = await db.WorkflowRequests.Include(x => x.Steps)
++            // Steps must be loaded: CanBeCancelled inspects them. StepDecisions too — a step that
++            // approved once and was later reopened by a return-to-previous-step no longer shows
++            // Approved on the live step, only in this permanent log, and CanBeCancelled checks both.
++            var tracked = await db.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions)
+                 .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == employeeId);
+             if (tracked is null)
+             {
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+index 632f5bb..d951d84 100644
+--- a/src/YasPortal.Web/Components/Shared/RequestSummary.razor
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -87,7 +87,27 @@
+                                   HighlightStepId="HighlightStepId"
+                                   ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
+ 
+-            @if (Request.Status == WorkflowRequestStatus.Cancelled)
++            @if (Request.Status == WorkflowRequestStatus.Cancelled && Request.ForceClosedByEmployeeId is Guid forceCloserId)
++            {
++                <div class="approval-step">
++                    <span class="approval-step-icon is-cancelled"><i class="bx bx-shield-x"></i></span>
++                    <div class="approval-step-body">
++                        <strong>بستن اجباری توسط مدیر سامانه</strong>
++                        <div class="approval-step-meta">
++                            @(EmployeeNames.TryGetValue(forceCloserId, out var forceCloserName) ? forceCloserName : "مدیر سامانه")
++                            @if (Request.ForceClosedAtUtc is DateTime forceClosedAt)
++                            {
++                                <span> · @forceClosedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
++                            }
++                        </div>
++                        @if (!string.IsNullOrWhiteSpace(Request.ForceCloseReason))
++                        {
++                            <div class="approval-step-comment">«@Request.ForceCloseReason»</div>
++                        }
++                    </div>
++                </div>
++            }
++            else if (Request.Status == WorkflowRequestStatus.Cancelled)
+             {
+                 <div class="approval-step">
+                     <span class="approval-step-icon is-cancelled"><i class="bx bx-x-circle"></i></span>
+diff --git a/src/YasPortal.Web/Components/Shared/SessionGuard.razor b/src/YasPortal.Web/Components/Shared/SessionGuard.razor
+new file mode 100644
+index 0000000..6a8fcef
+--- /dev/null
++++ b/src/YasPortal.Web/Components/Shared/SessionGuard.razor
+@@ -0,0 +1,77 @@
++@implements IAsyncDisposable
++@using System.Security.Claims
++@using Microsoft.AspNetCore.Components.Authorization
++@using Microsoft.EntityFrameworkCore
++@using YasPortal.Infrastructure.Authorization
++@using YasPortal.Infrastructure.Persistence
++@inject AuthenticationStateProvider AuthenticationStateProvider
++@inject IDbContextFactory<ApplicationDbContext> DbFactory
++@inject NavigationManager NavigationManager
++
++@* No markup: this component only runs a background check for as long as it stays mounted. *@
++
++@code {
++    // The cookie's own revalidation (Program.cs, OnValidatePrincipal) only runs on a real HTTP
++    // request. A Blazor Server circuit can sit on one page, or move only between pages within the
++    // app, for hours without making another one — the whole session stays on the same SignalR
++    // connection. This is what actually closes that gap: it periodically re-checks the same
++    // identity facts independently, from inside the circuit, and forces a real page load through
++    // /account/reauth-check (which does hit the full HTTP pipeline) the moment something no longer
++    // matches. Shorter than the cookie's own throttle window on purpose, since detecting an admin
++    // deactivating someone quickly is the point of this component.
++    private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(45);
++
++    private PeriodicTimer? _timer;
++    private CancellationTokenSource? _cts;
++
++    protected override void OnInitialized()
++    {
++        _cts = new CancellationTokenSource();
++        _timer = new PeriodicTimer(CheckInterval);
++        _ = RunAsync(_cts.Token);
++    }
++
++    private async Task RunAsync(CancellationToken ct)
++    {
++        try
++        {
++            while (await _timer!.WaitForNextTickAsync(ct))
++            {
++                if (await IsStillValidAsync(ct))
++                    continue;
++
++                var returnUrl = Uri.EscapeDataString(new Uri(NavigationManager.Uri).PathAndQuery);
++                NavigationManager.NavigateTo($"/account/reauth-check?returnUrl={returnUrl}", forceLoad: true);
++                return;
++            }
++        }
++        catch (OperationCanceledException)
++        {
++            // The circuit was torn down (navigated away, tab closed, connection dropped) — nothing to do.
++        }
++    }
++
++    private async Task<bool> IsStillValidAsync(CancellationToken ct)
++    {
++        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
++        if (principal.Identity?.IsAuthenticated != true)
++            return true; // Nothing to enforce on an anonymous view.
++        if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
++            return false;
++
++        await using var db = await DbFactory.CreateDbContextAsync(ct);
++        var employee = await db.Employees.AsNoTracking().Include(x => x.Positions)
++            .SingleOrDefaultAsync(x => x.Id == employeeId, ct);
++        var claimedIsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdminValue) && isAdminValue;
++        Guid? claimedPositionId = Guid.TryParse(principal.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionValue) ? positionValue : null;
++
++        return IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId);
++    }
++
++    public async ValueTask DisposeAsync()
++    {
++        _cts?.Cancel();
++        _timer?.Dispose();
++        _cts?.Dispose();
++    }
++}
+diff --git a/src/YasPortal.Web/Program.cs b/src/YasPortal.Web/Program.cs
+index c1ff774..b85eff9 100644
+--- a/src/YasPortal.Web/Program.cs
++++ b/src/YasPortal.Web/Program.cs
+@@ -17,6 +17,13 @@ using YasPortal.Web.Services;
+ 
+ var builder = WebApplication.CreateBuilder(args);
+ 
++// Claim type used to throttle how often OnValidatePrincipal / SessionGuard actually hit the
++// database for a given cookie, rather than on every request. Declared here, at the top, because
++// it is referenced both by the /account/reauth-check endpoint below and by OnValidatePrincipal
++// further down, and a local const in top-level statements must be declared before any lambda or
++// local function that closes over it, regardless of when that lambda actually runs.
++const string LastValidatedClaimType = "yas_last_validated_utc";
++
+ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+ builder.Services.AddHttpContextAccessor();
+ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
+@@ -173,14 +180,53 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
+ });
+ 
+ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) => { await antiforgery.ValidateRequestAsync(http); await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect("/login"); });
++
++// Called by SessionGuard (a component mounted in every authenticated page) when it notices, from
++// inside a long-lived Blazor Server circuit, that the signed-in identity may no longer be valid.
++// A circuit can run for hours without making another HTTP request — in-app navigation stays on
++// the same SignalR connection — so OnValidatePrincipal below, which only runs on real requests,
++// cannot catch that on its own; this endpoint is what a forced page reload actually lands on.
++// Deliberately a plain GET, no antiforgery token: every value this reads (identity, admin flag,
++// active position, permissions) comes from the authenticated cookie and the database, not from
++// the request, so a crafted link cannot make it produce anything other than what the visiting
++// user's own account already legitimately has. The only effect of an unwanted visit is the same
++// early-logout nuisance any GET logout link already carries.
++app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, string? returnUrl) =>
++{
++    var principal = http.User;
++    if (principal.Identity?.IsAuthenticated != true)
++        return Results.Redirect("/login");
++    if (!Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
++    {
++        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
++        return Results.Redirect("/login");
++    }
++
++    await using var db = await dbFactory.CreateDbContextAsync(http.RequestAborted);
++    var employee = await db.Employees.AsNoTracking().Include(x => x.Positions)
++        .SingleOrDefaultAsync(x => x.Id == employeeId, http.RequestAborted);
++    var claimedIsAdmin = bool.TryParse(principal.FindFirstValue(AuthClaimNames.IsAdmin), out var isAdminValue) && isAdminValue;
++    Guid? claimedPositionId = Guid.TryParse(principal.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionValue) ? positionValue : null;
++
++    if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
++    {
++        await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
++        return Results.Redirect("/login");
++    }
++
++    // Identity still holds — refresh permissions here too, same as OnValidatePrincipal, since a
++    // grant or revocation is exactly the kind of change SessionGuard exists to catch quickly.
++    var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
++    var claims = principal.Claims.Where(c => c.Type != AuthClaimNames.Permission && c.Type != LastValidatedClaimType).ToList();
++    claims.AddRange(freshPermissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
++    claims.Add(new Claim(LastValidatedClaimType, DateTime.UtcNow.ToString("O")));
++    await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
++
++    return Results.Redirect(IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/");
++});
+ app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
+ app.Run();
+ 
+-// How often OnValidatePrincipal actually hits the database for a given cookie, rather than on
+-// every single request. Stored as a claim on the principal itself so it survives across requests
+-// without needing any server-side cache.
+-const string LastValidatedClaimType = "yas_last_validated_utc";
+-
+ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContext context)
+ {
+     var principal = context.Principal;
+@@ -215,9 +261,7 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
+     // Deactivated employee, or their admin state changed, or (for a non-admin) the position they
+     // are claiming is no longer their active one: none of these can be fixed by reissuing claims,
+     // since the identity itself is no longer valid the way the cookie describes it.
+-    var stillValidIdentity = employee is not null && employee.IsActive && employee.IsAdmin == claimedIsAdmin
+-        && (claimedIsAdmin || (claimedPositionId is Guid cp && employee.Positions.Any(x => x.PositionId == cp && x.IsActive)));
+-    if (!stillValidIdentity)
++    if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
+     {
+         context.RejectPrincipal();
+         await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+diff --git a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+index db0864d..19bd993 100644
+--- a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
++++ b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+@@ -196,6 +196,48 @@ public class WorkflowPersistenceTests
+         Assert.Equal(secondApprover, saved.Steps.Single(x => x.Id == step1Id).ActedByEmployeeId);
+     }
+ 
++    [Fact]
++    public async Task Cancel_is_refused_after_a_reopen_even_when_fetched_fresh_with_Steps_and_StepDecisions_loaded()
++    {
++        var databaseName = Guid.NewGuid().ToString();
++        var requester = Guid.NewGuid();
++        Guid requestId, step1Id, step2Id;
++
++        await using (var setup = CreateContext(databaseName))
++        {
++            var request = new WorkflowRequest(
++                WorkflowTypeCode.Leave, requester, Guid.NewGuid(), "{}",
++                new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()), (Guid.NewGuid(), 2, "منابع انسانی", Guid.NewGuid()) });
++            setup.WorkflowRequests.Add(request);
++            await setup.SaveChangesAsync();
++            requestId = request.Id;
++            step1Id = request.Steps.Single(x => x.Order == 1).Id;
++            step2Id = request.Steps.Single(x => x.Order == 2).Id;
++        }
++
++        await using (var approving in CreateContext(databaseName))
++        {
++            var request = await approving.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.Approve(step1Id, Guid.NewGuid(), null);
++            await approving.SaveChangesAsync();
++        }
++
++        await using (var returning = CreateContext(databaseName))
++        {
++            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), null);
++            await returning.SaveChangesAsync();
++        }
++
++        // Exactly what MyRequests.razor's CancelAsync does: fetch with both Includes, then cancel.
++        await using var cancelling = CreateContext(databaseName);
++        var tracked = await cancelling.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions)
++            .SingleOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == requester);
++        Assert.NotNull(tracked);
++        Assert.False(tracked!.CanBeCancelled);
++        Assert.Throws<InvalidOperationException>(() => tracked.Cancel());
++    }
++
+     private static ApplicationDbContext CreateContext(string databaseName)
+     {
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 0ede7eb..accf588 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -614,6 +614,38 @@ public class WorkflowRequestTests
+         Assert.False(returned.IsTerminal);
+     }
+ 
++    [Fact]
++    public void Requester_cannot_cancel_after_a_step_approved_even_once_and_was_then_reopened()
++    {
++        // The exact scenario: step 1 approves, step 2 sends it back to step 1 (reopening it),
++        // and now step 1 is Pending again — indistinguishable from "never touched" if you only
++        // look at the live step. The requester must not be able to cancel and erase that approval.
++        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out var step2Id);
++        request.Approve(step1Id, Guid.NewGuid(), null);
++        request.ReturnToPreviousStep(step2Id, Guid.NewGuid(), null);
++
++        // Confirm the setup actually reproduces the deceptive state before asserting the fix.
++        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.Single(x => x.Id == step1Id).Status);
++
++        Assert.False(request.CanBeCancelled);
++        Assert.Throws<InvalidOperationException>(() => request.Cancel());
++        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
++    }
++
++    [Fact]
++    public void Requester_can_still_cancel_when_a_step_only_ever_returned_and_never_approved()
++    {
++        // Contrast case: step 2 returns to step 1 WITHOUT step 1 ever having approved anything
++        // (falls back to ReturnToRequester when there's no earlier step, or simply nothing has
++        // been decided yet on step 1) — this must remain cancellable.
++        var request = CreateRequestFiledBy(Guid.NewGuid(), out var step1Id, out _);
++        Assert.True(request.CanBeCancelled);
++
++        request.ReturnToPreviousStep(step1Id, Guid.NewGuid(), null); // no earlier step -> falls back to ReturnToRequester
++        Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
++        Assert.True(request.CanBeCancelled);
++    }
++
+ }
+ 
+ public class WorkflowStepDefinitionTests
+-- 
+2.43.0
+
