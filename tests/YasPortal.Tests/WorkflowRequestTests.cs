@@ -462,7 +462,7 @@ public class WorkflowRequestTests
         var approved = CreateRequestFiledBy(requester, out var step1Id, out _);
         approved.Approve(step1Id, Guid.NewGuid(), null);
         Assert.Throws<InvalidOperationException>(() => approved.Cancel());
-        Assert.Equal(1, approved.RequesterActions.Count);
+        Assert.Single(approved.RequesterActions);
     }
 
     [Fact]
@@ -474,7 +474,7 @@ public class WorkflowRequestTests
         request.ReturnToPreviousStep(step2Id, approver, null);
         request.Reject(step1Id, approver, null);
 
-        Assert.Equal(1, request.RequesterActions.Count);
+        Assert.Single(request.RequesterActions);
     }
 
     [Fact]

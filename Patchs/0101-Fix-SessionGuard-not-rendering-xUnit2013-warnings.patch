@@ -1,0 +1,62 @@
+From 92e15a2954a01d759352b2d47256e4257faed8ca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 4 Oct 2026 13:03:57 +0330
+Subject: [PATCH] Fix SessionGuard not rendering + xUnit2013 warnings
+
+SessionGuard was tagged as <SessionGuard /> in ApplicationShell.razor
+with no matching @using and no namespace qualification, so Razor
+could not resolve it (RZ10012, warning-only) and it silently rendered
+as dead markup. The mid-circuit identity/permission revocation check
+built to fix the "sidebar navigation bypasses reauth" bug was never
+actually running. Fixed by fully qualifying the tag, matching the
+existing ActivePositionSelector pattern in the same file.
+
+Also replaces two Assert.Equal(1, x.Count) calls with Assert.Single(x)
+in WorkflowRequestTests.cs to clear the xUnit2013 analyzer warnings
+from the last build log.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XyMLKS5u8PnmcWAewhhwrY
+---
+ src/YasPortal.Web/Components/Layout/ApplicationShell.razor | 2 +-
+ tests/YasPortal.Tests/WorkflowRequestTests.cs              | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+index 785c417..c6e3442 100644
+--- a/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
++++ b/src/YasPortal.Web/Components/Layout/ApplicationShell.razor
+@@ -20,7 +20,7 @@
+         <AuthorizeView>
+             <Authorized>
+                 <PersistentSidebar />
+-                <SessionGuard />
++                <YasPortal.Web.Components.Shared.SessionGuard />
+             </Authorized>
+         </AuthorizeView>
+ 
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index accf588..572dd58 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -462,7 +462,7 @@ public class WorkflowRequestTests
+         var approved = CreateRequestFiledBy(requester, out var step1Id, out _);
+         approved.Approve(step1Id, Guid.NewGuid(), null);
+         Assert.Throws<InvalidOperationException>(() => approved.Cancel());
+-        Assert.Equal(1, approved.RequesterActions.Count);
++        Assert.Single(approved.RequesterActions);
+     }
+ 
+     [Fact]
+@@ -474,7 +474,7 @@ public class WorkflowRequestTests
+         request.ReturnToPreviousStep(step2Id, approver, null);
+         request.Reject(step1Id, approver, null);
+ 
+-        Assert.Equal(1, request.RequesterActions.Count);
++        Assert.Single(request.RequesterActions);
+     }
+ 
+     [Fact]
+-- 
+2.43.0
+
