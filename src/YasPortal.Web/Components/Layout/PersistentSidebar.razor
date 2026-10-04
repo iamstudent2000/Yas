@@ -138,17 +138,31 @@
     private int _inboxBadge;
     private int _myRequestsBadge;
 
+    private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
+    private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "admin/workflows", "admin/active-requests" };
+
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
         AppState.OnChange += OnAppStateChanged;
+        UpdateActiveGroups(Navigation.Uri);
         await RefreshBadgesAsync();
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
+        UpdateActiveGroups(e.Location);
         await RefreshBadgesAsync();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateActiveGroups(string uri)
+    {
+        var path = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
+        _accessActive = AccessGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        _structureActive = StructureGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        _requestsActive = RequestsGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
     private async void OnAppStateChanged()

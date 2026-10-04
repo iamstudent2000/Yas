@@ -1,0 +1,67 @@
+From 2655c2db70119168a5313d4812bdbf15bf13fcef Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 4 Oct 2026 13:13:23 +0330
+Subject: [PATCH] Fix sidebar group highlighting never activating
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+_accessActive, _structureActive and _requestsActive back the
+"active-parent" CSS class on each collapsible sidebar group's toggle
+button (already fully styled in base.css), but nothing ever set them
+— flagged by the CS0649 "field is never assigned" warnings in the
+last build log. The effect: opening a page like /admin/users while
+its parent group ("Access") is collapsed gave no visual indication of
+which group contains the current page.
+
+Adds UpdateActiveGroups, which matches the current path (ignoring
+query string and fragment) against each group's known routes, called
+on initial load and on every in-app navigation.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XyMLKS5u8PnmcWAewhhwrY
+---
+ .../Components/Layout/PersistentSidebar.razor      | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+index b067dc9..2d4a114 100644
+--- a/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
++++ b/src/YasPortal.Web/Components/Layout/PersistentSidebar.razor
+@@ -138,19 +138,33 @@
+     private int _inboxBadge;
+     private int _myRequestsBadge;
+ 
++    private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
++    private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
++    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "admin/workflows", "admin/active-requests" };
++
+     protected override async Task OnInitializedAsync()
+     {
+         Navigation.LocationChanged += OnLocationChanged;
+         AppState.OnChange += OnAppStateChanged;
++        UpdateActiveGroups(Navigation.Uri);
+         await RefreshBadgesAsync();
+     }
+ 
+     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+     {
++        UpdateActiveGroups(e.Location);
+         await RefreshBadgesAsync();
+         await InvokeAsync(StateHasChanged);
+     }
+ 
++    private void UpdateActiveGroups(string uri)
++    {
++        var path = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
++        _accessActive = AccessGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
++        _structureActive = StructureGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
++        _requestsActive = RequestsGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
++    }
++
+     private async void OnAppStateChanged()
+     {
+         await RefreshBadgesAsync();
+-- 
+2.43.0
+
