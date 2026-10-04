@@ -1,0 +1,33 @@
+From bc6ddd931ff991d237f749080daf07ae28c88b66 Mon Sep 17 00:00:00 2001
+From: Claude <claude@example.invalid>
+Date: Sun, 4 Oct 2026 07:48:21 +0330
+Subject: [PATCH] Fix syntax error in WorkflowPersistenceTests.cs (in -> =)
+
+A using-statement variable declaration had 'in' instead of '=', which is
+not valid C# syntax. The error only surfaces when the file is actually
+compiled by a real C# compiler; my own verification harnesses this
+session never fed this specific file through one, so it went unnoticed
+until the user's own dotnet build caught it.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XyMLKS5u8PnmcWAewhhwrY
+---
+ tests/YasPortal.Tests/WorkflowPersistenceTests.cs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+index 19bd993..794c38a 100644
+--- a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
++++ b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+@@ -215,7 +215,7 @@ public class WorkflowPersistenceTests
+             step2Id = request.Steps.Single(x => x.Order == 2).Id;
+         }
+ 
+-        await using (var approving in CreateContext(databaseName))
++        await using (var approving = CreateContext(databaseName))
+         {
+             var request = await approving.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+             request.Approve(step1Id, Guid.NewGuid(), null);
+-- 
+2.43.0
+

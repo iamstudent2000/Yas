@@ -215,7 +215,7 @@ public class WorkflowPersistenceTests
             step2Id = request.Steps.Single(x => x.Order == 2).Id;
         }
 
-        await using (var approving in CreateContext(databaseName))
+        await using (var approving = CreateContext(databaseName))
         {
             var request = await approving.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
             request.Approve(step1Id, Guid.NewGuid(), null);
