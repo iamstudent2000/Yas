@@ -82,6 +82,17 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
     }
 
+    /// <summary>
+    /// How many active requests of <paramref name="type"/> are still in flight (spec §18, §22.2).
+    /// While this is above zero the type's approval steps must not be changed: the SuperAdmin
+    /// has to resolve those requests first (force-close them from the Active Requests page).
+    /// </summary>
+    public async Task<int> CountBlockingRequestsAsync(WorkflowTypeCode type, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.WorkflowRequests.AsNoTracking().Active().CountAsync(x => x.WorkflowType == type, ct);
+    }
+
     /// <summary>Number of requests currently sitting at a step assigned to this position — drives the inbox badge.</summary>
     public async Task<int> CountInboxAsync(Guid? approverPositionId, CancellationToken ct = default)
     {

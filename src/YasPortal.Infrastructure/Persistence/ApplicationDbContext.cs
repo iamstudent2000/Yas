@@ -31,6 +31,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
     public DbSet<WorkflowRequesterAction> WorkflowRequesterActions => Set<WorkflowRequesterAction>();
     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
+    public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -246,5 +247,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
         modelBuilder.Entity<WorkflowRequesterAction>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.RequesterActions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.AtUtc }); });
         modelBuilder.Entity<WorkflowStepDecision>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.StepDecisions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.Order, x.ActedAtUtc }); e.HasIndex(x => x.StepId); });
+        // The approver inbox history filters decisions by the position that decided, newest first.
+        modelBuilder.Entity<WorkflowStepDecision>().HasIndex(x => new { x.ApproverPositionId, x.ActedAtUtc });
+        // Append-only field history (spec §11.3). Indexed per §20.1: request, actor and timestamp.
+        modelBuilder.Entity<WorkflowFieldChange>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.FieldKey).HasMaxLength(100).IsRequired();
+            e.Property(x => x.OldValue).HasColumnType("nvarchar(max)");
+            e.Property(x => x.NewValue).HasColumnType("nvarchar(max)");
+            e.HasOne<WorkflowRequest>().WithMany(x => x.FieldChanges).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ChangedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Position>().WithMany().HasForeignKey(x => x.ChangedByPositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.RequestId, x.ChangedAtUtc });
+            e.HasIndex(x => x.ChangedByEmployeeId);
+        });
     }
 }

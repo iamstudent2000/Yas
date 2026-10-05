@@ -1,0 +1,1059 @@
+From c14d238c46bfb841dcea424fd2f857530c162782 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 5 Oct 2026 15:04:00 +0330
+Subject: [PATCH] Fix workflow engine bugs found in review (stage 1)
+
+- ActiveRequests: catch the domain error when force-closing a request that
+  is no longer active, instead of crashing the circuit on a stale page.
+- Inbox history: read the permanent StepDecisions log instead of step
+  ActedBy/ActedAt, which Reopen() wipes, so an approver's approval no
+  longer vanishes after a bounce-back. Add an index on
+  (ApproverPositionId, ActedAtUtc) for that query.
+- Field history (spec 11.3): new append-only WorkflowFieldChange records
+  old/new value, user, position and timestamp for every field edited when
+  a returned request is resubmitted. Resubmit no longer silently
+  overwrites FieldValuesJson.
+- Inbox.Act: enforce the Requests.Approve/Reject/Return* permission on the
+  server, not only via AuthorizeView in the markup.
+- Validation (spec 26.1): WorkflowFieldCatalog.ValidateValues checks
+  required, number, date, select options, unknown keys and the leave date
+  range, returning field + reason. Used by NewRequest and MyRequests.
+- NewRequest: guard against double submit.
+- Admin Workflows (spec 18/22.2): block any step change while active
+  requests of that type exist (shared WorkflowRequestQueries.Active),
+  show a banner linking to Active Requests, add the missing
+  activate/deactivate button, and run reorder/delete in a transaction.
+
+Requires a new table: dotnet ef migrations add AddWorkflowFieldHistory
+(or recreate the dev database, which uses EnsureCreated).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RQHbwVSXJrhTqR4ZDkLhx4
+---
+ .../Workflows/WorkflowFieldCatalog.cs         |  79 ++++++++
+ .../Workflows/WorkflowFieldChange.cs          |  65 +++++++
+ .../Workflows/WorkflowRequest.cs              |  59 ++++++
+ .../Workflows/WorkflowRequestQueries.cs       |  15 ++
+ .../Persistence/ApplicationDbContext.cs       |  17 ++
+ .../Pages/Admin/ActiveRequests.razor          |  16 +-
+ .../Components/Pages/Admin/Workflows.razor    |  82 ++++++++-
+ .../Components/Pages/Requests/Inbox.razor     |  68 +++++--
+ .../Pages/Requests/MyRequests.razor           |   6 +-
+ .../Pages/Requests/NewRequest.razor           |  10 +-
+ src/YasPortal.Web/Services/WorkflowService.cs |  11 ++
+ .../WorkflowPersistenceTests.cs               |  82 +++++++++
+ tests/YasPortal.Tests/WorkflowRequestTests.cs | 172 ++++++++++++++++++
+ 13 files changed, 650 insertions(+), 32 deletions(-)
+ create mode 100644 src/YasPortal.Domain/Workflows/WorkflowFieldChange.cs
+ create mode 100644 src/YasPortal.Domain/Workflows/WorkflowRequestQueries.cs
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowFieldCatalog.cs b/src/YasPortal.Domain/Workflows/WorkflowFieldCatalog.cs
+index 6fd0bf5..5555062 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowFieldCatalog.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowFieldCatalog.cs
+@@ -1,8 +1,16 @@
++using System.Globalization;
++
+ namespace YasPortal.Domain.Workflows;
+ 
+ /// <summary>A single fixed field on a workflow type's form.</summary>
+ public sealed record WorkflowFieldDefinition(string Key, string Label, WorkflowFieldType FieldType, bool Required, IReadOnlyList<string>? Options = null);
+ 
++/// <summary>
++/// One validation failure, identifying the specific field and the reason (spec §26.1 — generic
++/// "something is invalid" messages are not allowed). <see cref="Message"/> is user-facing text.
++/// </summary>
++public sealed record WorkflowFieldError(string Key, string Label, string Message);
++
+ /// <summary>
+ /// The fixed field schema for every <see cref="WorkflowTypeCode"/>. This is deliberately
+ /// plain code, not a database table: workflow types and their fields do not change at
+@@ -75,4 +83,75 @@ public static class WorkflowFieldCatalog
+         }
+         return missing;
+     }
++
++    /// <summary>
++    /// Full server-side validation of a submitted set of field values (spec §26.1): required
++    /// fields, number / date / select formats, keys that are not part of the type's schema, and
++    /// the leave date range. Returns one <see cref="WorkflowFieldError"/> per problem, each naming
++    /// the field and the reason. An empty list means the values are acceptable.
++    ///
++    /// Formats match what the form stores: dates as <c>yyyy-MM-dd</c>, numbers in invariant
++    /// culture, and select values exactly equal to one of the field's options.
++    /// </summary>
++    public static IReadOnlyList<WorkflowFieldError> ValidateValues(WorkflowTypeCode type, IReadOnlyDictionary<string, string?> values)
++    {
++        var errors = new List<WorkflowFieldError>();
++        var fields = GetFields(type);
++
++        foreach (var field in fields)
++        {
++            values.TryGetValue(field.Key, out var raw);
++            if (string.IsNullOrWhiteSpace(raw))
++            {
++                if (field.Required)
++                    errors.Add(new WorkflowFieldError(field.Key, field.Label, "تکمیل این فیلد الزامی است."));
++                continue;
++            }
++
++            var value = raw.Trim();
++            switch (field.FieldType)
++            {
++                case WorkflowFieldType.Number:
++                    if (!TryParseNumber(value, out var number))
++                        errors.Add(new WorkflowFieldError(field.Key, field.Label, "باید یک عدد معتبر باشد."));
++                    else if (number < 0)
++                        errors.Add(new WorkflowFieldError(field.Key, field.Label, "نمی‌تواند منفی باشد."));
++                    break;
++                case WorkflowFieldType.Date:
++                    if (!TryParseDate(value, out _))
++                        errors.Add(new WorkflowFieldError(field.Key, field.Label, "تاریخ معتبر نیست."));
++                    break;
++                case WorkflowFieldType.Select:
++                    if (field.Options is not null && !field.Options.Contains(value, StringComparer.Ordinal))
++                        errors.Add(new WorkflowFieldError(field.Key, field.Label, "گزینه انتخاب‌شده معتبر نیست."));
++                    break;
++            }
++        }
++
++        // Fields are fixed in code (spec §11.1): a value for a key outside the schema is never legitimate.
++        var knownKeys = fields.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
++        foreach (var key in values.Keys.Where(k => !knownKeys.Contains(k)).OrderBy(k => k, StringComparer.Ordinal))
++            errors.Add(new WorkflowFieldError(key, key, "این فیلد برای این نوع درخواست تعریف نشده است."));
++
++        if (type == WorkflowTypeCode.Leave
++            && values.TryGetValue("startDate", out var startRaw) && TryParseDate(startRaw?.Trim(), out var start)
++            && values.TryGetValue("endDate", out var endRaw) && TryParseDate(endRaw?.Trim(), out var end)
++            && end < start)
++        {
++            var endField = fields.Single(f => f.Key == "endDate");
++            errors.Add(new WorkflowFieldError(endField.Key, endField.Label, "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."));
++        }
++
++        return errors;
++    }
++
++    private static bool TryParseNumber(string value, out decimal number) =>
++        decimal.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number);
++
++    private static bool TryParseDate(string? value, out DateTime date)
++    {
++        date = default;
++        return !string.IsNullOrWhiteSpace(value)
++            && DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
++    }
+ }
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowFieldChange.cs b/src/YasPortal.Domain/Workflows/WorkflowFieldChange.cs
+new file mode 100644
+index 0000000..b33b420
+--- /dev/null
++++ b/src/YasPortal.Domain/Workflows/WorkflowFieldChange.cs
+@@ -0,0 +1,65 @@
++namespace YasPortal.Domain.Workflows;
++
++/// <summary>
++/// A permanent record of one request field changing value (spec §11.3): which field, the old
++/// and new value, who changed it, from which position, and when. Rows are only ever appended —
++/// they are never updated or deleted — so <see cref="WorkflowRequest.FieldValuesJson"/> (which
++/// always holds just the latest values) can never silently destroy what a field used to say.
++///
++/// Today the only way field values change after submission is a requester editing a returned
++/// request and resubmitting it, so each row belongs to the <see cref="Round"/> that edit opened.
++/// </summary>
++public sealed class WorkflowFieldChange
++{
++    private WorkflowFieldChange()
++    {
++    }
++
++    internal WorkflowFieldChange(
++        Guid requestId,
++        int round,
++        string fieldKey,
++        string? oldValue,
++        string? newValue,
++        Guid changedByEmployeeId,
++        Guid changedByPositionId)
++    {
++        if (requestId == Guid.Empty)
++            throw new ArgumentException("Request is required.", nameof(requestId));
++        if (round < 1)
++            throw new ArgumentOutOfRangeException(nameof(round), "Round must start at 1.");
++        if (string.IsNullOrWhiteSpace(fieldKey))
++            throw new ArgumentException("Field key is required.", nameof(fieldKey));
++        if (changedByEmployeeId == Guid.Empty)
++            throw new ArgumentException("Employee is required.", nameof(changedByEmployeeId));
++        if (changedByPositionId == Guid.Empty)
++            throw new ArgumentException("Position is required.", nameof(changedByPositionId));
++
++        RequestId = requestId;
++        Round = round;
++        FieldKey = fieldKey;
++        OldValue = oldValue;
++        NewValue = newValue;
++        ChangedByEmployeeId = changedByEmployeeId;
++        ChangedByPositionId = changedByPositionId;
++        ChangedAtUtc = DateTime.UtcNow;
++    }
++
++    public Guid Id { get; private set; } = Guid.NewGuid();
++    public Guid RequestId { get; private set; }
++
++    /// <summary>The round the edit opened (the round that was started by the resubmission carrying this change).</summary>
++    public int Round { get; private set; }
++
++    /// <summary>The field's stable key from <see cref="WorkflowFieldCatalog"/> (e.g. "startDate").</summary>
++    public string FieldKey { get; private set; } = null!;
++
++    /// <summary>Null when the field had no value before (it was added, or left blank).</summary>
++    public string? OldValue { get; private set; }
++
++    /// <summary>Null when the field was cleared.</summary>
++    public string? NewValue { get; private set; }
++    public Guid ChangedByEmployeeId { get; private set; }
++    public Guid ChangedByPositionId { get; private set; }
++    public DateTime ChangedAtUtc { get; private set; }
++}
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index 2bd26d2..f2427b8 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -1,3 +1,5 @@
++using System.Text.Json;
++
+ namespace YasPortal.Domain.Workflows;
+ 
+ /// <summary>
+@@ -89,6 +91,13 @@ public sealed class WorkflowRequest
+     /// </summary>
+     public ICollection<WorkflowStepDecision> StepDecisions { get; private set; } = new List<WorkflowStepDecision>();
+ 
++    /// <summary>
++    /// Append-only history of every field value change (spec §11.3). <see cref="FieldValuesJson"/>
++    /// only ever holds the latest values; this is where what a field used to say lives, so an
++    /// edit made while resubmitting a returned request never silently destroys the old value.
++    /// </summary>
++    public ICollection<WorkflowFieldChange> FieldChanges { get; private set; } = new List<WorkflowFieldChange>();
++
+     /// <summary>Set once, permanently, if an admin ever force-closes this request — see <see cref="ForceClose"/>.</summary>
+     public Guid? ForceClosedByEmployeeId { get; private set; }
+     public DateTime? ForceClosedAtUtc { get; private set; }
+@@ -277,8 +286,12 @@ public sealed class WorkflowRequest
+         foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
+             step.Supersede();
+ 
++        var previousValues = ParseFieldValues(FieldValuesJson);
++        var newValues = ParseFieldValues(fieldValuesJson);
++
+         FieldValuesJson = fieldValuesJson;
+         CurrentRound++;
++        RecordFieldChanges(previousValues, newValues);
+         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
+             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
+         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
+@@ -289,6 +302,52 @@ public sealed class WorkflowRequest
+         Revision++;
+     }
+ 
++    /// <summary>
++    /// Appends one <see cref="WorkflowFieldChange"/> per field whose value differs between the old
++    /// and new submission. The editor is always the requester (only they can edit a returned
++    /// request), acting from the position fixed on the request at creation (§10.1). A blank value
++    /// and a missing value count as the same thing (null), so re-saving an untouched empty
++    /// optional field never produces noise.
++    /// </summary>
++    private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after)
++    {
++        foreach (var key in before.Keys.Union(after.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal))
++        {
++            var oldValue = Normalize(before.TryGetValue(key, out var o) ? o : null);
++            var newValue = Normalize(after.TryGetValue(key, out var n) ? n : null);
++            if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
++                continue;
++            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, RequesterEmployeeId, RequesterPositionId));
++        }
++    }
++
++    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
++
++    private static Dictionary<string, string?> ParseFieldValues(string json)
++    {
++        var result = new Dictionary<string, string?>(StringComparer.Ordinal);
++        try
++        {
++            using var document = JsonDocument.Parse(json);
++            if (document.RootElement.ValueKind != JsonValueKind.Object)
++                return result;
++            foreach (var property in document.RootElement.EnumerateObject())
++            {
++                result[property.Name] = property.Value.ValueKind switch
++                {
++                    JsonValueKind.Null => null,
++                    JsonValueKind.String => property.Value.GetString(),
++                    _ => property.Value.ToString(),
++                };
++            }
++        }
++        catch (JsonException)
++        {
++            // Unparseable stored values can't be diffed; treat as "no previous values" rather than failing the resubmit.
++        }
++        return result;
++    }
++
+     private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment) =>
+         StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment));
+ 
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequestQueries.cs b/src/YasPortal.Domain/Workflows/WorkflowRequestQueries.cs
+new file mode 100644
+index 0000000..c6fbb77
+--- /dev/null
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequestQueries.cs
+@@ -0,0 +1,15 @@
++namespace YasPortal.Domain.Workflows;
++
++/// <summary>Shared query definitions for <see cref="WorkflowRequest"/>, so "active" means one thing everywhere.</summary>
++public static class WorkflowRequestQueries
++{
++    /// <summary>
++    /// Requests that can still move: waiting on an approver, or sent back to the requester. This is
++    /// the set that blocks workflow and position changes (spec §18, §19, §22.2) and the set the
++    /// SuperAdmin can force-close. Approved, Rejected and Cancelled requests are terminal and never
++    /// block anything.
++    /// </summary>
++    public static IQueryable<WorkflowRequest> Active(this IQueryable<WorkflowRequest> requests) =>
++        requests.Where(x => x.Status == WorkflowRequestStatus.PendingApproval
++                            || x.Status == WorkflowRequestStatus.ReturnedToRequester);
++}
+diff --git a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+index a71c7d5..53f049c 100644
+--- a/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
++++ b/src/YasPortal.Infrastructure/Persistence/ApplicationDbContext.cs
+@@ -31,6 +31,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
+     public DbSet<WorkflowRequesterAction> WorkflowRequesterActions => Set<WorkflowRequesterAction>();
+     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
++    public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
+ 
+     public override int SaveChanges(bool acceptAllChangesOnSuccess)
+     {
+@@ -246,5 +247,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext>
+         modelBuilder.Entity<WorkflowRequestStep>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(50).IsRequired(); e.Property(x => x.Comment).HasMaxLength(2000); e.HasOne<WorkflowRequest>().WithMany(x => x.Steps).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowStepDefinition>().WithMany().HasForeignKey(x => x.StepDefinitionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.ApproverPositionId, x.Status }); e.HasIndex(x => new { x.RequestId, x.Round, x.Order }).IsUnique(); });
+         modelBuilder.Entity<WorkflowRequesterAction>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.RequesterActions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.AtUtc }); });
+         modelBuilder.Entity<WorkflowStepDecision>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(50).IsRequired(); e.HasOne<WorkflowRequest>().WithMany(x => x.StepDecisions).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ActedByEmployeeId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.ApproverPositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.RequestId, x.Round, x.Order, x.ActedAtUtc }); e.HasIndex(x => x.StepId); });
++        // The approver inbox history filters decisions by the position that decided, newest first.
++        modelBuilder.Entity<WorkflowStepDecision>().HasIndex(x => new { x.ApproverPositionId, x.ActedAtUtc });
++        // Append-only field history (spec §11.3). Indexed per §20.1: request, actor and timestamp.
++        modelBuilder.Entity<WorkflowFieldChange>(e =>
++        {
++            e.HasKey(x => x.Id);
++            e.Property(x => x.Id).ValueGeneratedNever();
++            e.Property(x => x.FieldKey).HasMaxLength(100).IsRequired();
++            e.Property(x => x.OldValue).HasColumnType("nvarchar(max)");
++            e.Property(x => x.NewValue).HasColumnType("nvarchar(max)");
++            e.HasOne<WorkflowRequest>().WithMany(x => x.FieldChanges).HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Cascade);
++            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.ChangedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
++            e.HasOne<Position>().WithMany().HasForeignKey(x => x.ChangedByPositionId).OnDelete(DeleteBehavior.Restrict);
++            e.HasIndex(x => new { x.RequestId, x.ChangedAtUtc });
++            e.HasIndex(x => x.ChangedByEmployeeId);
++        });
+     }
+ }
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor b/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
+index 726d7e9..2f4a6d4 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/ActiveRequests.razor
+@@ -137,7 +137,7 @@
+         // "Active" here means still able to move — the same two statuses CanBeCancelled cares
+         // about. Approved/Rejected/Cancelled requests are terminal and need no admin attention.
+         _requests = await db.WorkflowRequests
+-            .Where(x => x.Status == WorkflowRequestStatus.PendingApproval || x.Status == WorkflowRequestStatus.ReturnedToRequester)
++            .Active()
+             .Include(x => x.Steps)
+             .OrderBy(x => x.CreatedAtUtc)
+             .ToListAsync();
+@@ -175,7 +175,19 @@
+                 return;
+             }
+ 
+-            tracked.ForceClose(adminId, reason);
++            try
++            {
++                tracked.ForceClose(adminId, reason);
++            }
++            catch (InvalidOperationException)
++            {
++                // The list on screen was stale: someone approved, rejected or cancelled this
++                // request after the page loaded. Refresh instead of crashing the circuit.
++                AppState.AddToast("این درخواست دیگر فعال نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
++                await LoadAsync();
++                return;
++            }
++
+             try
+             {
+                 await db.SaveChangesAsync();
+diff --git a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+index 6fdaa32..127bb86 100644
+--- a/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
++++ b/src/YasPortal.Web/Components/Pages/Admin/Workflows.razor
+@@ -64,6 +64,16 @@
+                         </div>
+                     </div>
+ 
++                    @if (_blockingCount > 0)
++                    {
++                        <div class="empty-state" role="alert">
++                            <i class="bx bx-lock-alt"></i>
++                            <strong>تغییر مراحل فعلاً ممکن نیست</strong>
++                            <span>@ToPersianDigits(_blockingCount.ToString()) درخواست فعال از این نوع در جریان است. تا زمانی که این درخواست‌ها تعیین تکلیف نشوند، مراحل این گردش‌کار قابل تغییر نیست.
++                                <a href="/admin/active-requests">مشاهده و تعیین تکلیف درخواست‌های فعال</a></span>
++                        </div>
++                    }
++
+                     <label class="form-label">نام مرحله</label>
+                     <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً تایید مدیر مستقیم" />
+ 
+@@ -140,6 +150,8 @@
+                                                                 class="bx bx-down-arrow-alt"></i></button>
+                                                                 <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i
+                                                                     class="bx bx-edit-alt"></i> ویرایش</button>
++                                                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i
++                                                                        class="bx @(step.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>
+                                                                     <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i
+                                                                         class="bx bx-trash"></i> حذف</button>
+                                                                     </div>
+@@ -159,6 +171,10 @@
+     private Dictionary<Guid, string> _holderNames = [];
+     private bool _loading;
+ 
++    // Active requests of the selected type (spec §18 / §22.2): while this is above zero the
++    // type's steps cannot be changed. Refreshed whenever the steps are (re)loaded.
++    private int _blockingCount;
++
+     private Guid? _editingId;
+     private string _name = "";
+     private ApproverRuleKind _ruleKind = ApproverRuleKind.RequesterManagerLevel;
+@@ -199,10 +215,26 @@ x.ApproverPositionId!.Value).Distinct().ToList();
+                 : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
+             _holderNames = positionIds.Count == 0 ? [] : await WorkflowSvc.GetCurrentHolderNamesAsync(positionIds);
+             _stepCounts[_selectedType] = _steps.Count;
++            _blockingCount = await WorkflowSvc.CountBlockingRequestsAsync(_selectedType);
+         }
+         finally { _loading = false; }
+     }
+ 
++    /// <summary>
++    /// Server-side enforcement of spec §18 / §22.2, checked fresh right before every change (the
++    /// banner above is only informational and can be stale). Returns true when the change may go ahead.
++    /// </summary>
++    private async Task<bool> EnsureNoBlockingRequestsAsync()
++    {
++        var count = await WorkflowSvc.CountBlockingRequestsAsync(_selectedType);
++        _blockingCount = count;
++        if (count == 0)
++            return true;
++
++        AppState.AddToast($"این نوع گردش‌کار {ToPersianDigits(count.ToString())} درخواست فعال دارد که باید ابتدا تعیین تکلیف شود؛ تا آن زمان مراحل آن قابل تغییر نیست.", ToastLevel.Error);
++        return false;
++    }
++
+     private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind ==
+ ApproverRuleKind.RequesterManagerLevel
+         ? $"{ToPersianDigits(step.ManagerLevel!.Value.ToString())} سطح بالاتر از درخواست‌کننده"
+@@ -249,6 +281,9 @@ ApproverRuleKind.RequesterManagerLevel
+             return;
+         }
+ 
++        if (!await EnsureNoBlockingRequestsAsync())
++            return;
++
+         await using var db = await DbFactory.CreateDbContextAsync();
+         if (_editingId is Guid id)
+         {
+@@ -278,6 +313,9 @@ ApproverRuleKind.RequesterManagerLevel
+ 
+     private async Task DeleteStep(Guid id)
+     {
++        if (!await EnsureNoBlockingRequestsAsync())
++            return;
++
+         await using var db = await DbFactory.CreateDbContextAsync();
+         if (await db.WorkflowRequestSteps.AnyAsync(x => x.StepDefinitionId == id))
+         {
+@@ -285,18 +323,23 @@ ApproverRuleKind.RequesterManagerLevel
+ ToastLevel.Error);
+             return;
+         }
++
++        // The delete and the renumbering that closes the gap are two saves (the gap can only be
++        // closed after the delete, or it would collide with the unique (WorkflowType, Order)
++        // index), so they run in one transaction: a failure in between rolls the delete back
++        // instead of leaving the step order with a hole in it.
++        await using var transaction = await db.Database.BeginTransactionAsync();
+         var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
+         var removedOrder = existing.Order;
+         db.WorkflowStepDefinitions.Remove(existing);
+         await db.SaveChangesAsync();
+ 
+-        // Close the gap only after the delete is committed, so this never collides
+-        // with the unique (WorkflowType, Order) index mid-transaction.
+         var later = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order >
+ removedOrder).OrderBy(x => x.Order).ToListAsync();
+         foreach (var step in later)
+             step.SetOrder(step.Order - 1);
+         await db.SaveChangesAsync();
++        await transaction.CommitAsync();
+ 
+         AppState.AddToast("مرحله حذف شد.", ToastLevel.Success);
+         if (_editingId == id)
+@@ -324,18 +367,47 @@ removedOrder).OrderBy(x => x.Order).ToListAsync();
+ 
+     private async Task SwapOrder(Guid firstId, Guid secondId)
+     {
++        if (!await EnsureNoBlockingRequestsAsync())
++            return;
++
+         await using var db = await DbFactory.CreateDbContextAsync();
+         var first = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == firstId);
+         var second = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == secondId);
+         var firstOrder = first.Order;
+         var secondOrder = second.Order;
+-        // Move the first step to a temporary, definitely-unused order first so the two
+-        // updates never momentarily collide on the unique (WorkflowType, Order) index.
+-        first.SetOrder(secondOrder + 1000);
++
++        // Three saves are needed to swap two rows under a unique (WorkflowType, Order) index, so
++        // they run in one transaction: if the second one fails, the first rolls back instead of
++        // leaving a step stranded on its temporary order.
++        await using var transaction = await db.Database.BeginTransactionAsync();
++
++        // Park the first step on an order that is definitely unused (one past the current maximum
++        // for this type — a fixed offset could in principle collide) so the two real updates never
++        // momentarily collide on the unique index.
++        var parkingOrder = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == first.WorkflowType).MaxAsync(x => x.Order) + 1;
++        first.SetOrder(parkingOrder);
+         await db.SaveChangesAsync();
+         second.SetOrder(firstOrder);
+         first.SetOrder(secondOrder);
+         await db.SaveChangesAsync();
++        await transaction.CommitAsync();
++        await LoadStepsAsync();
++    }
++
++    private async Task ToggleActive(Guid id)
++    {
++        if (!await EnsureNoBlockingRequestsAsync())
++            return;
++
++        await using var db = await DbFactory.CreateDbContextAsync();
++        var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
++        if (existing.IsActive)
++            existing.Deactivate();
++        else
++            existing.Activate();
++        await db.SaveChangesAsync();
++
++        AppState.AddToast(existing.IsActive ? "مرحله فعال شد." : "مرحله غیرفعال شد.", ToastLevel.Success);
+         await LoadStepsAsync();
+     }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 1931f33..0d236e6 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -3,12 +3,14 @@
+ @using Microsoft.AspNetCore.Authorization
+ @using Microsoft.AspNetCore.Components.Authorization
+ @using Microsoft.EntityFrameworkCore
++@using YasPortal.Application.Authorization
+ @using YasPortal.Domain.Workflows
+ @using YasPortal.Infrastructure.Persistence
+ @using YasPortal.Web.Components.Shared
+ @using YasPortal.Web.Services
+ @attribute [Authorize(Policy = "Requests.View")]
+ @inject IDbContextFactory<ApplicationDbContext> DbFactory
++@inject IPermissionChecker Permissions
+ @inject WorkflowService Workflows
+ @inject AppState AppState
+ @inject AuthenticationStateProvider AuthenticationStateProvider
+@@ -133,21 +135,21 @@
+             {
+                 @foreach (var item in _historyItems)
+                 {
+-                    var expanded = _expandedHistoryId == item.Step.Id;
++                    var expanded = _expandedHistoryId == item.Decision.Id;
+                     <div class="request-card @(expanded ? "is-expanded" : "")">
+-                        <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Step.Id)">
++                        <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Decision.Id)">
+                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                             <span class="request-card-title">
+                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+-                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.Step.Name» · @item.Step.ActedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
++                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName» · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                             </span>
+-                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Step.Status)">@WorkflowDisplay.StepLabel(item.Step.Status, isCurrent: false)</span>
++                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
+                             <i class="bx bx-chevron-down request-card-chevron"></i>
+                         </div>
+                         @if (expanded)
+                         {
+                             <div class="request-card-body">
+-                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Step.Id" />
++                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
+                             </div>
+                         }
+                     </div>
+@@ -162,7 +164,9 @@
+     private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep }
+ 
+     private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
+-    private sealed record HistoryItem(WorkflowRequest Request, WorkflowRequestStep Step, string RequesterName);
++    // One history row per permanent decision (WorkflowStepDecision), not per step: a step's own
++    // ActedBy/ActedAt are wiped by Reopen(), so only the decision log is a reliable history.
++    private sealed record HistoryItem(WorkflowRequest Request, WorkflowStepDecision Decision, string StepName, string RequesterName);
+ 
+     private bool _ready;
+     private Guid? _employeeId;
+@@ -319,20 +323,23 @@
+         {
+             await using var db = await DbFactory.CreateDbContextAsync();
+ 
+-            // First, find just the (request id, step id) pairs matching the filters — cheap,
+-            // and lets the database do the filtering/ordering/paging/counting.
+-            var matchQuery = db.WorkflowRequests.AsNoTracking()
+-                .SelectMany(
+-                    // ActedByEmployeeId != null (rather than Status != Pending) so a step that
+-                    // got auto-closed as Superseded by a resubmission — without this approver
+-                    // ever actually deciding anything — doesn't show up as if it were a decision.
+-                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.ActedByEmployeeId != null),
+-                    (r, s) => new { RequestId = r.Id, StepId = s.Id, r.WorkflowType, s.Status, s.ActedAtUtc });
++            // First, find just the matching decisions — cheap, and lets the database do the
++            // filtering/ordering/paging/counting. This reads the permanent StepDecisions log,
++            // not WorkflowRequestStep: Reopen() wipes a step's ActedBy/ActedAt when a later step
++            // sends the request back to it, which used to make that approval vanish from here.
++            // Superseded steps never produce a decision, so they can't appear as one either.
++            var matchQuery = db.WorkflowStepDecisions.AsNoTracking()
++                .Where(d => d.ApproverPositionId == positionId)
++                .Join(
++                    db.WorkflowRequests.AsNoTracking(),
++                    d => d.RequestId,
++                    r => r.Id,
++                    (d, r) => new { DecisionId = d.Id, RequestId = r.Id, r.WorkflowType, d.Outcome, d.ActedAtUtc });
+ 
+             if (_historyTypeFilter is WorkflowTypeCode typeFilter)
+                 matchQuery = matchQuery.Where(x => x.WorkflowType == typeFilter);
+             if (_historyStatusFilter is WorkflowStepStatus statusFilter)
+-                matchQuery = matchQuery.Where(x => x.Status == statusFilter);
++                matchQuery = matchQuery.Where(x => x.Outcome == statusFilter);
+             if (_historyFrom is DateTime from)
+                 matchQuery = matchQuery.Where(x => x.ActedAtUtc >= from);
+             if (_historyTo is DateTime to)
+@@ -350,6 +357,11 @@
+             // Then load the full request (with every step, not just the matched one) for each
+             // match, so an expanded card can show the whole picture — every submitted field and
+             // the complete approval timeline — not just this one decision in isolation.
++            var decisionIds = matches.Select(x => x.DecisionId).ToList();
++            var decisionsById = decisionIds.Count == 0
++                ? []
++                : await db.WorkflowStepDecisions.AsNoTracking().Where(d => decisionIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id);
++
+             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
+             var requestsById = requestIds.Count == 0
+                 ? []
+@@ -370,13 +382,14 @@
+             _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
+ 
+             _historyItems = matches
+-                .Where(x => requestsById.ContainsKey(x.RequestId))
++                .Where(x => requestsById.ContainsKey(x.RequestId) && decisionsById.ContainsKey(x.DecisionId))
+                 .Select(x =>
+                 {
+                     var request = requestsById[x.RequestId];
+-                    var step = request.Steps.Single(s => s.Id == x.StepId);
++                    var decision = decisionsById[x.DecisionId];
++                    var step = request.Steps.Single(s => s.Id == decision.StepId);
+                     var requesterName = requesterNames.TryGetValue(request.RequesterEmployeeId, out var n) ? n : "—";
+-                    return new HistoryItem(request, step, requesterName);
++                    return new HistoryItem(request, decision, step.Name, requesterName);
+                 })
+                 .ToList();
+         }
+@@ -418,6 +431,15 @@
+         return new string(chars);
+     }
+ 
++    private static string PermissionFor(WorkflowAction action) => action switch
++    {
++        WorkflowAction.Approve => "Requests.Approve",
++        WorkflowAction.Reject => "Requests.Reject",
++        WorkflowAction.ReturnToRequester => "Requests.ReturnToRequester",
++        WorkflowAction.ReturnToPreviousStep => "Requests.ReturnToPreviousStep",
++        _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
++    };
++
+     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
+     private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
+ 
+@@ -438,6 +460,14 @@
+                 return;
+             }
+ 
++            // The buttons are only hidden by <AuthorizeView>; enforce the matching permission here
++            // too (spec §26.1/§26.4), so this handler never relies on the markup alone.
++            if (!await Permissions.HasPermissionAsync(PermissionFor(action)))
++            {
++                AppState.AddToast("شما مجوز انجام این عملیات را ندارید.", ToastLevel.Error);
++                return;
++            }
++
+             await using var db = await DbFactory.CreateDbContextAsync();
+             var request = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == item.Request.Id);
+             if (request is null || request.Status != WorkflowRequestStatus.PendingApproval)
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index a46ba22..87fd5ea 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -265,10 +265,10 @@
+         if (summary is null)
+             return;
+ 
+-        var missing = WorkflowFieldCatalog.ValidateRequiredFields(summary.WorkflowType, values);
+-        if (missing.Count > 0)
++        var errors = WorkflowFieldCatalog.ValidateValues(summary.WorkflowType, values);
++        if (errors.Count > 0)
+         {
+-            AppState.AddToast($"تکمیل این فیلدها الزامی است: {string.Join("، ", missing)}", ToastLevel.Error);
++            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+             return;
+         }
+ 
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor b/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
+index ef8c9ff..a8a94f7 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/NewRequest.razor
+@@ -111,10 +111,14 @@
+         if (_requesterEmployeeId is not Guid employeeId || _requesterPositionId is not Guid positionId)
+             return;
+ 
+-        var missing = WorkflowFieldCatalog.ValidateRequiredFields(_selectedType, _values);
+-        if (missing.Count > 0)
++        // A second click while the first submission is still awaiting would otherwise create a duplicate request.
++        if (_submitting)
++            return;
++
++        var errors = WorkflowFieldCatalog.ValidateValues(_selectedType, _values);
++        if (errors.Count > 0)
+         {
+-            AppState.AddToast($"تکمیل این فیلدها الزامی است: {string.Join("، ", missing)}", ToastLevel.Error);
++            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+             return;
+         }
+ 
+diff --git a/src/YasPortal.Web/Services/WorkflowService.cs b/src/YasPortal.Web/Services/WorkflowService.cs
+index afcd0d1..2858129 100644
+--- a/src/YasPortal.Web/Services/WorkflowService.cs
++++ b/src/YasPortal.Web/Services/WorkflowService.cs
+@@ -82,6 +82,17 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+             .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
+     }
+ 
++    /// <summary>
++    /// How many active requests of <paramref name="type"/> are still in flight (spec §18, §22.2).
++    /// While this is above zero the type's approval steps must not be changed: the SuperAdmin
++    /// has to resolve those requests first (force-close them from the Active Requests page).
++    /// </summary>
++    public async Task<int> CountBlockingRequestsAsync(WorkflowTypeCode type, CancellationToken ct = default)
++    {
++        await using var db = await dbFactory.CreateDbContextAsync(ct);
++        return await db.WorkflowRequests.AsNoTracking().Active().CountAsync(x => x.WorkflowType == type, ct);
++    }
++
+     /// <summary>Number of requests currently sitting at a step assigned to this position — drives the inbox badge.</summary>
+     public async Task<int> CountInboxAsync(Guid? approverPositionId, CancellationToken ct = default)
+     {
+diff --git a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+index 794c38a..4ded316 100644
+--- a/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
++++ b/tests/YasPortal.Tests/WorkflowPersistenceTests.cs
+@@ -238,6 +238,88 @@ public class WorkflowPersistenceTests
+         Assert.Throws<InvalidOperationException>(() => tracked.Cancel());
+     }
+ 
++    [Fact]
++    public async Task Resubmitting_with_edited_fields_inserts_field_change_rows()
++    {
++        // Same regression class as the steps test above: FieldChange rows carry client-generated
++        // Guid keys, so without ValueGeneratedNever EF would try to UPDATE them and fail.
++        var databaseName = Guid.NewGuid().ToString();
++        var requester = Guid.NewGuid();
++        var requesterPosition = Guid.NewGuid();
++        Guid requestId;
++
++        await using (var setup = CreateContext(databaseName))
++        {
++            var request = new WorkflowRequest(
++                WorkflowTypeCode.Leave, requester, requesterPosition, "{\"reason\":\"قبلی\"}",
++                new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++            setup.WorkflowRequests.Add(request);
++            await setup.SaveChangesAsync();
++            requestId = request.Id;
++        }
++
++        await using (var returning = CreateContext(databaseName))
++        {
++            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), null);
++            await returning.SaveChangesAsync();
++        }
++
++        // Exactly what MyRequests.razor's ResubmitAsync does: fetch with Steps only, then resubmit.
++        await using (var resubmitting = CreateContext(databaseName))
++        {
++            var request = await resubmitting.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
++            request.Resubmit("{\"reason\":\"جدید\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++            await resubmitting.SaveChangesAsync();
++        }
++
++        await using var verify = CreateContext(databaseName);
++        var change = await verify.WorkflowFieldChanges.SingleAsync(x => x.RequestId == requestId);
++        Assert.Equal("reason", change.FieldKey);
++        Assert.Equal("قبلی", change.OldValue);
++        Assert.Equal("جدید", change.NewValue);
++        Assert.Equal(2, change.Round);
++        Assert.Equal(requester, change.ChangedByEmployeeId);
++        Assert.Equal(requesterPosition, change.ChangedByPositionId);
++    }
++
++    [Fact]
++    public async Task Active_covers_exactly_the_requests_that_can_still_move()
++    {
++        // "Active" drives the §18 workflow-change block, the §22.2 blocking list and the set the
++        // SuperAdmin can force-close, so pending and returned count and every terminal status doesn't.
++        var databaseName = Guid.NewGuid().ToString();
++
++        static WorkflowRequest NewRequest() => new(
++            WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
++            new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        var pending = NewRequest();
++        var returned = NewRequest();
++        returned.ReturnToRequester(returned.CurrentStep.Id, Guid.NewGuid(), null);
++        var approved = NewRequest();
++        approved.Approve(approved.CurrentStep.Id, Guid.NewGuid(), null);
++        var rejected = NewRequest();
++        rejected.Reject(rejected.CurrentStep.Id, Guid.NewGuid(), null);
++        var cancelled = NewRequest();
++        cancelled.Cancel();
++        var forceClosed = NewRequest();
++        forceClosed.ForceClose(Guid.NewGuid(), "بسته شدن دستی");
++
++        await using (var setup = CreateContext(databaseName))
++        {
++            setup.WorkflowRequests.AddRange(pending, returned, approved, rejected, cancelled, forceClosed);
++            await setup.SaveChangesAsync();
++        }
++
++        await using var verify = CreateContext(databaseName);
++        var activeIds = await verify.WorkflowRequests.Active().Select(x => x.Id).ToListAsync();
++
++        Assert.Equal(2, activeIds.Count);
++        Assert.Contains(pending.Id, activeIds);
++        Assert.Contains(returned.Id, activeIds);
++    }
++
+     private static ApplicationDbContext CreateContext(string databaseName)
+     {
+         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 572dd58..239046a 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -235,6 +235,80 @@ public class WorkflowRequestTests
+         Assert.Equal(4, request.Steps.Count);
+     }
+ 
++    [Fact]
++    public void Resubmitting_records_a_field_change_for_every_edited_field_and_keeps_the_old_value()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
++
++        request.Resubmit("{\"startDate\":\"2026-11-01\",\"reason\":\"سفر\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        // Ordered by field key so the history is deterministic: "reason" sorts before "startDate".
++        var changes = request.FieldChanges.ToList();
++        Assert.Equal(2, changes.Count);
++
++        Assert.Equal("reason", changes[0].FieldKey);
++        Assert.Null(changes[0].OldValue);
++        Assert.Equal("سفر", changes[0].NewValue);
++
++        // The previous value is not lost even though FieldValuesJson now only holds the latest.
++        Assert.Equal("startDate", changes[1].FieldKey);
++        Assert.Equal("2026-10-01", changes[1].OldValue);
++        Assert.Equal("2026-11-01", changes[1].NewValue);
++
++        // Who, from where, and in which round — the §11.3 audit fields.
++        Assert.All(changes, c =>
++        {
++            Assert.Equal(2, c.Round);
++            Assert.Equal(request.RequesterEmployeeId, c.ChangedByEmployeeId);
++            Assert.Equal(request.RequesterPositionId, c.ChangedByPositionId);
++            Assert.Equal(request.Id, c.RequestId);
++        });
++    }
++
++    [Fact]
++    public void Resubmitting_without_changing_anything_records_no_field_changes()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
++
++        // Same startDate, plus an optional field left blank: a blank and a missing value are the
++        // same thing, so neither counts as a change.
++        request.Resubmit("{\"startDate\":\"2026-10-01\",\"reason\":\"  \"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        Assert.Empty(request.FieldChanges);
++    }
++
++    [Fact]
++    public void Clearing_a_field_while_resubmitting_is_recorded_with_a_null_new_value()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
++
++        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        var change = Assert.Single(request.FieldChanges);
++        Assert.Equal("startDate", change.FieldKey);
++        Assert.Equal("2026-10-01", change.OldValue);
++        Assert.Null(change.NewValue);
++    }
++
++    [Fact]
++    public void Field_history_accumulates_across_rounds_and_is_never_replaced()
++    {
++        var request = CreateTwoStepRequest(out var step1Id, out _);
++        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
++        request.Resubmit("{\"startDate\":\"2026-11-01\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), null);
++        request.Resubmit("{\"startDate\":\"2026-12-01\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
++
++        var changes = request.FieldChanges.OrderBy(c => c.Round).ToList();
++        Assert.Equal(2, changes.Count);
++        Assert.Equal((2, "2026-10-01", "2026-11-01"), (changes[0].Round, changes[0].OldValue, changes[0].NewValue));
++        Assert.Equal((3, "2026-11-01", "2026-12-01"), (changes[1].Round, changes[1].OldValue, changes[1].NewValue));
++    }
++
+     [Fact]
+     public void Resubmit_marks_unreached_steps_in_the_closed_round_as_superseded()
+     {
+@@ -698,4 +772,102 @@ public class WorkflowFieldCatalogTests
+         Assert.Contains("توجیه درخواست", missing);
+         Assert.DoesNotContain("کالا/خدمت", missing);
+     }
++
++    private static Dictionary<string, string?> ValidLeave() => new()
++    {
++        ["startDate"] = "2026-10-01",
++        ["endDate"] = "2026-10-05",
++        // Taken from the catalog itself so this can never drift from the real option text.
++        ["leaveType"] = WorkflowFieldCatalog.GetFields(WorkflowTypeCode.Leave).Single(f => f.Key == "leaveType").Options![0],
++    };
++
++    [Fact]
++    public void Valid_values_produce_no_validation_errors()
++    {
++        Assert.Empty(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, ValidLeave()));
++    }
++
++    [Fact]
++    public void Validation_errors_name_the_specific_field_and_reason()
++    {
++        var values = ValidLeave();
++        values["startDate"] = "";
++
++        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
++        Assert.Equal("startDate", error.Key);
++        Assert.Equal("تاریخ شروع", error.Label);
++        Assert.False(string.IsNullOrWhiteSpace(error.Message));
++    }
++
++    [Fact]
++    public void Select_values_must_be_one_of_the_fields_options()
++    {
++        var values = ValidLeave();
++        values["leaveType"] = "یک گزینه ساختگی";
++
++        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
++        Assert.Equal("leaveType", error.Key);
++    }
++
++    [Fact]
++    public void Dates_must_be_real_iso_dates()
++    {
++        var values = ValidLeave();
++        values["endDate"] = "2026-13-45";
++
++        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
++        Assert.Equal("endDate", error.Key);
++    }
++
++    [Fact]
++    public void Leave_cannot_end_before_it_starts()
++    {
++        var values = ValidLeave();
++        values["startDate"] = "2026-10-10";
++        values["endDate"] = "2026-10-05";
++
++        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
++        Assert.Equal("endDate", error.Key);
++    }
++
++    [Fact]
++    public void Numbers_must_be_numeric_and_not_negative()
++    {
++        var values = new Dictionary<string, string?>
++        {
++            ["itemName"] = "لپ‌تاپ",
++            ["quantity"] = "abc",
++            ["estimatedCost"] = "-5",
++            ["justification"] = "نیاز واحد",
++        };
++
++        var errors = WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Purchase, values);
++
++        Assert.Equal(2, errors.Count);
++        Assert.Contains(errors, e => e.Key == "quantity");
++        Assert.Contains(errors, e => e.Key == "estimatedCost");
++    }
++
++    [Fact]
++    public void Keys_outside_the_types_schema_are_rejected()
++    {
++        var values = ValidLeave();
++        values["approvedByManager"] = "true";
++
++        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
++        Assert.Equal("approvedByManager", error.Key);
++    }
++
++    [Fact]
++    public void Blank_optional_fields_are_valid_and_not_format_checked()
++    {
++        var values = new Dictionary<string, string?>
++        {
++            ["amount"] = "1000000",
++            ["installments"] = "12",
++            ["reason"] = null,
++        };
++
++        Assert.Empty(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Loan, values));
++    }
+ }
+-- 
+2.43.0
+

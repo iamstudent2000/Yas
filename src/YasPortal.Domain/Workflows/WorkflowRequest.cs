@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace YasPortal.Domain.Workflows;
 
 /// <summary>
@@ -88,6 +90,13 @@ public sealed class WorkflowRequest
     /// current, possibly-since-reopened state.
     /// </summary>
     public ICollection<WorkflowStepDecision> StepDecisions { get; private set; } = new List<WorkflowStepDecision>();
+
+    /// <summary>
+    /// Append-only history of every field value change (spec §11.3). <see cref="FieldValuesJson"/>
+    /// only ever holds the latest values; this is where what a field used to say lives, so an
+    /// edit made while resubmitting a returned request never silently destroys the old value.
+    /// </summary>
+    public ICollection<WorkflowFieldChange> FieldChanges { get; private set; } = new List<WorkflowFieldChange>();
 
     /// <summary>Set once, permanently, if an admin ever force-closes this request — see <see cref="ForceClose"/>.</summary>
     public Guid? ForceClosedByEmployeeId { get; private set; }
@@ -277,8 +286,12 @@ public sealed class WorkflowRequest
         foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
             step.Supersede();
 
+        var previousValues = ParseFieldValues(FieldValuesJson);
+        var newValues = ParseFieldValues(fieldValuesJson);
+
         FieldValuesJson = fieldValuesJson;
         CurrentRound++;
+        RecordFieldChanges(previousValues, newValues);
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
@@ -287,6 +300,52 @@ public sealed class WorkflowRequest
         // The requester just performed the resubmit themselves — there is nothing new for them to notice.
         RequesterHasSeenLatestUpdate = true;
         Revision++;
+    }
+
+    /// <summary>
+    /// Appends one <see cref="WorkflowFieldChange"/> per field whose value differs between the old
+    /// and new submission. The editor is always the requester (only they can edit a returned
+    /// request), acting from the position fixed on the request at creation (§10.1). A blank value
+    /// and a missing value count as the same thing (null), so re-saving an untouched empty
+    /// optional field never produces noise.
+    /// </summary>
+    private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after)
+    {
+        foreach (var key in before.Keys.Union(after.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal))
+        {
+            var oldValue = Normalize(before.TryGetValue(key, out var o) ? o : null);
+            var newValue = Normalize(after.TryGetValue(key, out var n) ? n : null);
+            if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                continue;
+            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, RequesterEmployeeId, RequesterPositionId));
+        }
+    }
+
+    private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static Dictionary<string, string?> ParseFieldValues(string json)
+    {
+        var result = new Dictionary<string, string?>(StringComparer.Ordinal);
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return result;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                result[property.Name] = property.Value.ValueKind switch
+                {
+                    JsonValueKind.Null => null,
+                    JsonValueKind.String => property.Value.GetString(),
+                    _ => property.Value.ToString(),
+                };
+            }
+        }
+        catch (JsonException)
+        {
+            // Unparseable stored values can't be diffed; treat as "no previous values" rather than failing the resubmit.
+        }
+        return result;
     }
 
     private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment) =>

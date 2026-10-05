@@ -111,10 +111,14 @@
         if (_requesterEmployeeId is not Guid employeeId || _requesterPositionId is not Guid positionId)
             return;
 
-        var missing = WorkflowFieldCatalog.ValidateRequiredFields(_selectedType, _values);
-        if (missing.Count > 0)
+        // A second click while the first submission is still awaiting would otherwise create a duplicate request.
+        if (_submitting)
+            return;
+
+        var errors = WorkflowFieldCatalog.ValidateValues(_selectedType, _values);
+        if (errors.Count > 0)
         {
-            AppState.AddToast($"تکمیل این فیلدها الزامی است: {string.Join("، ", missing)}", ToastLevel.Error);
+            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
             return;
         }
 

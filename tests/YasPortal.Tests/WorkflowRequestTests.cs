@@ -236,6 +236,80 @@ public class WorkflowRequestTests
     }
 
     [Fact]
+    public void Resubmitting_records_a_field_change_for_every_edited_field_and_keeps_the_old_value()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
+
+        request.Resubmit("{\"startDate\":\"2026-11-01\",\"reason\":\"سفر\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        // Ordered by field key so the history is deterministic: "reason" sorts before "startDate".
+        var changes = request.FieldChanges.ToList();
+        Assert.Equal(2, changes.Count);
+
+        Assert.Equal("reason", changes[0].FieldKey);
+        Assert.Null(changes[0].OldValue);
+        Assert.Equal("سفر", changes[0].NewValue);
+
+        // The previous value is not lost even though FieldValuesJson now only holds the latest.
+        Assert.Equal("startDate", changes[1].FieldKey);
+        Assert.Equal("2026-10-01", changes[1].OldValue);
+        Assert.Equal("2026-11-01", changes[1].NewValue);
+
+        // Who, from where, and in which round — the §11.3 audit fields.
+        Assert.All(changes, c =>
+        {
+            Assert.Equal(2, c.Round);
+            Assert.Equal(request.RequesterEmployeeId, c.ChangedByEmployeeId);
+            Assert.Equal(request.RequesterPositionId, c.ChangedByPositionId);
+            Assert.Equal(request.Id, c.RequestId);
+        });
+    }
+
+    [Fact]
+    public void Resubmitting_without_changing_anything_records_no_field_changes()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
+
+        // Same startDate, plus an optional field left blank: a blank and a missing value are the
+        // same thing, so neither counts as a change.
+        request.Resubmit("{\"startDate\":\"2026-10-01\",\"reason\":\"  \"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        Assert.Empty(request.FieldChanges);
+    }
+
+    [Fact]
+    public void Clearing_a_field_while_resubmitting_is_recorded_with_a_null_new_value()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
+
+        request.Resubmit("{}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        var change = Assert.Single(request.FieldChanges);
+        Assert.Equal("startDate", change.FieldKey);
+        Assert.Equal("2026-10-01", change.OldValue);
+        Assert.Null(change.NewValue);
+    }
+
+    [Fact]
+    public void Field_history_accumulates_across_rounds_and_is_never_replaced()
+    {
+        var request = CreateTwoStepRequest(out var step1Id, out _);
+        request.ReturnToRequester(step1Id, Guid.NewGuid(), null);
+        request.Resubmit("{\"startDate\":\"2026-11-01\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), null);
+        request.Resubmit("{\"startDate\":\"2026-12-01\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        var changes = request.FieldChanges.OrderBy(c => c.Round).ToList();
+        Assert.Equal(2, changes.Count);
+        Assert.Equal((2, "2026-10-01", "2026-11-01"), (changes[0].Round, changes[0].OldValue, changes[0].NewValue));
+        Assert.Equal((3, "2026-11-01", "2026-12-01"), (changes[1].Round, changes[1].OldValue, changes[1].NewValue));
+    }
+
+    [Fact]
     public void Resubmit_marks_unreached_steps_in_the_closed_round_as_superseded()
     {
         // 3 steps; step 1 returns immediately, so steps 2 and 3 were never reached.
@@ -697,5 +771,103 @@ public class WorkflowFieldCatalogTests
         Assert.Contains("برآورد هزینه (ریال)", missing);
         Assert.Contains("توجیه درخواست", missing);
         Assert.DoesNotContain("کالا/خدمت", missing);
+    }
+
+    private static Dictionary<string, string?> ValidLeave() => new()
+    {
+        ["startDate"] = "2026-10-01",
+        ["endDate"] = "2026-10-05",
+        // Taken from the catalog itself so this can never drift from the real option text.
+        ["leaveType"] = WorkflowFieldCatalog.GetFields(WorkflowTypeCode.Leave).Single(f => f.Key == "leaveType").Options![0],
+    };
+
+    [Fact]
+    public void Valid_values_produce_no_validation_errors()
+    {
+        Assert.Empty(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, ValidLeave()));
+    }
+
+    [Fact]
+    public void Validation_errors_name_the_specific_field_and_reason()
+    {
+        var values = ValidLeave();
+        values["startDate"] = "";
+
+        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
+        Assert.Equal("startDate", error.Key);
+        Assert.Equal("تاریخ شروع", error.Label);
+        Assert.False(string.IsNullOrWhiteSpace(error.Message));
+    }
+
+    [Fact]
+    public void Select_values_must_be_one_of_the_fields_options()
+    {
+        var values = ValidLeave();
+        values["leaveType"] = "یک گزینه ساختگی";
+
+        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
+        Assert.Equal("leaveType", error.Key);
+    }
+
+    [Fact]
+    public void Dates_must_be_real_iso_dates()
+    {
+        var values = ValidLeave();
+        values["endDate"] = "2026-13-45";
+
+        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
+        Assert.Equal("endDate", error.Key);
+    }
+
+    [Fact]
+    public void Leave_cannot_end_before_it_starts()
+    {
+        var values = ValidLeave();
+        values["startDate"] = "2026-10-10";
+        values["endDate"] = "2026-10-05";
+
+        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
+        Assert.Equal("endDate", error.Key);
+    }
+
+    [Fact]
+    public void Numbers_must_be_numeric_and_not_negative()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["itemName"] = "لپ‌تاپ",
+            ["quantity"] = "abc",
+            ["estimatedCost"] = "-5",
+            ["justification"] = "نیاز واحد",
+        };
+
+        var errors = WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Purchase, values);
+
+        Assert.Equal(2, errors.Count);
+        Assert.Contains(errors, e => e.Key == "quantity");
+        Assert.Contains(errors, e => e.Key == "estimatedCost");
+    }
+
+    [Fact]
+    public void Keys_outside_the_types_schema_are_rejected()
+    {
+        var values = ValidLeave();
+        values["approvedByManager"] = "true";
+
+        var error = Assert.Single(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Leave, values));
+        Assert.Equal("approvedByManager", error.Key);
+    }
+
+    [Fact]
+    public void Blank_optional_fields_are_valid_and_not_format_checked()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["amount"] = "1000000",
+            ["installments"] = "12",
+            ["reason"] = null,
+        };
+
+        Assert.Empty(WorkflowFieldCatalog.ValidateValues(WorkflowTypeCode.Loan, values));
     }
 }

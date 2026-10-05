@@ -137,7 +137,7 @@
         // "Active" here means still able to move — the same two statuses CanBeCancelled cares
         // about. Approved/Rejected/Cancelled requests are terminal and need no admin attention.
         _requests = await db.WorkflowRequests
-            .Where(x => x.Status == WorkflowRequestStatus.PendingApproval || x.Status == WorkflowRequestStatus.ReturnedToRequester)
+            .Active()
             .Include(x => x.Steps)
             .OrderBy(x => x.CreatedAtUtc)
             .ToListAsync();
@@ -175,7 +175,19 @@
                 return;
             }
 
-            tracked.ForceClose(adminId, reason);
+            try
+            {
+                tracked.ForceClose(adminId, reason);
+            }
+            catch (InvalidOperationException)
+            {
+                // The list on screen was stale: someone approved, rejected or cancelled this
+                // request after the page loaded. Refresh instead of crashing the circuit.
+                AppState.AddToast("این درخواست دیگر فعال نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
             try
             {
                 await db.SaveChangesAsync();

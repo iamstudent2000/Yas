@@ -64,6 +64,16 @@
                         </div>
                     </div>
 
+                    @if (_blockingCount > 0)
+                    {
+                        <div class="empty-state" role="alert">
+                            <i class="bx bx-lock-alt"></i>
+                            <strong>تغییر مراحل فعلاً ممکن نیست</strong>
+                            <span>@ToPersianDigits(_blockingCount.ToString()) درخواست فعال از این نوع در جریان است. تا زمانی که این درخواست‌ها تعیین تکلیف نشوند، مراحل این گردش‌کار قابل تغییر نیست.
+                                <a href="/admin/active-requests">مشاهده و تعیین تکلیف درخواست‌های فعال</a></span>
+                        </div>
+                    }
+
                     <label class="form-label">نام مرحله</label>
                     <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً تایید مدیر مستقیم" />
 
@@ -140,6 +150,8 @@
                                                                 class="bx bx-down-arrow-alt"></i></button>
                                                                 <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i
                                                                     class="bx bx-edit-alt"></i> ویرایش</button>
+                                                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i
+                                                                        class="bx @(step.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>
                                                                     <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i
                                                                         class="bx bx-trash"></i> حذف</button>
                                                                     </div>
@@ -158,6 +170,10 @@
     private Dictionary<Guid, string> _positionNames = [];
     private Dictionary<Guid, string> _holderNames = [];
     private bool _loading;
+
+    // Active requests of the selected type (spec §18 / §22.2): while this is above zero the
+    // type's steps cannot be changed. Refreshed whenever the steps are (re)loaded.
+    private int _blockingCount;
 
     private Guid? _editingId;
     private string _name = "";
@@ -199,8 +215,24 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 : await db.Positions.AsNoTracking().Where(x => positionIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name);
             _holderNames = positionIds.Count == 0 ? [] : await WorkflowSvc.GetCurrentHolderNamesAsync(positionIds);
             _stepCounts[_selectedType] = _steps.Count;
+            _blockingCount = await WorkflowSvc.CountBlockingRequestsAsync(_selectedType);
         }
         finally { _loading = false; }
+    }
+
+    /// <summary>
+    /// Server-side enforcement of spec §18 / §22.2, checked fresh right before every change (the
+    /// banner above is only informational and can be stale). Returns true when the change may go ahead.
+    /// </summary>
+    private async Task<bool> EnsureNoBlockingRequestsAsync()
+    {
+        var count = await WorkflowSvc.CountBlockingRequestsAsync(_selectedType);
+        _blockingCount = count;
+        if (count == 0)
+            return true;
+
+        AppState.AddToast($"این نوع گردش‌کار {ToPersianDigits(count.ToString())} درخواست فعال دارد که باید ابتدا تعیین تکلیف شود؛ تا آن زمان مراحل آن قابل تغییر نیست.", ToastLevel.Error);
+        return false;
     }
 
     private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind ==
@@ -249,6 +281,9 @@ ApproverRuleKind.RequesterManagerLevel
             return;
         }
 
+        if (!await EnsureNoBlockingRequestsAsync())
+            return;
+
         await using var db = await DbFactory.CreateDbContextAsync();
         if (_editingId is Guid id)
         {
@@ -278,6 +313,9 @@ ApproverRuleKind.RequesterManagerLevel
 
     private async Task DeleteStep(Guid id)
     {
+        if (!await EnsureNoBlockingRequestsAsync())
+            return;
+
         await using var db = await DbFactory.CreateDbContextAsync();
         if (await db.WorkflowRequestSteps.AnyAsync(x => x.StepDefinitionId == id))
         {
@@ -285,18 +323,23 @@ ApproverRuleKind.RequesterManagerLevel
 ToastLevel.Error);
             return;
         }
+
+        // The delete and the renumbering that closes the gap are two saves (the gap can only be
+        // closed after the delete, or it would collide with the unique (WorkflowType, Order)
+        // index), so they run in one transaction: a failure in between rolls the delete back
+        // instead of leaving the step order with a hole in it.
+        await using var transaction = await db.Database.BeginTransactionAsync();
         var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
         var removedOrder = existing.Order;
         db.WorkflowStepDefinitions.Remove(existing);
         await db.SaveChangesAsync();
 
-        // Close the gap only after the delete is committed, so this never collides
-        // with the unique (WorkflowType, Order) index mid-transaction.
         var later = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order >
 removedOrder).OrderBy(x => x.Order).ToListAsync();
         foreach (var step in later)
             step.SetOrder(step.Order - 1);
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         AppState.AddToast("مرحله حذف شد.", ToastLevel.Success);
         if (_editingId == id)
@@ -324,18 +367,47 @@ removedOrder).OrderBy(x => x.Order).ToListAsync();
 
     private async Task SwapOrder(Guid firstId, Guid secondId)
     {
+        if (!await EnsureNoBlockingRequestsAsync())
+            return;
+
         await using var db = await DbFactory.CreateDbContextAsync();
         var first = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == firstId);
         var second = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == secondId);
         var firstOrder = first.Order;
         var secondOrder = second.Order;
-        // Move the first step to a temporary, definitely-unused order first so the two
-        // updates never momentarily collide on the unique (WorkflowType, Order) index.
-        first.SetOrder(secondOrder + 1000);
+
+        // Three saves are needed to swap two rows under a unique (WorkflowType, Order) index, so
+        // they run in one transaction: if the second one fails, the first rolls back instead of
+        // leaving a step stranded on its temporary order.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+
+        // Park the first step on an order that is definitely unused (one past the current maximum
+        // for this type — a fixed offset could in principle collide) so the two real updates never
+        // momentarily collide on the unique index.
+        var parkingOrder = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == first.WorkflowType).MaxAsync(x => x.Order) + 1;
+        first.SetOrder(parkingOrder);
         await db.SaveChangesAsync();
         second.SetOrder(firstOrder);
         first.SetOrder(secondOrder);
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        await LoadStepsAsync();
+    }
+
+    private async Task ToggleActive(Guid id)
+    {
+        if (!await EnsureNoBlockingRequestsAsync())
+            return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
+        if (existing.IsActive)
+            existing.Deactivate();
+        else
+            existing.Activate();
+        await db.SaveChangesAsync();
+
+        AppState.AddToast(existing.IsActive ? "مرحله فعال شد." : "مرحله غیرفعال شد.", ToastLevel.Success);
         await LoadStepsAsync();
     }
 

@@ -3,12 +3,14 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using YasPortal.Application.Authorization
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker Permissions
 @inject WorkflowService Workflows
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -133,21 +135,21 @@
             {
                 @foreach (var item in _historyItems)
                 {
-                    var expanded = _expandedHistoryId == item.Step.Id;
+                    var expanded = _expandedHistoryId == item.Decision.Id;
                     <div class="request-card @(expanded ? "is-expanded" : "")">
-                        <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Step.Id)">
+                        <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Decision.Id)">
                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
-                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.Step.Name» · @item.Step.ActedAtUtc?.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName» · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
-                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Step.Status)">@WorkflowDisplay.StepLabel(item.Step.Status, isCurrent: false)</span>
+                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
                             <i class="bx bx-chevron-down request-card-chevron"></i>
                         </div>
                         @if (expanded)
                         {
                             <div class="request-card-body">
-                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Step.Id" />
+                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
                             </div>
                         }
                     </div>
@@ -162,7 +164,9 @@
     private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep }
 
     private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
-    private sealed record HistoryItem(WorkflowRequest Request, WorkflowRequestStep Step, string RequesterName);
+    // One history row per permanent decision (WorkflowStepDecision), not per step: a step's own
+    // ActedBy/ActedAt are wiped by Reopen(), so only the decision log is a reliable history.
+    private sealed record HistoryItem(WorkflowRequest Request, WorkflowStepDecision Decision, string StepName, string RequesterName);
 
     private bool _ready;
     private Guid? _employeeId;
@@ -319,20 +323,23 @@
         {
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            // First, find just the (request id, step id) pairs matching the filters — cheap,
-            // and lets the database do the filtering/ordering/paging/counting.
-            var matchQuery = db.WorkflowRequests.AsNoTracking()
-                .SelectMany(
-                    // ActedByEmployeeId != null (rather than Status != Pending) so a step that
-                    // got auto-closed as Superseded by a resubmission — without this approver
-                    // ever actually deciding anything — doesn't show up as if it were a decision.
-                    r => r.Steps.Where(s => s.ApproverPositionId == positionId && s.ActedByEmployeeId != null),
-                    (r, s) => new { RequestId = r.Id, StepId = s.Id, r.WorkflowType, s.Status, s.ActedAtUtc });
+            // First, find just the matching decisions — cheap, and lets the database do the
+            // filtering/ordering/paging/counting. This reads the permanent StepDecisions log,
+            // not WorkflowRequestStep: Reopen() wipes a step's ActedBy/ActedAt when a later step
+            // sends the request back to it, which used to make that approval vanish from here.
+            // Superseded steps never produce a decision, so they can't appear as one either.
+            var matchQuery = db.WorkflowStepDecisions.AsNoTracking()
+                .Where(d => d.ApproverPositionId == positionId)
+                .Join(
+                    db.WorkflowRequests.AsNoTracking(),
+                    d => d.RequestId,
+                    r => r.Id,
+                    (d, r) => new { DecisionId = d.Id, RequestId = r.Id, r.WorkflowType, d.Outcome, d.ActedAtUtc });
 
             if (_historyTypeFilter is WorkflowTypeCode typeFilter)
                 matchQuery = matchQuery.Where(x => x.WorkflowType == typeFilter);
             if (_historyStatusFilter is WorkflowStepStatus statusFilter)
-                matchQuery = matchQuery.Where(x => x.Status == statusFilter);
+                matchQuery = matchQuery.Where(x => x.Outcome == statusFilter);
             if (_historyFrom is DateTime from)
                 matchQuery = matchQuery.Where(x => x.ActedAtUtc >= from);
             if (_historyTo is DateTime to)
@@ -350,6 +357,11 @@
             // Then load the full request (with every step, not just the matched one) for each
             // match, so an expanded card can show the whole picture — every submitted field and
             // the complete approval timeline — not just this one decision in isolation.
+            var decisionIds = matches.Select(x => x.DecisionId).ToList();
+            var decisionsById = decisionIds.Count == 0
+                ? []
+                : await db.WorkflowStepDecisions.AsNoTracking().Where(d => decisionIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id);
+
             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
             var requestsById = requestIds.Count == 0
                 ? []
@@ -370,13 +382,14 @@
             _holderNames = pendingPositionIds.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
 
             _historyItems = matches
-                .Where(x => requestsById.ContainsKey(x.RequestId))
+                .Where(x => requestsById.ContainsKey(x.RequestId) && decisionsById.ContainsKey(x.DecisionId))
                 .Select(x =>
                 {
                     var request = requestsById[x.RequestId];
-                    var step = request.Steps.Single(s => s.Id == x.StepId);
+                    var decision = decisionsById[x.DecisionId];
+                    var step = request.Steps.Single(s => s.Id == decision.StepId);
                     var requesterName = requesterNames.TryGetValue(request.RequesterEmployeeId, out var n) ? n : "—";
-                    return new HistoryItem(request, step, requesterName);
+                    return new HistoryItem(request, decision, step.Name, requesterName);
                 })
                 .ToList();
         }
@@ -418,6 +431,15 @@
         return new string(chars);
     }
 
+    private static string PermissionFor(WorkflowAction action) => action switch
+    {
+        WorkflowAction.Approve => "Requests.Approve",
+        WorkflowAction.Reject => "Requests.Reject",
+        WorkflowAction.ReturnToRequester => "Requests.ReturnToRequester",
+        WorkflowAction.ReturnToPreviousStep => "Requests.ReturnToPreviousStep",
+        _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
+    };
+
     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
     private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
 
@@ -435,6 +457,14 @@
             if (!await Workflows.HoldsActivePositionAsync(employeeId, positionId))
             {
                 AppState.AddToast("سمت فعال شما دیگر معتبر نیست. صفحه را دوباره بارگذاری کنید.", ToastLevel.Error);
+                return;
+            }
+
+            // The buttons are only hidden by <AuthorizeView>; enforce the matching permission here
+            // too (spec §26.1/§26.4), so this handler never relies on the markup alone.
+            if (!await Permissions.HasPermissionAsync(PermissionFor(action)))
+            {
+                AppState.AddToast("شما مجوز انجام این عملیات را ندارید.", ToastLevel.Error);
                 return;
             }
 

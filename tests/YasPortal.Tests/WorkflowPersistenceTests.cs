@@ -238,6 +238,88 @@ public class WorkflowPersistenceTests
         Assert.Throws<InvalidOperationException>(() => tracked.Cancel());
     }
 
+    [Fact]
+    public async Task Resubmitting_with_edited_fields_inserts_field_change_rows()
+    {
+        // Same regression class as the steps test above: FieldChange rows carry client-generated
+        // Guid keys, so without ValueGeneratedNever EF would try to UPDATE them and fail.
+        var databaseName = Guid.NewGuid().ToString();
+        var requester = Guid.NewGuid();
+        var requesterPosition = Guid.NewGuid();
+        Guid requestId;
+
+        await using (var setup = CreateContext(databaseName))
+        {
+            var request = new WorkflowRequest(
+                WorkflowTypeCode.Leave, requester, requesterPosition, "{\"reason\":\"قبلی\"}",
+                new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+            setup.WorkflowRequests.Add(request);
+            await setup.SaveChangesAsync();
+            requestId = request.Id;
+        }
+
+        await using (var returning = CreateContext(databaseName))
+        {
+            var request = await returning.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.ReturnToRequester(request.CurrentStep.Id, Guid.NewGuid(), null);
+            await returning.SaveChangesAsync();
+        }
+
+        // Exactly what MyRequests.razor's ResubmitAsync does: fetch with Steps only, then resubmit.
+        await using (var resubmitting = CreateContext(databaseName))
+        {
+            var request = await resubmitting.WorkflowRequests.Include(x => x.Steps).SingleAsync(x => x.Id == requestId);
+            request.Resubmit("{\"reason\":\"جدید\"}", new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+            await resubmitting.SaveChangesAsync();
+        }
+
+        await using var verify = CreateContext(databaseName);
+        var change = await verify.WorkflowFieldChanges.SingleAsync(x => x.RequestId == requestId);
+        Assert.Equal("reason", change.FieldKey);
+        Assert.Equal("قبلی", change.OldValue);
+        Assert.Equal("جدید", change.NewValue);
+        Assert.Equal(2, change.Round);
+        Assert.Equal(requester, change.ChangedByEmployeeId);
+        Assert.Equal(requesterPosition, change.ChangedByPositionId);
+    }
+
+    [Fact]
+    public async Task Active_covers_exactly_the_requests_that_can_still_move()
+    {
+        // "Active" drives the §18 workflow-change block, the §22.2 blocking list and the set the
+        // SuperAdmin can force-close, so pending and returned count and every terminal status doesn't.
+        var databaseName = Guid.NewGuid().ToString();
+
+        static WorkflowRequest NewRequest() => new(
+            WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{}",
+            new[] { (Guid.NewGuid(), 1, "مدیر مستقیم", Guid.NewGuid()) });
+
+        var pending = NewRequest();
+        var returned = NewRequest();
+        returned.ReturnToRequester(returned.CurrentStep.Id, Guid.NewGuid(), null);
+        var approved = NewRequest();
+        approved.Approve(approved.CurrentStep.Id, Guid.NewGuid(), null);
+        var rejected = NewRequest();
+        rejected.Reject(rejected.CurrentStep.Id, Guid.NewGuid(), null);
+        var cancelled = NewRequest();
+        cancelled.Cancel();
+        var forceClosed = NewRequest();
+        forceClosed.ForceClose(Guid.NewGuid(), "بسته شدن دستی");
+
+        await using (var setup = CreateContext(databaseName))
+        {
+            setup.WorkflowRequests.AddRange(pending, returned, approved, rejected, cancelled, forceClosed);
+            await setup.SaveChangesAsync();
+        }
+
+        await using var verify = CreateContext(databaseName);
+        var activeIds = await verify.WorkflowRequests.Active().Select(x => x.Id).ToListAsync();
+
+        Assert.Equal(2, activeIds.Count);
+        Assert.Contains(pending.Id, activeIds);
+        Assert.Contains(returned.Id, activeIds);
+    }
+
     private static ApplicationDbContext CreateContext(string databaseName)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
