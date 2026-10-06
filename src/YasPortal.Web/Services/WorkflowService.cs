@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
@@ -13,43 +12,44 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
 
     /// <summary>
     /// Loads the active step definitions for <paramref name="type"/> and resolves each one's
-    /// approver position for <paramref name="requesterPositionId"/> (walking up the hierarchy
-    /// for "N levels up" steps). A manager-level step whose requester doesn't have anyone that
-    /// far up the chain clamps to the highest manager that does exist, rather than failing the
-    /// whole submission — and if a requester has no manager at all, that one step is simply
-    /// skipped (there is nobody to review it). Only fails if every step ends up skipped, i.e.
-    /// there is truly nobody left to approve anything.
+    /// approver position for <paramref name="requesterPositionId"/> using the strict
+    /// <see cref="WorkflowStepResolver"/>: the configured path is followed exactly or the
+    /// submission is refused with every reason listed. It never clamps an unreachable manager
+    /// level to a lower manager, never skips a step, and never lets the requester (or the same
+    /// position twice) approve — see the resolver for why (spec §23/§24).
     /// </summary>
     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var definitions = await db.WorkflowStepDefinitions.AsNoTracking()
-            .Where(x => x.WorkflowType == type && x.IsActive)
-            .OrderBy(x => x.Order)
+            .Where(x => x.WorkflowType == type)
             .ToListAsync(ct);
-        if (definitions.Count == 0)
-            return new ResolveResult(false, "برای این نوع گردش‌کار هیچ مرحله تاییدی تعریف نشده است. با مدیر سامانه تماس بگیرید.", []);
-
         var parents = await db.Positions.AsNoTracking().Select(x => new { x.Id, x.ParentPositionId }).ToDictionaryAsync(x => x.Id, x => x.ParentPositionId, ct);
-        var resolved = new List<ResolvedStep>();
-        foreach (var def in definitions)
+
+        var resolution = WorkflowStepResolver.Resolve(definitions, requesterPositionId, parents);
+        if (!resolution.Success)
+            return new ResolveResult(false, DescribeErrors(resolution.Errors), []);
+
+        return new ResolveResult(true, null,
+            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList());
+    }
+
+    /// <summary>User-facing (Persian) explanation of why a path could not be resolved, one sentence per problem.</summary>
+    internal static string DescribeErrors(IReadOnlyList<WorkflowResolutionError> errors)
+    {
+        var lines = errors.Select(e => e.Kind switch
         {
-            Guid? approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
-                ? def.ApproverPositionId
-                : PositionHierarchy.GetClosestAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
-            if (approverPositionId is not Guid pid)
-                continue; // no manager at all above this requester — nothing to assign this step to, so skip it
-            resolved.Add(new ResolvedStep(def.Id, def.Order, def.Name, pid));
-        }
-
-        if (resolved.Count == 0)
-            return new ResolveResult(false, "برای سمت شما هیچ تاییدکننده‌ای در مسیر این گردش‌کار قابل تعیین نیست (ظاهراً سمت شما بالاترین سطح سازمان است). از مدیر سامانه بخواهید حداقل یک مرحله با سمت ثابت برای این نوع گردش‌کار تعریف کند.", []);
-
-        // Re-number consecutively in case a step was skipped, so the trail's order stays 1..N.
-        var reindexed = resolved.OrderBy(x => x.Order)
-            .Select((x, i) => x with { Order = i + 1 })
-            .ToList();
-        return new ResolveResult(true, null, reindexed);
+            WorkflowResolutionErrorKind.NoActiveSteps =>
+                "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
+            WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
+                $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
+            WorkflowResolutionErrorKind.ApproverIsRequesterPosition =>
+                $"مرحله «{e.StepName}» به سمت خودِ شما می‌رسد و نمی‌توانید درخواست خودتان را تایید کنید. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
+            WorkflowResolutionErrorKind.DuplicateApprover =>
+                $"مرحله «{e.StepName}» به همان سمتی می‌رسد که مرحله‌ای قبل‌تر نیز به آن می‌رسد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
+            _ => "مسیر تایید این درخواست قابل تعیین نیست.",
+        });
+        return string.Join(" ", lines);
     }
 
     /// <summary>

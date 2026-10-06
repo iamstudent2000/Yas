@@ -1,0 +1,387 @@
+From 086e913a2fe1f3bbae7abddb4c7e2433d939d645 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 6 Oct 2026 07:51:33 +0330
+Subject: [PATCH] Make workflow step resolution strict (stage 2)
+
+Previously ResolveStepsAsync silently weakened the approval chain: it
+clamped an unreachable "N levels up" step to a lower manager, skipped
+steps when the requester had no manager, and let a request route to the
+requester's own position or to the same position twice.
+
+Per spec 23/24 these cases need an explicit SuperAdmin decision, not
+implicit automation. Resolution now lives in a pure, unit-tested domain
+class (WorkflowStepResolver) that follows the configured path exactly or
+refuses the submission, reporting every problem at once:
+
+- ManagerLevelUnavailable: no manager that many levels up (no clamping,
+  no skipping)
+- ApproverIsRequesterPosition: no self-approval
+- DuplicateApprover: one position cannot approve the same request twice
+- NoActiveSteps: nothing configured
+
+WorkflowService keeps its signature (callers unchanged) and turns the
+errors into specific Persian messages naming the offending step.
+
+Behaviour change to be aware of: requesters whose position is also an
+approver in their own path (e.g. the HR manager submitting Leave, whose
+final step is the HR manager) can no longer submit until an admin
+configures a path that does not route back to them.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01RQHbwVSXJrhTqR4ZDkLhx4
+---
+ .../Workflows/WorkflowStepResolver.cs         |  90 ++++++++++
+ src/YasPortal.Web/Services/WorkflowService.cs |  58 +++----
+ .../WorkflowStepResolverTests.cs              | 160 ++++++++++++++++++
+ 3 files changed, 279 insertions(+), 29 deletions(-)
+ create mode 100644 src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
+ create mode 100644 tests/YasPortal.Tests/WorkflowStepResolverTests.cs
+
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs b/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
+new file mode 100644
+index 0000000..ecdc04a
+--- /dev/null
++++ b/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
+@@ -0,0 +1,90 @@
++namespace YasPortal.Domain.Workflows;
++
++/// <summary>Why a request's approval path could not be resolved (spec §23, §24).</summary>
++public enum WorkflowResolutionErrorKind
++{
++    /// <summary>The type has no active approval step at all.</summary>
++    NoActiveSteps,
++
++    /// <summary>A "N levels up" step needs a manager that the requester's position does not have that far up.</summary>
++    ManagerLevelUnavailable,
++
++    /// <summary>A step resolves to the requester's own position — they would be approving their own request.</summary>
++    ApproverIsRequesterPosition,
++
++    /// <summary>Two steps resolve to the same position, so one holder would approve the same request twice.</summary>
++    DuplicateApprover,
++}
++
++/// <summary>One reason resolution failed, naming the step it concerns (null for <see cref="WorkflowResolutionErrorKind.NoActiveSteps"/>).</summary>
++public sealed record WorkflowResolutionError(WorkflowResolutionErrorKind Kind, string? StepName, int? ManagerLevel = null);
++
++public sealed record WorkflowResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId);
++
++public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Steps, IReadOnlyList<WorkflowResolutionError> Errors)
++{
++    public bool Success => Errors.Count == 0;
++}
++
++/// <summary>
++/// Turns a type's admin-configured <see cref="WorkflowStepDefinition"/>s into a concrete approval
++/// path for one requester position. Deliberately strict: the path the admin configured is the path
++/// the request gets, or the submission is refused with every reason listed — never silently
++/// shortened. The previous behaviour (clamping an unreachable "level 3" step to a lower manager,
++/// and skipping a step when the requester had no manager) let a short hierarchy quietly weaken the
++/// approval chain; per spec §23/§24 such cases need an explicit SuperAdmin decision (change the
++/// workflow or the hierarchy), not implicit automation.
++/// </summary>
++public static class WorkflowStepResolver
++{
++    public static WorkflowResolution Resolve(
++        IEnumerable<WorkflowStepDefinition> definitions,
++        Guid requesterPositionId,
++        IReadOnlyDictionary<Guid, Guid?> parentByPosition)
++    {
++        var active = definitions.Where(x => x.IsActive).OrderBy(x => x.Order).ToList();
++        if (active.Count == 0)
++            return new WorkflowResolution([], [new WorkflowResolutionError(WorkflowResolutionErrorKind.NoActiveSteps, null)]);
++
++        var errors = new List<WorkflowResolutionError>();
++        var resolved = new List<(WorkflowStepDefinition Definition, Guid PositionId)>();
++
++        foreach (var definition in active)
++        {
++            Guid? approver = definition.ApproverRuleKind == ApproverRuleKind.SpecificPosition
++                ? definition.ApproverPositionId
++                // Exact level or nothing: no clamping to "the highest manager that exists".
++                : Organization.PositionHierarchy.GetAncestorPositionId(requesterPositionId, definition.ManagerLevel!.Value, parentByPosition);
++
++            if (approver is not Guid positionId)
++            {
++                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ManagerLevelUnavailable, definition.Name, definition.ManagerLevel));
++                continue;
++            }
++
++            if (positionId == requesterPositionId)
++            {
++                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, definition.Name));
++                continue;
++            }
++
++            if (resolved.Any(x => x.PositionId == positionId))
++            {
++                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.DuplicateApprover, definition.Name));
++                continue;
++            }
++
++            resolved.Add((definition, positionId));
++        }
++
++        if (errors.Count > 0)
++            return new WorkflowResolution([], errors);
++
++        // Orders are 1..N by construction of the admin page, but an inactive step in the middle
++        // leaves a gap, so the live trail is renumbered consecutively.
++        var steps = resolved
++            .Select((x, i) => new WorkflowResolvedStep(x.Definition.Id, i + 1, x.Definition.Name, x.PositionId))
++            .ToList();
++        return new WorkflowResolution(steps, []);
++    }
++}
+diff --git a/src/YasPortal.Web/Services/WorkflowService.cs b/src/YasPortal.Web/Services/WorkflowService.cs
+index 2858129..4c15ec6 100644
+--- a/src/YasPortal.Web/Services/WorkflowService.cs
++++ b/src/YasPortal.Web/Services/WorkflowService.cs
+@@ -1,5 +1,4 @@
+ using Microsoft.EntityFrameworkCore;
+-using YasPortal.Domain.Organization;
+ using YasPortal.Domain.Workflows;
+ using YasPortal.Infrastructure.Persistence;
+ 
+@@ -13,43 +12,44 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+ 
+     /// <summary>
+     /// Loads the active step definitions for <paramref name="type"/> and resolves each one's
+-    /// approver position for <paramref name="requesterPositionId"/> (walking up the hierarchy
+-    /// for "N levels up" steps). A manager-level step whose requester doesn't have anyone that
+-    /// far up the chain clamps to the highest manager that does exist, rather than failing the
+-    /// whole submission — and if a requester has no manager at all, that one step is simply
+-    /// skipped (there is nobody to review it). Only fails if every step ends up skipped, i.e.
+-    /// there is truly nobody left to approve anything.
++    /// approver position for <paramref name="requesterPositionId"/> using the strict
++    /// <see cref="WorkflowStepResolver"/>: the configured path is followed exactly or the
++    /// submission is refused with every reason listed. It never clamps an unreachable manager
++    /// level to a lower manager, never skips a step, and never lets the requester (or the same
++    /// position twice) approve — see the resolver for why (spec §23/§24).
+     /// </summary>
+     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
+     {
+         await using var db = await dbFactory.CreateDbContextAsync(ct);
+         var definitions = await db.WorkflowStepDefinitions.AsNoTracking()
+-            .Where(x => x.WorkflowType == type && x.IsActive)
+-            .OrderBy(x => x.Order)
++            .Where(x => x.WorkflowType == type)
+             .ToListAsync(ct);
+-        if (definitions.Count == 0)
+-            return new ResolveResult(false, "برای این نوع گردش‌کار هیچ مرحله تاییدی تعریف نشده است. با مدیر سامانه تماس بگیرید.", []);
+-
+         var parents = await db.Positions.AsNoTracking().Select(x => new { x.Id, x.ParentPositionId }).ToDictionaryAsync(x => x.Id, x => x.ParentPositionId, ct);
+-        var resolved = new List<ResolvedStep>();
+-        foreach (var def in definitions)
+-        {
+-            Guid? approverPositionId = def.ApproverRuleKind == ApproverRuleKind.SpecificPosition
+-                ? def.ApproverPositionId
+-                : PositionHierarchy.GetClosestAncestorPositionId(requesterPositionId, def.ManagerLevel!.Value, parents);
+-            if (approverPositionId is not Guid pid)
+-                continue; // no manager at all above this requester — nothing to assign this step to, so skip it
+-            resolved.Add(new ResolvedStep(def.Id, def.Order, def.Name, pid));
+-        }
+ 
+-        if (resolved.Count == 0)
+-            return new ResolveResult(false, "برای سمت شما هیچ تاییدکننده‌ای در مسیر این گردش‌کار قابل تعیین نیست (ظاهراً سمت شما بالاترین سطح سازمان است). از مدیر سامانه بخواهید حداقل یک مرحله با سمت ثابت برای این نوع گردش‌کار تعریف کند.", []);
++        var resolution = WorkflowStepResolver.Resolve(definitions, requesterPositionId, parents);
++        if (!resolution.Success)
++            return new ResolveResult(false, DescribeErrors(resolution.Errors), []);
++
++        return new ResolveResult(true, null,
++            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList());
++    }
+ 
+-        // Re-number consecutively in case a step was skipped, so the trail's order stays 1..N.
+-        var reindexed = resolved.OrderBy(x => x.Order)
+-            .Select((x, i) => x with { Order = i + 1 })
+-            .ToList();
+-        return new ResolveResult(true, null, reindexed);
++    /// <summary>User-facing (Persian) explanation of why a path could not be resolved, one sentence per problem.</summary>
++    internal static string DescribeErrors(IReadOnlyList<WorkflowResolutionError> errors)
++    {
++        var lines = errors.Select(e => e.Kind switch
++        {
++            WorkflowResolutionErrorKind.NoActiveSteps =>
++                "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
++            WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
++                $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
++            WorkflowResolutionErrorKind.ApproverIsRequesterPosition =>
++                $"مرحله «{e.StepName}» به سمت خودِ شما می‌رسد و نمی‌توانید درخواست خودتان را تایید کنید. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
++            WorkflowResolutionErrorKind.DuplicateApprover =>
++                $"مرحله «{e.StepName}» به همان سمتی می‌رسد که مرحله‌ای قبل‌تر نیز به آن می‌رسد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
++            _ => "مسیر تایید این درخواست قابل تعیین نیست.",
++        });
++        return string.Join(" ", lines);
+     }
+ 
+     /// <summary>
+diff --git a/tests/YasPortal.Tests/WorkflowStepResolverTests.cs b/tests/YasPortal.Tests/WorkflowStepResolverTests.cs
+new file mode 100644
+index 0000000..ebf1e30
+--- /dev/null
++++ b/tests/YasPortal.Tests/WorkflowStepResolverTests.cs
+@@ -0,0 +1,160 @@
++using Xunit;
++using YasPortal.Domain.Workflows;
++
++namespace YasPortal.Tests;
++
++public class WorkflowStepResolverTests
++{
++    // ceo
++    //  └─ unitManager
++    //       └─ employee
++    private sealed record Org(Guid Ceo, Guid UnitManager, Guid Employee, Guid Hr, Dictionary<Guid, Guid?> Parents);
++
++    private static Org BuildOrg()
++    {
++        var ceo = Guid.NewGuid();
++        var unitManager = Guid.NewGuid();
++        var employee = Guid.NewGuid();
++        var hr = Guid.NewGuid();
++        return new Org(ceo, unitManager, employee, hr, new Dictionary<Guid, Guid?>
++        {
++            [ceo] = null,
++            [unitManager] = ceo,
++            [employee] = unitManager,
++            [hr] = ceo,
++        });
++    }
++
++    private static WorkflowStepDefinition Level(int order, string name, int level) => new(WorkflowTypeCode.Leave, order, name, level);
++
++    private static WorkflowStepDefinition Fixed(int order, string name, Guid position) => new(WorkflowTypeCode.Leave, order, name, position);
++
++    [Fact]
++    public void Resolves_manager_levels_and_fixed_positions_in_order()
++    {
++        var org = BuildOrg();
++        var result = WorkflowStepResolver.Resolve(
++            [Level(1, "مدیر مستقیم", 1), Fixed(2, "منابع انسانی", org.Hr)], org.Employee, org.Parents);
++
++        Assert.True(result.Success);
++        Assert.Equal(new[] { org.UnitManager, org.Hr }, result.Steps.Select(s => s.ApproverPositionId));
++        Assert.Equal(new[] { 1, 2 }, result.Steps.Select(s => s.Order));
++        Assert.Equal(new[] { "مدیر مستقیم", "منابع انسانی" }, result.Steps.Select(s => s.Name));
++    }
++
++    [Fact]
++    public void Steps_are_ordered_by_their_configured_order_not_input_order()
++    {
++        var org = BuildOrg();
++        var result = WorkflowStepResolver.Resolve(
++            [Fixed(2, "منابع انسانی", org.Hr), Level(1, "مدیر مستقیم", 1)], org.Employee, org.Parents);
++
++        Assert.True(result.Success);
++        Assert.Equal(new[] { "مدیر مستقیم", "منابع انسانی" }, result.Steps.Select(s => s.Name));
++    }
++
++    [Fact]
++    public void A_manager_level_beyond_the_hierarchy_is_an_error_and_is_never_clamped()
++    {
++        var org = BuildOrg();
++        // employee -> unitManager (1) -> ceo (2) -> nobody (3). The old behaviour silently used the CEO here.
++        var result = WorkflowStepResolver.Resolve([Level(1, "سه سطح بالاتر", 3)], org.Employee, org.Parents);
++
++        Assert.False(result.Success);
++        Assert.Empty(result.Steps);
++        var error = Assert.Single(result.Errors);
++        Assert.Equal(WorkflowResolutionErrorKind.ManagerLevelUnavailable, error.Kind);
++        Assert.Equal("سه سطح بالاتر", error.StepName);
++        Assert.Equal(3, error.ManagerLevel);
++    }
++
++    [Fact]
++    public void A_requester_with_no_manager_is_an_error_and_the_step_is_never_skipped()
++    {
++        var org = BuildOrg();
++        // The CEO has no parent. The old behaviour skipped this step, shortening the approval chain.
++        var result = WorkflowStepResolver.Resolve([Level(1, "مدیر مستقیم", 1), Fixed(2, "منابع انسانی", org.Hr)], org.Ceo, org.Parents);
++
++        Assert.False(result.Success);
++        var error = Assert.Single(result.Errors);
++        Assert.Equal(WorkflowResolutionErrorKind.ManagerLevelUnavailable, error.Kind);
++        Assert.Equal("مدیر مستقیم", error.StepName);
++    }
++
++    [Fact]
++    public void A_step_that_resolves_to_the_requesters_own_position_is_an_error()
++    {
++        var org = BuildOrg();
++        // HR submitting a request whose fixed approver is HR: they would approve their own request.
++        var result = WorkflowStepResolver.Resolve([Fixed(1, "منابع انسانی", org.Hr)], org.Hr, org.Parents);
++
++        Assert.False(result.Success);
++        var error = Assert.Single(result.Errors);
++        Assert.Equal(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, error.Kind);
++        Assert.Equal("منابع انسانی", error.StepName);
++    }
++
++    [Fact]
++    public void Two_steps_resolving_to_the_same_position_is_an_error()
++    {
++        var org = BuildOrg();
++        // Employee's manager is the unit manager, and a fixed step names the unit manager too.
++        var result = WorkflowStepResolver.Resolve(
++            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید مجدد مدیر", org.UnitManager)], org.Employee, org.Parents);
++
++        Assert.False(result.Success);
++        var error = Assert.Single(result.Errors);
++        Assert.Equal(WorkflowResolutionErrorKind.DuplicateApprover, error.Kind);
++        Assert.Equal("تایید مجدد مدیر", error.StepName);
++    }
++
++    [Fact]
++    public void Every_problem_is_reported_at_once_not_just_the_first()
++    {
++        var org = BuildOrg();
++        var result = WorkflowStepResolver.Resolve(
++            [Level(1, "سه سطح بالاتر", 3), Fixed(2, "خودِ درخواست‌کننده", org.Employee)], org.Employee, org.Parents);
++
++        Assert.False(result.Success);
++        Assert.Equal(2, result.Errors.Count);
++        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ManagerLevelUnavailable);
++        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ApproverIsRequesterPosition);
++    }
++
++    [Fact]
++    public void No_steps_at_all_is_an_error()
++    {
++        var org = BuildOrg();
++        var result = WorkflowStepResolver.Resolve([], org.Employee, org.Parents);
++
++        Assert.False(result.Success);
++        Assert.Equal(WorkflowResolutionErrorKind.NoActiveSteps, Assert.Single(result.Errors).Kind);
++    }
++
++    [Fact]
++    public void Inactive_steps_are_ignored_and_the_live_trail_is_renumbered()
++    {
++        var org = BuildOrg();
++        var middle = Fixed(2, "منابع انسانی", org.Hr);
++        middle.Deactivate();
++
++        var result = WorkflowStepResolver.Resolve(
++            [Level(1, "مدیر مستقیم", 1), middle, Level(3, "مدیر ارشد", 2)], org.Employee, org.Parents);
++
++        Assert.True(result.Success);
++        Assert.Equal(new[] { "مدیر مستقیم", "مدیر ارشد" }, result.Steps.Select(s => s.Name));
++        Assert.Equal(new[] { 1, 2 }, result.Steps.Select(s => s.Order));
++    }
++
++    [Fact]
++    public void Only_inactive_steps_counts_as_no_steps()
++    {
++        var org = BuildOrg();
++        var only = Level(1, "مدیر مستقیم", 1);
++        only.Deactivate();
++
++        var result = WorkflowStepResolver.Resolve([only], org.Employee, org.Parents);
++
++        Assert.Equal(WorkflowResolutionErrorKind.NoActiveSteps, Assert.Single(result.Errors).Kind);
++    }
++}
+-- 
+2.43.0
+
