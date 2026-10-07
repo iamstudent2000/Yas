@@ -1,48 +1,9 @@
-From 086e913a2fe1f3bbae7abddb4c7e2433d939d645 Mon Sep 17 00:00:00 2001
-From: Claude <noreply@anthropic.com>
-Date: Tue, 6 Oct 2026 07:51:33 +0330
-Subject: [PATCH] Make workflow step resolution strict (stage 2)
-
-Previously ResolveStepsAsync silently weakened the approval chain: it
-clamped an unreachable "N levels up" step to a lower manager, skipped
-steps when the requester had no manager, and let a request route to the
-requester's own position or to the same position twice.
-
-Per spec 23/24 these cases need an explicit SuperAdmin decision, not
-implicit automation. Resolution now lives in a pure, unit-tested domain
-class (WorkflowStepResolver) that follows the configured path exactly or
-refuses the submission, reporting every problem at once:
-
-- ManagerLevelUnavailable: no manager that many levels up (no clamping,
-  no skipping)
-- ApproverIsRequesterPosition: no self-approval
-- DuplicateApprover: one position cannot approve the same request twice
-- NoActiveSteps: nothing configured
-
-WorkflowService keeps its signature (callers unchanged) and turns the
-errors into specific Persian messages naming the offending step.
-
-Behaviour change to be aware of: requesters whose position is also an
-approver in their own path (e.g. the HR manager submitting Leave, whose
-final step is the HR manager) can no longer submit until an admin
-configures a path that does not route back to them.
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01RQHbwVSXJrhTqR4ZDkLhx4
----
- .../Workflows/WorkflowStepResolver.cs         |  90 ++++++++++
- src/YasPortal.Web/Services/WorkflowService.cs |  58 +++----
- .../WorkflowStepResolverTests.cs              | 160 ++++++++++++++++++
- 3 files changed, 279 insertions(+), 29 deletions(-)
- create mode 100644 src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
- create mode 100644 tests/YasPortal.Tests/WorkflowStepResolverTests.cs
-
 diff --git a/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs b/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
 new file mode 100644
-index 0000000..ecdc04a
+index 0000000..2361bad
 --- /dev/null
 +++ b/src/YasPortal.Domain/Workflows/WorkflowStepResolver.cs
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,75 @@
 +namespace YasPortal.Domain.Workflows;
 +
 +/// <summary>Why a request's approval path could not be resolved (spec §23, §24).</summary>
@@ -53,12 +14,6 @@ index 0000000..ecdc04a
 +
 +    /// <summary>A "N levels up" step needs a manager that the requester's position does not have that far up.</summary>
 +    ManagerLevelUnavailable,
-+
-+    /// <summary>A step resolves to the requester's own position — they would be approving their own request.</summary>
-+    ApproverIsRequesterPosition,
-+
-+    /// <summary>Two steps resolve to the same position, so one holder would approve the same request twice.</summary>
-+    DuplicateApprover,
 +}
 +
 +/// <summary>One reason resolution failed, naming the step it concerns (null for <see cref="WorkflowResolutionErrorKind.NoActiveSteps"/>).</summary>
@@ -78,7 +33,8 @@ index 0000000..ecdc04a
 +/// shortened. The previous behaviour (clamping an unreachable "level 3" step to a lower manager,
 +/// and skipping a step when the requester had no manager) let a short hierarchy quietly weaken the
 +/// approval chain; per spec §23/§24 such cases need an explicit SuperAdmin decision (change the
-+/// workflow or the hierarchy), not implicit automation.
++/// workflow or the hierarchy), not implicit automation. Steps may land on the requester's own
++/// position, or on the same position more than once — the path is honoured as configured.
 +/// </summary>
 +public static class WorkflowStepResolver
 +{
@@ -107,18 +63,8 @@ index 0000000..ecdc04a
 +                continue;
 +            }
 +
-+            if (positionId == requesterPositionId)
-+            {
-+                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, definition.Name));
-+                continue;
-+            }
-+
-+            if (resolved.Any(x => x.PositionId == positionId))
-+            {
-+                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.DuplicateApprover, definition.Name));
-+                continue;
-+            }
-+
++            // Neither a step landing on the requester's own position nor two steps landing on the
++            // same position is an error: the path is followed exactly as the admin configured it.
 +            resolved.Add((definition, positionId));
 +        }
 +
@@ -134,7 +80,7 @@ index 0000000..ecdc04a
 +    }
 +}
 diff --git a/src/YasPortal.Web/Services/WorkflowService.cs b/src/YasPortal.Web/Services/WorkflowService.cs
-index 2858129..4c15ec6 100644
+index 2858129..4b4143d 100644
 --- a/src/YasPortal.Web/Services/WorkflowService.cs
 +++ b/src/YasPortal.Web/Services/WorkflowService.cs
 @@ -1,5 +1,4 @@
@@ -143,7 +89,7 @@ index 2858129..4c15ec6 100644
  using YasPortal.Domain.Workflows;
  using YasPortal.Infrastructure.Persistence;
  
-@@ -13,43 +12,44 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
+@@ -13,43 +12,40 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
  
      /// <summary>
      /// Loads the active step definitions for <paramref name="type"/> and resolves each one's
@@ -156,8 +102,8 @@ index 2858129..4c15ec6 100644
 +    /// approver position for <paramref name="requesterPositionId"/> using the strict
 +    /// <see cref="WorkflowStepResolver"/>: the configured path is followed exactly or the
 +    /// submission is refused with every reason listed. It never clamps an unreachable manager
-+    /// level to a lower manager, never skips a step, and never lets the requester (or the same
-+    /// position twice) approve — see the resolver for why (spec §23/§24).
++    /// level to a lower manager, and never skips a step — see the resolver for why (spec §23/§24).
++    /// Steps landing on the requester's own position, or on the same position twice, are allowed.
      /// </summary>
      public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
      {
@@ -206,10 +152,6 @@ index 2858129..4c15ec6 100644
 +                "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
 +            WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
 +                $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
-+            WorkflowResolutionErrorKind.ApproverIsRequesterPosition =>
-+                $"مرحله «{e.StepName}» به سمت خودِ شما می‌رسد و نمی‌توانید درخواست خودتان را تایید کنید. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
-+            WorkflowResolutionErrorKind.DuplicateApprover =>
-+                $"مرحله «{e.StepName}» به همان سمتی می‌رسد که مرحله‌ای قبل‌تر نیز به آن می‌رسد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
 +            _ => "مسیر تایید این درخواست قابل تعیین نیست.",
 +        });
 +        return string.Join(" ", lines);
@@ -218,10 +160,10 @@ index 2858129..4c15ec6 100644
      /// <summary>
 diff --git a/tests/YasPortal.Tests/WorkflowStepResolverTests.cs b/tests/YasPortal.Tests/WorkflowStepResolverTests.cs
 new file mode 100644
-index 0000000..ebf1e30
+index 0000000..a20fcd6
 --- /dev/null
 +++ b/tests/YasPortal.Tests/WorkflowStepResolverTests.cs
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,173 @@
 +using Xunit;
 +using YasPortal.Domain.Workflows;
 +
@@ -306,43 +248,56 @@ index 0000000..ebf1e30
 +    }
 +
 +    [Fact]
-+    public void A_step_that_resolves_to_the_requesters_own_position_is_an_error()
++    public void A_step_that_resolves_to_the_requesters_own_position_is_allowed()
 +    {
 +        var org = BuildOrg();
-+        // HR submitting a request whose fixed approver is HR: they would approve their own request.
++        // HR submitting a request whose fixed approver is HR: by design a request's steps can be
++        // made and approved by the same position, so this resolves normally.
 +        var result = WorkflowStepResolver.Resolve([Fixed(1, "منابع انسانی", org.Hr)], org.Hr, org.Parents);
 +
-+        Assert.False(result.Success);
-+        var error = Assert.Single(result.Errors);
-+        Assert.Equal(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, error.Kind);
-+        Assert.Equal("منابع انسانی", error.StepName);
++        Assert.True(result.Success);
++        var step = Assert.Single(result.Steps);
++        Assert.Equal(org.Hr, step.ApproverPositionId);
 +    }
 +
 +    [Fact]
-+    public void Two_steps_resolving_to_the_same_position_is_an_error()
++    public void A_requester_can_appear_in_the_middle_of_their_own_path()
 +    {
 +        var org = BuildOrg();
-+        // Employee's manager is the unit manager, and a fixed step names the unit manager too.
++        // Unit manager submitting: step 1 is their own manager (CEO), step 2 is their own position.
 +        var result = WorkflowStepResolver.Resolve(
-+            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید مجدد مدیر", org.UnitManager)], org.Employee, org.Parents);
++            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید واحد", org.UnitManager)], org.UnitManager, org.Parents);
 +
-+        Assert.False(result.Success);
-+        var error = Assert.Single(result.Errors);
-+        Assert.Equal(WorkflowResolutionErrorKind.DuplicateApprover, error.Kind);
-+        Assert.Equal("تایید مجدد مدیر", error.StepName);
++        Assert.True(result.Success);
++        Assert.Equal(new[] { org.Ceo, org.UnitManager }, result.Steps.Select(s => s.ApproverPositionId));
++    }
++
++    [Fact]
++    public void Two_steps_resolving_to_the_same_position_are_both_kept()
++    {
++        var org = BuildOrg();
++        // Unit manager submitting an Access-style request: their direct manager is the CEO, and a
++        // fixed step also names the CEO. The path is honoured as configured, so both steps stay.
++        var result = WorkflowStepResolver.Resolve(
++            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید مدیر سامانه", org.Ceo)], org.UnitManager, org.Parents);
++
++        Assert.True(result.Success);
++        Assert.Equal(new[] { org.Ceo, org.Ceo }, result.Steps.Select(s => s.ApproverPositionId));
++        Assert.Equal(new[] { 1, 2 }, result.Steps.Select(s => s.Order));
 +    }
 +
 +    [Fact]
 +    public void Every_problem_is_reported_at_once_not_just_the_first()
 +    {
 +        var org = BuildOrg();
++        // Employee is two levels below the CEO, so levels 3 and 4 both fall off the top of the tree.
 +        var result = WorkflowStepResolver.Resolve(
-+            [Level(1, "سه سطح بالاتر", 3), Fixed(2, "خودِ درخواست‌کننده", org.Employee)], org.Employee, org.Parents);
++            [Level(1, "سه سطح بالاتر", 3), Level(2, "چهار سطح بالاتر", 4)], org.Employee, org.Parents);
 +
 +        Assert.False(result.Success);
 +        Assert.Equal(2, result.Errors.Count);
-+        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ManagerLevelUnavailable);
-+        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ApproverIsRequesterPosition);
++        Assert.All(result.Errors, e => Assert.Equal(WorkflowResolutionErrorKind.ManagerLevelUnavailable, e.Kind));
++        Assert.Equal(new[] { "سه سطح بالاتر", "چهار سطح بالاتر" }, result.Errors.Select(e => e.StepName));
 +    }
 +
 +    [Fact]
@@ -382,6 +337,3 @@ index 0000000..ebf1e30
 +        Assert.Equal(WorkflowResolutionErrorKind.NoActiveSteps, Assert.Single(result.Errors).Kind);
 +    }
 +}
--- 
-2.43.0
-
