@@ -8,12 +8,6 @@ public enum WorkflowResolutionErrorKind
 
     /// <summary>A "N levels up" step needs a manager that the requester's position does not have that far up.</summary>
     ManagerLevelUnavailable,
-
-    /// <summary>A step resolves to the requester's own position — they would be approving their own request.</summary>
-    ApproverIsRequesterPosition,
-
-    /// <summary>Two steps resolve to the same position, so one holder would approve the same request twice.</summary>
-    DuplicateApprover,
 }
 
 /// <summary>One reason resolution failed, naming the step it concerns (null for <see cref="WorkflowResolutionErrorKind.NoActiveSteps"/>).</summary>
@@ -33,7 +27,8 @@ public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Step
 /// shortened. The previous behaviour (clamping an unreachable "level 3" step to a lower manager,
 /// and skipping a step when the requester had no manager) let a short hierarchy quietly weaken the
 /// approval chain; per spec §23/§24 such cases need an explicit SuperAdmin decision (change the
-/// workflow or the hierarchy), not implicit automation.
+/// workflow or the hierarchy), not implicit automation. Steps may land on the requester's own
+/// position, or on the same position more than once — the path is honoured as configured.
 /// </summary>
 public static class WorkflowStepResolver
 {
@@ -62,18 +57,8 @@ public static class WorkflowStepResolver
                 continue;
             }
 
-            if (positionId == requesterPositionId)
-            {
-                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, definition.Name));
-                continue;
-            }
-
-            if (resolved.Any(x => x.PositionId == positionId))
-            {
-                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.DuplicateApprover, definition.Name));
-                continue;
-            }
-
+            // Neither a step landing on the requester's own position nor two steps landing on the
+            // same position is an error: the path is followed exactly as the admin configured it.
             resolved.Add((definition, positionId));
         }
 

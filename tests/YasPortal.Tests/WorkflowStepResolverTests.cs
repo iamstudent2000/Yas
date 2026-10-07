@@ -82,43 +82,56 @@ public class WorkflowStepResolverTests
     }
 
     [Fact]
-    public void A_step_that_resolves_to_the_requesters_own_position_is_an_error()
+    public void A_step_that_resolves_to_the_requesters_own_position_is_allowed()
     {
         var org = BuildOrg();
-        // HR submitting a request whose fixed approver is HR: they would approve their own request.
+        // HR submitting a request whose fixed approver is HR: by design a request's steps can be
+        // made and approved by the same position, so this resolves normally.
         var result = WorkflowStepResolver.Resolve([Fixed(1, "منابع انسانی", org.Hr)], org.Hr, org.Parents);
 
-        Assert.False(result.Success);
-        var error = Assert.Single(result.Errors);
-        Assert.Equal(WorkflowResolutionErrorKind.ApproverIsRequesterPosition, error.Kind);
-        Assert.Equal("منابع انسانی", error.StepName);
+        Assert.True(result.Success);
+        var step = Assert.Single(result.Steps);
+        Assert.Equal(org.Hr, step.ApproverPositionId);
     }
 
     [Fact]
-    public void Two_steps_resolving_to_the_same_position_is_an_error()
+    public void A_requester_can_appear_in_the_middle_of_their_own_path()
     {
         var org = BuildOrg();
-        // Employee's manager is the unit manager, and a fixed step names the unit manager too.
+        // Unit manager submitting: step 1 is their own manager (CEO), step 2 is their own position.
         var result = WorkflowStepResolver.Resolve(
-            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید مجدد مدیر", org.UnitManager)], org.Employee, org.Parents);
+            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید واحد", org.UnitManager)], org.UnitManager, org.Parents);
 
-        Assert.False(result.Success);
-        var error = Assert.Single(result.Errors);
-        Assert.Equal(WorkflowResolutionErrorKind.DuplicateApprover, error.Kind);
-        Assert.Equal("تایید مجدد مدیر", error.StepName);
+        Assert.True(result.Success);
+        Assert.Equal(new[] { org.Ceo, org.UnitManager }, result.Steps.Select(s => s.ApproverPositionId));
+    }
+
+    [Fact]
+    public void Two_steps_resolving_to_the_same_position_are_both_kept()
+    {
+        var org = BuildOrg();
+        // Unit manager submitting an Access-style request: their direct manager is the CEO, and a
+        // fixed step also names the CEO. The path is honoured as configured, so both steps stay.
+        var result = WorkflowStepResolver.Resolve(
+            [Level(1, "مدیر مستقیم", 1), Fixed(2, "تایید مدیر سامانه", org.Ceo)], org.UnitManager, org.Parents);
+
+        Assert.True(result.Success);
+        Assert.Equal(new[] { org.Ceo, org.Ceo }, result.Steps.Select(s => s.ApproverPositionId));
+        Assert.Equal(new[] { 1, 2 }, result.Steps.Select(s => s.Order));
     }
 
     [Fact]
     public void Every_problem_is_reported_at_once_not_just_the_first()
     {
         var org = BuildOrg();
+        // Employee is two levels below the CEO, so levels 3 and 4 both fall off the top of the tree.
         var result = WorkflowStepResolver.Resolve(
-            [Level(1, "سه سطح بالاتر", 3), Fixed(2, "خودِ درخواست‌کننده", org.Employee)], org.Employee, org.Parents);
+            [Level(1, "سه سطح بالاتر", 3), Level(2, "چهار سطح بالاتر", 4)], org.Employee, org.Parents);
 
         Assert.False(result.Success);
         Assert.Equal(2, result.Errors.Count);
-        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ManagerLevelUnavailable);
-        Assert.Contains(result.Errors, e => e.Kind == WorkflowResolutionErrorKind.ApproverIsRequesterPosition);
+        Assert.All(result.Errors, e => Assert.Equal(WorkflowResolutionErrorKind.ManagerLevelUnavailable, e.Kind));
+        Assert.Equal(new[] { "سه سطح بالاتر", "چهار سطح بالاتر" }, result.Errors.Select(e => e.StepName));
     }
 
     [Fact]

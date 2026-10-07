@@ -15,8 +15,8 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     /// approver position for <paramref name="requesterPositionId"/> using the strict
     /// <see cref="WorkflowStepResolver"/>: the configured path is followed exactly or the
     /// submission is refused with every reason listed. It never clamps an unreachable manager
-    /// level to a lower manager, never skips a step, and never lets the requester (or the same
-    /// position twice) approve — see the resolver for why (spec §23/§24).
+    /// level to a lower manager, and never skips a step — see the resolver for why (spec §23/§24).
+    /// Steps landing on the requester's own position, or on the same position twice, are allowed.
     /// </summary>
     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
     {
@@ -43,10 +43,6 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
                 "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
             WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
                 $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
-            WorkflowResolutionErrorKind.ApproverIsRequesterPosition =>
-                $"مرحله «{e.StepName}» به سمت خودِ شما می‌رسد و نمی‌توانید درخواست خودتان را تایید کنید. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
-            WorkflowResolutionErrorKind.DuplicateApprover =>
-                $"مرحله «{e.StepName}» به همان سمتی می‌رسد که مرحله‌ای قبل‌تر نیز به آن می‌رسد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
             _ => "مسیر تایید این درخواست قابل تعیین نیست.",
         });
         return string.Join(" ", lines);
