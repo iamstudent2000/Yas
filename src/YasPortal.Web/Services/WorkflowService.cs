@@ -43,6 +43,8 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
                 "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
             WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
                 $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
+            WorkflowResolutionErrorKind.TreeLevelUnavailable =>
+                $"مرحله «{e.StepName}» باید تا سطح {e.TreeLevel} درخت سازمانی بالا برود، اما سمت شما بالاتر از آن سطح قرار دارد و تاییدکننده‌ای برای ارجاع وجود ندارد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
             _ => "مسیر تایید این درخواست قابل تعیین نیست.",
         });
         return string.Join(" ", lines);

@@ -41,7 +41,32 @@ public sealed class WorkflowStepDefinition
 
     /// <summary>Set when <see cref="ApproverRuleKind"/> is <see cref="ApproverRuleKind.SpecificPosition"/>.</summary>
     public Guid? ApproverPositionId { get; private set; }
+
+    /// <summary>
+    /// Set when <see cref="ApproverRuleKind"/> is <see cref="ApproverRuleKind.EscalateToTreeLevel"/>:
+    /// the depth to escalate to, counted from the top of the organization tree (1 = the top position,
+    /// 2 = its direct children, ...).
+    /// </summary>
+    public int? TreeLevel { get; private set; }
     public bool IsActive { get; private set; } = true;
+
+    /// <summary>
+    /// Creates a step that escalates up the requester's chain to <paramref name="treeLevel"/> from
+    /// the top of the tree (see <see cref="ApproverRuleKind.EscalateToTreeLevel"/>). A factory rather
+    /// than a constructor because its parameters would clash with the manager-level constructor.
+    /// </summary>
+    public static WorkflowStepDefinition EscalatingToTreeLevel(WorkflowTypeCode workflowType, int order, string name, int treeLevel)
+    {
+        var step = new WorkflowStepDefinition
+        {
+            WorkflowType = workflowType,
+            Name = RequireName(name),
+            ApproverRuleKind = ApproverRuleKind.EscalateToTreeLevel,
+        };
+        step.SetOrder(order);
+        step.SetTreeLevel(treeLevel);
+        return step;
+    }
 
     public void Rename(string name) => Name = RequireName(name);
 
@@ -56,6 +81,7 @@ public sealed class WorkflowStepDefinition
     {
         ApproverRuleKind = ApproverRuleKind.RequesterManagerLevel;
         ApproverPositionId = null;
+        TreeLevel = null;
         SetManagerLevel(managerLevel);
     }
 
@@ -63,7 +89,16 @@ public sealed class WorkflowStepDefinition
     {
         ApproverRuleKind = ApproverRuleKind.SpecificPosition;
         ManagerLevel = null;
+        TreeLevel = null;
         SetApproverPosition(positionId);
+    }
+
+    public void UseTreeLevel(int treeLevel)
+    {
+        ApproverRuleKind = ApproverRuleKind.EscalateToTreeLevel;
+        ManagerLevel = null;
+        ApproverPositionId = null;
+        SetTreeLevel(treeLevel);
     }
 
     public void Activate() => IsActive = true;
@@ -74,6 +109,13 @@ public sealed class WorkflowStepDefinition
         if (managerLevel < 1)
             throw new ArgumentOutOfRangeException(nameof(managerLevel), "Manager level must be at least 1.");
         ManagerLevel = managerLevel;
+    }
+
+    private void SetTreeLevel(int treeLevel)
+    {
+        if (treeLevel < 1)
+            throw new ArgumentOutOfRangeException(nameof(treeLevel), "Tree level must be at least 1.");
+        TreeLevel = treeLevel;
     }
 
     private void SetApproverPosition(Guid positionId)

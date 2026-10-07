@@ -57,4 +57,26 @@ public static class PositionHierarchy
         }
         return lastAncestor;
     }
+
+    /// <summary>
+    /// Every ancestor of <paramref name="positionId"/>, nearest first: the direct manager's
+    /// position, then that position's manager, and so on up to the top of the tree (the last item
+    /// is the root). Empty when the position is itself the root. The number of items plus one is the
+    /// position's depth counted from the top (root = level 1). A parent cycle in the data is cut
+    /// off rather than looping forever.
+    /// </summary>
+    public static IReadOnlyList<Guid> GetAncestorChain(
+        Guid positionId,
+        IReadOnlyDictionary<Guid, Guid?> parentByPosition)
+    {
+        var chain = new List<Guid>();
+        var seen = new HashSet<Guid> { positionId };
+        var current = positionId;
+        while (parentByPosition.TryGetValue(current, out var parent) && parent is Guid parentId && seen.Add(parentId))
+        {
+            chain.Add(parentId);
+            current = parentId;
+        }
+        return chain;
+    }
 }

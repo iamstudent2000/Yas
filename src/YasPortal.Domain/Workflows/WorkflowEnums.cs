@@ -33,6 +33,15 @@ public enum ApproverRuleKind
 
     /// <summary>Always the same fixed position, regardless of who the requester is.</summary>
     SpecificPosition,
+
+    /// <summary>
+    /// Escalates up the requester's own chain to a fixed depth counted from the top of the
+    /// organization tree (the top position is level 1, its direct children level 2, and so on).
+    /// Expands into one sequential approval per position on the way up — the requester's direct
+    /// manager, any middle managers, and finally the position at that level — before the
+    /// workflow moves on to its next step.
+    /// </summary>
+    EscalateToTreeLevel,
 }
 
 /// <summary>Overall lifecycle of a workflow request.</summary>
