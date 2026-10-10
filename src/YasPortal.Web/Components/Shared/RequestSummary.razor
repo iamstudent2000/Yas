@@ -14,6 +14,26 @@
     }
 </div>
 
+@if (Request.FieldChanges.Count > 0)
+{
+    <div class="field-summary field-history">
+        <p class="round-heading">تاریخچه تغییر فیلدها</p>
+        @foreach (var change in Request.FieldChanges.OrderBy(x => x.ChangedAtUtc).ThenBy(x => x.FieldKey, StringComparer.Ordinal))
+        {
+            var field = WorkflowFieldCatalog.GetFields(Request.WorkflowType).FirstOrDefault(f => f.Key == change.FieldKey);
+            var label = field?.Label ?? change.FieldKey;
+            var oldText = field is null ? change.OldValue : WorkflowDisplay.FormatFieldValue(field, change.OldValue);
+            var newText = field is null ? change.NewValue : WorkflowDisplay.FormatFieldValue(field, change.NewValue);
+            var editor = EmployeeNames.TryGetValue(change.ChangedByEmployeeId, out var en) ? en : null;
+            <div class="field-summary-item">
+                <span>@label (دور @ToPersianDigits(change.Round.ToString()))</span>
+                <strong>@(string.IsNullOrWhiteSpace(oldText) ? "—" : oldText) ← @(string.IsNullOrWhiteSpace(newText) ? "—" : newText)</strong>
+                <div class="approval-step-meta">@(editor is null ? "" : editor + " · ")@change.ChangedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+            </div>
+        }
+    </div>
+}
+
 @{
     var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
     if (rounds.Count == 0)

@@ -172,6 +172,7 @@
             _requests = await query.Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)
+                .Include(x => x.FieldChanges)
                 .OrderByDescending(x => x.CreatedAtUtc)
                 .Skip((_page - 1) * _pageSize)
                 .Take(_pageSize)

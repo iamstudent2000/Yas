@@ -1,0 +1,136 @@
+diff --git a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+index f2427b8..812e9ef 100644
+--- a/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
++++ b/src/YasPortal.Domain/Workflows/WorkflowRequest.cs
+@@ -172,6 +172,7 @@ public sealed class WorkflowRequest
+         ForceClosedByEmployeeId = adminEmployeeId;
+         ForceClosedAtUtc = DateTime.UtcNow;
+         ForceCloseReason = reason.Trim();
++        SupersedePendingSteps();
+         RequesterHasSeenLatestUpdate = false;
+         Revision++;
+     }
+@@ -206,10 +207,22 @@ public sealed class WorkflowRequest
+         step.Reject(actingEmployeeId, comment);
+         RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment);
+         Status = WorkflowRequestStatus.Rejected;
++        SupersedePendingSteps();
+         RequesterHasSeenLatestUpdate = false;
+         Revision++;
+     }
+ 
++    /// <summary>
++    /// Once a round is closed for good (rejected, cancelled, force-closed) any step in it still
++    /// Pending will never be acted on — mark it Superseded so the trail does not show it as
++    /// forever awaiting someone. Decisions already recorded are untouched.
++    /// </summary>
++    private void SupersedePendingSteps()
++    {
++        foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
++            step.Supersede();
++    }
++
+     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+     {
+         var step = RequireActionableCurrentStep(stepId);
+@@ -255,6 +268,7 @@ public sealed class WorkflowRequest
+         if (!CanBeCancelled)
+             throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
+         Status = WorkflowRequestStatus.Cancelled;
++        SupersedePendingSteps();
+         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Cancelled, RequesterEmployeeId));
+         Revision++;
+     }
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 0d236e6..7d40ddc 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -279,6 +279,7 @@
+             var requests = await query.Include(x => x.Steps)
+                 .Include(x => x.RequesterActions)
+                 .Include(x => x.StepDecisions)
++                .Include(x => x.FieldChanges)
+                 .OrderBy(x => x.CreatedAtUtc)
+                 .Skip((_pendingPage - 1) * _pendingPageSize)
+                 .Take(_pendingPageSize)
+@@ -365,7 +366,7 @@
+             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
+             var requestsById = requestIds.Count == 0
+                 ? []
+-                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Where(x => requestIds.Contains(x.Id)).ToListAsync())
++                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).Where(x => requestIds.Contains(x.Id)).ToListAsync())
+                     .ToDictionary(x => x.Id);
+ 
+             var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 87fd5ea..91fff24 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -172,6 +172,7 @@
+             _requests = await query.Include(x => x.Steps)
+                 .Include(x => x.RequesterActions)
+                 .Include(x => x.StepDecisions)
++                .Include(x => x.FieldChanges)
+                 .OrderByDescending(x => x.CreatedAtUtc)
+                 .Skip((_page - 1) * _pageSize)
+                 .Take(_pageSize)
+diff --git a/src/YasPortal.Web/Components/Shared/RequestSummary.razor b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+index d951d84..0f7babf 100644
+--- a/src/YasPortal.Web/Components/Shared/RequestSummary.razor
++++ b/src/YasPortal.Web/Components/Shared/RequestSummary.razor
+@@ -14,6 +14,26 @@
+     }
+ </div>
+ 
++@if (Request.FieldChanges.Count > 0)
++{
++    <div class="field-summary field-history">
++        <p class="round-heading">تاریخچه تغییر فیلدها</p>
++        @foreach (var change in Request.FieldChanges.OrderBy(x => x.ChangedAtUtc).ThenBy(x => x.FieldKey, StringComparer.Ordinal))
++        {
++            var field = WorkflowFieldCatalog.GetFields(Request.WorkflowType).FirstOrDefault(f => f.Key == change.FieldKey);
++            var label = field?.Label ?? change.FieldKey;
++            var oldText = field is null ? change.OldValue : WorkflowDisplay.FormatFieldValue(field, change.OldValue);
++            var newText = field is null ? change.NewValue : WorkflowDisplay.FormatFieldValue(field, change.NewValue);
++            var editor = EmployeeNames.TryGetValue(change.ChangedByEmployeeId, out var en) ? en : null;
++            <div class="field-summary-item">
++                <span>@label (دور @ToPersianDigits(change.Round.ToString()))</span>
++                <strong>@(string.IsNullOrWhiteSpace(oldText) ? "—" : oldText) ← @(string.IsNullOrWhiteSpace(newText) ? "—" : newText)</strong>
++                <div class="approval-step-meta">@(editor is null ? "" : editor + " · ")@change.ChangedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
++            </div>
++        }
++    </div>
++}
++
+ @{
+     var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
+     if (rounds.Count == 0)
+diff --git a/tests/YasPortal.Tests/WorkflowRequestTests.cs b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+index 239046a..e633517 100644
+--- a/tests/YasPortal.Tests/WorkflowRequestTests.cs
++++ b/tests/YasPortal.Tests/WorkflowRequestTests.cs
+@@ -68,7 +68,23 @@ public class WorkflowRequestTests
+ 
+         Assert.Equal(WorkflowRequestStatus.Rejected, request.Status);
+         Assert.Equal(WorkflowStepStatus.Rejected, request.Steps.First(x => x.Order == 1).Status);
+-        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.First(x => x.Order == 2).Status);
++        // The step that was never reached is moot, not "still waiting".
++        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.First(x => x.Order == 2).Status);
++    }
++
++    [Fact]
++    public void Cancelling_and_force_closing_supersede_unreached_steps_but_keep_decisions()
++    {
++        var cancelled = CreateTwoStepRequest(out _, out _);
++        cancelled.Cancel();
++        Assert.All(cancelled.Steps, s => Assert.Equal(WorkflowStepStatus.Superseded, s.Status));
++
++        var forced = CreateTwoStepRequest(out var step1Id, out _);
++        forced.Approve(step1Id, Guid.NewGuid(), null);
++        forced.ForceClose(Guid.NewGuid(), "دلیل مدیریتی");
++        Assert.Equal(WorkflowStepStatus.Approved, forced.Steps.First(x => x.Order == 1).Status);
++        Assert.Equal(WorkflowStepStatus.Superseded, forced.Steps.First(x => x.Order == 2).Status);
++        Assert.Single(forced.StepDecisions);
+     }
+ 
+     [Fact]

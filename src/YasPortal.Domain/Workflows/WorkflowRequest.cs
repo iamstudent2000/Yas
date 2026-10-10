@@ -172,6 +172,7 @@ public sealed class WorkflowRequest
         ForceClosedByEmployeeId = adminEmployeeId;
         ForceClosedAtUtc = DateTime.UtcNow;
         ForceCloseReason = reason.Trim();
+        SupersedePendingSteps();
         RequesterHasSeenLatestUpdate = false;
         Revision++;
     }
@@ -206,8 +207,20 @@ public sealed class WorkflowRequest
         step.Reject(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment);
         Status = WorkflowRequestStatus.Rejected;
+        SupersedePendingSteps();
         RequesterHasSeenLatestUpdate = false;
         Revision++;
+    }
+
+    /// <summary>
+    /// Once a round is closed for good (rejected, cancelled, force-closed) any step in it still
+    /// Pending will never be acted on — mark it Superseded so the trail does not show it as
+    /// forever awaiting someone. Decisions already recorded are untouched.
+    /// </summary>
+    private void SupersedePendingSteps()
+    {
+        foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
+            step.Supersede();
     }
 
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
@@ -255,6 +268,7 @@ public sealed class WorkflowRequest
         if (!CanBeCancelled)
             throw new InvalidOperationException("This request can no longer be cancelled — a later step has already approved it, or it is not in a cancellable state.");
         Status = WorkflowRequestStatus.Cancelled;
+        SupersedePendingSteps();
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Cancelled, RequesterEmployeeId));
         Revision++;
     }

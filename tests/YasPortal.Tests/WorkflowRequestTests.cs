@@ -68,7 +68,23 @@ public class WorkflowRequestTests
 
         Assert.Equal(WorkflowRequestStatus.Rejected, request.Status);
         Assert.Equal(WorkflowStepStatus.Rejected, request.Steps.First(x => x.Order == 1).Status);
-        Assert.Equal(WorkflowStepStatus.Pending, request.Steps.First(x => x.Order == 2).Status);
+        // The step that was never reached is moot, not "still waiting".
+        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.First(x => x.Order == 2).Status);
+    }
+
+    [Fact]
+    public void Cancelling_and_force_closing_supersede_unreached_steps_but_keep_decisions()
+    {
+        var cancelled = CreateTwoStepRequest(out _, out _);
+        cancelled.Cancel();
+        Assert.All(cancelled.Steps, s => Assert.Equal(WorkflowStepStatus.Superseded, s.Status));
+
+        var forced = CreateTwoStepRequest(out var step1Id, out _);
+        forced.Approve(step1Id, Guid.NewGuid(), null);
+        forced.ForceClose(Guid.NewGuid(), "دلیل مدیریتی");
+        Assert.Equal(WorkflowStepStatus.Approved, forced.Steps.First(x => x.Order == 1).Status);
+        Assert.Equal(WorkflowStepStatus.Superseded, forced.Steps.First(x => x.Order == 2).Status);
+        Assert.Single(forced.StepDecisions);
     }
 
     [Fact]
