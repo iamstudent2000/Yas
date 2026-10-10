@@ -64,9 +64,9 @@ public enum WorkflowStepStatus
     ReturnedToPreviousStep,
 
     /// <summary>
-    /// This step's round was closed out by a resubmission before the step was ever reached
-    /// (an earlier step in the same round already returned the request). Not an outcome
-    /// anyone chose — just marks it as moot rather than leaving it looking eternally Pending.
+    /// The step was never reached: its round ended first — by a resubmission after a return, a
+    /// rejection, a cancellation or a force-close. Not an outcome anyone chose — it only marks
+    /// the step as moot rather than leaving it looking eternally Pending.
     /// </summary>
     Superseded,
 }
