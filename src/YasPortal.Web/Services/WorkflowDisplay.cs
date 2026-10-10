@@ -74,7 +74,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Rejected => "رد شد",
         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
         WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
-        WorkflowStepStatus.Superseded => "این دور دیگر معتبر نیست (درخواست دوباره ارسال شد)",
+        WorkflowStepStatus.Superseded => "به این مرحله نرسید (درخواست پیش از آن بسته یا بازگردانده شد)",
         _ => status.ToString(),
     };
 

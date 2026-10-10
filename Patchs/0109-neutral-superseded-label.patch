@@ -1,0 +1,13 @@
+diff --git a/src/YasPortal.Web/Services/WorkflowDisplay.cs b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+index 6792c71..26f02c2 100644
+--- a/src/YasPortal.Web/Services/WorkflowDisplay.cs
++++ b/src/YasPortal.Web/Services/WorkflowDisplay.cs
+@@ -74,7 +74,7 @@ public static class WorkflowDisplay
+         WorkflowStepStatus.Rejected => "رد شد",
+         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
+         WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
+-        WorkflowStepStatus.Superseded => "این دور دیگر معتبر نیست (درخواست دوباره ارسال شد)",
++        WorkflowStepStatus.Superseded => "به این مرحله نرسید (درخواست پیش از آن بسته یا بازگردانده شد)",
+         _ => status.ToString(),
+     };
+ 

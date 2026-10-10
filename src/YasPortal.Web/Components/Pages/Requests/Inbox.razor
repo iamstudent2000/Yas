@@ -280,6 +280,7 @@
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)
                 .Include(x => x.FieldChanges)
+                .AsSplitQuery()
                 .OrderBy(x => x.CreatedAtUtc)
                 .Skip((_pendingPage - 1) * _pendingPageSize)
                 .Take(_pendingPageSize)
@@ -366,7 +367,7 @@
             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
             var requestsById = requestIds.Count == 0
                 ? []
-                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).Where(x => requestIds.Contains(x.Id)).ToListAsync())
+                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).AsSplitQuery().Where(x => requestIds.Contains(x.Id)).ToListAsync())
                     .ToDictionary(x => x.Id);
 
             var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();

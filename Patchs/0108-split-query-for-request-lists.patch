@@ -1,0 +1,33 @@
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+index 7d40ddc..52e2fe2 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/Inbox.razor
+@@ -280,6 +280,7 @@
+                 .Include(x => x.RequesterActions)
+                 .Include(x => x.StepDecisions)
+                 .Include(x => x.FieldChanges)
++                .AsSplitQuery()
+                 .OrderBy(x => x.CreatedAtUtc)
+                 .Skip((_pendingPage - 1) * _pendingPageSize)
+                 .Take(_pendingPageSize)
+@@ -366,7 +367,7 @@
+             var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
+             var requestsById = requestIds.Count == 0
+                 ? []
+-                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).Where(x => requestIds.Contains(x.Id)).ToListAsync())
++                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).AsSplitQuery().Where(x => requestIds.Contains(x.Id)).ToListAsync())
+                     .ToDictionary(x => x.Id);
+ 
+             var requesterIds = requestsById.Values.Select(x => x.RequesterEmployeeId).Distinct().ToList();
+diff --git a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+index 91fff24..0056af5 100644
+--- a/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
++++ b/src/YasPortal.Web/Components/Pages/Requests/MyRequests.razor
+@@ -173,6 +173,7 @@
+                 .Include(x => x.RequesterActions)
+                 .Include(x => x.StepDecisions)
+                 .Include(x => x.FieldChanges)
++                .AsSplitQuery()
+                 .OrderByDescending(x => x.CreatedAtUtc)
+                 .Skip((_page - 1) * _pageSize)
+                 .Take(_pageSize)
