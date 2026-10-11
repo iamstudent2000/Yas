@@ -1,0 +1,64 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Services
+@implements IDisposable
+@inject NotificationService NotificationSvc
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<a href="/notifications" class="icon-button notification-bell" title="@(_unread > 0 ? $"اعلان‌ها ({_unread} خوانده‌نشده)" : "اعلان‌ها")" aria-label="اعلان‌ها">
+    <i class="bx bx-bell"></i>
+    @if (_unread > 0)
+    {
+        <span class="notification-bell-badge">@(_unread > 99 ? "۹۹+" : ToPersianDigits(_unread.ToString()))</span>
+    }
+</a>
+
+@code {
+    private int _unread;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        AppState.OnChange += OnAppStateChanged;
+        await RefreshAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => await RefreshAndRenderAsync();
+
+    private async void OnAppStateChanged() => await RefreshAndRenderAsync();
+
+    private async Task RefreshAndRenderAsync()
+    {
+        await RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+            var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? (Guid?)id : null;
+            _unread = await NotificationSvc.CountUnreadAsync(employeeId);
+        }
+        catch
+        {
+            // Best-effort badge; a transient failure must never break the top bar.
+            _unread = 0;
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        AppState.OnChange -= OnAppStateChanged;
+    }
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        return new string(value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray());
+    }
+}
