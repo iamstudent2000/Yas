@@ -44,6 +44,7 @@
 
         @if (!_historyMode)
         {
+            <RequestFilterBar Filter="_pendingFilter" Changed="OnPendingFilterChangedAsync" />
             @if (_items.Count == 0)
             {
                 <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
@@ -214,6 +215,7 @@
     private DateTime? _historyTo;
     private Guid? _expandedHistoryId;
 
+    private readonly WorkflowRequestFilter _pendingFilter = new();
     private int _pendingPage = 1;
     private int _pendingPageSize = 20;
     private int _pendingTotalCount;
@@ -260,6 +262,12 @@
         await LoadAsync();
     }
 
+    private async Task OnPendingFilterChangedAsync()
+    {
+        _pendingPage = 1;
+        await LoadAsync();
+    }
+
     private async Task OnPendingPageSizeChangedAsync(int size)
     {
         _pendingPageSize = size;
@@ -299,6 +307,7 @@
             var query = db.WorkflowRequests.AsNoTracking()
                 .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
                             && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
+            query = _pendingFilter.Apply(query, db);
 
             _pendingTotalCount = await query.CountAsync();
             if (_pendingPage > 1 && (_pendingPage - 1) * _pendingPageSize >= _pendingTotalCount)

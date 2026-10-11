@@ -5,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.ForceClose")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
@@ -28,13 +29,15 @@
         </div>
     </div>
 
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Changed="OnFilterChangedAsync" />
+
     @if (_loading)
     {
         <p class="muted">در حال بارگذاری...</p>
     }
     else if (_requests.Count == 0)
     {
-        <p class="muted">در حال حاضر هیچ درخواست فعالی در سامانه وجود ندارد.</p>
+        <p class="muted">@(_filter.IsEmpty ? "در حال حاضر هیچ درخواست فعالی در سامانه وجود ندارد." : "درخواستی با این فیلترها پیدا نشد.")</p>
     }
     else
     {
@@ -110,6 +113,7 @@
                 </tbody>
             </table>
         </div>
+        <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
     }
 </div>
 
@@ -122,11 +126,35 @@
     private Guid? _openReasonFor;
     private Guid? _busyId;
     private Guid? _employeeId;
+    private readonly WorkflowRequestFilter _filter = new();
+    private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = new[] { WorkflowRequestStatus.PendingApproval, WorkflowRequestStatus.ReturnedToRequester };
+    private int _page = 1;
+    private int _pageSize = 20;
+    private int _total;
 
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        await LoadAsync();
+    }
+
+    private async Task OnFilterChangedAsync()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int size)
+    {
+        _pageSize = Math.Clamp(size, 1, 100);
+        _page = 1;
         await LoadAsync();
     }
 
@@ -137,10 +165,16 @@
 
         // "Active" here means still able to move — the same two statuses CanBeCancelled cares
         // about. Approved/Rejected/Cancelled requests are terminal and need no admin attention.
-        _requests = await db.WorkflowRequests
-            .Active()
+        var query = _filter.Apply(db.WorkflowRequests.Active(), db);
+        _total = await query.CountAsync();
+        if (_page > 1 && (_page - 1) * _pageSize >= _total)
+            _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+
+        _requests = await query
             .Include(x => x.Steps)
             .OrderBy(x => x.CreatedAtUtc)
+            .Skip((_page - 1) * _pageSize)
+            .Take(_pageSize)
             .ToListAsync();
 
         var requesterIds = _requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();

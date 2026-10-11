@@ -40,7 +40,7 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 | Medium | Parallel steps, ANY/ALL, reject policy | §12.3, §14 | Needs a step-targets table (no CSV/JSON). Biggest change; touches resolver, `WorkflowRequestStep`, inbox queries. |
 | Medium | Workflow reassignment | §22.1 | Needs a superseded-history marker on steps. |
 | ~~Low~~ Already satisfied | Inactive employees treated as vacant | §4.3 | Checked: deactivating an employee (Users page) ends all their active position assignments, so their positions become vacant at once and no inactive holder can receive a step. Notifications also skip inactive holders as a second guard. No code change needed. |
-| Low | Request list filters (type, requester, date, step) and search by request ID | §25 | Pagination exists. |
+| ~~Low~~ Done (requests) | Request list filters (status, type, requester, date, current step) and search by request ID | §25 | Branch `claude/list-filters`: one filter bar on My requests, Inbox (pending), Active requests (now paginated too) and Rejected requests; the short ID `#xxxxxxxx` is shown on every request. Employees, positions, audit log and notification lists are not covered by this change. |
 | Low | Requester-editable Draft status | §10.2 | Depends on C2. |
 
 ## 4. Suggested order

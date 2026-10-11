@@ -4,6 +4,7 @@
 @using YasPortal.Web.Services
 
 <div class="field-summary">
+    <div class="field-summary-item"><span>شناسه درخواست</span><strong dir="ltr">#@(Request.Id.ToString("N")[..8])</strong></div>
     @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType))
     {
         var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(field.Key));
