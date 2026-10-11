@@ -32,9 +32,9 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 
 | Priority | Item | Spec ref | Notes |
 |----------|------|----------|-------|
-| High | Notifications (in-app, unread/read, link) | §17 | Today only the inbox/"my requests" badges exist. |
+| ~~High~~ Done | Notifications (in-app, unread/read, link) | §17 | Built on branch `claude/notifications`: submit/step reached/approved/rejected/returned/returned-to-step/force-closed, `/notifications` page with unread filter, sidebar badge. "Request reopened" and "delegation received" wait for Reopen and Delegation. |
 | High | Reopen of a rejected request by SuperAdmin | §13.4 | Needs a decision record and re-activation of the rejecting step. |
-| High | Vacant approver → SuperAdmin notification, workflow stops | §5.4 | Vacancy is shown ("سمت خالی است") but nobody is notified. |
+| ~~High~~ Done | Vacant approver → SuperAdmin notification | §5.4 | A step landing on a position with no active holder alerts every active SuperAdmin. Inactive holders count as vacant here. |
 | Medium | ReturnToSpecificStep | §13.2 | Only previous step / requester exist. |
 | Medium | Delegation + history ("acting for") | §15, §16 | Not started. |
 | Medium | Parallel steps, ANY/ALL, reject policy | §12.3, §14 | Needs a step-targets table (no CSV/JSON). Biggest change; touches resolver, `WorkflowRequestStep`, inbox queries. |

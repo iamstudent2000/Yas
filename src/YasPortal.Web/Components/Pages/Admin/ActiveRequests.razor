@@ -9,6 +9,7 @@
 @attribute [Authorize(Policy = "Requests.ForceClose")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject AppState AppState
 
@@ -187,6 +188,8 @@
                 await LoadAsync();
                 return;
             }
+
+            await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.ForceClosed);
 
             try
             {

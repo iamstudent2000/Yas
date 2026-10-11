@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Authorization;
+using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Authorization;
@@ -32,6 +33,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowRequesterAction> WorkflowRequesterActions => Set<WorkflowRequesterAction>();
     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
     public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -52,7 +54,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     private void CaptureAuditEntries()
     {
-        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
+        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && x.Entity is not Notification && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
         foreach (var entry in entries)
         {
             var action = entry.State switch {
@@ -262,6 +264,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasOne<Position>().WithMany().HasForeignKey(x => x.ChangedByPositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.RequestId, x.ChangedAtUtc });
             e.HasIndex(x => x.ChangedByEmployeeId);
+        });
+        // In-app notifications (spec §17). Never deleted; the inbox reads them newest first per recipient.
+        modelBuilder.Entity<Notification>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(50).IsRequired();
+            e.Property(x => x.RequestType).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Message).HasMaxLength(1000).IsRequired();
+            e.Property(x => x.LinkPath).HasMaxLength(300).IsRequired();
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RecipientEmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.RecipientEmployeeId, x.IsRead, x.CreatedAtUtc });
+            e.HasIndex(x => x.RequestId);
         });
     }
 }

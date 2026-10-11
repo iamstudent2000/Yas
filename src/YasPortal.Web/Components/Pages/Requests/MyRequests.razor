@@ -11,6 +11,7 @@
 @attribute [Authorize(Policy = "Requests.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
@@ -303,6 +304,7 @@
             tracked.Resubmit(
                 JsonSerializer.Serialize(values),
                 resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+            await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Resubmitted);
             try
             {
                 await db.SaveChangesAsync();

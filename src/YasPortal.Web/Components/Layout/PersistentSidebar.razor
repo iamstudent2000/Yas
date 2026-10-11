@@ -7,6 +7,7 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject WorkflowService Workflows
+@inject NotificationService NotificationsService
 @inject AppState AppState
 @inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 
@@ -120,6 +121,12 @@
                                     <span class="nav-badge">@_inboxBadge</span>
                                 }</NavLink>
                         </AuthorizeView>
+                        <AuthorizeView Policy="Requests.View">
+                            <NavLink href="/notifications"><i class="bx bx-bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
+                                {
+                                    <span class="nav-badge">@_notificationBadge</span>
+                                }</NavLink>
+                        </AuthorizeView>
                         <AuthorizeView Policy="Admin.Workflows">
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
@@ -149,6 +156,7 @@
     private bool _requestsExpanded;
     private bool _requestsActive;
     private int _inboxBadge;
+    private int _notificationBadge;
     private int _myRequestsBadge;
 
     private bool _accountGroupVisible;
@@ -158,7 +166,7 @@
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "admin/workflows", "admin/active-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,6 +226,7 @@
             var activePositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
 
             _myRequestsBadge = await Workflows.CountUnseenForRequesterAsync(employeeId);
+            _notificationBadge = await NotificationsService.CountUnreadAsync(employeeId);
             _inboxBadge = activePositionId is Guid posId && employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, posId)
                 ? await Workflows.CountInboxAsync(posId)
                 : 0;
@@ -227,6 +236,7 @@
             // Best-effort UI badge; never let a transient failure break the sidebar itself.
             _inboxBadge = 0;
             _myRequestsBadge = 0;
+            _notificationBadge = 0;
         }
     }
 

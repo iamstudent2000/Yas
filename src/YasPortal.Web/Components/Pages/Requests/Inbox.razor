@@ -12,6 +12,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker Permissions
 @inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
@@ -505,6 +506,14 @@
                 await LoadAsync();
                 return;
             }
+
+            await NotificationSvc.StageAsync(db, request, action switch
+            {
+                WorkflowAction.Approve => WorkflowNotificationEvent.StepApproved,
+                WorkflowAction.Reject => WorkflowNotificationEvent.Rejected,
+                WorkflowAction.ReturnToRequester => WorkflowNotificationEvent.ReturnedToRequester,
+                _ => WorkflowNotificationEvent.ReturnedToPreviousStep,
+            });
 
             try
             {

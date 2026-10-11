@@ -59,6 +59,7 @@ builder.Services.AddScoped<IPermissionChecker>(sp => sp.GetRequiredService<Permi
 builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<NotificationService>();
 
 var app = builder.Build();
 
