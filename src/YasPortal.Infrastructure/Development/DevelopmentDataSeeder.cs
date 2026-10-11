@@ -23,9 +23,10 @@ public static class DevelopmentDataSeeder
             var stepDecisionsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowStepDecisions]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var forceCloseColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'ForceCloseReason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var fieldChangesTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowFieldChanges]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            var reopenReasonColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequesterActions]', N'Reason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var notificationsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Notifications]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var treeLevelColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowStepDefinitions]', N'TreeLevel') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists || !fieldChangesTableExists || !treeLevelColumnExists || !notificationsTableExists)
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists || !fieldChangesTableExists || !treeLevelColumnExists || !notificationsTableExists || !reopenReasonColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
@@ -93,7 +94,8 @@ public static class DevelopmentDataSeeder
             ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
             ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
             ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار"),
-            ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده")
+            ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده"),
+            ["Requests.Reopen"] = new Permission("Requests.Reopen", "بازگشایی درخواست‌های ردشده")
         };
 
         foreach (var permission in permissions.Values.ToList())

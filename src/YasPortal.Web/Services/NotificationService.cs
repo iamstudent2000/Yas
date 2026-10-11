@@ -33,9 +33,12 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             var holders = await HoldersOfAsync(db, positionId, ct);
             if (holders.Count > 0)
             {
-                var message = target.Kind == NotificationKind.ReturnedToStep
-                    ? $"درخواست {requestLabel} به مرحله «{target.StepName}» بازگردانده شد و دوباره منتظر تصمیم شماست."
-                    : $"درخواست {requestLabel} به مرحله «{target.StepName}» رسید و منتظر تصمیم شماست.";
+                var message = target.Kind switch
+                {
+                    NotificationKind.ReturnedToStep => $"درخواست {requestLabel} به مرحله «{target.StepName}» بازگردانده شد و دوباره منتظر تصمیم شماست.",
+                    NotificationKind.RequestReopened => $"درخواست ردشده {requestLabel} بازگشایی شد و در مرحله «{target.StepName}» دوباره منتظر تصمیم شماست.",
+                    _ => $"درخواست {requestLabel} به مرحله «{target.StepName}» رسید و منتظر تصمیم شماست.",
+                };
                 foreach (var holder in holders)
                     db.Notifications.Add(new Notification(holder, target.Kind, request.Id, typeName, message, "/requests/inbox"));
                 continue;

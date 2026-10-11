@@ -1,0 +1,266 @@
+@page "/admin/rejected-requests"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Requests.Reopen")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AppState AppState
+
+<PageTitle>درخواست‌های ردشده - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-revision"></i> درخواست‌های ردشده</h1>
+            <p class="page-subtitle">
+                بازگشایی یک درخواست ردشده را به مرحله‌ای برمی‌گرداند که آن را رد کرده است. تاییدهای مراحل قبلی حفظ می‌شود و
+                فقط همان مرحله و مراحل بعد از آن دوباره تصمیم‌گیری می‌کنند. رد قبلی و دلیل بازگشایی برای همیشه در سوابق می‌ماند.
+            </p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="muted">در حال بارگذاری...</p>
+    }
+    else if (_requests.Count == 0)
+    {
+        <p class="muted">درخواست ردشده‌ای وجود ندارد.</p>
+    }
+    else
+    {
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>نوع</th>
+                        <th>درخواست‌کننده</th>
+                        <th>ردشده در مرحله</th>
+                        <th>توسط</th>
+                        <th>دلیل رد</th>
+                        <th>تاریخ رد</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in _requests)
+                    {
+                        var rejection = request.StepDecisions
+                            .Where(d => d.Round == request.CurrentRound && d.Outcome == WorkflowStepStatus.Rejected)
+                            .OrderByDescending(d => d.ActedAtUtc)
+                            .FirstOrDefault();
+                        var rejectingStep = request.Steps.FirstOrDefault(s => s.Round == request.CurrentRound && s.Order == request.CurrentStepOrder);
+                        var vacant = rejectingStep is not null && !_holderNames.ContainsKey(rejectingStep.ApproverPositionId);
+                        <tr>
+                            <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
+                            <td>@(_employeeNames.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")</td>
+                            <td>
+                                @(rejectingStep?.Name ?? "—")
+                                @if (vacant)
+                                {
+                                    <span class="badge badge-danger">سمت خالی است</span>
+                                }
+                            </td>
+                            <td>@(rejection is not null && _employeeNames.TryGetValue(rejection.ActedByEmployeeId, out var actor) ? actor : "—")</td>
+                            <td>@(string.IsNullOrWhiteSpace(rejection?.Comment) ? "—" : rejection!.Comment)</td>
+                            <td>@(rejection is null ? "—" : WorkflowDisplay.ToPersianDate(rejection.ActedAtUtc))</td>
+                            <td>
+                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleDetails(request.Id)">
+                                    <i class="bx bx-show"></i> جزئیات
+                                </button>
+                                @if (_openReasonFor == request.Id)
+                                {
+                                    <div class="force-close-panel">
+                                        <input type="text" class="form-control" placeholder="دلیل بازگشایی (الزامی)"
+                                               value="@GetReason(request.Id)" @oninput="e => SetReason(request.Id, e)" />
+                                        <div class="force-close-actions">
+                                            <button type="button" class="btn btn-primary btn-sm" disabled="@(_busyId == request.Id || string.IsNullOrWhiteSpace(GetReason(request.Id)))"
+                                                    @onclick="() => ReopenAsync(request.Id)">
+                                                @if (_busyId == request.Id)
+                                                {
+                                                    <span><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>تایید بازگشایی</span>
+                                                }
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openReasonFor = null">انصراف</button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-primary btn-sm" @onclick="() => _openReasonFor = request.Id">
+                                        <i class="bx bx-revision"></i> بازگشایی
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                        @if (_detailsId == request.Id)
+                        {
+                            <tr>
+                                <td colspan="7"><RequestSummary Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" /></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private List<WorkflowRequest> _requests = [];
+    private Dictionary<Guid, string> _employeeNames = [];
+    private Dictionary<Guid, string> _holderNames = [];
+    private Dictionary<Guid, string> _reasons = [];
+    private Guid? _openReasonFor;
+    private Guid? _detailsId;
+    private Guid? _busyId;
+    private Guid? _employeeId;
+    private int _page = 1;
+    private int _pageSize = 20;
+    private int _total;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int size)
+    {
+        _pageSize = Math.Clamp(size, 1, 100);
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected);
+            _total = await query.CountAsync();
+            if (_page > 1 && (_page - 1) * _pageSize >= _total)
+                _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+
+            _requests = await query
+                .Include(x => x.Steps)
+                .Include(x => x.StepDecisions)
+                .Include(x => x.RequesterActions)
+                .Include(x => x.FieldChanges)
+                .AsSplitQuery()
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Skip((_page - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToListAsync();
+
+            var personIds = _requests.Select(x => x.RequesterEmployeeId).ToList();
+            personIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            personIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
+            personIds.AddRange(_requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value));
+            personIds = personIds.Distinct().ToList();
+            _employeeNames = personIds.Count == 0 ? [] : await db.Employees.AsNoTracking()
+                .Where(x => personIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+            var positionIds = _requests.SelectMany(x => x.Steps).Select(x => x.ApproverPositionId).Distinct().ToList();
+            _holderNames = await Workflows.GetCurrentHolderNamesAsync(positionIds);
+        }
+        finally { _loading = false; }
+    }
+
+    private void ToggleDetails(Guid id) => _detailsId = _detailsId == id ? null : id;
+    private string GetReason(Guid requestId) => _reasons.TryGetValue(requestId, out var r) ? r : "";
+    private void SetReason(Guid requestId, ChangeEventArgs e) => _reasons[requestId] = e.Value?.ToString() ?? "";
+
+    private async Task ReopenAsync(Guid requestId)
+    {
+        if (_employeeId is not Guid actorId)
+            return;
+        var reason = GetReason(requestId).Trim();
+        if (string.IsNullOrWhiteSpace(reason))
+            return;
+
+        _busyId = requestId;
+        try
+        {
+            // The page is gated by the policy, but the handler re-checks the permission itself
+            // (spec §26.1/§26.4) instead of relying on the route alone.
+            var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+            if (!(await AuthorizationService.AuthorizeAsync(user, resource: null, policyName: "Requests.Reopen")).Succeeded)
+            {
+                AppState.AddToast("شما مجوز بازگشایی درخواست را ندارید.", ToastLevel.Error);
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
+            if (tracked is null)
+            {
+                await LoadAsync();
+                return;
+            }
+
+            try
+            {
+                tracked.Reopen(actorId, reason);
+            }
+            catch (InvalidOperationException)
+            {
+                AppState.AddToast("این درخواست دیگر ردشده نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
+            await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Reopened);
+
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                AppState.AddToast("وضعیت این درخواست هم‌زمان تغییر کرد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadAsync();
+                return;
+            }
+
+            AppState.AddToast("درخواست بازگشایی شد و به مرحله‌ای که آن را رد کرده بود برگشت.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
+            _reasons.Remove(requestId);
+            _openReasonFor = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            AppState.AddToast($"بازگشایی با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+        }
+        finally
+        {
+            _busyId = null;
+        }
+    }
+}

@@ -14,6 +14,22 @@
     }
 </div>
 
+@if (Request.RequesterActions.Any(a => a.Kind == WorkflowRequesterActionKind.Reopened))
+{
+    <div class="field-summary field-history">
+        <p class="round-heading">بازگشایی‌ها</p>
+        @foreach (var reopen in Request.RequesterActions.Where(a => a.Kind == WorkflowRequesterActionKind.Reopened).OrderBy(a => a.AtUtc))
+        {
+            var by = EmployeeNames.TryGetValue(reopen.EmployeeId, out var reopenedBy) ? reopenedBy : null;
+            <div class="field-summary-item">
+                <span>بازگشایی رد‌شده (دور @ToPersianDigits(reopen.Round.ToString()))</span>
+                <strong>@(string.IsNullOrWhiteSpace(reopen.Reason) ? "—" : reopen.Reason)</strong>
+                <div class="approval-step-meta">@(by is null ? "" : by + " · ")@reopen.AtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+            </div>
+        }
+    </div>
+}
+
 @if (Request.FieldChanges.Count > 0)
 {
     <div class="field-summary field-history">

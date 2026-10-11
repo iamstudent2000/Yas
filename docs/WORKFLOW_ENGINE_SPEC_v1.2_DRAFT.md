@@ -33,7 +33,7 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 | Priority | Item | Spec ref | Notes |
 |----------|------|----------|-------|
 | ~~High~~ Done | Notifications (in-app, unread/read, link) | §17 | Built on branch `claude/notifications`: submit/step reached/approved/rejected/returned/returned-to-step/force-closed, `/notifications` page with unread filter, sidebar badge. "Request reopened" and "delegation received" wait for Reopen and Delegation. |
-| High | Reopen of a rejected request by SuperAdmin | §13.4 | Needs a decision record and re-activation of the rejecting step. |
+| ~~High~~ Done | Reopen of a rejected request | §13.4 | Branch `claude/reopen`. Gated by the new permission `Requests.Reopen` (SuperAdmin has it automatically; it can be granted to other positions). Reason required; same round; earlier approvals kept; reopen recorded with actor and reason. Sequential steps only — the parallel-step rule waits for parallel steps. |
 | ~~High~~ Done | Vacant approver → SuperAdmin notification | §5.4 | A step landing on a position with no active holder alerts every active SuperAdmin. Inactive holders count as vacant here. |
 | Medium | ReturnToSpecificStep | §13.2 | Only previous step / requester exist. |
 | Medium | Delegation + history ("acting for") | §15, §16 | Not started. |

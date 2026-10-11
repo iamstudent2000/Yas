@@ -82,4 +82,11 @@ public enum WorkflowRequesterActionKind
 
     /// <summary>Requester cancelled the request.</summary>
     Cancelled,
+
+    /// <summary>
+    /// Someone holding the reopen permission (SuperAdmin by default) reopened a rejected request
+    /// (spec §13.4). Not a requester action as such — it is recorded here because it is a lifecycle
+    /// event outside the approvers' decisions; the reason is stored on the record.
+    /// </summary>
+    Reopened,
 }

@@ -1,7 +1,7 @@
 namespace YasPortal.Domain.Workflows;
 
 /// <summary>
-/// A requester-side lifecycle event on a <see cref="WorkflowRequest"/> (submit, resubmit, cancel).
+/// A requester-side lifecycle event on a <see cref="WorkflowRequest"/> (submit, resubmit, cancel, reopen).
 /// Stored alongside approval steps so the timeline can show a complete history without inventing
 /// UI-only rows.
 /// </summary>
@@ -11,7 +11,7 @@ public sealed class WorkflowRequesterAction
     {
     }
 
-    internal WorkflowRequesterAction(Guid requestId, int round, WorkflowRequesterActionKind kind, Guid employeeId)
+    internal WorkflowRequesterAction(Guid requestId, int round, WorkflowRequesterActionKind kind, Guid employeeId, string? reason = null)
     {
         if (requestId == Guid.Empty)
             throw new ArgumentException("Request is required.", nameof(requestId));
@@ -25,6 +25,7 @@ public sealed class WorkflowRequesterAction
         Kind = kind;
         EmployeeId = employeeId;
         AtUtc = DateTime.UtcNow;
+        Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
@@ -33,4 +34,7 @@ public sealed class WorkflowRequesterAction
     public WorkflowRequesterActionKind Kind { get; private set; }
     public Guid EmployeeId { get; private set; }
     public DateTime AtUtc { get; private set; }
+
+    /// <summary>Why the action was taken — required for <see cref="WorkflowRequesterActionKind.Reopened"/>, otherwise null.</summary>
+    public string? Reason { get; private set; }
 }

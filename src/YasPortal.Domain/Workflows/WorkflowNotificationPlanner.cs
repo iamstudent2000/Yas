@@ -12,6 +12,7 @@ public enum WorkflowNotificationEvent
     ReturnedToRequester,
     ReturnedToPreviousStep,
     ForceClosed,
+    Reopened,
 }
 
 /// <summary>Who should hear about it: the requester, or whoever holds a position.</summary>
@@ -53,6 +54,9 @@ public static class WorkflowNotificationPlanner
                 return request.Status == WorkflowRequestStatus.ReturnedToRequester
                     ? [ToRequester(NotificationKind.RequestReturned)]
                     : [AtCurrentStep(request, NotificationKind.ReturnedToStep)];
+
+            case WorkflowNotificationEvent.Reopened:
+                return [AtCurrentStep(request, NotificationKind.RequestReopened)];
 
             case WorkflowNotificationEvent.ForceClosed:
                 return [ToRequester(NotificationKind.RequestForceClosed)];

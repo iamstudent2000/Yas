@@ -177,6 +177,40 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    /// <summary>
+    /// Reopens a rejected request (spec §13.4). The request goes back to <see cref="WorkflowRequestStatus.PendingApproval"/>
+    /// at the step that rejected it: that step becomes actionable again and the steps after it, which
+    /// were marked <see cref="WorkflowStepStatus.Superseded"/> when the request was rejected, wait
+    /// for it again. Steps before it keep their approvals — they do not have to be repeated. Same
+    /// round: nothing is deleted, the rejection stays in <see cref="StepDecisions"/>, and the
+    /// reopen itself is recorded with who did it, when and why. Force-closed and cancelled
+    /// requests (status Cancelled) cannot be reopened.
+    /// </summary>
+    public void Reopen(Guid actingEmployeeId, string reason)
+    {
+        if (actingEmployeeId == Guid.Empty)
+            throw new ArgumentException("Acting employee is required.", nameof(actingEmployeeId));
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A reason is required to reopen a request.", nameof(reason));
+        if (Status != WorkflowRequestStatus.Rejected)
+            throw new InvalidOperationException("Only a rejected request can be reopened.");
+        if (Steps.Count == 0)
+            throw new InvalidOperationException("The request's steps must be loaded before it can be reopened.");
+
+        var rejecting = CurrentStep;
+        if (rejecting.Status != WorkflowStepStatus.Rejected)
+            throw new InvalidOperationException("The rejecting step could not be identified.");
+
+        rejecting.Reopen();
+        foreach (var later in Steps.Where(x => x.Round == CurrentRound && x.Order > rejecting.Order))
+            later.RestoreAfterReopen();
+
+        Status = WorkflowRequestStatus.PendingApproval;
+        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Reopened, actingEmployeeId, reason));
+        RequesterHasSeenLatestUpdate = false;
+        Revision++;
+    }
+
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
     {
         var step = RequireActionableCurrentStep(stepId);
@@ -434,6 +468,13 @@ public sealed class WorkflowRequestStep
         if (Status != WorkflowStepStatus.Pending)
             return;
         Status = WorkflowStepStatus.Superseded;
+    }
+
+    /// <summary>A step that was moot only because the request was rejected waits for its turn again.</summary>
+    internal void RestoreAfterReopen()
+    {
+        if (Status == WorkflowStepStatus.Superseded)
+            Status = WorkflowStepStatus.Pending;
     }
 
     private void Act(WorkflowStepStatus status, Guid actingEmployeeId, string? comment)

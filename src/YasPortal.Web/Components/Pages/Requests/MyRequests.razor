@@ -184,6 +184,7 @@
             actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
             actorIds.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
+            actorIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 

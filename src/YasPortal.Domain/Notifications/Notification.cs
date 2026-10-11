@@ -21,6 +21,9 @@ public enum NotificationKind
     /// <summary>A SuperAdmin force-closed the request. Recipient: the requester.</summary>
     RequestForceClosed,
 
+    /// <summary>A rejected request was reopened at this step. Recipient: that step's assignee.</summary>
+    RequestReopened,
+
     /// <summary>A step targets a position nobody currently holds (spec §5.4). Recipient: SuperAdmins.</summary>
     VacantPosition,
 }

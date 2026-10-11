@@ -130,6 +130,9 @@
                         <AuthorizeView Policy="Admin.Workflows">
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
+                        <AuthorizeView Policy="Requests.Reopen">
+                            <NavLink href="/admin/rejected-requests"><i class="bx bx-revision"></i><span>درخواست‌های ردشده</span></NavLink>
+                        </AuthorizeView>
                         <AuthorizeView Policy="Requests.ForceClose">
                             <NavLink href="/admin/active-requests"><i class="bx bx-error-circle"></i><span>درخواست‌های فعال</span></NavLink>
                         </AuthorizeView>
@@ -166,7 +169,7 @@
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -193,7 +196,7 @@
         _accessGroupVisible = await Can("Admin.Users") || await Can("Admin.Access") || await Can("Admin.Permissions");
         _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory");
         _requestsGroupVisible = await Can("Requests.Create") || await Can("Requests.View")
-            || await Can("Admin.Workflows") || await Can("Requests.ForceClose");
+            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen");
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
