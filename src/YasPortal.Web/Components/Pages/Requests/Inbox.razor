@@ -84,6 +84,27 @@
                                 <AuthorizeView Policy="Requests.ReturnToPreviousStep">
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
                                 </AuthorizeView>
+                                @{
+                                    var earlierSteps = item.Request.Steps
+                                        .Where(s => s.Round == item.Request.CurrentRound && s.Order < item.CurrentStep.Order)
+                                        .OrderBy(s => s.Order)
+                                        .ToList();
+                                }
+                                @* Returning to the immediate previous step already has its own button, so a
+                                   choice is only worth offering when there are at least two steps to pick from. *@
+                                @if (earlierSteps.Count >= 2)
+                                {
+                                    <AuthorizeView Policy="Requests.ReturnToSpecificStep">
+                                        <select class="form-control inbox-return-target" disabled="@busy" value="@GetReturnTarget(item.Request.Id)" @onchange="e => SetReturnTarget(item.Request.Id, e)">
+                                            <option value="0">بازگشت به مرحله‌ی...</option>
+                                            @foreach (var earlier in earlierSteps)
+                                            {
+                                                <option value="@earlier.Order">@earlier.Name</option>
+                                            }
+                                        </select>
+                                        <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="bx bx-skip-previous"></i> بازگشت به مرحله انتخاب‌شده</button>
+                                    </AuthorizeView>
+                                }
                                 @if (busy)
                                 {
                                     <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
@@ -117,6 +138,7 @@
                             <option value="@WorkflowStepStatus.Rejected">رد شد</option>
                             <option value="@WorkflowStepStatus.ReturnedToRequester">بازگشت به درخواست‌کننده</option>
                             <option value="@WorkflowStepStatus.ReturnedToPreviousStep">بازگشت به مرحله قبل</option>
+                            <option value="@WorkflowStepStatus.ReturnedToSpecificStep">بازگشت به مرحله دلخواه</option>
                         </select>
                     </div>
                     <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_historyFrom" ValueChanged="HistoryFromChanged" Placeholder="تاریخ شروع" /></div>
@@ -145,6 +167,11 @@
                                 <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName» · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
+                            @if (item.Decision.ReturnTargetOrder is int targetOrder)
+                            {
+                                var targetName = item.Request.Steps.FirstOrDefault(st => st.Round == item.Decision.Round && st.Order == targetOrder)?.Name;
+                                <span class="muted"> ← «@(targetName ?? ("مرحله " + targetOrder))»</span>
+                            }
                             <i class="bx bx-chevron-down request-card-chevron"></i>
                         </div>
                         @if (expanded)
@@ -162,7 +189,7 @@
 </div>
 
 @code {
-    private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep }
+    private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep, ReturnToSpecificStep }
 
     private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
     // One history row per permanent decision (WorkflowStepDecision), not per step: a step's own
@@ -442,8 +469,13 @@
         WorkflowAction.Reject => "Requests.Reject",
         WorkflowAction.ReturnToRequester => "Requests.ReturnToRequester",
         WorkflowAction.ReturnToPreviousStep => "Requests.ReturnToPreviousStep",
+        WorkflowAction.ReturnToSpecificStep => "Requests.ReturnToSpecificStep",
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
     };
+
+    private Dictionary<Guid, int> _returnTargets = [];
+    private int GetReturnTarget(Guid requestId) => _returnTargets.TryGetValue(requestId, out var t) ? t : 0;
+    private void SetReturnTarget(Guid requestId, ChangeEventArgs e) => _returnTargets[requestId] = int.TryParse(e.Value?.ToString(), out var t) ? t : 0;
 
     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
     private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
@@ -499,6 +531,7 @@
                     case WorkflowAction.Reject: request.Reject(currentStep.Id, employeeId, comment); break;
                     case WorkflowAction.ReturnToRequester: request.ReturnToRequester(currentStep.Id, employeeId, comment); break;
                     case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment); break;
+                    case WorkflowAction.ReturnToSpecificStep: request.ReturnToSpecificStep(currentStep.Id, employeeId, GetReturnTarget(item.Request.Id), comment); break;
                 }
             }
             catch (InvalidOperationException)
@@ -530,6 +563,7 @@
                 return;
             }
             _comments.Remove(item.Request.Id);
+            _returnTargets.Remove(item.Request.Id);
             AppState.AddToast("ثبت شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();
             await LoadAsync();

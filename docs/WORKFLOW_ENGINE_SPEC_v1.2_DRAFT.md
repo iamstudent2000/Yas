@@ -35,7 +35,7 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 | ~~High~~ Done | Notifications (in-app, unread/read, link) | §17 | Built on branch `claude/notifications`: submit/step reached/approved/rejected/returned/returned-to-step/force-closed, `/notifications` page with unread filter, sidebar badge. "Request reopened" and "delegation received" wait for Reopen and Delegation. |
 | ~~High~~ Done | Reopen of a rejected request | §13.4 | Branch `claude/reopen`. Gated by the new permission `Requests.Reopen` (SuperAdmin has it automatically; it can be granted to other positions). Reason required; same round; earlier approvals kept; reopen recorded with actor and reason. Sequential steps only — the parallel-step rule waits for parallel steps. |
 | ~~High~~ Done | Vacant approver → SuperAdmin notification | §5.4 | A step landing on a position with no active holder alerts every active SuperAdmin. Inactive holders count as vacant here. |
-| Medium | ReturnToSpecificStep | §13.2 | Only previous step / requester exist. |
+| ~~Medium~~ Done | ReturnToSpecificStep | §13.2 | Branch `claude/return-to-step`. Permission `Requests.ReturnToSpecificStep`. The approver picks any earlier step (offered when there are two or more); approvals after it are marked superseded (who approved stays visible) and must be given again; the decision records the target step. |
 | Medium | Delegation + history ("acting for") | §15, §16 | Not started. |
 | Medium | Parallel steps, ANY/ALL, reject policy | §12.3, §14 | Needs a step-targets table (no CSV/JSON). Biggest change; touches resolver, `WorkflowRequestStep`, inbox queries. |
 | Medium | Workflow reassignment | §22.1 | Needs a superseded-history marker on steps. |

@@ -295,6 +295,37 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    /// <summary>
+    /// Sends the request back to a chosen earlier step of the current round (spec §13.2). That step
+    /// becomes actionable again; every step between it and the acting step that had already
+    /// approved is marked <see cref="WorkflowStepStatus.Superseded"/> — their approvals no longer
+    /// count and new ones are required as the request moves forward again. The decision log keeps
+    /// every earlier approval, and this decision records which step it returned to.
+    /// </summary>
+    public void ReturnToSpecificStep(Guid stepId, Guid actingEmployeeId, int targetOrder, string? comment)
+    {
+        var step = RequireActionableCurrentStep(stepId);
+        var target = Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == targetOrder)
+            ?? throw new InvalidOperationException("The chosen step does not exist in this round.");
+        if (target.Order >= step.Order)
+            throw new InvalidOperationException("A request can only be returned to an earlier step.");
+        if (target.Status != WorkflowStepStatus.Approved)
+            throw new InvalidOperationException("The chosen step has not approved yet, so there is nothing to return to.");
+
+        step.ReturnToSpecificStep(actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment, target.Order);
+
+        foreach (var between in Steps.Where(x => x.Round == CurrentRound && x.Order > target.Order && x.Order < step.Order))
+            between.SupersedeApproval();
+
+        // Like ReturnToPreviousStep: the target's own live outcome is reset for a fresh decision,
+        // while its original approval is already safe in StepDecisions.
+        target.Reopen();
+        CurrentStepOrder = target.Order;
+        RequesterHasSeenLatestUpdate = false;
+        Revision++;
+    }
+
     public void Cancel()
     {
         if (Steps.Count == 0)
@@ -396,8 +427,8 @@ public sealed class WorkflowRequest
         return result;
     }
 
-    private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment) =>
-        StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment));
+    private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null) =>
+        StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment, returnTargetOrder));
 
     private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
     {
@@ -452,6 +483,7 @@ public sealed class WorkflowRequestStep
     public void Reject(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.Rejected, actingEmployeeId, comment);
     public void ReturnToRequester(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
     public void ReturnToPreviousStep(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment);
+    public void ReturnToSpecificStep(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment);
 
     /// <summary>Re-opens a previously approved step when a later step sends the request back to it.</summary>
     internal void Reopen()
@@ -468,6 +500,16 @@ public sealed class WorkflowRequestStep
         if (Status != WorkflowStepStatus.Pending)
             return;
         Status = WorkflowStepStatus.Superseded;
+    }
+
+    /// <summary>
+    /// A step that had approved, but whose approval no longer counts because the request was sent
+    /// back to an earlier step. Who approved and when stay on the step so the trail still shows it.
+    /// </summary>
+    internal void SupersedeApproval()
+    {
+        if (Status == WorkflowStepStatus.Approved)
+            Status = WorkflowStepStatus.Superseded;
     }
 
     /// <summary>A step that was moot only because the request was rejected waits for its turn again.</summary>

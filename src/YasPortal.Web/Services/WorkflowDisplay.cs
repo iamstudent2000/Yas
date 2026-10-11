@@ -74,9 +74,19 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Rejected => "رد شد",
         WorkflowStepStatus.ReturnedToRequester => "بازگشت به درخواست‌کننده",
         WorkflowStepStatus.ReturnedToPreviousStep => "بازگشت به مرحله قبل",
-        WorkflowStepStatus.Superseded => "به این مرحله نرسید (درخواست پیش از آن بسته یا بازگردانده شد)",
+        WorkflowStepStatus.ReturnedToSpecificStep => "بازگشت به مرحله دلخواه",
+        WorkflowStepStatus.Superseded => "کنار گذاشته شد (درخواست پیش از رسیدن به این مرحله بسته یا به مرحله‌ای قبل‌تر بازگردانده شد)",
         _ => status.ToString(),
     };
+
+    /// <summary>
+    /// Label for a step in the live timeline. A step whose approval was voided by a return to an
+    /// earlier step still carries who approved it, so it says that instead of "never reached".
+    /// </summary>
+    public static string StepLabel(WorkflowRequestStep step, bool isCurrent) =>
+        step.Status == WorkflowStepStatus.Superseded && step.ActedAtUtc is not null
+            ? "تایید قبلی باطل شد (درخواست به مرحله‌ای قبل‌تر بازگردانده شد؛ تایید دوباره لازم است)"
+            : StepLabel(step.Status, isCurrent);
 
     /// <summary>CSS state class for <c>.approval-step-icon</c> — controls its background/color.</summary>
     public static string StepIconClass(WorkflowStepStatus status, bool isCurrent) => status switch
@@ -85,7 +95,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Pending => "is-queued",
         WorkflowStepStatus.Approved => "is-approved",
         WorkflowStepStatus.Rejected => "is-rejected",
-        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "is-returned",
+        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => "is-returned",
         WorkflowStepStatus.Superseded => "is-queued",
         _ => "",
     };
@@ -96,7 +106,7 @@ public static class WorkflowDisplay
         WorkflowStepStatus.Pending => "bx-time",
         WorkflowStepStatus.Approved => "bx-check",
         WorkflowStepStatus.Rejected => "bx-x",
-        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "bx-undo",
+        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => "bx-undo",
         WorkflowStepStatus.Superseded => "bx-minus-circle",
         _ => "bx-circle",
     };
@@ -106,7 +116,7 @@ public static class WorkflowDisplay
     {
         WorkflowStepStatus.Approved => "badge-success",
         WorkflowStepStatus.Rejected => "badge-danger",
-        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep => "badge-warning",
+        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => "badge-warning",
         _ => "badge-muted",
     };
 }

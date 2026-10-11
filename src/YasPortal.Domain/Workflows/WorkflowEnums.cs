@@ -63,6 +63,9 @@ public enum WorkflowStepStatus
     ReturnedToRequester,
     ReturnedToPreviousStep,
 
+    /// <summary>The approver sent the request back to a chosen earlier step (spec §13.2).</summary>
+    ReturnedToSpecificStep,
+
     /// <summary>
     /// The step was never reached: its round ended first — by a resubmission after a return, a
     /// rejection, a cancellation or a force-close. Not an outcome anyone chose — it only marks

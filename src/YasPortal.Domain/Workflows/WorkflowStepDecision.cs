@@ -18,7 +18,7 @@ public sealed class WorkflowStepDecision
     {
     }
 
-    internal WorkflowStepDecision(Guid requestId, Guid stepId, int round, int order, Guid approverPositionId, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment)
+    internal WorkflowStepDecision(Guid requestId, Guid stepId, int round, int order, Guid approverPositionId, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null)
     {
         if (requestId == Guid.Empty)
             throw new ArgumentException("Request is required.", nameof(requestId));
@@ -40,6 +40,7 @@ public sealed class WorkflowStepDecision
         ActedByEmployeeId = actingEmployeeId;
         Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
         ActedAtUtc = DateTime.UtcNow;
+        ReturnTargetOrder = returnTargetOrder;
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
@@ -54,4 +55,7 @@ public sealed class WorkflowStepDecision
     public Guid ActedByEmployeeId { get; private set; }
     public DateTime ActedAtUtc { get; private set; }
     public string? Comment { get; private set; }
+
+    /// <summary>For a return to a specific step: the order of the step the request was sent back to; otherwise null.</summary>
+    public int? ReturnTargetOrder { get; private set; }
 }

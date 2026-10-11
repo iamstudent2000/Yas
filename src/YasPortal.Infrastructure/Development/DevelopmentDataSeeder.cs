@@ -24,9 +24,10 @@ public static class DevelopmentDataSeeder
             var forceCloseColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequests]', N'ForceCloseReason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var fieldChangesTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[WorkflowFieldChanges]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var reopenReasonColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowRequesterActions]', N'Reason') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            var returnTargetColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowStepDecisions]', N'ReturnTargetOrder') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var notificationsTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Notifications]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var treeLevelColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowStepDefinitions]', N'TreeLevel') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
-            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists || !fieldChangesTableExists || !treeLevelColumnExists || !notificationsTableExists || !reopenReasonColumnExists)
+            if (organizationsTableExists == 0 || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists || !fieldChangesTableExists || !treeLevelColumnExists || !notificationsTableExists || !reopenReasonColumnExists || !returnTargetColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
@@ -95,7 +96,8 @@ public static class DevelopmentDataSeeder
             ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
             ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار"),
             ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده"),
-            ["Requests.Reopen"] = new Permission("Requests.Reopen", "بازگشایی درخواست‌های ردشده")
+            ["Requests.Reopen"] = new Permission("Requests.Reopen", "بازگشایی درخواست‌های ردشده"),
+            ["Requests.ReturnToSpecificStep"] = new Permission("Requests.ReturnToSpecificStep", "بازگشت به مرحله دلخواه")
         };
 
         foreach (var permission in permissions.Values.ToList())
@@ -156,8 +158,8 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
         await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
-        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Employees.View" }, ct);
-        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Employees.View" }, ct);
+        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Employees.View" }, ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Employees.View" }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
 
