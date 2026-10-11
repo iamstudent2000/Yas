@@ -65,6 +65,7 @@
 /* ---- inbox action area ---- */
 .inbox-comment{margin-top:14px}
 .inbox-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.inbox-actions .inbox-return-target{width:auto;min-width:190px;flex:0 0 auto}
 .inbox-empty-icon{color:#12b76a}
 .resubmit-panel{margin-top:16px;padding:14px 16px;background:#fffaeb;border:1px solid #fef0c7;border-radius:12px}
 .round-heading{margin:16px 0 6px;font-size:12px;font-weight:800;color:#1d4ed8}
