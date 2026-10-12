@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Infrastructure.Persistence;
@@ -86,7 +87,9 @@ public sealed class WorkflowRequestFilter
                 id.Append(hex[n]);
             }
             var prefix = id.ToString();
-            query = query.Where(x => x.Id.ToString().ToLower().StartsWith(prefix));
+            // SQL LIKE on the ID text (hex digits only, so no wildcard can sneak in); case-insensitive in SQL Server's default collation.
+            var pattern = "%" + prefix + "%";
+            query = query.Where(x => EF.Functions.Like(x.Id.ToString(), pattern));
         }
         return query;
     }

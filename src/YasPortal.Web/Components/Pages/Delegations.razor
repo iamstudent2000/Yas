@@ -173,10 +173,10 @@
     }
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
-        AdminQueries.SearchPositionsAsync(search, null, null, ct);
+        AdminQueries.SearchPositionsWithHoldersAsync(search, null, ct);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchDelegatePositionsAsync(string search, CancellationToken ct) =>
-        AdminQueries.SearchPositionsAsync(search, null, _canManage && _positionId is not null ? _positionId : _ownPositionId, ct);
+        AdminQueries.SearchPositionsWithHoldersAsync(search, _canManage && _positionId is not null ? _positionId : _ownPositionId, ct);
 
     private void Fail(string message) => AppState.AddToast(message, ToastLevel.Error);
 
