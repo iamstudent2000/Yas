@@ -1,7 +1,6 @@
-# Workflow Engine — Spec v1.2 (DRAFT, needs owner approval)
+# Workflow Engine — Spec v1.2 (owner decisions C1–C3 approved 2026-10-12)
 
-Status: proposal. Spec v1.1 wins on conflicts (its Purpose section), so every row marked
-**CHANGE** below is a deviation from v1.1 that the owner must approve before it becomes rule.
+Status: C1–C3 approved by the owner on 2026-10-12 (the recommendations below were accepted as written). Spec v1.1 wins on conflicts except where a row below is marked APPROVED.
 Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 
 ## 1. What the engine does today (as implemented)
@@ -22,9 +21,9 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 
 | # | v1.1 text | Implementation | Proposal |
 |---|-----------|----------------|----------|
-| C1 | §23 forbids "Automatic manager escalation". | `EscalateToTreeLevel` walks managers up the tree. | **CHANGE:** reword §23 to forbid *implicit* escalation (e.g. silently skipping/clamping). Escalation is allowed only when an admin explicitly configures it on a step. |
-| C2 | §10.3 statuses: Draft, PendingApproval, InProgress, Approved, Rejected, Returned, Cancelled, Withdrawn. | PendingApproval, Approved, Rejected, ReturnedToRequester, Cancelled. Requester cancel and SuperAdmin force-close both end as `Cancelled` (distinguished by `ForceClosed*` fields / requester action). | **CHANGE:** drop Draft and InProgress (a request is submitted on creation; the current step is `CurrentStepOrder`); add `Withdrawn` for requester cancel, or document the single-status rule. |
-| C3 | §12.2/§12.4 per-step sequential or parallel, ANY/ALL. | One position per step, sequential. | **CHANGE or GAP:** either accept "sequential only" for v1.2, or schedule parallel steps (see §3). |
+| C1 | §23 forbids "Automatic manager escalation". | `EscalateToTreeLevel` walks managers up the tree. | **APPROVED — reword §23** to forbid *implicit* escalation (e.g. silently skipping/clamping). Escalation is allowed only when an admin explicitly configures it on a step. |
+| C2 | §10.3 statuses: Draft, PendingApproval, InProgress, Approved, Rejected, Returned, Cancelled, Withdrawn. | PendingApproval, Approved, Rejected, ReturnedToRequester, Cancelled. Requester cancel and SuperAdmin force-close both end as `Cancelled` (distinguished by `ForceClosed*` fields / requester action). | **APPROVED:** drop Draft and InProgress (a request is submitted on creation; the current step is `CurrentStepOrder`). No `Withdrawn`: requester cancel and SuperAdmin force-close both stay `Cancelled`, told apart by `ForceClosed*` fields / requester action. Final status list: PendingApproval, Approved, Rejected, ReturnedToRequester, Cancelled. |
+| C3 | §12.2/§12.4 per-step sequential or parallel, ANY/ALL. | One position per step, sequential. | **APPROVED:** sequential only (one position per step) for v1.2; parallel steps and ANY/ALL move to v1.3. |
 | C4 | §10.2 resubmit "restarts from the beginning". | Same. | none |
 | C5 | §22.1 reassign request to a different workflow. | Not implemented. | **GAP** |
 
@@ -41,12 +40,12 @@ Rows marked **GAP** are v1.1 requirements the code does not implement yet.
 | Medium | Workflow reassignment | §22.1 | Needs a superseded-history marker on steps. |
 | ~~Low~~ Already satisfied | Inactive employees treated as vacant | §4.3 | Checked: deactivating an employee (Users page) ends all their active position assignments, so their positions become vacant at once and no inactive holder can receive a step. Notifications also skip inactive holders as a second guard. No code change needed. |
 | ~~Low~~ Done (requests) | Request list filters (status, type, requester, date, current step) and search by request ID | §25 | Branch `claude/list-filters`: one filter bar on My requests, Inbox (pending), Active requests (now paginated too) and Rejected requests; the short ID `#xxxxxxxx` is shown on every request. Employees, positions, audit log and notification lists are not covered by this change. |
-| Low | Requester-editable Draft status | §10.2 | Depends on C2. |
+| ~~Low~~ Dropped | Requester-editable Draft status | §10.2 | Removed by decision C2 (no Draft status in v1.2). |
 
 ## 4. Suggested order
 
-1. Owner decides C1–C3.
+1. ~~Owner decides C1–C3~~ — done (see §2).
 2. Notifications + vacancy alert (they unblock most of the other flows).
 3. Reopen, then ReturnToSpecificStep.
 4. Delegation.
-5. Parallel steps (only if C3 says so).
+5. Parallel steps — deferred to v1.3 (decision C3).
