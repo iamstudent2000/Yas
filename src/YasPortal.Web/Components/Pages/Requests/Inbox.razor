@@ -169,7 +169,7 @@
                             <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
-                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName» · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName»@(DelegatedLabel(item.Decision)) · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
                             @if (item.Decision.ReturnTargetOrder is int targetOrder)
@@ -294,6 +294,18 @@
         await LoadHistoryAsync();
     }
 
+    /// <summary>" (به نمایندگی از X)" when the decision was made for another position's holder, empty otherwise.</summary>
+    private string DelegatedLabel(WorkflowStepDecision decision)
+    {
+        if (decision.DelegationId is null)
+            return "";
+        if (decision.ActedByEmployeeId != _employeeId)
+            return _employeeNames.TryGetValue(decision.ActedByEmployeeId, out var delegateName) ? $" (توسط نماینده: {delegateName})" : " (توسط نماینده)";
+        return decision.OnBehalfOfEmployeeId is Guid id && _employeeNames.TryGetValue(id, out var name)
+            ? $" (به نمایندگی از {name})"
+            : " (به‌عنوان جانشین)";
+    }
+
     private void ToggleHistory(Guid stepId) => _expandedHistoryId = _expandedHistoryId == stepId ? null : stepId;
 
     private async Task LoadAsync()
@@ -357,7 +369,11 @@
 
     private async Task LoadHistoryAsync()
     {
-        if (_approverPositionId is not Guid positionId)
+        // The history covers the position's own decisions and anything this person decided on behalf of
+        // another position (delegation), so delegated work does not disappear from the delegate's record.
+        var positionId = _approverPositionId;
+        var actorId = _employeeId;
+        if (positionId is null && actorId is null)
         {
             _historyItems = [];
             _historyTotalCount = 0;
@@ -376,7 +392,7 @@
             // sends the request back to it, which used to make that approval vanish from here.
             // Superseded steps never produce a decision, so they can't appear as one either.
             var matchQuery = db.WorkflowStepDecisions.AsNoTracking()
-                .Where(d => d.ApproverPositionId == positionId)
+                .Where(d => (positionId != null && d.ApproverPositionId == positionId) || (actorId != null && d.ActedByEmployeeId == actorId))
                 .Join(
                     db.WorkflowRequests.AsNoTracking(),
                     d => d.RequestId,
