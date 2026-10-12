@@ -87,3 +87,6 @@
 .notification-bell{position:relative;display:inline-grid;place-items:center;color:#475467;font-size:19px}
 .notification-bell:hover{background:#eef4ff;color:#155eef}
 .notification-bell-badge{position:absolute;top:-4px;inset-inline-start:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:#d92d20;color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center;border:2px solid #fff;box-sizing:content-box}
+
+.request-filter-clear{align-self:end;display:flex;align-items:flex-end}
+.request-filter-clear .btn{white-space:nowrap}

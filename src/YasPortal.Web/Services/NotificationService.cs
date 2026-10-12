@@ -133,6 +133,26 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Marks the employee's unread notifications about these requests as read. Used when the requester has
+    /// looked at the request itself, so the same news is not counted twice (sidebar "my requests" and "notifications").
+    /// Pass null to cover every request.
+    /// </summary>
+    public async Task MarkRequestsReadAsync(Guid employeeId, IReadOnlyCollection<Guid>? requestIds, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var query = db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && !x.IsRead && x.RequestId != null
+            && x.Kind != NotificationKind.StepReached && x.Kind != NotificationKind.ReturnedToStep && x.Kind != NotificationKind.VacantPosition);
+        if (requestIds is not null)
+            query = query.Where(x => requestIds.Contains(x.RequestId!.Value));
+        var unread = await query.ToListAsync(ct);
+        if (unread.Count == 0)
+            return;
+        foreach (var item in unread)
+            item.MarkRead();
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task MarkAllReadAsync(Guid employeeId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

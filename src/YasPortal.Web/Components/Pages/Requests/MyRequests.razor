@@ -237,6 +237,8 @@
                 return;
             }
             _unseenCount = Math.Max(0, _unseenCount - 1);
+            await NotificationSvc.MarkRequestsReadAsync(tracked.RequesterEmployeeId, new[] { id });
+            AppState.SetUnreadNotificationCount(await NotificationSvc.CountUnreadAsync(tracked.RequesterEmployeeId));
             AppState.NotifyRequestBadgesChanged();
         }
     }
@@ -267,6 +269,8 @@
         foreach (var request in _requests)
             request.MarkSeenByRequester();
 
+        await NotificationSvc.MarkRequestsReadAsync(employeeId, null);
+        AppState.SetUnreadNotificationCount(await NotificationSvc.CountUnreadAsync(employeeId));
         AppState.AddToast("همه درخواست‌ها به‌عنوان دیده‌شده علامت خوردند.", ToastLevel.Success);
         AppState.NotifyRequestBadgesChanged();
         _unseenCount = 0;
