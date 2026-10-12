@@ -13,6 +13,7 @@ public enum WorkflowNotificationEvent
     ReturnedToPreviousStep,
     ForceClosed,
     Reopened,
+    Reassigned,
 }
 
 /// <summary>Who should hear about it: the requester, or whoever holds a position.</summary>
@@ -57,6 +58,9 @@ public static class WorkflowNotificationPlanner
 
             case WorkflowNotificationEvent.Reopened:
                 return [AtCurrentStep(request, NotificationKind.RequestReopened)];
+
+            case WorkflowNotificationEvent.Reassigned:
+                return [ToRequester(NotificationKind.RequestReassigned), AtCurrentStep(request, NotificationKind.StepReached)];
 
             case WorkflowNotificationEvent.ForceClosed:
                 return [ToRequester(NotificationKind.RequestForceClosed)];

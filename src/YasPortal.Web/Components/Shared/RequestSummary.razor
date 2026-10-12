@@ -31,13 +31,29 @@
     </div>
 }
 
+@if (Request.RequesterActions.Any(a => a.Kind == WorkflowRequesterActionKind.Reassigned))
+{
+    <div class="field-summary field-history">
+        <p class="round-heading">انتقال به گردش‌کار دیگر</p>
+        @foreach (var move in Request.RequesterActions.Where(a => a.Kind == WorkflowRequesterActionKind.Reassigned).OrderBy(a => a.AtUtc))
+        {
+            var by = EmployeeNames.TryGetValue(move.EmployeeId, out var movedBy) ? movedBy : null;
+            <div class="field-summary-item">
+                <span>انتقال (دور @ToPersianDigits(move.Round.ToString()))</span>
+                <strong>@(string.IsNullOrWhiteSpace(move.Reason) ? "—" : move.Reason)</strong>
+                <div class="approval-step-meta">@(by is null ? "" : by + " · ")@move.AtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+            </div>
+        }
+    </div>
+}
+
 @if (Request.FieldChanges.Count > 0)
 {
     <div class="field-summary field-history">
         <p class="round-heading">تاریخچه تغییر فیلدها</p>
         @foreach (var change in Request.FieldChanges.OrderBy(x => x.ChangedAtUtc).ThenBy(x => x.FieldKey, StringComparer.Ordinal))
         {
-            var field = WorkflowFieldCatalog.GetFields(Request.WorkflowType).FirstOrDefault(f => f.Key == change.FieldKey);
+            var field = FindField(change.FieldKey);
             var label = field?.Label ?? change.FieldKey;
             var oldText = field is null ? change.OldValue : WorkflowDisplay.FormatFieldValue(field, change.OldValue);
             var newText = field is null ? change.NewValue : WorkflowDisplay.FormatFieldValue(field, change.NewValue);
@@ -98,10 +114,10 @@
                 <div class="approval-step">
                     <span class="approval-step-icon is-requester"><i class="bx bx-refresh"></i></span>
                     <div class="approval-step-body">
-                        <strong>ارسال مجدد</strong>
+                        <strong>@(IsReassignedRound(roundKey) ? "انتقال به گردش‌کار دیگر" : "ارسال مجدد")</strong>
                         <div class="approval-step-meta">
-                            درخواست‌کننده پس از اصلاح دوباره ارسال کرد
-                            @if (requesterName is not null)
+                            @(IsReassignedRound(roundKey) ? "توسط مدیر سامانه به گردش‌کار دیگری منتقل شد" : "درخواست‌کننده پس از اصلاح دوباره ارسال کرد")
+                            @if (requesterName is not null && !IsReassignedRound(roundKey))
                             {
                                 <span> — @requesterName</span>
                             }
@@ -173,7 +189,7 @@
         <div class="round-history">
             <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(roundKey)">
                 <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
-                <span>دور @ToPersianDigits(roundKey.ToString()) (پیشین — بازگشت به درخواست‌کننده)</span>
+                <span>دور @ToPersianDigits(roundKey.ToString()) (پیشین)</span>
             </button>
             @if (expanded)
             {
@@ -200,10 +216,10 @@
                         <div class="approval-step">
                             <span class="approval-step-icon is-requester"><i class="bx bx-refresh"></i></span>
                             <div class="approval-step-body">
-                                <strong>ارسال مجدد</strong>
+                                <strong>@(IsReassignedRound(roundKey) ? "انتقال به گردش‌کار دیگر" : "ارسال مجدد")</strong>
                                 <div class="approval-step-meta">
-                                    درخواست‌کننده پس از اصلاح دوباره ارسال کرد
-                                    @if (requesterName is not null)
+                                    @(IsReassignedRound(roundKey) ? "توسط مدیر سامانه به گردش‌کار دیگری منتقل شد" : "درخواست‌کننده پس از اصلاح دوباره ارسال کرد")
+                                    @if (requesterName is not null && !IsReassignedRound(roundKey))
                                     {
                                         <span> — @requesterName</span>
                                     }
@@ -244,6 +260,14 @@
         if (!_expandedRounds.Add(round))
             _expandedRounds.Remove(round);
     }
+
+    private bool IsReassignedRound(int round) =>
+        Request.RequesterActions.Any(a => a.Round == round && a.Kind == WorkflowRequesterActionKind.Reassigned);
+
+    /// <summary>The field's definition: from the request's current type first, else from any type — a reassigned request still shows the old type's field names in its history.</summary>
+    private WorkflowFieldDefinition? FindField(string key) =>
+        WorkflowFieldCatalog.GetFields(Request.WorkflowType).FirstOrDefault(f => f.Key == key)
+        ?? WorkflowFieldCatalog.AllTypes.SelectMany(WorkflowFieldCatalog.GetFields).FirstOrDefault(f => f.Key == key);
 
     private string? GetFieldValue(string key)
     {

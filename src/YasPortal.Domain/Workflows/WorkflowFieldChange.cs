@@ -22,7 +22,7 @@ public sealed class WorkflowFieldChange
         string? oldValue,
         string? newValue,
         Guid changedByEmployeeId,
-        Guid changedByPositionId)
+        Guid? changedByPositionId)
     {
         if (requestId == Guid.Empty)
             throw new ArgumentException("Request is required.", nameof(requestId));
@@ -33,7 +33,7 @@ public sealed class WorkflowFieldChange
         if (changedByEmployeeId == Guid.Empty)
             throw new ArgumentException("Employee is required.", nameof(changedByEmployeeId));
         if (changedByPositionId == Guid.Empty)
-            throw new ArgumentException("Position is required.", nameof(changedByPositionId));
+            throw new ArgumentException("Position cannot be an empty id.", nameof(changedByPositionId));
 
         RequestId = requestId;
         Round = round;
@@ -60,6 +60,7 @@ public sealed class WorkflowFieldChange
     /// <summary>Null when the field was cleared.</summary>
     public string? NewValue { get; private set; }
     public Guid ChangedByEmployeeId { get; private set; }
-    public Guid ChangedByPositionId { get; private set; }
+    /// <summary>Null when the change was made by a SuperAdmin who holds no position (a workflow reassignment, §22.1).</summary>
+    public Guid? ChangedByPositionId { get; private set; }
     public DateTime ChangedAtUtc { get; private set; }
 }

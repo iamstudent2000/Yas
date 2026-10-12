@@ -29,6 +29,9 @@ public enum NotificationKind
 
     /// <summary>A step targets a position nobody currently holds (spec §5.4). Recipient: SuperAdmins.</summary>
     VacantPosition,
+
+    /// <summary>A SuperAdmin moved the request to another workflow (spec §22.1). Recipient: the requester.</summary>
+    RequestReassigned,
 }
 
 /// <summary>

@@ -92,4 +92,11 @@ public enum WorkflowRequesterActionKind
     /// event outside the approvers' decisions; the reason is stored on the record.
     /// </summary>
     Reopened,
+
+    /// <summary>
+    /// SuperAdmin moved the request onto another workflow (spec §22.1): the round it was in ended,
+    /// every earlier approval was marked superseded, and a new round started at the new workflow's
+    /// first step. The reason is stored on the record.
+    /// </summary>
+    Reassigned,
 }
