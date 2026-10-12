@@ -92,3 +92,7 @@
 .request-filter-clear .btn{white-space:nowrap}
 
 .tree-occupancy-filter{width:auto;min-width:130px}
+
+.tree-org-filter{min-width:170px}
+.blocker-panel{margin-top:12px;padding:10px 12px;border:1px solid #fecdca;background:#fef3f2;border-radius:10px}
+.blocker-panel ul{margin:6px 0;padding-inline-start:18px}

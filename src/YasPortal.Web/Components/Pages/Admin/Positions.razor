@@ -3,6 +3,7 @@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Rendering
 @using YasPortal.Domain.Organization
+@using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
@@ -58,6 +59,15 @@
                         <option value="occupied">دارای متصدی</option>
                         <option value="vacant">خالی</option>
                     </select>
+                    <select class="form-control tree-occupancy-filter" value="@_activeFilter" @onchange="ActiveFilterChanged" title="فیلتر فعال/غیرفعال">
+                        <option value="">فعال و غیرفعال</option>
+                        <option value="active">فعال</option>
+                        <option value="inactive">غیرفعال</option>
+                    </select>
+                    <div class="tree-org-filter">
+                        <ServerSearchableGuidSelect Value="@_organizationFilterId" ValueChanged="OrganizationFilterChanged" SearchAsync="SearchOrganizationsAsync"
+                                                    SelectedText="@_organizationFilterName" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+                    </div>
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
@@ -120,6 +130,28 @@
                                                                     SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName"
                                                                     Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." />
                                         <small class="help-text">بدون بالادست = سمت ریشه.</small>
+                                        <label class="form-label">سازمان (دپارتمان)</label>
+                                        <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged" SearchAsync="SearchOrganizationsAsync"
+                                                                    SelectedText="@_organizationName" Placeholder="بدون سازمان" SearchPlaceholder="نام سازمان..." />
+                                        <small class="help-text">سمت زیرمجموعه باید در همان سازمان سمت بالادست باشد؛ سمت ریشه می‌تواند سازمان نداشته باشد.</small>
+                                        @if (_blockers.Count > 0)
+                                        {
+                                            <div class="blocker-panel">
+                                                <strong>@_blockerTitle</strong>
+                                                <p class="muted">تا زمانی که این درخواست‌ها بسته یا به نتیجه نرسند، تغییر انجام نمی‌شود. در «درخواست‌های فعال» می‌توانید آن‌ها را به‌صورت اجباری ببندید.</p>
+                                                <ul>
+                                                    @foreach (var b in _blockers.Take(20))
+                                                    {
+                                                        <li><span dir="ltr">#@b.ShortId</span> — @WorkflowFieldCatalog.GetDisplayName(b.Type) — @b.Reason</li>
+                                                    }
+                                                </ul>
+                                                @if (_blockers.Count > 20)
+                                                {
+                                                    <p class="muted">و @(_blockers.Count - 20) مورد دیگر…</p>
+                                                }
+                                                <a class="btn btn-secondary btn-sm" href="/admin/active-requests"><i class="bx bx-error-circle"></i> رفتن به درخواست‌های فعال</a>
+                                            </div>
+                                        }
                                         <div class="form-actions">
                                             <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
                                             @if (_editingId is not null)
@@ -147,6 +179,13 @@
     private readonly HashSet<Guid> _collapsedNodeIds = [];
     private string _treeSearch = "";
     private string _occupancyFilter = "";
+    private string _activeFilter = "";
+    private Guid? _organizationFilterId;
+    private string? _organizationFilterName;
+    private Guid? _organizationId;
+    private string? _organizationName;
+    private List<PositionChangeGuard.Blocker> _blockers = [];
+    private string? _blockerTitle;
     private HashSet<Guid>? _visiblePositionIds;
     private int _treeMatchCount;
     private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId, _confirmingReassignPositionId;
@@ -161,12 +200,14 @@
     {
         _assigningPositionId = null;
         var q = _treeSearch.Trim();
-        if (q.Length == 0 && _occupancyFilter == "") { _visiblePositionIds = null; _treeMatchCount = 0; return; }
+        if (q.Length == 0 && _occupancyFilter == "" && _activeFilter == "" && _organizationFilterId is null) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
 
         // Text search (name/code) and the occupied/vacant filter combine; ancestors of every match stay visible so the tree keeps its shape.
         var matches = _positions
             .Where(x => q.Length == 0 || x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
             .Where(x => _occupancyFilter == "" || (_occupancyFilter == "vacant" ? !x.IsOccupied : x.IsOccupied))
+            .Where(x => _activeFilter == "" || (_activeFilter == "inactive" ? !x.IsActive : x.IsActive))
+            .Where(x => _organizationFilterId is null || x.OrganizationId == _organizationFilterId)
             .Select(x => x.Id).ToHashSet();
         _treeMatchCount = matches.Count;
 
@@ -180,6 +221,30 @@
         }
         _visiblePositionIds = visible;
     }
+
+    private void ActiveFilterChanged(ChangeEventArgs e)
+    {
+        _activeFilter = e.Value?.ToString() ?? "";
+        TreeSearchChanged();
+    }
+
+    private Task OrganizationFilterChanged(Guid? id)
+    {
+        _organizationFilterId = id;
+        if (id is null) _organizationFilterName = null;
+        TreeSearchChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task OrganizationChanged(Guid? id)
+    {
+        _organizationId = id;
+        _organizationName = id is null ? null : _organizationName;
+        return Task.CompletedTask;
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchOrganizationsAsync(search, true, ct);
 
     private void OccupancyFilterChanged(ChangeEventArgs e)
     {
@@ -207,7 +272,10 @@
                 x.Name,
                 x.ParentPositionId,
                 db.EmployeePositions.Where(ep => ep.PositionId == x.Id && ep.EndedAt == null).Select(ep =>
-(string?)ep.Employee.FullName).FirstOrDefault()
+(string?)ep.Employee.FullName).FirstOrDefault(),
+                x.IsActive,
+                x.OrganizationId,
+                db.Organizations.Where(o => o.Id == x.OrganizationId).Select(o => (string?)o.Name).FirstOrDefault()
             )).ToListAsync();
 
             if (!_treeInitialized)
@@ -220,7 +288,7 @@
                 _collapsedNodeIds.RemoveWhere(id => !_positions.Any(x => x.Id == id));
             }
 
-            if (_treeSearch.Trim().Length > 0 || _occupancyFilter != "")
+            if (_treeSearch.Trim().Length > 0 || _occupancyFilter != "" || _activeFilter != "" || _organizationFilterId is not null)
                 TreeSearchChanged();
 
             if (_selectedPositionId is Guid selected)
@@ -269,6 +337,8 @@
         _name = "";
         _parentPositionId = parentId;
         _parentPositionName = _positions.FirstOrDefault(x => x.Id == parentId)?.Name ?? "";
+        _organizationId = _positions.FirstOrDefault(x => x.Id == parentId)?.OrganizationId;
+        _organizationName = _positions.FirstOrDefault(x => x.Id == parentId)?.OrganizationName;
         _collapsedNodeIds.Remove(parentId);
     }
 
@@ -282,6 +352,9 @@
         _parentPositionId = p.ParentPositionId;
         _parentPositionName = p.ParentPositionId is Guid parent ? _positions.FirstOrDefault(x => x.Id == parent)?.Name ?? "" :
 "";
+        _organizationId = p.OrganizationId;
+        _organizationName = p.OrganizationName;
+        _blockers = [];
     }
 
     private void CancelEdit()
@@ -291,6 +364,9 @@
         _name = "";
         _parentPositionId = null;
         _parentPositionName = "";
+        _organizationId = null;
+        _organizationName = null;
+        _blockers = [];
     }
 
     private Task ParentChanged(Guid? id)
@@ -353,17 +429,47 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
             return;
         }
 
+        // §3.2: a position sits in the same department (organization) as its parent.
+        if (_parentPositionId is Guid parentId)
+        {
+            var parentOrg = _positions.FirstOrDefault(x => x.Id == parentId)?.OrganizationId;
+            if (parentOrg is not null && parentOrg != _organizationId)
+            {
+                AppState.AddToast("سمت باید در همان سازمان سمت بالادست خود باشد.", ToastLevel.Error);
+                return;
+            }
+        }
+
+        _blockers = [];
         if (_editingId is Guid eid)
         {
             var p = await db.Positions.SingleAsync(x => x.Id == eid);
+
+            // §19: moving a position moves its whole branch, so every active request touching it must be resolved first.
+            if (p.ParentPositionId != _parentPositionId)
+            {
+                var branch = await PositionChangeGuard.SubtreeAsync(db, eid);
+                var blockers = await PositionChangeGuard.ActiveRequestsTouchingAsync(db, branch);
+                if (blockers.Count > 0)
+                {
+                    _blockers = blockers.ToList();
+                    _blockerTitle = "تغییر بالادست این سمت به‌دلیل درخواست‌های فعال زیر ممکن نیست:";
+                    AppState.AddToast("سمت دارای درخواست فعال است و تا رسیدگی به آن‌ها ساختار قابل تغییر نیست.", ToastLevel.Error);
+                    return;
+                }
+            }
+
             p.ChangeCode(code);
             p.Rename(name);
             p.ChangeParent(_parentPositionId);
+            p.ChangeOrganization(_organizationId);
             AppState.AddToast("سمت و ساختار آن ویرایش شد.", ToastLevel.Success);
         }
         else
         {
-            db.Positions.Add(new Position(code, name, _parentPositionId));
+            var created = new Position(code, name, _parentPositionId);
+            created.ChangeOrganization(_organizationId);
+            db.Positions.Add(created);
             AppState.AddToast("سمت جدید ایجاد شد.", ToastLevel.Success);
         }
 
@@ -413,6 +519,12 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
 
     private async Task ReassignEmployeeAsync(Guid positionId)
     {
+        if (_positions.FirstOrDefault(x => x.Id == positionId)?.IsActive == false)
+        {
+            AppState.AddToast("سمت غیرفعال قابل تخصیص نیست.", ToastLevel.Error);
+            return;
+        }
+
         if (_employeeToAssign is not Guid employeeId || _savingAssignment)
             return;
 
@@ -504,6 +616,67 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         }
     }
 
+    /// <summary>
+    /// Deactivation (spec §3.3, §19, §26.3): refused while the position still has an occupant, is a fixed
+    /// approver in a workflow, or any active request is waiting on it or was submitted from it. The blockers
+    /// are listed so the admin can resolve them (§22.2). Child positions are not affected.
+    /// </summary>
+    private async Task DeactivateAsync(Guid id)
+    {
+        _blockers = [];
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var position = await db.Positions.SingleOrDefaultAsync(x => x.Id == id);
+        if (position is null || !position.IsActive)
+        {
+            await LoadAsync();
+            return;
+        }
+
+        if (await db.EmployeePositions.AnyAsync(x => x.PositionId == id && x.EndedAt == null))
+        {
+            AppState.AddToast("سمت دارای متصدی است؛ ابتدا با «آزاد» تخصیص فعلی را پایان دهید.", ToastLevel.Error);
+            return;
+        }
+
+        var steps = await PositionChangeGuard.WorkflowStepsUsingAsync(db, id);
+        if (steps.Count > 0)
+        {
+            AppState.AddToast("این سمت در گردش‌کار استفاده شده است: " + string.Join("، ", steps) + ". ابتدا گردش‌کار را اصلاح کنید.", ToastLevel.Error);
+            return;
+        }
+
+        var blockers = await PositionChangeGuard.ActiveRequestsTouchingAsync(db, [id]);
+        if (blockers.Count > 0)
+        {
+            _blockers = blockers.ToList();
+            _blockerTitle = "غیرفعال‌سازی این سمت به‌دلیل درخواست‌های فعال زیر ممکن نیست:";
+            AppState.AddToast("سمت دارای درخواست فعال است و باید ابتدا به آن‌ها رسیدگی شود.", ToastLevel.Error);
+            return;
+        }
+
+        position.Deactivate();
+        await db.SaveChangesAsync();
+        AppState.AddToast("سمت غیرفعال شد.", ToastLevel.Success);
+        await LoadAsync();
+    }
+
+    private async Task ActivateAsync(Guid id)
+    {
+        _blockers = [];
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var position = await db.Positions.SingleOrDefaultAsync(x => x.Id == id);
+        if (position is null || position.IsActive)
+        {
+            await LoadAsync();
+            return;
+        }
+
+        position.Activate();
+        await db.SaveChangesAsync();
+        AppState.AddToast("سمت فعال شد.", ToastLevel.Success);
+        await LoadAsync();
+    }
+
     private async Task Delete(Guid id)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -513,10 +686,10 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
             return;
         }
 
-        if (await db.EmployeePositions.AnyAsync(x => x.PositionId == id) || await db.UserPositionPermissions.AnyAsync(x =>
-x.PositionId == id))
+        // §3.4: a position that was ever used is never deleted — it can only be deactivated.
+        if (await PositionChangeGuard.HistoricalUsageAsync(db, id) is string usage)
         {
-            AppState.AddToast("این سمت دارای سابقه تخصیص یا مجوز است و قابل حذف نیست.", ToastLevel.Error);
+            AppState.AddToast($"این سمت دارای سابقه ({usage}) است و قابل حذف نیست؛ فقط می‌توان آن را غیرفعال کرد.", ToastLevel.Error);
             return;
         }
 
@@ -604,6 +777,10 @@ x.PositionId == id))
         builder.CloseElement();
         builder.OpenElement(s++, "small");
         builder.AddContent(s++, position.IsOccupied ? $"کارمند: {position.EmployeeName}" : "سمت آزاد");
+        if (!position.IsActive)
+            builder.AddContent(s++, " • غیرفعال");
+        if (!string.IsNullOrWhiteSpace(position.OrganizationName))
+            builder.AddContent(s++, $" • {position.OrganizationName}");
         if (hasChildren)
             builder.AddContent(s++, $" • {children.Count} زیرسمت");
         builder.CloseElement();
@@ -614,10 +791,15 @@ x.PositionId == id))
         builder.AddAttribute(s++, "class", "tree-actions");
         AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-plus", "زیرسمت", () => BeginCreateChild(position.Id));
         AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-edit-alt", "ویرایش", () => Edit(position.Id));
-        AddButton(builder, ref s, "btn btn-primary btn-sm", position.IsOccupied ? "bx bx-transfer" : "bx bx-link",
-            position.IsOccupied ? "تغییر کارمند" : "تخصیص کارمند", () => ToggleAssigning(position.Id));
+        if (position.IsActive)
+            AddButton(builder, ref s, "btn btn-primary btn-sm", position.IsOccupied ? "bx bx-transfer" : "bx bx-link",
+                position.IsOccupied ? "تغییر کارمند" : "تخصیص کارمند", () => ToggleAssigning(position.Id));
         if (position.IsOccupied)
             AddAsyncButton(builder, ref s, "btn btn-danger btn-sm", "bx bx-unlink", "آزاد", () => FreePosition(position.Id));
+        if (position.IsActive)
+            AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-block", "غیرفعال‌سازی", () => DeactivateAsync(position.Id));
+        else
+            AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check-circle", "فعال‌سازی", () => ActivateAsync(position.Id));
         AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm icon-only", "bx bx-trash", "حذف", () => Delete(position.Id));
         builder.CloseElement();
         builder.CloseElement();
@@ -712,7 +894,7 @@ action)
         builder.CloseElement();
     }
 
-    private sealed record PositionRow(Guid Id, string Code, string Name, Guid? ParentPositionId, string? EmployeeName)
+    private sealed record PositionRow(Guid Id, string Code, string Name, Guid? ParentPositionId, string? EmployeeName, bool IsActive, Guid? OrganizationId, string? OrganizationName)
     {
         public bool IsOccupied => !string.IsNullOrWhiteSpace(EmployeeName);
     }

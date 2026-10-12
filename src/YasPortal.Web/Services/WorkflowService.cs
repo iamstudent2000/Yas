@@ -31,6 +31,12 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         if (!resolution.Success)
             return new ResolveResult(false, DescribeErrors(resolution.Errors), []);
 
+        // A deactivated position (§3.3) cannot approve anything: refuse the submission rather than park the request on it.
+        var stepPositionIds = resolution.Steps.Select(x => x.ApproverPositionId).Distinct().ToList();
+        var inactive = await db.Positions.AsNoTracking().Where(p => stepPositionIds.Contains(p.Id) && !p.IsActive).Select(p => p.Name).ToListAsync(ct);
+        if (inactive.Count > 0)
+            return new ResolveResult(false, "مسیر تایید از سمت غیرفعال عبور می‌کند: " + string.Join("، ", inactive) + ". مدیر سامانه باید گردش‌کار را اصلاح یا سمت را فعال کند.", []);
+
         return new ResolveResult(true, null,
             resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList());
     }

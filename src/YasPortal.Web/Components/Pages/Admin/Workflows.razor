@@ -453,7 +453,7 @@ removedOrder).OrderBy(x => x.Order).ToListAsync();
     }
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
-AdminQueries.SearchPositionsAsync(search, null, null, ct);
+AdminQueries.SearchPositionsAsync(search, null, null, ct, activeOnly: true);
 
     private static string ToPersianDigits(string value)
     {

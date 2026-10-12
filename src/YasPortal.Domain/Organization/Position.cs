@@ -32,6 +32,27 @@ public sealed class Position
     {
         get; private set;
     }
+    /// <summary>
+    /// False once the position was deactivated (spec §3.3). A deactivated position keeps all its history
+    /// but can no longer be assigned, targeted by a workflow step or receive a delegation. Deactivating
+    /// does not touch child positions.
+    /// </summary>
+    public bool IsActive { get; private set; } = true;
+
+    /// <summary>The department (organization) the position belongs to (spec §3.1); null for a root position or one not yet assigned.</summary>
+    public Guid? OrganizationId { get; private set; }
+
+    public void Deactivate() => IsActive = false;
+
+    public void Activate() => IsActive = true;
+
+    public void ChangeOrganization(Guid? organizationId)
+    {
+        if (organizationId == Guid.Empty)
+            throw new ArgumentException("Organization cannot be an empty id.", nameof(organizationId));
+        OrganizationId = organizationId;
+    }
+
     public ICollection<Position> Children { get; private set; } = new List<Position>();
 
     public void Rename(string name)

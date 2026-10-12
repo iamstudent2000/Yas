@@ -40,7 +40,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Organizations.AsNoTracking().Where(x => (!activeOnly || x.IsActive) && (q == "" || x.Name.Contains(q) || x.Code.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
     }
-    public async Task<IReadOnlyList<LookupItem>> SearchPositionsAsync(string? search, Guid? employeeId = null, Guid? excludeId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LookupItem>> SearchPositionsAsync(string? search, Guid? employeeId = null, Guid? excludeId = null, CancellationToken ct = default, bool activeOnly = false)
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -49,15 +49,18 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             query = query.Where(x => db.EmployeePositions.Any(ep => ep.EmployeeId == eid && ep.PositionId == x.Id && ep.EndedAt == null));
         if (excludeId is Guid xid)
             query = query.Where(x => x.Id != xid);
+        if (activeOnly)
+            query = query.Where(x => x.IsActive);
         return await query.Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
     }
     /// <summary>Positions labelled "code — position name — current holder" (or "خالی" when vacant); searches all three.</summary>
-    public async Task<IReadOnlyList<LookupItem>> SearchPositionsWithHoldersAsync(string? search, Guid? excludeId = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LookupItem>> SearchPositionsWithHoldersAsync(string? search, Guid? excludeId = null, CancellationToken ct = default, bool activeOnly = false)
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var rows = db.Positions.AsNoTracking()
             .Where(x => excludeId == null || x.Id != excludeId)
+            .Where(x => !activeOnly || x.IsActive)
             .Select(x => new
             {
                 x.Id,
@@ -74,7 +77,7 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Positions.AsNoTracking().Where(p => !db.EmployeePositions.Any(ep => ep.PositionId == p.Id && ep.EndedAt == null));
+        var query = db.Positions.AsNoTracking().Where(p => p.IsActive && !db.EmployeePositions.Any(ep => ep.PositionId == p.Id && ep.EndedAt == null));
         if (excludePositionId is Guid exclude)
             query = query.Where(p => p.Id != exclude);
         return await query.Where(p => q == "" || p.Name.Contains(q) || p.Code.Contains(q)).OrderBy(p => p.Name).Take(30).Select(p => new LookupItem(p.Id, p.Code + " — " + p.Name + " — آزاد")).ToListAsync(ct);
