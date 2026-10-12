@@ -153,13 +153,20 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
             .ToListAsync(ct);
     }
 
-    public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, CancellationToken ct = default)
+    public async Task<PageResult<EmployeePageRow>> GetEmployeesAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, CancellationToken ct = default, bool? isActive = null, Guid? organizationId = null, Guid? positionId = null)
     {
         page = Page(page);
         pageSize = Size(pageSize);
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q));
+        // List filters (spec §25.2): status, department (organization) and the position currently held.
+        if (isActive is bool active)
+            query = query.Where(x => x.IsActive == active);
+        if (organizationId is Guid orgId)
+            query = query.Where(x => x.OrganizationId == orgId);
+        if (positionId is Guid posId)
+            query = query.Where(x => db.EmployeePositions.Any(ep => ep.EmployeeId == x.Id && ep.PositionId == posId && ep.EndedAt == null));
         var total = await query.CountAsync(ct);
         query = (sortBy, sortDesc) switch
         {

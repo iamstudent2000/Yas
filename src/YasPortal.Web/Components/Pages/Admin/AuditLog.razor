@@ -58,6 +58,7 @@
                     <option value="@type">@GetEntityText(type)</option>
                 }
             </select></div>
+            <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
             <div class="admin-filter"><label class="form-label">عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
             <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
             <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
@@ -69,7 +70,7 @@
                 @if(_toDate.HasValue){<span class="badge badge-muted">تا @ToPersianDate(_toDate.Value)</span>}
                 @if(!string.IsNullOrWhiteSpace(_employeeSearch)){<span class="badge badge-muted">کاربر: @_employeeSearch</span>}
                 @if(!string.IsNullOrWhiteSpace(_positionSearch)){<span class="badge badge-muted">سمت: @_positionSearch</span>}
-                @if(!string.IsNullOrWhiteSpace(_entityType)){<span class="badge badge-muted">موجودیت: @_entityType</span>}
+                @if(!string.IsNullOrWhiteSpace(_entityType)){<span class="badge badge-muted">موجودیت: @_entityType</span>}@if(!string.IsNullOrWhiteSpace(_entityId)){<span class="badge badge-muted">شناسه: @_entityId</span>}
                 @if(!string.IsNullOrWhiteSpace(_action)){<span class="badge badge-muted">عملیات: @GetActionText(_action)</span>}
             </div>
             <div class="form-actions">
@@ -143,6 +144,7 @@
     private string _positionSearch = "";
     private string _entityType = "";
     private string _action = "";
+    private string _entityId = "";
     private DateTime? _fromDate;
     private DateTime? _toDate;
     private int _page = 1;
@@ -163,6 +165,7 @@
             await using var db=await DbFactory.CreateDbContextAsync(token);var query=db.AuditEntries.AsNoTracking().AsQueryable();
             if(!string.IsNullOrWhiteSpace(_entityType))query=query.Where(x=>x.EntityType.Contains(_entityType.Trim()));
             if(!string.IsNullOrWhiteSpace(_action))query=query.Where(x=>x.Action==_action);
+            if(!string.IsNullOrWhiteSpace(_entityId)){var idPart=_entityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
             if(_fromDate.HasValue){var from=DateTime.SpecifyKind(_fromDate.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
             if(_toDate.HasValue){var to=DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
             if(_employeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
@@ -196,7 +199,7 @@
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
     }
-    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}

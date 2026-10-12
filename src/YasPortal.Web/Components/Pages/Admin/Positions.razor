@@ -53,6 +53,11 @@
                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                             placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" />@if(!string.IsNullOrEmpty(_treeSearch)){<button
                                 type="button" class="search-clear" @onclick="ClearTreeSearch"><i class="bx bx-x"></i></button>}</div>
+                    <select class="form-control tree-occupancy-filter" value="@_occupancyFilter" @onchange="OccupancyFilterChanged" title="فیلتر اشغال سمت">
+                        <option value="">همه سمت‌ها</option>
+                        <option value="occupied">دارای متصدی</option>
+                        <option value="vacant">خالی</option>
+                    </select>
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
@@ -141,6 +146,7 @@
     private List<PositionRow> _positions = [];
     private readonly HashSet<Guid> _collapsedNodeIds = [];
     private string _treeSearch = "";
+    private string _occupancyFilter = "";
     private HashSet<Guid>? _visiblePositionIds;
     private int _treeMatchCount;
     private Guid? _editingId, _parentPositionId, _selectedPositionId, _employeeToAssign, _assigningPositionId, _confirmingReassignPositionId;
@@ -155,9 +161,12 @@
     {
         _assigningPositionId = null;
         var q = _treeSearch.Trim();
-        if (q.Length == 0) { _visiblePositionIds = null; _treeMatchCount = 0; return; }
+        if (q.Length == 0 && _occupancyFilter == "") { _visiblePositionIds = null; _treeMatchCount = 0; return; }
 
-        var matches = _positions.Where(x => x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
+        // Text search (name/code) and the occupied/vacant filter combine; ancestors of every match stay visible so the tree keeps its shape.
+        var matches = _positions
+            .Where(x => q.Length == 0 || x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Where(x => _occupancyFilter == "" || (_occupancyFilter == "vacant" ? !x.IsOccupied : x.IsOccupied))
             .Select(x => x.Id).ToHashSet();
         _treeMatchCount = matches.Count;
 
@@ -172,12 +181,16 @@
         _visiblePositionIds = visible;
     }
 
+    private void OccupancyFilterChanged(ChangeEventArgs e)
+    {
+        _occupancyFilter = e.Value?.ToString() ?? "";
+        TreeSearchChanged();
+    }
+
     private void ClearTreeSearch()
     {
-        _assigningPositionId = null;
         _treeSearch = "";
-        _visiblePositionIds = null;
-        _treeMatchCount = 0;
+        TreeSearchChanged();
     }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -207,7 +220,7 @@
                 _collapsedNodeIds.RemoveWhere(id => !_positions.Any(x => x.Id == id));
             }
 
-            if (_treeSearch.Trim().Length > 0)
+            if (_treeSearch.Trim().Length > 0 || _occupancyFilter != "")
                 TreeSearchChanged();
 
             if (_selectedPositionId is Guid selected)

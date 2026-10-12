@@ -90,3 +90,5 @@
 
 .request-filter-clear{align-self:end;display:flex;align-items:flex-end}
 .request-filter-clear .btn{white-space:nowrap}
+
+.tree-occupancy-filter{width:auto;min-width:130px}

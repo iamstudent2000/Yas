@@ -79,6 +79,25 @@
                                                                                            @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
                             type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
                         </div>
+                        <div class="admin-filters">
+                            <div class="admin-filter"><label class="form-label">وضعیت</label>
+                                <select class="form-control" value="@_statusFilter" @onchange="StatusFilterChanged">
+                                    <option value="">همه</option>
+                                    <option value="active">فعال</option>
+                                    <option value="inactive">غیرفعال</option>
+                                </select></div>
+                            <div class="admin-filter"><label class="form-label">سازمان</label>
+                                <ServerSearchableGuidSelect Value="@_filterOrganizationId" ValueChanged="FilterOrganizationChanged"
+                                                            SearchAsync="SearchOrganizationsAsync" SelectedText="@_filterOrganizationName"
+                                                            Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
+                            <div class="admin-filter"><label class="form-label">سمت فعلی</label>
+                                <ServerSearchableGuidSelect Value="@_filterPositionId" ValueChanged="FilterPositionChanged"
+                                                            SearchAsync="SearchFilterPositionsAsync" SelectedText="@_filterPositionName"
+                                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت را تایپ کنید..." /></div>
+                            <div class="admin-filter request-filter-clear">
+                                <button type="button" class="btn btn-secondary" disabled="@(!HasFilters)" @onclick="ClearFiltersAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
+                            </div>
+                        </div>
                         <div class="data-table-wrap">
                             @if (_loading)
                             {
@@ -179,6 +198,21 @@
     private bool _isAdmin, _loading;
     private int _page = 1, _pageSize = 20, _totalCount, _activeCount, _adminCount;
     private string? _sortBy; private bool _sortDesc;
+    private string _statusFilter = "";
+    private Guid? _filterOrganizationId, _filterPositionId;
+    private string? _filterOrganizationName, _filterPositionName;
+    private bool HasFilters => _statusFilter != "" || _filterOrganizationId is not null || _filterPositionId is not null;
+
+    private async Task StatusFilterChanged(ChangeEventArgs e) { _statusFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadAsync(); }
+    private async Task FilterOrganizationChanged(Guid? id) { _filterOrganizationId = id; if (id is null) _filterOrganizationName = null; _page = 1; await LoadAsync(); }
+    private async Task FilterPositionChanged(Guid? id) { _filterPositionId = id; if (id is null) _filterPositionName = null; _page = 1; await LoadAsync(); }
+    private async Task ClearFiltersAsync()
+    {
+        _statusFilter = ""; _filterOrganizationId = null; _filterOrganizationName = null; _filterPositionId = null; _filterPositionName = null;
+        _page = 1; await LoadAsync();
+    }
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync()
@@ -186,7 +220,7 @@
         _loading = true; try
         {
             var result = await
-AdminQueries.GetEmployeesAsync(_page, _pageSize, _search, _sortBy, _sortDesc); _employees = result.Items.ToList(); _totalCount =
+AdminQueries.GetEmployeesAsync(_page, _pageSize, _search, _sortBy, _sortDesc, default, _statusFilter == "" ? null : _statusFilter == "active", _filterOrganizationId, _filterPositionId); _employees = result.Items.ToList(); _totalCount =
 result.TotalCount; await
 using var db = await DbFactory.CreateDbContextAsync(); _activeCount = await
 db.Employees.CountAsync(x => x.IsActive); _adminCount = await
