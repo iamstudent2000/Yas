@@ -211,60 +211,6 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
-    /// <summary>
-    /// SuperAdmin-only workflow reassignment (spec §22.1): moves an active request onto another workflow
-    /// (request type) and restarts it from that workflow's first step in a new round. Every step of the
-    /// round being left is closed — steps never reached and approvals already given are marked
-    /// <see cref="WorkflowStepStatus.Superseded"/> — while the decisions themselves stay in
-    /// <see cref="StepDecisions"/> untouched. The field values are replaced by the ones the admin supplies
-    /// for the new type; every field that differs is recorded in <see cref="FieldChanges"/> with the admin
-    /// as editor (§11.3). The reassignment itself is recorded with its reason. The requester and their
-    /// position stay as created (§10.1). Terminal requests cannot be reassigned.
-    /// </summary>
-    public void Reassign(
-        Guid adminEmployeeId,
-        WorkflowTypeCode newType,
-        string newFieldValuesJson,
-        IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps,
-        string reason)
-    {
-        if (adminEmployeeId == Guid.Empty)
-            throw new ArgumentException("Admin employee is required.", nameof(adminEmployeeId));
-        if (string.IsNullOrWhiteSpace(reason))
-            throw new ArgumentException("A reason is required to reassign a request.", nameof(reason));
-        if (string.IsNullOrWhiteSpace(newFieldValuesJson))
-            throw new ArgumentException("Field values are required.", nameof(newFieldValuesJson));
-        if (resolvedSteps is null || resolvedSteps.Count == 0)
-            throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
-        if (IsTerminal)
-            throw new InvalidOperationException("A closed request cannot be reassigned.");
-        if (Steps.Count == 0)
-            throw new InvalidOperationException("The request's steps must be loaded before it can be reassigned.");
-        if (newType == WorkflowType)
-            throw new InvalidOperationException("Choose a different workflow for the reassignment.");
-
-        foreach (var step in Steps.Where(x => x.Round == CurrentRound))
-        {
-            step.Supersede();
-            step.SupersedeApproval();
-        }
-
-        var previousValues = ParseFieldValues(FieldValuesJson);
-        var newValues = ParseFieldValues(newFieldValuesJson);
-
-        WorkflowType = newType;
-        FieldValuesJson = newFieldValuesJson;
-        CurrentRound++;
-        RecordFieldChanges(previousValues, newValues, adminEmployeeId, null);
-        foreach (var step in resolvedSteps.OrderBy(x => x.Order))
-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
-        CurrentStepOrder = resolvedSteps.Min(x => x.Order);
-        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Reassigned, adminEmployeeId, reason));
-        Status = WorkflowRequestStatus.PendingApproval;
-        RequesterHasSeenLatestUpdate = false;
-        Revision++;
-    }
-
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
@@ -443,9 +389,6 @@ public sealed class WorkflowRequest
     /// optional field never produces noise.
     /// </summary>
     private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after)
-        => RecordFieldChanges(before, after, RequesterEmployeeId, RequesterPositionId);
-
-    private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after, Guid editorEmployeeId, Guid? editorPositionId)
     {
         foreach (var key in before.Keys.Union(after.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal))
         {
@@ -453,7 +396,7 @@ public sealed class WorkflowRequest
             var newValue = Normalize(after.TryGetValue(key, out var n) ? n : null);
             if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
                 continue;
-            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, editorEmployeeId, editorPositionId));
+            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, RequesterEmployeeId, RequesterPositionId));
         }
     }
 

@@ -1,6 +1,5 @@
 @page "/admin/active-requests"
 @using System.Security.Claims
-@using System.Text.Json
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
@@ -104,31 +103,9 @@
                                 }
                                 else
                                 {
-                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => { _openReasonFor = request.Id; _openReassignFor = null; }">
+                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => _openReasonFor = request.Id">
                                         <i class="bx bx-x-circle"></i> بستن اجباری
                                     </button>
-                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => OpenReassign(request)">
-                                        <i class="bx bx-transfer"></i> انتقال به گردش‌کار دیگر
-                                    </button>
-                                }
-                                @if (_openReassignFor == request.Id)
-                                {
-                                    <div class="force-close-panel">
-                                        <p class="muted">درخواست از مرحله اول گردش‌کار جدید دوباره شروع می‌شود؛ تایید‌های قبلی در سوابق می‌مانند و «کنار گذاشته‌شده» علامت می‌خورند. فیلدهای گردش‌کار جدید را تکمیل کنید.</p>
-                                        <label class="form-label">گردش‌کار جدید</label>
-                                        <select class="form-control" value="@_reassignType.ToString()" @onchange="e => ReassignTypeChanged(request, e)">
-                                            @foreach (var type in WorkflowFieldCatalog.AllTypes.Where(t => t != request.WorkflowType))
-                                            {
-                                                <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
-                                            }
-                                        </select>
-                                        <WorkflowFieldsForm Type="_reassignType" Values="_reassignValues" />
-                                        <input type="text" class="form-control" placeholder="دلیل انتقال (الزامی)" value="@_reassignReason" @oninput="e => _reassignReason = e.Value?.ToString() ?? string.Empty" />
-                                        <div class="force-close-actions">
-                                            <button type="button" class="btn btn-primary btn-sm" disabled="@(_busyId == request.Id || string.IsNullOrWhiteSpace(_reassignReason))" @onclick="() => ReassignAsync(request.Id)">تایید انتقال</button>
-                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openReassignFor = null">انصراف</button>
-                                        </div>
-                                    </div>
                                 }
                             </td>
                         </tr>
@@ -147,10 +124,6 @@
     private Dictionary<Guid, string> _holderNames = [];
     private Dictionary<Guid, string> _reasons = [];
     private Guid? _openReasonFor;
-    private Guid? _openReassignFor;
-    private WorkflowTypeCode _reassignType;
-    private Dictionary<string, string?> _reassignValues = [];
-    private string _reassignReason = string.Empty;
     private Guid? _busyId;
     private Guid? _employeeId;
     private readonly WorkflowRequestFilter _filter = new();
@@ -213,97 +186,6 @@
         _holderNames = await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
 
         _loading = false;
-    }
-
-    private void OpenReassign(WorkflowRequest request)
-    {
-        _openReasonFor = null;
-        _openReassignFor = request.Id;
-        _reassignReason = string.Empty;
-        SelectReassignType(request, WorkflowFieldCatalog.AllTypes.First(t => t != request.WorkflowType));
-    }
-
-    private void ReassignTypeChanged(WorkflowRequest request, ChangeEventArgs e)
-    {
-        if (Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) && type != request.WorkflowType)
-            SelectReassignType(request, type);
-    }
-
-    /// <summary>Starts the new form with the values the request already has for fields the new type shares (same key).</summary>
-    private void SelectReassignType(WorkflowRequest request, WorkflowTypeCode type)
-    {
-        _reassignType = type;
-        _reassignValues = [];
-        Dictionary<string, string?>? current = null;
-        try { current = JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson); }
-        catch (JsonException) { }
-        foreach (var field in WorkflowFieldCatalog.GetFields(type))
-            if (current is not null && current.TryGetValue(field.Key, out var value))
-                _reassignValues[field.Key] = value;
-    }
-
-    private async Task ReassignAsync(Guid requestId)
-    {
-        if (_employeeId is not Guid adminId || string.IsNullOrWhiteSpace(_reassignReason))
-            return;
-
-        var errors = WorkflowFieldCatalog.ValidateValues(_reassignType, _reassignValues);
-        if (errors.Count > 0)
-        {
-            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
-            return;
-        }
-
-        _busyId = requestId;
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var tracked = await db.WorkflowRequests.Include(x => x.Steps).Include(x => x.FieldChanges).Include(x => x.RequesterActions).SingleOrDefaultAsync(x => x.Id == requestId);
-            if (tracked is null)
-            {
-                await LoadAsync();
-                return;
-            }
-
-            var resolved = await Workflows.ResolveStepsAsync(_reassignType, tracked.RequesterPositionId);
-            if (!resolved.Success)
-            {
-                AppState.AddToast(resolved.Error!, ToastLevel.Error);
-                return;
-            }
-
-            try
-            {
-                tracked.Reassign(adminId, _reassignType, JsonSerializer.Serialize(_reassignValues),
-                    resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList(), _reassignReason.Trim());
-            }
-            catch (InvalidOperationException)
-            {
-                AppState.AddToast("این درخواست دیگر فعال نیست؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
-                await LoadAsync();
-                return;
-            }
-
-            await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Reassigned);
-            try
-            {
-                await db.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                AppState.AddToast("وضعیت این درخواست هم‌زمان تغییر کرد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
-                await LoadAsync();
-                return;
-            }
-
-            AppState.AddToast("درخواست به گردش‌کار جدید منتقل شد.", ToastLevel.Success);
-            _openReassignFor = null;
-            await LoadAsync();
-        }
-        finally
-        {
-            _busyId = null;
-        }
     }
 
     private string GetReason(Guid requestId) => _reasons.TryGetValue(requestId, out var r) ? r : "";
