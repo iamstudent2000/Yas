@@ -11,7 +11,7 @@ public enum DelegationStatus
 
 /// <summary>
 /// A temporary hand-over of one position's approval authority to another employee (spec §15, §16).
-/// Authority belongs to the <b>position</b> (§1.2): the delegate acts on steps assigned to that
+/// Authority belongs to the <b>position</b> (§1.2): whoever holds the delegate position acts on steps assigned to that
 /// position, between <see cref="StartDate"/> and <see cref="EndDate"/> (both days included), and every
 /// action they take records who they acted for (§15.2).
 ///
@@ -32,7 +32,7 @@ public sealed class PositionDelegation
     public PositionDelegation(
         Guid positionId,
         Guid? delegatorEmployeeId,
-        Guid delegateEmployeeId,
+        Guid delegatePositionId,
         DateTime startDate,
         DateTime endDate,
         Guid createdByEmployeeId,
@@ -40,20 +40,20 @@ public sealed class PositionDelegation
     {
         if (positionId == Guid.Empty)
             throw new ArgumentException("Position is required.", nameof(positionId));
-        if (delegateEmployeeId == Guid.Empty)
-            throw new ArgumentException("Delegate employee is required.", nameof(delegateEmployeeId));
+        if (delegatePositionId == Guid.Empty)
+            throw new ArgumentException("Delegate position is required.", nameof(delegatePositionId));
         if (createdByEmployeeId == Guid.Empty)
             throw new ArgumentException("Creator is required.", nameof(createdByEmployeeId));
         if (!arrangedByAdmin && (delegatorEmployeeId is null || delegatorEmployeeId == Guid.Empty))
             throw new ArgumentException("A delegation made by a position holder needs that holder.", nameof(delegatorEmployeeId));
-        if (delegatorEmployeeId == delegateEmployeeId)
-            throw new ArgumentException("Nobody can delegate to themselves.", nameof(delegateEmployeeId));
+        if (delegatePositionId == positionId)
+            throw new ArgumentException("A position cannot be delegated to itself.", nameof(delegatePositionId));
         if (endDate.Date < startDate.Date)
             throw new ArgumentException("The end date cannot be before the start date.", nameof(endDate));
 
         PositionId = positionId;
         DelegatorEmployeeId = delegatorEmployeeId == Guid.Empty ? null : delegatorEmployeeId;
-        DelegateEmployeeId = delegateEmployeeId;
+        DelegatePositionId = delegatePositionId;
         StartDate = startDate.Date;
         EndDate = endDate.Date;
         CreatedByEmployeeId = createdByEmployeeId;
@@ -66,7 +66,8 @@ public sealed class PositionDelegation
 
     /// <summary>The employee holding the position when it was delegated; null only for an admin arrangement on a vacant position.</summary>
     public Guid? DelegatorEmployeeId { get; private set; }
-    public Guid DelegateEmployeeId { get; private set; }
+    /// <summary>The position that receives the authority: whoever holds it during the dates may act (§1.2: authority belongs to positions, not people).</summary>
+    public Guid DelegatePositionId { get; private set; }
     public DateTime StartDate { get; private set; }
     public DateTime EndDate { get; private set; }
     public Guid CreatedByEmployeeId { get; private set; }

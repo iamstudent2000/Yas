@@ -114,7 +114,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var day = today.Date;
         var rows = await db.PositionDelegations.AsNoTracking()
-            .Where(d => d.DelegateEmployeeId == id
+            .Where(d => db.EmployeePositions.Any(ep => ep.EmployeeId == id && ep.PositionId == d.DelegatePositionId && ep.EndedAt == null)
                         && d.RevokedAtUtc == null
                         && d.StartDate <= day && d.EndDate >= day
                         && (d.ArrangedByAdmin

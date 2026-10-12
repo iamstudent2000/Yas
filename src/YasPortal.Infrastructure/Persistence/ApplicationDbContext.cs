@@ -275,11 +275,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.Property(x => x.StartDate).HasColumnType("date");
             e.Property(x => x.EndDate).HasColumnType("date");
             e.HasOne<Position>().WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
-            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.DelegateEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Position>().WithMany().HasForeignKey(x => x.DelegatePositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.DelegatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.CreatedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RevokedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
-            e.HasIndex(x => new { x.DelegateEmployeeId, x.StartDate, x.EndDate });
+            e.HasIndex(x => new { x.DelegatePositionId, x.StartDate, x.EndDate });
             e.HasIndex(x => new { x.PositionId, x.StartDate });
             e.HasIndex(x => x.DelegatorEmployeeId);
         });

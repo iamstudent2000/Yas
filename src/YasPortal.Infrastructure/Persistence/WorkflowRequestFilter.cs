@@ -73,7 +73,8 @@ public sealed class WorkflowRequestFilter
         }
         if (!string.IsNullOrWhiteSpace(IdText))
         {
-            var id = IdText.Trim().TrimStart('#').ToLowerInvariant();
+            // Keep only hex digits so '#', spaces, dashes and invisible right-to-left marks pasted from the UI never break the match.
+            var id = new string(IdText.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
             if (id.Length > 0)
                 query = query.Where(x => x.Id.ToString().ToLower().StartsWith(id));
         }

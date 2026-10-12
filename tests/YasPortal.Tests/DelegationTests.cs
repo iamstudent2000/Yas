@@ -9,11 +9,12 @@ public class DelegationTests
 {
     private static readonly Guid Position = Guid.NewGuid();
     private static readonly Guid Holder = Guid.NewGuid();
-    private static readonly Guid Delegate = Guid.NewGuid();
+    private static readonly Guid DelegatePosition = Guid.NewGuid();
+    private static readonly Guid DelegateEmployee = Guid.NewGuid();
     private static readonly DateTime Start = new(2026, 10, 10);
     private static readonly DateTime End = new(2026, 10, 20);
 
-    private static PositionDelegation Normal() => new(Position, Holder, Delegate, Start, End, Holder, false);
+    private static PositionDelegation Normal() => new(Position, Holder, DelegatePosition, Start, End, Holder, false);
 
     [Fact]
     public void Dates_are_inclusive_on_both_ends()
@@ -46,18 +47,18 @@ public class DelegationTests
     }
 
     [Fact]
-    public void Nobody_can_delegate_to_themselves()
-        => Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, Holder, Holder, Start, End, Holder, false));
+    public void A_position_cannot_be_delegated_to_itself()
+        => Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, Holder, Position, Start, End, Holder, false));
 
     [Fact]
     public void End_before_start_is_rejected()
-        => Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, Holder, Delegate, End, Start, Holder, false));
+        => Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, Holder, DelegatePosition, End, Start, Holder, false));
 
     [Fact]
     public void A_normal_delegation_needs_a_holder_but_an_admin_arrangement_does_not()
     {
-        Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, null, Delegate, Start, End, Holder, false));
-        var admin = new PositionDelegation(Position, null, Delegate, Start, End, Guid.NewGuid(), true);
+        Assert.Throws<ArgumentException>(() => new PositionDelegation(Position, null, DelegatePosition, Start, End, Holder, false));
+        var admin = new PositionDelegation(Position, null, DelegatePosition, Start, End, Guid.NewGuid(), true);
         Assert.Null(admin.DelegatorEmployeeId);
     }
 
@@ -66,7 +67,7 @@ public class DelegationTests
     {
         Assert.True(Normal().AppliesToStep(true));
         Assert.False(Normal().AppliesToStep(false));
-        var admin = new PositionDelegation(Position, null, Delegate, Start, End, Guid.NewGuid(), true);
+        var admin = new PositionDelegation(Position, null, DelegatePosition, Start, End, Guid.NewGuid(), true);
         Assert.True(admin.AppliesToStep(false));
     }
 
@@ -86,10 +87,10 @@ public class DelegationTests
             new[] { (Guid.NewGuid(), 1, "مدیر", Position) });
         var delegation = Normal();
 
-        request.Approve(request.CurrentStep.Id, Delegate, "تایید", new WorkflowActingAuthority(Holder, delegation.Id));
+        request.Approve(request.CurrentStep.Id, DelegateEmployee, "تایید", new WorkflowActingAuthority(Holder, delegation.Id));
 
         var decision = request.StepDecisions.Single();
-        Assert.Equal(Delegate, decision.ActedByEmployeeId);
+        Assert.Equal(DelegateEmployee, decision.ActedByEmployeeId);
         Assert.Equal(Holder, decision.OnBehalfOfEmployeeId);
         Assert.Equal(delegation.Id, decision.DelegationId);
     }

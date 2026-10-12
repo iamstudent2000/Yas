@@ -63,9 +63,10 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public async Task StageDelegationReceivedAsync(ApplicationDbContext db, PositionDelegation delegation, CancellationToken ct = default)
     {
         var positionName = await db.Positions.AsNoTracking().Where(x => x.Id == delegation.PositionId).Select(x => x.Name).SingleOrDefaultAsync(ct) ?? "نامشخص";
-        db.Notifications.Add(new Notification(delegation.DelegateEmployeeId, NotificationKind.DelegationReceived, null, "تفویض اختیار",
-            $"اختیار سمت «{positionName}» از {WorkflowDisplay.ToPersianDate(delegation.StartDate)} تا {WorkflowDisplay.ToPersianDate(delegation.EndDate)} به شما تفویض شد.",
-            "/requests/inbox"));
+        foreach (var holder in await HoldersOfAsync(db, delegation.DelegatePositionId, ct))
+            db.Notifications.Add(new Notification(holder, NotificationKind.DelegationReceived, null, "تفویض اختیار",
+                $"اختیار سمت «{positionName}» از {WorkflowDisplay.ToPersianDate(delegation.StartDate)} تا {WorkflowDisplay.ToPersianDate(delegation.EndDate)} به سمت شما تفویض شد.",
+                "/requests/inbox"));
     }
 
     /// <summary>Delegates whose delegation covers the position today and the step: active employees, in-effect dates, holder still in place (admin arrangements excepted), step allowing delegation (admin arrangements excepted).</summary>
@@ -79,8 +80,9 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                         && (d.ArrangedByAdmin
                             || (db.EmployeePositions.Any(ep => ep.EmployeeId == d.DelegatorEmployeeId && ep.PositionId == d.PositionId && ep.EndedAt == null)
                                 && db.WorkflowStepDefinitions.Any(sd => sd.Id == stepDefinitionId && sd.AllowDelegation)))
-                        && db.Employees.Any(e => e.Id == d.DelegateEmployeeId && e.IsActive))
-            .Select(d => d.DelegateEmployeeId)
+                        )
+            .Join(db.EmployeePositions.Where(ep => ep.EndedAt == null), d => d.DelegatePositionId, ep => ep.PositionId, (d, ep) => ep.EmployeeId)
+            .Where(id => db.Employees.Any(e => e.Id == id && e.IsActive))
             .Distinct()
             .ToListAsync(ct);
     }

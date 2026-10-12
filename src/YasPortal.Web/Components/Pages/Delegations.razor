@@ -56,15 +56,12 @@
                 <p class="muted">سمت: <strong>@_ownPositionName</strong></p>
             }
             <div class="admin-filter">
-                <label class="form-label">نماینده</label>
-                <ServerSearchableGuidSelect @bind-Value="_delegateId" SearchAsync="SearchDelegatesAsync" Placeholder="انتخاب همکار..." />
+                <label class="form-label">سمت دریافت‌کننده تفویض</label>
+                <ServerSearchableGuidSelect @bind-Value="_delegatePositionId" SearchAsync="SearchDelegatePositionsAsync" Placeholder="انتخاب سمت..." />
+                <p class="muted">اختیار به سمت داده می‌شود؛ هر کسی که در بازه تفویض آن سمت را دارد می‌تواند تصمیم بگیرد.</p>
             </div>
             <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_from" Placeholder="تاریخ شروع" /></div>
             <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_to" Placeholder="تاریخ پایان" /></div>
-            @if (!string.IsNullOrEmpty(_error))
-            {
-                <p class="field-error">@_error</p>
-            }
             <div class="form-actions">
                 <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
             </div>
@@ -81,7 +78,7 @@
                 <div class="request-card">
                     <div class="request-card-header">
                         <span class="request-card-title">
-                            <strong>@row.PositionName ← @row.DelegateName</strong>
+                            <strong>@row.PositionName ← @row.DelegatePositionName</strong>
                             <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · تفویض‌کننده: " + row.DelegatorName)</span>
                         </span>
                         @if (row.Delegation.ArrangedByAdmin)
@@ -121,11 +118,11 @@
 </div>
 
 @code {
-    private sealed record Row(PositionDelegation Delegation, string PositionName, string DelegateName, string? DelegatorName, DelegationStatus Status);
+    private sealed record Row(PositionDelegation Delegation, string PositionName, string DelegatePositionName, string? DelegatorName, DelegationStatus Status);
 
     private bool _ready, _busy, _canCreate, _canManage;
-    private Guid? _employeeId, _ownPositionId, _positionId, _delegateId;
-    private string? _ownPositionName, _error;
+    private Guid? _employeeId, _ownPositionId, _positionId, _delegatePositionId;
+    private string? _ownPositionName;
     private DateTime? _from, _to;
     private List<Row> _mine = [];
     private List<Row> _received = [];
@@ -152,80 +149,70 @@
 
         var query = db.PositionDelegations.AsNoTracking().AsQueryable();
         var me = _employeeId;
+        var myPositionIds = await db.EmployeePositions.AsNoTracking().Where(ep => ep.EmployeeId == me && ep.EndedAt == null).Select(ep => ep.PositionId).ToListAsync();
         var rows = await query
-            .Where(d => _canManage || d.DelegatorEmployeeId == me || d.DelegateEmployeeId == me)
+            .Where(d => _canManage || d.DelegatorEmployeeId == me || myPositionIds.Contains(d.DelegatePositionId))
             .OrderByDescending(d => d.CreatedAtUtc)
             .Take(200)
             .ToListAsync();
 
-        var positionIds = rows.Select(r => r.PositionId).Distinct().ToList();
-        var empIds = rows.SelectMany(r => new[] { r.DelegateEmployeeId, r.DelegatorEmployeeId ?? Guid.Empty }).Where(x => x != Guid.Empty).Distinct().ToList();
+        var positionIds = rows.SelectMany(r => new[] { r.PositionId, r.DelegatePositionId }).Distinct().ToList();
+        var empIds = rows.Select(r => r.DelegatorEmployeeId ?? Guid.Empty).Where(x => x != Guid.Empty).Distinct().ToList();
         var positions = await db.Positions.AsNoTracking().Where(p => positionIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name);
         var employees = await db.Employees.AsNoTracking().Where(e => empIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
 
         var today = DateTime.Now;
         Row Map(PositionDelegation d) => new(d,
             positions.GetValueOrDefault(d.PositionId, "نامشخص"),
-            employees.GetValueOrDefault(d.DelegateEmployeeId, "نامشخص"),
+            positions.GetValueOrDefault(d.DelegatePositionId, "نامشخص"),
             d.DelegatorEmployeeId is Guid g ? employees.GetValueOrDefault(g) : null,
             d.StatusOn(today));
 
         _mine = rows.Where(d => _canManage || d.DelegatorEmployeeId == me).Select(Map).ToList();
-        _received = rows.Where(d => d.DelegateEmployeeId == me).Select(Map).ToList();
+        _received = rows.Where(d => myPositionIds.Contains(d.DelegatePositionId)).Select(Map).ToList();
     }
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
-    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchDelegatesAsync(string search, CancellationToken ct)
-    {
-        var items = await AdminQueries.SearchAssignableEmployeesAsync(search, ct);
-        return items.Where(i => i.Id != _employeeId).ToList();
-    }
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchDelegatePositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, null, _canManage && _positionId is not null ? _positionId : _ownPositionId, ct);
+
+    private void Fail(string message) => AppState.AddToast(message, ToastLevel.Error);
 
     private async Task CreateAsync()
     {
-        _error = null;
         if (_employeeId is not Guid me) return;
-        if (_delegateId is not Guid delegateId) { _error = "نماینده را انتخاب کنید."; return; }
-        if (_from is null || _to is null) { _error = "بازه تاریخ را کامل وارد کنید."; return; }
-        if (_to.Value.Date < _from.Value.Date) { _error = "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."; return; }
-        if (_to.Value.Date < DateTime.Now.Date) { _error = "بازه تفویض نمی‌تواند کاملاً در گذشته باشد."; return; }
+        if (_delegatePositionId is not Guid delegatePos) { Fail("سمت دریافت‌کننده تفویض را انتخاب کنید."); return; }
+        if (_from is null || _to is null) { Fail("بازه تاریخ را کامل وارد کنید."); return; }
+        if (_to.Value.Date < _from.Value.Date) { Fail("تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."); return; }
+        if (_to.Value.Date < DateTime.Now.Date) { Fail("بازه تفویض نمی‌تواند کاملاً در گذشته باشد."); return; }
 
         var admin = _canManage && _positionId is not null;
         var positionId = admin ? _positionId : (_canCreate ? _ownPositionId : null);
-        if (positionId is not Guid pos) { _error = "سمتی برای تفویض انتخاب نشده است."; return; }
+        if (positionId is not Guid pos) { Fail("سمتی برای تفویض انتخاب نشده است."); return; }
+        if (pos == delegatePos) { Fail("یک سمت را نمی‌توان به خودش تفویض کرد."); return; }
 
         _busy = true;
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            if (!await db.Employees.AnyAsync(e => e.Id == delegateId && e.IsActive))
-            {
-                _error = "نماینده فعال نیست.";
-                return;
-            }
             Guid? delegator = await db.EmployeePositions.Where(ep => ep.PositionId == pos && ep.EndedAt == null).Select(ep => (Guid?)ep.EmployeeId).FirstOrDefaultAsync();
             if (!admin && delegator != me)
             {
-                _error = "فقط دارنده فعلی سمت می‌تواند اختیار آن را تفویض کند.";
+                Fail("فقط دارنده فعلی سمت می‌تواند اختیار آن را تفویض کند.");
                 return;
             }
-            if (delegator == delegateId)
-            {
-                _error = "تفویض به دارنده خود سمت معنا ندارد.";
-                return;
-            }
-            var delegation = new PositionDelegation(pos, delegator, delegateId, _from.Value, _to.Value, me, admin);
+            var delegation = new PositionDelegation(pos, delegator, delegatePos, _from.Value, _to.Value, me, admin);
             db.PositionDelegations.Add(delegation);
             await NotificationSvc.StageDelegationReceivedAsync(db, delegation);
             await db.SaveChangesAsync();
             AppState.AddToast("تفویض ثبت شد.", ToastLevel.Success);
-            _delegateId = null; _from = null; _to = null; _positionId = null;
+            _delegatePositionId = null; _from = null; _to = null; _positionId = null;
         }
         catch (ArgumentException ex)
         {
-            _error = ex.Message;
+            Fail(ex.Message);
         }
         finally
         {

@@ -6,7 +6,7 @@
     <div class="admin-filters">
         <div class="admin-filter">
             <label class="form-label">شناسه درخواست</label>
-            <input class="form-control" placeholder="مثلا a1b2c3d4" value="@Filter.IdText" @onchange="e => Set(() => Filter.IdText = e.Value?.ToString())" />
+            <input class="form-control" placeholder="مثلا a1b2c3d4" value="@Filter.IdText" @oninput="e => SetDebounced(() => Filter.IdText = e.Value?.ToString())" />
         </div>
         <div class="admin-filter">
             <label class="form-label">نوع درخواست</label>
@@ -35,14 +35,14 @@
         {
             <div class="admin-filter">
                 <label class="form-label">درخواست‌کننده</label>
-                <input class="form-control" placeholder="بخشی از نام" value="@Filter.RequesterName" @onchange="e => Set(() => Filter.RequesterName = e.Value?.ToString())" />
+                <input class="form-control" placeholder="بخشی از نام" value="@Filter.RequesterName" @oninput="e => SetDebounced(() => Filter.RequesterName = e.Value?.ToString())" />
             </div>
         }
         @if (ShowStep)
         {
             <div class="admin-filter">
                 <label class="form-label">مرحله جاری</label>
-                <input class="form-control" placeholder="بخشی از نام مرحله" value="@Filter.StepName" @onchange="e => Set(() => Filter.StepName = e.Value?.ToString())" />
+                <input class="form-control" placeholder="بخشی از نام مرحله" value="@Filter.StepName" @oninput="e => SetDebounced(() => Filter.StepName = e.Value?.ToString())" />
             </div>
         }
         <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="Filter.From" ValueChanged="d => Set(() => Filter.From = d)" Placeholder="تاریخ شروع" /></div>
@@ -67,6 +67,25 @@
     private async Task Set(Action apply)
     {
         apply();
+        await Changed.InvokeAsync();
+    }
+
+    private CancellationTokenSource? _debounce;
+
+    /// <summary>Text boxes search while typing, shortly after the last keystroke, so nothing needs Enter or a click away.</summary>
+    private async Task SetDebounced(Action apply)
+    {
+        apply();
+        _debounce?.Cancel();
+        var cts = _debounce = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(400, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
         await Changed.InvokeAsync();
     }
 
