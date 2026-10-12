@@ -18,7 +18,7 @@ public sealed class WorkflowStepDecision
     {
     }
 
-    internal WorkflowStepDecision(Guid requestId, Guid stepId, int round, int order, Guid approverPositionId, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null)
+    internal WorkflowStepDecision(Guid requestId, Guid stepId, int round, int order, Guid approverPositionId, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null, WorkflowActingAuthority? authority = null)
     {
         if (requestId == Guid.Empty)
             throw new ArgumentException("Request is required.", nameof(requestId));
@@ -41,6 +41,8 @@ public sealed class WorkflowStepDecision
         Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
         ActedAtUtc = DateTime.UtcNow;
         ReturnTargetOrder = returnTargetOrder;
+        OnBehalfOfEmployeeId = authority?.OnBehalfOfEmployeeId;
+        DelegationId = authority?.DelegationId;
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
@@ -58,4 +60,10 @@ public sealed class WorkflowStepDecision
 
     /// <summary>For a return to a specific step: the order of the step the request was sent back to; otherwise null.</summary>
     public int? ReturnTargetOrder { get; private set; }
+
+    /// <summary>When the decision was made by a delegate: the employee whose authority it was (spec §15.2). Null when the approver acted for themselves, or when a SuperAdmin-arranged replacement covered a vacant position.</summary>
+    public Guid? OnBehalfOfEmployeeId { get; private set; }
+
+    /// <summary>The delegation that gave the actor their authority; null when the approver acted for themselves.</summary>
+    public Guid? DelegationId { get; private set; }
 }

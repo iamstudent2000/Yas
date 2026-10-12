@@ -1,0 +1,277 @@
+@page "/delegations"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Application.Authorization
+@using YasPortal.Domain.Delegations
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker Permissions
+@inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
+@inject AdminQueryService AdminQueries
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>تفویض اختیار - یاس پورتال</PageTitle>
+
+<div class="requests-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-transfer"></i> تفویض اختیار</h1>
+            <p class="page-subtitle">اختیار تایید یک سمت را برای بازه‌ای مشخص به همکار دیگری بسپارید. هر تصمیم به نام نماینده و با ذکر تفویض‌کننده ثبت می‌شود.</p>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div></section>
+    }
+    else if (!_canCreate && !_canManage)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-lock-alt"></i><strong>مجوز تفویض اختیار ندارید</strong></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <h2 class="card-title">تفویض جدید</h2>
+            @if (_canManage)
+            {
+                <div class="admin-filter">
+                    <label class="form-label">سمت (جانشین موقت توسط مدیر سامانه)</label>
+                    <ServerSearchableGuidSelect @bind-Value="_positionId" SearchAsync="SearchPositionsAsync" Placeholder="انتخاب سمت..." />
+                </div>
+            }
+            else if (_ownPositionName is null)
+            {
+                <p class="muted">سمت فعال معتبری ندارید؛ تفویض ممکن نیست.</p>
+            }
+            else
+            {
+                <p class="muted">سمت: <strong>@_ownPositionName</strong></p>
+            }
+            <div class="admin-filter">
+                <label class="form-label">نماینده</label>
+                <ServerSearchableGuidSelect @bind-Value="_delegateId" SearchAsync="SearchDelegatesAsync" Placeholder="انتخاب همکار..." />
+            </div>
+            <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_from" Placeholder="تاریخ شروع" /></div>
+            <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_to" Placeholder="تاریخ پایان" /></div>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="field-error">@_error</p>
+            }
+            <div class="form-actions">
+                <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 class="card-title">@(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
+            @if (_mine.Count == 0)
+            {
+                <div class="empty-state"><i class="bx bx-transfer"></i><strong>تفویضی ثبت نشده است</strong></div>
+            }
+            @foreach (var row in _mine)
+            {
+                <div class="request-card">
+                    <div class="request-card-header">
+                        <span class="request-card-title">
+                            <strong>@row.PositionName ← @row.DelegateName</strong>
+                            <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · تفویض‌کننده: " + row.DelegatorName)</span>
+                        </span>
+                        @if (row.Delegation.ArrangedByAdmin)
+                        {
+                            <span class="badge badge-info">جانشین تعیین‌شده توسط مدیر</span>
+                        }
+                        <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                        @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming)
+                        {
+                            <button class="btn btn-secondary" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="bx bx-x"></i> لغو</button>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+
+        <section class="card">
+            <h2 class="card-title">تفویض‌های دریافتی</h2>
+            @if (_received.Count == 0)
+            {
+                <div class="empty-state"><i class="bx bx-inbox"></i><strong>تفویضی به شما سپرده نشده است</strong></div>
+            }
+            @foreach (var row in _received)
+            {
+                <div class="request-card">
+                    <div class="request-card-header">
+                        <span class="request-card-title">
+                            <strong>@row.PositionName</strong>
+                            <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · از " + row.DelegatorName)</span>
+                        </span>
+                        <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                    </div>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private sealed record Row(PositionDelegation Delegation, string PositionName, string DelegateName, string? DelegatorName, DelegationStatus Status);
+
+    private bool _ready, _busy, _canCreate, _canManage;
+    private Guid? _employeeId, _ownPositionId, _positionId, _delegateId;
+    private string? _ownPositionName, _error;
+    private DateTime? _from, _to;
+    private List<Row> _mine = [];
+    private List<Row> _received = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        var claimed = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
+        _canCreate = await Permissions.HasPermissionAsync("Delegations.Create");
+        _canManage = await Permissions.HasPermissionAsync("Delegations.Manage");
+        if (_employeeId is Guid emp && await Workflows.HoldsActivePositionAsync(emp, claimed))
+            _ownPositionId = claimed;
+        await LoadAsync();
+        _ready = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        _ownPositionName = null;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (_ownPositionId is Guid own)
+            _ownPositionName = await db.Positions.AsNoTracking().Where(x => x.Id == own).Select(x => x.Name).SingleOrDefaultAsync();
+
+        var query = db.PositionDelegations.AsNoTracking().AsQueryable();
+        var me = _employeeId;
+        var rows = await query
+            .Where(d => _canManage || d.DelegatorEmployeeId == me || d.DelegateEmployeeId == me)
+            .OrderByDescending(d => d.CreatedAtUtc)
+            .Take(200)
+            .ToListAsync();
+
+        var positionIds = rows.Select(r => r.PositionId).Distinct().ToList();
+        var empIds = rows.SelectMany(r => new[] { r.DelegateEmployeeId, r.DelegatorEmployeeId ?? Guid.Empty }).Where(x => x != Guid.Empty).Distinct().ToList();
+        var positions = await db.Positions.AsNoTracking().Where(p => positionIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name);
+        var employees = await db.Employees.AsNoTracking().Where(e => empIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
+
+        var today = DateTime.Now;
+        Row Map(PositionDelegation d) => new(d,
+            positions.GetValueOrDefault(d.PositionId, "نامشخص"),
+            employees.GetValueOrDefault(d.DelegateEmployeeId, "نامشخص"),
+            d.DelegatorEmployeeId is Guid g ? employees.GetValueOrDefault(g) : null,
+            d.StatusOn(today));
+
+        _mine = rows.Where(d => _canManage || d.DelegatorEmployeeId == me).Select(Map).ToList();
+        _received = rows.Where(d => d.DelegateEmployeeId == me).Select(Map).ToList();
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, null, null, ct);
+
+    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchDelegatesAsync(string search, CancellationToken ct)
+    {
+        var items = await AdminQueries.SearchAssignableEmployeesAsync(search, ct);
+        return items.Where(i => i.Id != _employeeId).ToList();
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+        if (_employeeId is not Guid me) return;
+        if (_delegateId is not Guid delegateId) { _error = "نماینده را انتخاب کنید."; return; }
+        if (_from is null || _to is null) { _error = "بازه تاریخ را کامل وارد کنید."; return; }
+        if (_to.Value.Date < _from.Value.Date) { _error = "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."; return; }
+        if (_to.Value.Date < DateTime.Now.Date) { _error = "بازه تفویض نمی‌تواند کاملاً در گذشته باشد."; return; }
+
+        var admin = _canManage && _positionId is not null;
+        var positionId = admin ? _positionId : (_canCreate ? _ownPositionId : null);
+        if (positionId is not Guid pos) { _error = "سمتی برای تفویض انتخاب نشده است."; return; }
+
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (!await db.Employees.AnyAsync(e => e.Id == delegateId && e.IsActive))
+            {
+                _error = "نماینده فعال نیست.";
+                return;
+            }
+            Guid? delegator = await db.EmployeePositions.Where(ep => ep.PositionId == pos && ep.EndedAt == null).Select(ep => (Guid?)ep.EmployeeId).FirstOrDefaultAsync();
+            if (!admin && delegator != me)
+            {
+                _error = "فقط دارنده فعلی سمت می‌تواند اختیار آن را تفویض کند.";
+                return;
+            }
+            if (delegator == delegateId)
+            {
+                _error = "تفویض به دارنده خود سمت معنا ندارد.";
+                return;
+            }
+            var delegation = new PositionDelegation(pos, delegator, delegateId, _from.Value, _to.Value, me, admin);
+            db.PositionDelegations.Add(delegation);
+            await NotificationSvc.StageDelegationReceivedAsync(db, delegation);
+            await db.SaveChangesAsync();
+            AppState.AddToast("تفویض ثبت شد.", ToastLevel.Success);
+            _delegateId = null; _from = null; _to = null; _positionId = null;
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+        await LoadAsync();
+    }
+
+    private async Task RevokeAsync(Guid id)
+    {
+        if (_employeeId is not Guid me) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var d = await db.PositionDelegations.SingleOrDefaultAsync(x => x.Id == id);
+            if (d is null) return;
+            if (!_canManage && d.DelegatorEmployeeId != me)
+            {
+                AppState.AddToast("شما مجوز لغو این تفویض را ندارید.", ToastLevel.Error);
+                return;
+            }
+            if (d.RevokedAtUtc is not null) return;
+            d.Revoke(me);
+            await db.SaveChangesAsync();
+            AppState.AddToast("تفویض لغو شد.", ToastLevel.Success);
+        }
+        finally
+        {
+            _busy = false;
+        }
+        await LoadAsync();
+    }
+
+    private static string StatusLabel(DelegationStatus s) => s switch
+    {
+        DelegationStatus.Upcoming => "در انتظار شروع",
+        DelegationStatus.Active => "فعال",
+        DelegationStatus.Expired => "منقضی",
+        _ => "لغو شده",
+    };
+
+    private static string StatusClass(DelegationStatus s) => s switch
+    {
+        DelegationStatus.Active => "badge-success",
+        DelegationStatus.Upcoming => "badge-info",
+        _ => "badge-muted",
+    };
+}

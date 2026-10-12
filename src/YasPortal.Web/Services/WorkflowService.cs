@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
@@ -89,6 +90,90 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.WorkflowRequests.AsNoTracking().Active().CountAsync(x => x.WorkflowType == type, ct);
+    }
+
+    /// <summary>A delegation that gives an employee authority over a position right now.</summary>
+    public sealed record ActiveDelegation(Guid DelegationId, Guid PositionId, Guid? DelegatorEmployeeId, bool ArrangedByAdmin);
+
+    /// <summary>What lets an employee act on a step: nothing, their own position, or a delegation.</summary>
+    public sealed record ActingResult(bool Allowed, WorkflowActingAuthority? Authority)
+    {
+        public static ActingResult Denied { get; } = new(false, null);
+        public static ActingResult AsHolder { get; } = new(true, null);
+    }
+
+    /// <summary>
+    /// The delegations that are in effect today for <paramref name="employeeId"/> as delegate (spec §15, §16):
+    /// not revoked, inside their dates, and — for a normal delegation — the delegator still holds the
+    /// position. A SuperAdmin-arranged replacement does not depend on who holds the position.
+    /// </summary>
+    public async Task<IReadOnlyList<ActiveDelegation>> GetActiveDelegationsAsync(Guid? employeeId, DateTime today, CancellationToken ct = default)
+    {
+        if (employeeId is not Guid id)
+            return [];
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var day = today.Date;
+        var rows = await db.PositionDelegations.AsNoTracking()
+            .Where(d => d.DelegateEmployeeId == id
+                        && d.RevokedAtUtc == null
+                        && d.StartDate <= day && d.EndDate >= day
+                        && (d.ArrangedByAdmin
+                            || db.EmployeePositions.Any(ep => ep.EmployeeId == d.DelegatorEmployeeId && ep.PositionId == d.PositionId && ep.EndedAt == null)))
+            .Select(d => new { d.Id, d.PositionId, d.DelegatorEmployeeId, d.ArrangedByAdmin })
+            .ToListAsync(ct);
+        return rows.Select(d => new ActiveDelegation(d.Id, d.PositionId, d.DelegatorEmployeeId, d.ArrangedByAdmin)).ToList();
+    }
+
+    /// <summary>
+    /// Requests currently waiting at a step this approver may decide: steps of their own position, plus
+    /// steps of positions delegated to them (admin arrangements on any step, normal delegations only on
+    /// steps that allow delegation).
+    /// </summary>
+    public static IQueryable<WorkflowRequest> PendingFor(ApplicationDbContext db, Guid? ownPositionId, IReadOnlyList<ActiveDelegation> delegations)
+    {
+        var anyStep = delegations.Where(d => d.ArrangedByAdmin).Select(d => d.PositionId).Distinct().ToList();
+        var allowedSteps = delegations.Where(d => !d.ArrangedByAdmin).Select(d => d.PositionId).Distinct().ToList();
+        var own = ownPositionId ?? Guid.Empty;
+        return db.WorkflowRequests.Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+            && x.Steps.Any(s => s.Round == x.CurrentRound
+                                && s.Order == x.CurrentStepOrder
+                                && s.Status == WorkflowStepStatus.Pending
+                                && (s.ApproverPositionId == own
+                                    || anyStep.Contains(s.ApproverPositionId)
+                                    || (allowedSteps.Contains(s.ApproverPositionId)
+                                        && db.WorkflowStepDefinitions.Any(d => d.Id == s.StepDefinitionId && d.AllowDelegation)))));
+    }
+
+    /// <summary>
+    /// Decides, fresh from the database, whether <paramref name="employeeId"/> may act on
+    /// <paramref name="step"/>: as the holder of its position (their active position), or through a
+    /// delegation that covers it (spec §15.1: a normal delegation only if the step allows it).
+    /// </summary>
+    public async Task<ActingResult> ResolveActingAsync(Guid employeeId, Guid? activePositionId, WorkflowRequestStep step, DateTime today, CancellationToken ct = default)
+    {
+        if (activePositionId is Guid own && own == step.ApproverPositionId && await HoldsActivePositionAsync(employeeId, own, ct))
+            return ActingResult.AsHolder;
+
+        var delegations = await GetActiveDelegationsAsync(employeeId, today, ct);
+        var candidates = delegations.Where(d => d.PositionId == step.ApproverPositionId).ToList();
+        if (candidates.Count == 0)
+            return ActingResult.Denied;
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var allowsDelegation = await db.WorkflowStepDefinitions.AsNoTracking().Where(d => d.Id == step.StepDefinitionId).Select(d => d.AllowDelegation).SingleOrDefaultAsync(ct);
+        var match = candidates.OrderBy(d => d.ArrangedByAdmin).FirstOrDefault(d => d.ArrangedByAdmin || allowsDelegation);
+        return match is null ? ActingResult.Denied : new ActingResult(true, new WorkflowActingAuthority(match.DelegatorEmployeeId, match.DelegationId));
+    }
+
+    /// <summary>Number of requests waiting for this approver, counting delegated positions — drives the inbox badge.</summary>
+    public async Task<int> CountInboxAsync(Guid? employeeId, Guid? activePositionId, DateTime today, CancellationToken ct = default)
+    {
+        var delegations = await GetActiveDelegationsAsync(employeeId, today, ct);
+        var holds = employeeId is Guid id && await HoldsActivePositionAsync(id, activePositionId, ct);
+        if (!holds && delegations.Count == 0)
+            return 0;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await PendingFor(db, holds ? activePositionId : null, delegations).AsNoTracking().CountAsync(ct);
     }
 
     /// <summary>Number of requests currently sitting at a step assigned to this position — drives the inbox badge.</summary>

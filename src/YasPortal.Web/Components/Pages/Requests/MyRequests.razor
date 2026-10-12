@@ -192,6 +192,7 @@
 
             var actorIds = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
             actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
             actorIds.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
             actorIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));

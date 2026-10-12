@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Authorization;
+using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
@@ -34,6 +35,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
     public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<PositionDelegation> PositionDelegations => Set<PositionDelegation>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -264,6 +266,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasOne<Position>().WithMany().HasForeignKey(x => x.ChangedByPositionId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.RequestId, x.ChangedAtUtc });
             e.HasIndex(x => x.ChangedByEmployeeId);
+        });
+        // Delegations (spec §15, §16): never deleted, only revoked.
+        modelBuilder.Entity<PositionDelegation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.StartDate).HasColumnType("date");
+            e.Property(x => x.EndDate).HasColumnType("date");
+            e.HasOne<Position>().WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.DelegateEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.DelegatorEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.CreatedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RevokedByEmployeeId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.DelegateEmployeeId, x.StartDate, x.EndDate });
+            e.HasIndex(x => new { x.PositionId, x.StartDate });
+            e.HasIndex(x => x.DelegatorEmployeeId);
         });
         // In-app notifications (spec §17). Never deleted; the inbox reads them newest first per recipient.
         modelBuilder.Entity<Notification>(e =>

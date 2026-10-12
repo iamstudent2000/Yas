@@ -127,6 +127,10 @@
                                     <span class="nav-badge">@_notificationBadge</span>
                                 }</NavLink>
                         </AuthorizeView>
+                        @if (_delegationsVisible)
+                        {
+                            <NavLink href="/delegations"><i class="bx bx-transfer"></i><span>تفویض اختیار</span></NavLink>
+                        }
                         <AuthorizeView Policy="Admin.Workflows">
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
@@ -166,10 +170,11 @@
     private bool _accessGroupVisible;
     private bool _structureGroupVisible;
     private bool _requestsGroupVisible;
+    private bool _delegationsVisible;
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "delegations", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,7 +201,9 @@
         _accessGroupVisible = await Can("Admin.Users") || await Can("Admin.Access") || await Can("Admin.Permissions");
         _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory");
         _requestsGroupVisible = await Can("Requests.Create") || await Can("Requests.View")
-            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen");
+            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen")
+            || await Can("Delegations.Create") || await Can("Delegations.Manage");
+        _delegationsVisible = await Can("Delegations.Create") || await Can("Delegations.Manage");
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
@@ -230,9 +237,7 @@
 
             _myRequestsBadge = await Workflows.CountUnseenForRequesterAsync(employeeId);
             _notificationBadge = await NotificationsService.CountUnreadAsync(employeeId);
-            _inboxBadge = activePositionId is Guid posId && employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, posId)
-                ? await Workflows.CountInboxAsync(posId)
-                : 0;
+            _inboxBadge = await Workflows.CountInboxAsync(employeeId, activePositionId, DateTime.Now);
         }
         catch
         {

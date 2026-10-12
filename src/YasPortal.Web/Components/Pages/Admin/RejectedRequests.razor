@@ -188,6 +188,7 @@
 
             var personIds = _requests.Select(x => x.RequesterEmployeeId).ToList();
             personIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            personIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
             personIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
             personIds.AddRange(_requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value));
             personIds = personIds.Distinct().ToList();

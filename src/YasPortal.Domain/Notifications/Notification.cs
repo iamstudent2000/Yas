@@ -24,6 +24,9 @@ public enum NotificationKind
     /// <summary>A rejected request was reopened at this step. Recipient: that step's assignee.</summary>
     RequestReopened,
 
+    /// <summary>Someone delegated a position's approval authority to this employee (spec §17.2). Recipient: the delegate.</summary>
+    DelegationReceived,
+
     /// <summary>A step targets a position nobody currently holds (spec §5.4). Recipient: SuperAdmins.</summary>
     VacantPosition,
 }

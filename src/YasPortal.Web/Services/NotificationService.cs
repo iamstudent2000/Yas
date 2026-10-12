@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
@@ -31,7 +32,10 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
 
             var positionId = target.PositionId!.Value;
             var holders = await HoldersOfAsync(db, positionId, ct);
-            if (holders.Count > 0)
+            // Delegates covering the position today hear about it too (spec §15) — otherwise a holder
+            // on leave would leave the delegate waiting for work they are never told about.
+            var delegates = (await DelegatesOfAsync(db, positionId, request.CurrentStep.StepDefinitionId, ct)).Except(holders).ToList();
+            if (holders.Count > 0 || delegates.Count > 0)
             {
                 var message = target.Kind switch
                 {
@@ -41,6 +45,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                 };
                 foreach (var holder in holders)
                     db.Notifications.Add(new Notification(holder, target.Kind, request.Id, typeName, message, "/requests/inbox"));
+                foreach (var delegateId in delegates)
+                    db.Notifications.Add(new Notification(delegateId, target.Kind, request.Id, typeName, message + " (به‌عنوان نماینده)", "/requests/inbox"));
                 continue;
             }
 
@@ -51,6 +57,32 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                     $"سمت «{positionName}» خالی است؛ درخواست {requestLabel} در مرحله «{target.StepName}» نمی‌تواند پیش برود.",
                     "/admin/active-requests"));
         }
+    }
+
+    /// <summary>Tells the delegate that authority over a position was handed to them (spec §17.2). Added to <paramref name="db"/> without saving.</summary>
+    public async Task StageDelegationReceivedAsync(ApplicationDbContext db, PositionDelegation delegation, CancellationToken ct = default)
+    {
+        var positionName = await db.Positions.AsNoTracking().Where(x => x.Id == delegation.PositionId).Select(x => x.Name).SingleOrDefaultAsync(ct) ?? "نامشخص";
+        db.Notifications.Add(new Notification(delegation.DelegateEmployeeId, NotificationKind.DelegationReceived, null, "تفویض اختیار",
+            $"اختیار سمت «{positionName}» از {WorkflowDisplay.ToPersianDate(delegation.StartDate)} تا {WorkflowDisplay.ToPersianDate(delegation.EndDate)} به شما تفویض شد.",
+            "/requests/inbox"));
+    }
+
+    /// <summary>Delegates whose delegation covers the position today and the step: active employees, in-effect dates, holder still in place (admin arrangements excepted), step allowing delegation (admin arrangements excepted).</summary>
+    private static async Task<List<Guid>> DelegatesOfAsync(ApplicationDbContext db, Guid positionId, Guid stepDefinitionId, CancellationToken ct)
+    {
+        var today = DateTime.Now.Date;
+        return await db.PositionDelegations.AsNoTracking()
+            .Where(d => d.PositionId == positionId
+                        && d.RevokedAtUtc == null
+                        && d.StartDate <= today && d.EndDate >= today
+                        && (d.ArrangedByAdmin
+                            || (db.EmployeePositions.Any(ep => ep.EmployeeId == d.DelegatorEmployeeId && ep.PositionId == d.PositionId && ep.EndedAt == null)
+                                && db.WorkflowStepDefinitions.Any(sd => sd.Id == stepDefinitionId && sd.AllowDelegation)))
+                        && db.Employees.Any(e => e.Id == d.DelegateEmployeeId && e.IsActive))
+            .Select(d => d.DelegateEmployeeId)
+            .Distinct()
+            .ToListAsync(ct);
     }
 
     private static string RequesterMessage(NotificationKind kind, string requestLabel) => kind switch

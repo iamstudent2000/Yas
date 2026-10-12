@@ -51,6 +51,14 @@ public sealed class WorkflowStepDefinition
     public bool IsActive { get; private set; } = true;
 
     /// <summary>
+    /// Whether the approver of this step may hand their authority to a delegate (spec §15.1). Allowed
+    /// unless the SuperAdmin switches it off; a SuperAdmin-arranged replacement still works either way (§16.2).
+    /// </summary>
+    public bool AllowDelegation { get; private set; } = true;
+
+    public void SetAllowDelegation(bool allow) => AllowDelegation = allow;
+
+    /// <summary>
     /// Creates a step that escalates up the requester's chain to <paramref name="treeLevel"/> from
     /// the top of the tree (see <see cref="ApproverRuleKind.EscalateToTreeLevel"/>). A factory rather
     /// than a constructor because its parameters would clash with the manager-level constructor.

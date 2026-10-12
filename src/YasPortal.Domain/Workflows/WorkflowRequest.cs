@@ -211,11 +211,11 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
-    public void Approve(Guid stepId, Guid actingEmployeeId, string? comment)
+    public void Approve(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
         step.Approve(actingEmployeeId, comment);
-        RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment, authority: authority);
 
         var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
         if (next is null)
@@ -235,11 +235,11 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
-    public void Reject(Guid stepId, Guid actingEmployeeId, string? comment)
+    public void Reject(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
         step.Reject(actingEmployeeId, comment);
-        RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment, authority: authority);
         Status = WorkflowRequestStatus.Rejected;
         SupersedePendingSteps();
         RequesterHasSeenLatestUpdate = false;
@@ -257,17 +257,17 @@ public sealed class WorkflowRequest
             step.Supersede();
     }
 
-    public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment)
+    public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
         step.ReturnToRequester(actingEmployeeId, comment);
-        RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
+        RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment, authority: authority);
         Status = WorkflowRequestStatus.ReturnedToRequester;
         RequesterHasSeenLatestUpdate = false;
         Revision++;
     }
 
-    public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment)
+    public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
         var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
@@ -278,13 +278,13 @@ public sealed class WorkflowRequest
             // meaningful "previous" stop from here is the requester themselves, so this falls
             // back to exactly the same outcome as ReturnToRequester rather than failing.
             step.ReturnToRequester(actingEmployeeId, comment);
-            RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
+            RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment, authority: authority);
             Status = WorkflowRequestStatus.ReturnedToRequester;
         }
         else
         {
             step.ReturnToPreviousStep(actingEmployeeId, comment);
-            RecordDecision(step, WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment);
+            RecordDecision(step, WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment, authority: authority);
             // previous.Reopen() below resets the target step's own ActedBy/ActedAt/Comment so it
             // can be decided on again — but its original decision is never lost, because it was
             // already appended to StepDecisions the first time it was acted on.
@@ -302,7 +302,7 @@ public sealed class WorkflowRequest
     /// count and new ones are required as the request moves forward again. The decision log keeps
     /// every earlier approval, and this decision records which step it returned to.
     /// </summary>
-    public void ReturnToSpecificStep(Guid stepId, Guid actingEmployeeId, int targetOrder, string? comment)
+    public void ReturnToSpecificStep(Guid stepId, Guid actingEmployeeId, int targetOrder, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableCurrentStep(stepId);
         var target = Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == targetOrder)
@@ -313,7 +313,7 @@ public sealed class WorkflowRequest
             throw new InvalidOperationException("The chosen step has not approved yet, so there is nothing to return to.");
 
         step.ReturnToSpecificStep(actingEmployeeId, comment);
-        RecordDecision(step, WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment, target.Order);
+        RecordDecision(step, WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment, target.Order, authority);
 
         foreach (var between in Steps.Where(x => x.Round == CurrentRound && x.Order > target.Order && x.Order < step.Order))
             between.SupersedeApproval();
@@ -427,8 +427,8 @@ public sealed class WorkflowRequest
         return result;
     }
 
-    private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null) =>
-        StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment, returnTargetOrder));
+    private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null, WorkflowActingAuthority? authority = null) =>
+        StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment, returnTargetOrder, authority));
 
     private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
     {
@@ -531,3 +531,11 @@ public sealed class WorkflowRequestStep
         Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
     }
 }
+
+/// <summary>
+/// Whose authority an approver was using when they decided (spec §15.2). Absent when they acted
+/// for themselves as the holder of the step's position.
+/// </summary>
+/// <param name="OnBehalfOfEmployeeId">The delegator, when there is one.</param>
+/// <param name="DelegationId">The delegation that gave the actor their authority.</param>
+public sealed record WorkflowActingAuthority(Guid? OnBehalfOfEmployeeId, Guid DelegationId);

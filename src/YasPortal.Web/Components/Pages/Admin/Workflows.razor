@@ -111,6 +111,12 @@
                                                             Placeholder="یک سمت را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
                             }
 
+                            <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
+                                <input type="checkbox" @bind="_allowDelegation" />
+                                <span>تاییدکننده می‌تواند اختیار این مرحله را تفویض کند</span>
+                            </label>
+                            <p class="muted">اگر خاموش باشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
+
                             <div class="form-actions">
                                 <button class="btn btn-primary" @onclick="SaveStep"><i class="bx bx-save"></i> @(_editingId is null ?
                                           "افزودن مرحله" : "ذخیره")</button>
@@ -147,6 +153,10 @@
                                                             @if (!step.IsActive)
                                                             {
                                                                 <span class="badge badge-muted">غیرفعال</span>
+                                                            }
+                                                            @if (!step.AllowDelegation)
+                                                            {
+                                                                <span class="badge badge-warning">بدون تفویض</span>
                                                             }
                                                         </span>
                                                     </div>
@@ -189,6 +199,7 @@
     private ApproverRuleKind _ruleKind = ApproverRuleKind.RequesterManagerLevel;
     private int _managerLevel = 1;
     private int _treeLevel = 2;
+    private bool _allowDelegation = true;
     private Guid? _approverPositionId;
     private string _approverPositionSearch = "";
 
@@ -262,6 +273,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _ruleKind = step.ApproverRuleKind;
         _managerLevel = step.ManagerLevel ?? 1;
         _treeLevel = step.TreeLevel ?? 2;
+        _allowDelegation = step.AllowDelegation;
         _approverPositionId = step.ApproverPositionId;
         _approverPositionSearch = step.ApproverPositionId is Guid pid && _positionNames.TryGetValue(pid, out var name) ? name :
 "";
@@ -274,6 +286,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _ruleKind = ApproverRuleKind.RequesterManagerLevel;
         _managerLevel = 1;
         _treeLevel = 2;
+        _allowDelegation = true;
         _approverPositionId = null;
         _approverPositionSearch = "";
     }
@@ -310,6 +323,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         {
             var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
             existing.Rename(name);
+            existing.SetAllowDelegation(_allowDelegation);
             switch (_ruleKind)
             {
                 case ApproverRuleKind.RequesterManagerLevel: existing.UseManagerLevel(_managerLevel); break;
@@ -329,6 +343,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 ApproverRuleKind.EscalateToTreeLevel => WorkflowStepDefinition.EscalatingToTreeLevel(_selectedType, nextOrder, name, _treeLevel),
                 _ => new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value),
             };
+            step.SetAllowDelegation(_allowDelegation);
             db.WorkflowStepDefinitions.Add(step);
             await db.SaveChangesAsync();
             AppState.AddToast("مرحله اضافه شد.", ToastLevel.Success);

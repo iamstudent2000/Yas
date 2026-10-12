@@ -26,6 +26,12 @@
                     @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
                     {
                         <span> — @actorName</span>
+                        // Spec §15.2: who acted, and whose authority it was.
+                        var passOnBehalf = Decisions.Where(d => d.StepId == step.Id && d.ActedByEmployeeId == actorId).OrderByDescending(d => d.ActedAtUtc).FirstOrDefault()?.OnBehalfOfEmployeeId;
+                        if (passOnBehalf is Guid delegatorId && EmployeeNames.TryGetValue(delegatorId, out var delegatorName))
+                        {
+                            <span> (به نمایندگی از @delegatorName)</span>
+                        }
                     }
                     else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
                     {
@@ -50,6 +56,10 @@
                                 @if (EmployeeNames.TryGetValue(earlier.ActedByEmployeeId, out var earlierActor))
                                 {
                                     <span> — @earlierActor</span>
+                                    @if (earlier.OnBehalfOfEmployeeId is Guid earlierDelegator && EmployeeNames.TryGetValue(earlierDelegator, out var earlierDelegatorName))
+                                    {
+                                        <span> (به نمایندگی از @earlierDelegatorName)</span>
+                                    }
                                 }
                                 <span> · @earlier.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                                 @if (!string.IsNullOrWhiteSpace(earlier.Comment))

@@ -62,6 +62,10 @@
                                 <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
                             <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
+                            @if (item.IsDelegated)
+                            {
+                                <span class="badge badge-info"><i class="bx bx-transfer"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
+                            }
                         </div>
 
                         <div class="request-card-body">
@@ -192,7 +196,9 @@
 @code {
     private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep, ReturnToSpecificStep }
 
-    private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep);
+    private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep, bool IsDelegated);
+
+    private IReadOnlyList<WorkflowService.ActiveDelegation> _delegations = [];
     // One history row per permanent decision (WorkflowStepDecision), not per step: a step's own
     // ActedBy/ActedAt are wiped by Reopen(), so only the decision log is a reliable history.
     private sealed record HistoryItem(WorkflowRequest Request, WorkflowStepDecision Decision, string StepName, string RequesterName);
@@ -304,9 +310,9 @@
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
-            var query = db.WorkflowRequests.AsNoTracking()
-                .Where(x => x.Status == WorkflowRequestStatus.PendingApproval
-                            && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == positionId));
+            // Own position's steps plus anything delegated to this employee today (spec §15).
+            _delegations = await Workflows.GetActiveDelegationsAsync(_employeeId, DateTime.Now);
+            var query = WorkflowService.PendingFor(db, positionId, _delegations).AsNoTracking();
             query = _pendingFilter.Apply(query, db);
 
             _pendingTotalCount = await query.CountAsync();
@@ -328,6 +334,7 @@
 
             var actorIds = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
             actorIds.AddRange(requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            actorIds.AddRange(requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
             actorIds.AddRange(requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(requesterIds);
             actorIds.AddRange(requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
@@ -342,7 +349,7 @@
                 var current = r.Steps.Single(s => s.Round == r.CurrentRound && s.Order == r.CurrentStepOrder);
                 var hasPrevious = r.Steps.Any(s => s.Round == r.CurrentRound && s.Order < r.CurrentStepOrder);
                 var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
-                return new InboxItem(r, current, name, hasPrevious);
+                return new InboxItem(r, current, name, hasPrevious, current.ApproverPositionId != positionId);
             }).ToList();
         }
         finally { _pendingLoading = false; }
@@ -413,6 +420,7 @@
 
             var actorIds = requestsById.Values.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
             actorIds.AddRange(requestsById.Values.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            actorIds.AddRange(requestsById.Values.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
             actorIds.AddRange(requestsById.Values.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(requestsById.Values.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
             actorIds.AddRange(requesterIds);
@@ -524,7 +532,10 @@
             }
 
             var currentStep = request.CurrentStep;
-            if (currentStep.ApproverPositionId != positionId)
+            // Either the step is at the acting employee's own position, or a delegation covers it
+            // (spec §15.1/§15.2) — re-checked now, not trusted from when the page loaded.
+            var acting = await Workflows.ResolveActingAsync(employeeId, positionId, currentStep, DateTime.Now);
+            if (!acting.Allowed)
             {
                 AppState.AddToast("این مرحله دیگر به سمت شما ارجاع نشده است؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
                 await LoadAsync();
@@ -536,11 +547,11 @@
             {
                 switch (action)
                 {
-                    case WorkflowAction.Approve: request.Approve(currentStep.Id, employeeId, comment); break;
-                    case WorkflowAction.Reject: request.Reject(currentStep.Id, employeeId, comment); break;
-                    case WorkflowAction.ReturnToRequester: request.ReturnToRequester(currentStep.Id, employeeId, comment); break;
-                    case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment); break;
-                    case WorkflowAction.ReturnToSpecificStep: request.ReturnToSpecificStep(currentStep.Id, employeeId, GetReturnTarget(item.Request.Id), comment); break;
+                    case WorkflowAction.Approve: request.Approve(currentStep.Id, employeeId, comment, acting.Authority); break;
+                    case WorkflowAction.Reject: request.Reject(currentStep.Id, employeeId, comment, acting.Authority); break;
+                    case WorkflowAction.ReturnToRequester: request.ReturnToRequester(currentStep.Id, employeeId, comment, acting.Authority); break;
+                    case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment, acting.Authority); break;
+                    case WorkflowAction.ReturnToSpecificStep: request.ReturnToSpecificStep(currentStep.Id, employeeId, GetReturnTarget(item.Request.Id), comment, acting.Authority); break;
                 }
             }
             catch (InvalidOperationException)
