@@ -73,10 +73,20 @@ public sealed class WorkflowRequestFilter
         }
         if (!string.IsNullOrWhiteSpace(IdText))
         {
-            // Keep only hex digits so '#', spaces, dashes and invisible right-to-left marks pasted from the UI never break the match.
-            var id = new string(IdText.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
-            if (id.Length > 0)
-                query = query.Where(x => x.Id.ToString().ToLower().StartsWith(id));
+            // Keep only hex digits so '#', spaces, dashes and invisible right-to-left marks pasted from the UI never break the match,
+            // then lay them out like the stored GUID text (8-4-4-4-12) so a full ID still matches as a prefix.
+            var hex = new string(IdText.Where(Uri.IsHexDigit).ToArray()).ToLowerInvariant();
+            if (hex.Length == 0)
+                return query.Where(_ => false);
+            var id = new System.Text.StringBuilder();
+            for (var n = 0; n < hex.Length && n < 32; n++)
+            {
+                if (n is 8 or 12 or 16 or 20)
+                    id.Append('-');
+                id.Append(hex[n]);
+            }
+            var prefix = id.ToString();
+            query = query.Where(x => x.Id.ToString().ToLower().StartsWith(prefix));
         }
         return query;
     }
