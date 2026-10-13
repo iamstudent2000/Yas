@@ -59,6 +59,26 @@ public sealed class WorkflowStepDefinition
     public void SetAllowDelegation(bool allow) => AllowDelegation = allow;
 
     /// <summary>
+    /// How this step's group is satisfied when it shares its <see cref="Order"/> with sibling
+    /// definitions (parallel step, spec §12.2/§14). Every definition in a group must carry the same
+    /// value; a definition alone at its order ignores it. Defaults to <see cref="ParallelApprovalMode.All"/>.
+    /// </summary>
+    public ParallelApprovalMode ApprovalMode { get; private set; } = ParallelApprovalMode.All;
+
+    /// <summary>What a rejection inside the group does (spec §14.3). Same rule as <see cref="ApprovalMode"/>: identical across the group.</summary>
+    public ParallelRejectPolicy RejectPolicy { get; private set; } = ParallelRejectPolicy.Immediate;
+
+    public void SetParallelPolicy(ParallelApprovalMode approvalMode, ParallelRejectPolicy rejectPolicy)
+    {
+        if (!Enum.IsDefined(approvalMode))
+            throw new ArgumentOutOfRangeException(nameof(approvalMode));
+        if (!Enum.IsDefined(rejectPolicy))
+            throw new ArgumentOutOfRangeException(nameof(rejectPolicy));
+        ApprovalMode = approvalMode;
+        RejectPolicy = rejectPolicy;
+    }
+
+    /// <summary>
     /// Creates a step that escalates up the requester's chain to <paramref name="treeLevel"/> from
     /// the top of the tree (see <see cref="ApproverRuleKind.EscalateToTreeLevel"/>). A factory rather
     /// than a constructor because its parameters would clash with the manager-level constructor.

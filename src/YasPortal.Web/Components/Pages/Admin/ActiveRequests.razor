@@ -57,15 +57,16 @@
                 <tbody>
                     @foreach (var request in _requests)
                     {
-                        var currentStep = request.CurrentStep;
-                        var vacant = currentStep is not null && !_holderNames.ContainsKey(currentStep.ApproverPositionId);
+                        // A parallel group (spec §12.2) has several positions waiting side by side.
+                        var waitingSteps = request.CurrentSteps.Where(s => s.Status == WorkflowStepStatus.Pending).ToList();
+                        var vacant = waitingSteps.Any(s => !_holderNames.ContainsKey(s.ApproverPositionId));
                         <tr>
                             <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
                             <td>@(_employeeNames.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")</td>
                             <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
-                            <td>@(currentStep?.Name ?? "—")</td>
+                            <td>@(waitingSteps.Count == 0 ? "—" : string.Join(" / ", waitingSteps.Select(s => s.Name)))</td>
                             <td>
-                                @if (currentStep is null)
+                                @if (waitingSteps.Count == 0)
                                 {
                                     <span class="muted">—</span>
                                 }
@@ -75,7 +76,7 @@
                                 }
                                 else
                                 {
-                                    @(_holderNames.TryGetValue(currentStep.ApproverPositionId, out var holder) ? holder : "—")
+                                    @string.Join("، ", waitingSteps.Select(s => _holderNames.TryGetValue(s.ApproverPositionId, out var holder) ? holder : "—"))
                                 }
                             </td>
                             <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
@@ -182,7 +183,7 @@
             .Where(x => requesterIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.FullName);
 
-        var pendingPositionIds = _requests.Select(x => x.CurrentStep).Where(x => x is not null).Select(x => x!.ApproverPositionId).Distinct().ToList();
+        var pendingPositionIds = _requests.SelectMany(x => x.CurrentSteps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
         _holderNames = await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
 
         _loading = false;

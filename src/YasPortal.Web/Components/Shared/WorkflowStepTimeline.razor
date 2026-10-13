@@ -13,6 +13,10 @@
             <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
             <div class="approval-step-body">
                 <strong>@step.Name</strong>
+                @if (Steps.Count(x => x.Round == step.Round && x.Order == step.Order) > 1)
+                {
+                    <span class="badge badge-muted" style="margin-inline-start:6px">موازی — @(step.ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")@(step.RejectPolicy == ParallelRejectPolicy.WaitForAll ? "؛ رد پس از پاسخ همه" : "؛ رد فوری")</span>
+                }
                 @if (HighlightStepId == step.Id)
                 {
                     <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>

@@ -13,12 +13,31 @@ public enum WorkflowResolutionErrorKind
 
     /// <summary>An "escalate to tree level N" step, but the requester's position sits above that level of the tree.</summary>
     TreeLevelUnavailable,
+
+    /// <summary>An escalation definition shares its order with other definitions; an escalation expands into its own sequence of steps, so it must stand alone.</summary>
+    ParallelEscalationNotAllowed,
+
+    /// <summary>Definitions sharing one order disagree on approval mode or reject policy — a parallel group has exactly one of each.</summary>
+    ParallelPolicyMismatch,
+
+    /// <summary>Two definitions in one parallel group resolve to the same position for this requester; that position would have to approve twice.</summary>
+    ParallelDuplicatePosition,
 }
 
 /// <summary>One reason resolution failed, naming the step it concerns (null for <see cref="WorkflowResolutionErrorKind.NoActiveSteps"/>).</summary>
 public sealed record WorkflowResolutionError(WorkflowResolutionErrorKind Kind, string? StepName, int? ManagerLevel = null, int? TreeLevel = null);
 
-public sealed record WorkflowResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId);
+/// <summary>
+/// One approval the request needs. Steps that share an <see cref="Order"/> form a parallel group
+/// (spec §12.2) and carry the group's <see cref="Mode"/> and <see cref="RejectPolicy"/>.
+/// </summary>
+public sealed record WorkflowResolvedStep(
+    Guid StepDefinitionId,
+    int Order,
+    string Name,
+    Guid ApproverPositionId,
+    ParallelApprovalMode Mode = ParallelApprovalMode.All,
+    ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate);
 
 public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Steps, IReadOnlyList<WorkflowResolutionError> Errors)
 {
@@ -50,14 +69,29 @@ public static class WorkflowStepResolver
             return new WorkflowResolution([], [new WorkflowResolutionError(WorkflowResolutionErrorKind.NoActiveSteps, null)]);
 
         var errors = new List<WorkflowResolutionError>();
-        var resolved = new List<(Guid DefinitionId, string Name, Guid PositionId)>();
+        var resolved = new List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy)>();
 
-        foreach (var definition in active)
+        // Definitions sharing one Order are a parallel group (spec §12.2): they resolve to steps that
+        // share one live order. A definition alone at its order is an ordinary sequential step.
+        // "Slot" counts live orders: one per sequential step, one per whole group, and one per
+        // position an escalation expands into. It is renumbered 1..N below.
+        var slot = 0;
+        foreach (var group in active.GroupBy(x => x.Order).OrderBy(g => g.Key))
         {
+            var members = group.ToList();
+            if (members.Count > 1)
+            {
+                slot++;
+                ResolveParallelGroup(members, slot, requesterPositionId, parentByPosition, resolved, errors);
+                continue;
+            }
+
+            var definition = members[0];
             switch (definition.ApproverRuleKind)
             {
                 case ApproverRuleKind.SpecificPosition:
-                    resolved.Add((definition.Id, definition.Name, definition.ApproverPositionId!.Value));
+                    slot++;
+                    resolved.Add((definition.Id, slot, definition.Name, definition.ApproverPositionId!.Value, definition.ApprovalMode, definition.RejectPolicy));
                     break;
 
                 case ApproverRuleKind.RequesterManagerLevel:
@@ -65,7 +99,10 @@ public static class WorkflowStepResolver
                     // Exact level or nothing: no clamping to "the highest manager that exists".
                     var approver = PositionHierarchy.GetAncestorPositionId(requesterPositionId, definition.ManagerLevel!.Value, parentByPosition);
                     if (approver is Guid positionId)
-                        resolved.Add((definition.Id, definition.Name, positionId));
+                    {
+                        slot++;
+                        resolved.Add((definition.Id, slot, definition.Name, positionId, definition.ApprovalMode, definition.RejectPolicy));
+                    }
                     else
                         errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ManagerLevelUnavailable, definition.Name, ManagerLevel: definition.ManagerLevel));
                     break;
@@ -82,10 +119,12 @@ public static class WorkflowStepResolver
 
                     // Several positions can sit between the requester and the target level, so the
                     // approvals are numbered "(1/3)", "(2/3)", ... to tell them apart in the trail.
+                    // Each is its own sequential step.
                     for (var i = 0; i < chain.Count; i++)
                     {
+                        slot++;
                         var name = chain.Count == 1 ? definition.Name : $"{definition.Name} ({i + 1}/{chain.Count})";
-                        resolved.Add((definition.Id, name, chain[i]));
+                        resolved.Add((definition.Id, slot, name, chain[i], definition.ApprovalMode, definition.RejectPolicy));
                     }
                     break;
                 }
@@ -98,13 +137,76 @@ public static class WorkflowStepResolver
         if (errors.Count > 0)
             return new WorkflowResolution([], errors);
 
-        // Orders are 1..N by construction of the admin page, but an inactive step in the middle
-        // leaves a gap and an escalation expands into several steps, so the live trail is
-        // renumbered consecutively.
+        // An inactive step in the middle leaves a gap in the configured orders and an escalation
+        // expands into several steps, so the live trail is numbered consecutively (slots already are).
         var steps = resolved
-            .Select((x, i) => new WorkflowResolvedStep(x.DefinitionId, i + 1, x.Name, x.PositionId))
+            .Select(x => new WorkflowResolvedStep(x.DefinitionId, x.Slot, x.Name, x.PositionId, x.Mode, x.RejectPolicy))
             .ToList();
         return new WorkflowResolution(steps, []);
+    }
+
+    /// <summary>
+    /// Resolves one parallel group: every member becomes one step at the same live order. Refused —
+    /// with the reason listed, never quietly "fixed" — when a member is an escalation (it expands
+    /// into a sequence, which cannot also be parallel), when members disagree on approval mode or
+    /// reject policy, or when two members land on the same position for this requester.
+    /// </summary>
+    private static void ResolveParallelGroup(
+        List<WorkflowStepDefinition> members,
+        int slot,
+        Guid requesterPositionId,
+        IReadOnlyDictionary<Guid, Guid?> parentByPosition,
+        List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy)> resolved,
+        List<WorkflowResolutionError> errors)
+    {
+        var groupName = string.Join(" / ", members.Select(m => m.Name));
+        var failed = false;
+
+        if (members.Any(m => m.ApproverRuleKind == ApproverRuleKind.EscalateToTreeLevel))
+        {
+            errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ParallelEscalationNotAllowed, groupName));
+            failed = true;
+        }
+
+        var mode = members[0].ApprovalMode;
+        var rejectPolicy = members[0].RejectPolicy;
+        if (members.Any(m => m.ApprovalMode != mode || m.RejectPolicy != rejectPolicy))
+        {
+            errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ParallelPolicyMismatch, groupName));
+            failed = true;
+        }
+
+        if (failed)
+            return;
+
+        var positions = new List<(WorkflowStepDefinition Definition, Guid PositionId)>();
+        foreach (var member in members)
+        {
+            if (member.ApproverRuleKind == ApproverRuleKind.SpecificPosition)
+            {
+                positions.Add((member, member.ApproverPositionId!.Value));
+                continue;
+            }
+
+            var approver = PositionHierarchy.GetAncestorPositionId(requesterPositionId, member.ManagerLevel!.Value, parentByPosition);
+            if (approver is Guid positionId)
+                positions.Add((member, positionId));
+            else
+                errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ManagerLevelUnavailable, member.Name, ManagerLevel: member.ManagerLevel));
+        }
+
+        // A member that could not resolve was already reported; don't pile a second error on top.
+        if (positions.Count != members.Count)
+            return;
+
+        if (positions.Select(x => x.PositionId).Distinct().Count() != positions.Count)
+        {
+            errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ParallelDuplicatePosition, groupName));
+            return;
+        }
+
+        foreach (var (definition, positionId) in positions)
+            resolved.Add((definition.Id, slot, definition.Name, positionId, mode, rejectPolicy));
     }
 
     /// <summary>

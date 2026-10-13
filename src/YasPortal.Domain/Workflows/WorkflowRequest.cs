@@ -32,6 +32,21 @@ public sealed class WorkflowRequest
         Guid requesterPositionId,
         string fieldValuesJson,
         IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps)
+        : this(workflowType, requesterEmployeeId, requesterPositionId, fieldValuesJson, ToResolvedSteps(resolvedSteps))
+    {
+    }
+
+    /// <summary>
+    /// Same as above, for a path that may contain parallel groups: resolved steps sharing one
+    /// <see cref="WorkflowResolvedStep.Order"/> are approved side by side (spec §12.2, §14) under the
+    /// group's mode and reject policy.
+    /// </summary>
+    public WorkflowRequest(
+        WorkflowTypeCode workflowType,
+        Guid requesterEmployeeId,
+        Guid requesterPositionId,
+        string fieldValuesJson,
+        IReadOnlyList<WorkflowResolvedStep> resolvedSteps)
     {
         if (requesterEmployeeId == Guid.Empty)
             throw new ArgumentException("Requester is required.", nameof(requesterEmployeeId));
@@ -41,6 +56,7 @@ public sealed class WorkflowRequest
             throw new ArgumentException("Field values are required.", nameof(fieldValuesJson));
         if (resolvedSteps is null || resolvedSteps.Count == 0)
             throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
+        ValidateParallelGroups(resolvedSteps);
 
         WorkflowType = workflowType;
         RequesterEmployeeId = requesterEmployeeId;
@@ -51,7 +67,7 @@ public sealed class WorkflowRequest
         CurrentRound = 1;
 
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
+            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
 
         CurrentStepOrder = Steps.Min(x => x.Order);
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, requesterEmployeeId));
@@ -122,9 +138,36 @@ public sealed class WorkflowRequest
 
     public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
 
-    public WorkflowRequestStep CurrentStep =>
-        Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == CurrentStepOrder)
-        ?? throw new InvalidOperationException("The request has no current step.");
+    /// <summary>
+    /// The live step of a sequential request. When the current step is a parallel group (several
+    /// sibling steps sharing <see cref="CurrentStepOrder"/>) there is no single "current step" — use
+    /// <see cref="CurrentSteps"/> — and this throws rather than quietly picking one of them.
+    /// </summary>
+    public WorkflowRequestStep CurrentStep
+    {
+        get
+        {
+            var current = CurrentSteps;
+            if (current.Count == 0)
+                throw new InvalidOperationException("The request has no current step.");
+            if (current.Count > 1)
+                throw new InvalidOperationException("The request's current step is a parallel group; use CurrentSteps.");
+            return current[0];
+        }
+    }
+
+    /// <summary>
+    /// Every step of the live group in the current round: one step for an ordinary step, several for a
+    /// parallel group (spec §12.2). In a stable order (by name, then id) so screens do not reshuffle.
+    /// </summary>
+    public IReadOnlyList<WorkflowRequestStep> CurrentSteps => StepsAt(CurrentStepOrder);
+
+    /// <summary>The steps of the current round at one order — the whole parallel group, or the single step.</summary>
+    public IReadOnlyList<WorkflowRequestStep> StepsAt(int order) =>
+        Steps.Where(x => x.Round == CurrentRound && x.Order == order)
+            .OrderBy(x => x.Name, StringComparer.Ordinal)
+            .ThenBy(x => x.Id)
+            .ToList();
 
     /// <summary>Terminal statuses can never be reopened or acted on again by anyone.</summary>
     public bool IsTerminal => Status is WorkflowRequestStatus.Approved or WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled;
@@ -197,13 +240,18 @@ public sealed class WorkflowRequest
         if (Steps.Count == 0)
             throw new InvalidOperationException("The request's steps must be loaded before it can be reopened.");
 
-        var rejecting = CurrentStep;
-        if (rejecting.Status != WorkflowStepStatus.Rejected)
+        // The rejection happened in the live group. In an ordinary step that is the whole step; in a
+        // parallel group only the position(s) that rejected must answer again (§13.4) — approvals the
+        // others already gave stay as they are. Positions that never answered because the rejection
+        // closed the request first (Superseded) wait for their turn again.
+        var rejecting = CurrentSteps.Where(x => x.Status == WorkflowStepStatus.Rejected).ToList();
+        if (rejecting.Count == 0)
             throw new InvalidOperationException("The rejecting step could not be identified.");
 
-        rejecting.Reopen();
-        foreach (var later in Steps.Where(x => x.Round == CurrentRound && x.Order > rejecting.Order))
-            later.RestoreAfterReopen();
+        foreach (var step in rejecting)
+            step.Reopen();
+        foreach (var other in Steps.Where(x => x.Round == CurrentRound && x.Order >= CurrentStepOrder))
+            other.RestoreAfterReopen();
 
         Status = WorkflowRequestStatus.PendingApproval;
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Reopened, actingEmployeeId, reason));
@@ -213,37 +261,86 @@ public sealed class WorkflowRequest
 
     public void Approve(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableStep(stepId);
         step.Approve(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment, authority: authority);
 
-        var next = Steps.Where(x => x.Round == CurrentRound && x.Order > step.Order).OrderBy(x => x.Order).FirstOrDefault();
-        if (next is null)
-        {
-            Status = WorkflowRequestStatus.Approved;
-        }
-        else
-        {
-            // The step ahead can be sitting in a non-Pending state here (e.g. it previously
-            // sent the request back via ReturnToPreviousStep) if this is a second pass through
-            // it. It must become actionable again for its approver, not stay stuck.
-            if (next.Status != WorkflowStepStatus.Pending)
-                next.Reopen();
-            CurrentStepOrder = next.Order;
-        }
+        var group = StepsAt(step.Order);
+        if (IsSatisfied(group))
+            CompleteGroupAndAdvance(step.Order);
+        else if (EveryoneResponded(group) && group.Any(x => x.Status == WorkflowStepStatus.Rejected))
+            CloseAsRejected();
+        // Otherwise the group is still waiting on other positions (ALL mode, or a wait-for-all rejection pending).
         RequesterHasSeenLatestUpdate = false;
         Revision++;
     }
 
     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableStep(stepId);
         step.Reject(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.Rejected, actingEmployeeId, comment, authority: authority);
-        Status = WorkflowRequestStatus.Rejected;
-        SupersedePendingSteps();
+
+        // Immediate: the first rejection closes the request. Wait-for-all (§14.3): it closes only once
+        // every position in the group has answered — and only if the group did not get satisfied,
+        // which it cannot have, or it would already have moved on.
+        if (step.RejectPolicy == ParallelRejectPolicy.Immediate || EveryoneResponded(StepsAt(step.Order)))
+            CloseAsRejected();
         RequesterHasSeenLatestUpdate = false;
         Revision++;
+    }
+
+    /// <summary>Whether the group has all the approvals its mode asks for (§14.1 ANY, §14.2 ALL).</summary>
+    private static bool IsSatisfied(IReadOnlyList<WorkflowRequestStep> group) =>
+        group[0].ApprovalMode == ParallelApprovalMode.Any
+            ? group.Any(x => x.Status == WorkflowStepStatus.Approved)
+            : group.All(x => x.Status == WorkflowStepStatus.Approved);
+
+    private static bool EveryoneResponded(IReadOnlyList<WorkflowRequestStep> group) =>
+        group.All(x => x.Status != WorkflowStepStatus.Pending);
+
+    private void CloseAsRejected()
+    {
+        Status = WorkflowRequestStatus.Rejected;
+        SupersedePendingSteps();
+    }
+
+    /// <summary>
+    /// The group at <paramref name="order"/> is satisfied: positions in it that have not answered
+    /// (possible only in ANY mode) are no longer needed, and the request moves to the next group — or
+    /// is approved when there is none. Entering a group resets any step in it that is not Pending
+    /// (for example after a return to an earlier step), so the whole group decides afresh.
+    /// </summary>
+    private void CompleteGroupAndAdvance(int order)
+    {
+        foreach (var waiting in StepsAt(order))
+            waiting.Supersede();
+
+        var later = Steps.Where(x => x.Round == CurrentRound && x.Order > order).Select(x => x.Order).ToList();
+        if (later.Count == 0)
+        {
+            Status = WorkflowRequestStatus.Approved;
+            return;
+        }
+
+        var nextOrder = later.Min();
+        // A step ahead can be sitting in a non-Pending state here (e.g. it previously sent the request
+        // back via ReturnToPreviousStep) if this is a second pass through it. It must become actionable
+        // again for its approver, not stay stuck.
+        foreach (var next in StepsAt(nextOrder).Where(x => x.Status != WorkflowStepStatus.Pending))
+            next.Reopen();
+        CurrentStepOrder = nextOrder;
+    }
+
+    /// <summary>
+    /// The acting step sends the request back to an earlier step, so approvals its parallel siblings
+    /// already gave no longer count — like the steps in between, they decide again once the request
+    /// returns. Siblings that have not answered stay as they are.
+    /// </summary>
+    private void SupersedeSiblingApprovals(WorkflowRequestStep acting)
+    {
+        foreach (var sibling in StepsAt(acting.Order).Where(x => x.Id != acting.Id))
+            sibling.SupersedeApproval();
     }
 
     /// <summary>
@@ -259,7 +356,7 @@ public sealed class WorkflowRequest
 
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
-        var step = RequireActionableCurrentStep(stepId);
+        var step = RequireActionableStep(stepId);
         step.ReturnToRequester(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment, authority: authority);
         Status = WorkflowRequestStatus.ReturnedToRequester;
@@ -269,10 +366,10 @@ public sealed class WorkflowRequest
 
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
-        var step = RequireActionableCurrentStep(stepId);
-        var previous = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).OrderByDescending(x => x.Order).FirstOrDefault();
+        var step = RequireActionableStep(stepId);
+        var earlier = Steps.Where(x => x.Round == CurrentRound && x.Order < step.Order).Select(x => x.Order).ToList();
 
-        if (previous is null)
+        if (earlier.Count == 0)
         {
             // There is no approval step earlier than the first one in this round — the only
             // meaningful "previous" stop from here is the requester themselves, so this falls
@@ -285,11 +382,15 @@ public sealed class WorkflowRequest
         {
             step.ReturnToPreviousStep(actingEmployeeId, comment);
             RecordDecision(step, WorkflowStepStatus.ReturnedToPreviousStep, actingEmployeeId, comment, authority: authority);
-            // previous.Reopen() below resets the target step's own ActedBy/ActedAt/Comment so it
-            // can be decided on again — but its original decision is never lost, because it was
-            // already appended to StepDecisions the first time it was acted on.
-            previous.Reopen();
-            CurrentStepOrder = previous.Order;
+            // Reopen() below resets the target step's own ActedBy/ActedAt/Comment so it can be
+            // decided on again — but its original decision is never lost, because it was already
+            // appended to StepDecisions the first time it was acted on. When the step before is a
+            // parallel group, the whole group decides again.
+            var previousOrder = earlier.Max();
+            SupersedeSiblingApprovals(step);
+            foreach (var previous in StepsAt(previousOrder))
+                previous.Reopen();
+            CurrentStepOrder = previousOrder;
         }
         RequesterHasSeenLatestUpdate = false;
         Revision++;
@@ -304,24 +405,27 @@ public sealed class WorkflowRequest
     /// </summary>
     public void ReturnToSpecificStep(Guid stepId, Guid actingEmployeeId, int targetOrder, string? comment, WorkflowActingAuthority? authority = null)
     {
-        var step = RequireActionableCurrentStep(stepId);
-        var target = Steps.SingleOrDefault(x => x.Round == CurrentRound && x.Order == targetOrder)
-            ?? throw new InvalidOperationException("The chosen step does not exist in this round.");
-        if (target.Order >= step.Order)
+        var step = RequireActionableStep(stepId);
+        var target = StepsAt(targetOrder);
+        if (target.Count == 0)
+            throw new InvalidOperationException("The chosen step does not exist in this round.");
+        if (targetOrder >= step.Order)
             throw new InvalidOperationException("A request can only be returned to an earlier step.");
-        if (target.Status != WorkflowStepStatus.Approved)
+        if (!target.Any(x => x.Status == WorkflowStepStatus.Approved))
             throw new InvalidOperationException("The chosen step has not approved yet, so there is nothing to return to.");
 
         step.ReturnToSpecificStep(actingEmployeeId, comment);
-        RecordDecision(step, WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment, target.Order, authority);
+        RecordDecision(step, WorkflowStepStatus.ReturnedToSpecificStep, actingEmployeeId, comment, targetOrder, authority);
 
-        foreach (var between in Steps.Where(x => x.Round == CurrentRound && x.Order > target.Order && x.Order < step.Order))
+        foreach (var between in Steps.Where(x => x.Round == CurrentRound && x.Order > targetOrder && x.Order < step.Order))
             between.SupersedeApproval();
+        SupersedeSiblingApprovals(step);
 
         // Like ReturnToPreviousStep: the target's own live outcome is reset for a fresh decision,
-        // while its original approval is already safe in StepDecisions.
-        target.Reopen();
-        CurrentStepOrder = target.Order;
+        // while its original approval is already safe in StepDecisions. A parallel group decides again as a whole.
+        foreach (var reopened in target)
+            reopened.Reopen();
+        CurrentStepOrder = targetOrder;
         RequesterHasSeenLatestUpdate = false;
         Revision++;
     }
@@ -350,7 +454,11 @@ public sealed class WorkflowRequest
     /// resolved again rather than reusing the original round's, since the org hierarchy or a
     /// fixed position's holder may have changed since the request was first submitted.
     /// </param>
-    public void Resubmit(string fieldValuesJson, IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps)
+    public void Resubmit(string fieldValuesJson, IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)> resolvedSteps) =>
+        Resubmit(fieldValuesJson, ToResolvedSteps(resolvedSteps));
+
+    /// <summary>Resubmits with a path that may contain parallel groups — see the constructor taking <see cref="WorkflowResolvedStep"/>s.</summary>
+    public void Resubmit(string fieldValuesJson, IReadOnlyList<WorkflowResolvedStep> resolvedSteps)
     {
         if (Status != WorkflowRequestStatus.ReturnedToRequester)
             throw new InvalidOperationException("Only a request returned to the requester can be resubmitted.");
@@ -358,6 +466,7 @@ public sealed class WorkflowRequest
             throw new ArgumentException("Field values are required.", nameof(fieldValuesJson));
         if (resolvedSteps is null || resolvedSteps.Count == 0)
             throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
+        ValidateParallelGroups(resolvedSteps);
 
         // Any step in the round being closed that was never reached (because an earlier step
         // already returned the request) is now moot — mark it Superseded so it doesn't sit
@@ -372,7 +481,7 @@ public sealed class WorkflowRequest
         CurrentRound++;
         RecordFieldChanges(previousValues, newValues);
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId));
+            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Resubmitted, RequesterEmployeeId));
         Status = WorkflowRequestStatus.PendingApproval;
@@ -430,14 +539,35 @@ public sealed class WorkflowRequest
     private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null, WorkflowActingAuthority? authority = null) =>
         StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment, returnTargetOrder, authority));
 
-    private WorkflowRequestStep RequireActionableCurrentStep(Guid stepId)
+    /// <summary>
+    /// The step to act on: it must belong to the live group of a request that is still pending. In a
+    /// parallel group each position acts on its own step; a step already answered is refused by the step itself.
+    /// </summary>
+    private WorkflowRequestStep RequireActionableStep(Guid stepId)
     {
         if (Status != WorkflowRequestStatus.PendingApproval)
             throw new InvalidOperationException("This request is no longer pending approval.");
-        var step = CurrentStep;
-        if (step.Id != stepId)
-            throw new InvalidOperationException("Only the request's current step can be acted on.");
-        return step;
+        return CurrentSteps.SingleOrDefault(x => x.Id == stepId)
+            ?? throw new InvalidOperationException("Only the request's current step can be acted on.");
+    }
+
+    private static IReadOnlyList<WorkflowResolvedStep>? ToResolvedSteps(IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)>? steps) =>
+        steps?.Select(x => new WorkflowResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList();
+
+    /// <summary>
+    /// Steps sharing an order are one parallel group: they must agree on mode and reject policy and
+    /// name distinct positions (a position cannot be asked to approve twice side by side).
+    /// </summary>
+    private static void ValidateParallelGroups(IReadOnlyList<WorkflowResolvedStep> resolvedSteps)
+    {
+        foreach (var group in resolvedSteps.GroupBy(x => x.Order).Where(g => g.Count() > 1))
+        {
+            var first = group.First();
+            if (group.Any(x => x.Mode != first.Mode || x.RejectPolicy != first.RejectPolicy))
+                throw new ArgumentException($"The parallel steps at order {group.Key} must share one approval mode and reject policy.", nameof(resolvedSteps));
+            if (group.Select(x => x.ApproverPositionId).Distinct().Count() != group.Count())
+                throw new ArgumentException($"The parallel steps at order {group.Key} must name different positions.", nameof(resolvedSteps));
+        }
     }
 }
 
@@ -448,7 +578,8 @@ public sealed class WorkflowRequestStep
     {
     }
 
-    internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int round, int order, string name, Guid approverPositionId)
+    internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int round, int order, string name, Guid approverPositionId,
+        ParallelApprovalMode approvalMode = ParallelApprovalMode.All, ParallelRejectPolicy rejectPolicy = ParallelRejectPolicy.Immediate)
     {
         RequestId = requestId;
         StepDefinitionId = stepDefinitionId;
@@ -456,6 +587,8 @@ public sealed class WorkflowRequestStep
         Order = order;
         Name = name;
         ApproverPositionId = approverPositionId;
+        ApprovalMode = approvalMode;
+        RejectPolicy = rejectPolicy;
         Status = WorkflowStepStatus.Pending;
     }
 
@@ -474,6 +607,16 @@ public sealed class WorkflowRequestStep
     /// person, so a mid-flight position reassignment is picked up automatically.
     /// </summary>
     public Guid ApproverPositionId { get; private set; }
+
+    /// <summary>
+    /// How this step's group is satisfied, copied from the workflow when the request was submitted so
+    /// later edits to the workflow cannot change a request in flight. Identical across the group;
+    /// meaningless for a step alone at its order.
+    /// </summary>
+    public ParallelApprovalMode ApprovalMode { get; private set; } = ParallelApprovalMode.All;
+
+    /// <summary>What a rejection in this step's group does (§14.3) — a submission-time copy, like <see cref="ApprovalMode"/>.</summary>
+    public ParallelRejectPolicy RejectPolicy { get; private set; } = ParallelRejectPolicy.Immediate;
     public WorkflowStepStatus Status { get; private set; }
     public Guid? ActedByEmployeeId { get; private set; }
     public DateTime? ActedAtUtc { get; private set; }

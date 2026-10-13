@@ -61,7 +61,9 @@
                             .Where(d => d.Round == request.CurrentRound && d.Outcome == WorkflowStepStatus.Rejected)
                             .OrderByDescending(d => d.ActedAtUtc)
                             .FirstOrDefault();
-                        var rejectingStep = request.Steps.FirstOrDefault(s => s.Round == request.CurrentRound && s.Order == request.CurrentStepOrder);
+                        // In a parallel group the rejecting position is the one in the live group whose step says Rejected.
+                        var rejectingStep = request.CurrentSteps.FirstOrDefault(s => s.Status == WorkflowStepStatus.Rejected)
+                                            ?? request.CurrentSteps.FirstOrDefault();
                         var vacant = rejectingStep is not null && !_holderNames.ContainsKey(rejectingStep.ApproverPositionId);
                         <tr>
                             <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>

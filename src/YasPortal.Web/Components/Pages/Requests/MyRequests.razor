@@ -319,7 +319,7 @@
 
             tracked.Resubmit(
                 JsonSerializer.Serialize(values),
-                resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+                resolved.Steps.Select(s => s.ToDomain()).ToList());
             await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Resubmitted);
             try
             {

@@ -15,13 +15,17 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// The request must be the tracked instance the action was applied to, with its steps loaded.
     /// A target position nobody holds produces a vacancy alert to every active SuperAdmin (§5.4).
     /// </summary>
-    public async Task StageAsync(ApplicationDbContext db, WorkflowRequest request, WorkflowNotificationEvent evt, CancellationToken ct = default)
+    public async Task StageAsync(ApplicationDbContext db, WorkflowRequest request, WorkflowNotificationEvent evt, CancellationToken ct = default) =>
+        await StageAsync(db, request, evt, null, ct);
+
+    /// <param name="stepOrderBefore">The request's current step order before the action — see <see cref="WorkflowNotificationPlanner.Plan"/>.</param>
+    public async Task StageAsync(ApplicationDbContext db, WorkflowRequest request, WorkflowNotificationEvent evt, int? stepOrderBefore, CancellationToken ct = default)
     {
         var typeName = WorkflowFieldCatalog.GetDisplayName(request.WorkflowType);
         var shortId = request.Id.ToString("N")[..8];
         var requestLabel = $"{typeName} #{shortId}";
 
-        foreach (var target in WorkflowNotificationPlanner.Plan(request, evt))
+        foreach (var target in WorkflowNotificationPlanner.Plan(request, evt, stepOrderBefore))
         {
             if (target.IsRequester)
             {
@@ -34,7 +38,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             var holders = await HoldersOfAsync(db, positionId, ct);
             // Delegates covering the position today hear about it too (spec §15) — otherwise a holder
             // on leave would leave the delegate waiting for work they are never told about.
-            var delegates = (await DelegatesOfAsync(db, positionId, request.CurrentStep.StepDefinitionId, ct)).Except(holders).ToList();
+            var delegates = (await DelegatesOfAsync(db, positionId, target.StepDefinitionId!.Value, ct)).Except(holders).ToList();
             if (holders.Count > 0 || delegates.Count > 0)
             {
                 var message = target.Kind switch

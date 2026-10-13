@@ -139,7 +139,7 @@
                 employeeId,
                 positionId,
                 fieldValuesJson,
-                resolved.Steps.Select(s => (s.StepDefinitionId, s.Order, s.Name, s.ApproverPositionId)).ToList());
+                resolved.Steps.Select(s => s.ToDomain()).ToList());
 
             await using var db = await DbFactory.CreateDbContextAsync();
             db.WorkflowRequests.Add(request);

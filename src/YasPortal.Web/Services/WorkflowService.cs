@@ -8,7 +8,11 @@ namespace YasPortal.Web.Services;
 /// <summary>Resolves a workflow request's approval path and applies approver actions to it.</summary>
 public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFactory)
 {
-    public sealed record ResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId);
+    public sealed record ResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId, ParallelApprovalMode Mode = ParallelApprovalMode.All, ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate)
+    {
+        /// <summary>The domain form of this step, for creating or resubmitting a request.</summary>
+        public WorkflowResolvedStep ToDomain() => new(StepDefinitionId, Order, Name, ApproverPositionId, Mode, RejectPolicy);
+    }
     public sealed record ResolveResult(bool Success, string? Error, IReadOnlyList<ResolvedStep> Steps);
 
     /// <summary>
@@ -38,7 +42,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             return new ResolveResult(false, "مسیر تایید از سمت غیرفعال عبور می‌کند: " + string.Join("، ", inactive) + ". مدیر سامانه باید گردش‌کار را اصلاح یا سمت را فعال کند.", []);
 
         return new ResolveResult(true, null,
-            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList());
+            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId, x.Mode, x.RejectPolicy)).ToList());
     }
 
     /// <summary>User-facing (Persian) explanation of why a path could not be resolved, one sentence per problem.</summary>
@@ -50,6 +54,12 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
                 "برای این نوع گردش‌کار هیچ مرحله تاییدی فعال تعریف نشده است. با مدیر سامانه تماس بگیرید.",
             WorkflowResolutionErrorKind.ManagerLevelUnavailable =>
                 $"مرحله «{e.StepName}» به مدیری {e.ManagerLevel} سطح بالاتر از سمت شما نیاز دارد، اما در ساختار سازمانی چنین سمتی وجود ندارد. مدیر سامانه باید مسیر گردش‌کار یا ساختار سازمانی را اصلاح کند.",
+            WorkflowResolutionErrorKind.ParallelEscalationNotAllowed =>
+                $"مرحله‌های موازی «{e.StepName}» شامل ارجاع تا سطح درخت سازمانی است؛ ارجاع چندمرحله‌ای نمی‌تواند هم‌زمان با مرحله‌ای دیگر باشد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
+            WorkflowResolutionErrorKind.ParallelPolicyMismatch =>
+                $"مرحله‌های موازی «{e.StepName}» حالت تایید یا سیاست رد یکسانی ندارند. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
+            WorkflowResolutionErrorKind.ParallelDuplicatePosition =>
+                $"در مرحله‌های موازی «{e.StepName}» یک سمت بیش از یک بار برای شما تعیین شده است. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
             WorkflowResolutionErrorKind.TreeLevelUnavailable =>
                 $"مرحله «{e.StepName}» باید تا سطح {e.TreeLevel} درخت سازمانی بالا برود، اما سمت شما بالاتر از آن سطح قرار دارد و تاییدکننده‌ای برای ارجاع وجود ندارد. مدیر سامانه باید مسیر گردش‌کار را اصلاح کند.",
             _ => "مسیر تایید این درخواست قابل تعیین نیست.",

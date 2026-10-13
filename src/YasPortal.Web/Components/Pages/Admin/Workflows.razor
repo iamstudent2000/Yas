@@ -111,6 +111,31 @@
                                                             Placeholder="یک سمت را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
                             }
 
+                            @if ((_editingId is null && _steps.Count > 0) || (_editingId is not null && EditingGroupSize() > 1))
+                            {
+                                @if (_editingId is null)
+                                {
+                                    <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
+                                        <input type="checkbox" @bind="_parallelWithPrevious" />
+                                        <span>این مرحله هم‌زمان با آخرین مرحله تعریف‌شده انجام شود (مرحله موازی)</span>
+                                    </label>
+                                }
+                                @if (_editingId is not null || _parallelWithPrevious)
+                                {
+                                    <label class="form-label">شرط تکمیل مراحل موازی</label>
+                                    <div class="form-radio-group">
+                                        <label><input type="radio" name="approvalMode" checked="@(_approvalMode == ParallelApprovalMode.All)" @onchange='() => _approvalMode = ParallelApprovalMode.All' /> تایید همه لازم است</label>
+                                        <label><input type="radio" name="approvalMode" checked="@(_approvalMode == ParallelApprovalMode.Any)" @onchange='() => _approvalMode = ParallelApprovalMode.Any' /> تایید یکی کافی است</label>
+                                    </div>
+                                    <label class="form-label">در صورت رد توسط یکی از آن‌ها</label>
+                                    <div class="form-radio-group">
+                                        <label><input type="radio" name="rejectPolicy" checked="@(_rejectPolicy == ParallelRejectPolicy.Immediate)" @onchange='() => _rejectPolicy = ParallelRejectPolicy.Immediate' /> درخواست فوراً رد شود</label>
+                                        <label><input type="radio" name="rejectPolicy" checked="@(_rejectPolicy == ParallelRejectPolicy.WaitForAll)" @onchange='() => _rejectPolicy = ParallelRejectPolicy.WaitForAll' /> صبر شود تا همه پاسخ دهند</label>
+                                    </div>
+                                    <p class="muted">این تنظیمات برای کل گروه موازی یکسان است و با ذخیره، روی همه‌ی مرحله‌های هم‌ترتیب اعمال می‌شود. یک مرحله‌ی «ارجاع پله‌به‌پله» نمی‌تواند در گروه موازی باشد.</p>
+                                }
+                            }
+
                             <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
                                 <input type="checkbox" @bind="_allowDelegation" />
                                 <span>تاییدکننده می‌تواند اختیار این مرحله را تفویض کند</span>
@@ -158,9 +183,15 @@
                                                             {
                                                                 <span class="badge badge-warning">بدون تفویض</span>
                                                             }
+                                                            @if (GroupSize(step) > 1)
+                                                            {
+                                                                <span class="badge badge-info">موازی — @(step.ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")@(step.RejectPolicy == ParallelRejectPolicy.WaitForAll ? "؛ رد پس از پاسخ همه" : "؛ رد فوری")</span>
+                                                            }
                                                         </span>
                                                     </div>
                                                     <div class="admin-list-actions">
+                                                        <button type="button" class="btn btn-secondary btn-sm" disabled="@(GroupSize(step) == 1 && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i
+                                                            class="bx bx-git-compare"></i> @(GroupSize(step) > 1 ? "جدا کردن از گروه موازی" : "موازی با مرحله قبل")</button>
                                                         <button type="button" class="btn btn-secondary btn-sm" title="انتقال به بالا"
                                                                 disabled="@(step.Order == _steps.Min(x => x.Order))" @onclick="() => MoveUp(step.Id)"><i
                                                             class="bx bx-up-arrow-alt"></i></button>
@@ -200,6 +231,9 @@
     private int _managerLevel = 1;
     private int _treeLevel = 2;
     private bool _allowDelegation = true;
+    private bool _parallelWithPrevious;
+    private ParallelApprovalMode _approvalMode = ParallelApprovalMode.All;
+    private ParallelRejectPolicy _rejectPolicy = ParallelRejectPolicy.Immediate;
     private Guid? _approverPositionId;
     private string _approverPositionSearch = "";
 
@@ -274,6 +308,9 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = step.ManagerLevel ?? 1;
         _treeLevel = step.TreeLevel ?? 2;
         _allowDelegation = step.AllowDelegation;
+        _parallelWithPrevious = false;
+        _approvalMode = step.ApprovalMode;
+        _rejectPolicy = step.RejectPolicy;
         _approverPositionId = step.ApproverPositionId;
         _approverPositionSearch = step.ApproverPositionId is Guid pid && _positionNames.TryGetValue(pid, out var name) ? name :
 "";
@@ -287,8 +324,32 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = 1;
         _treeLevel = 2;
         _allowDelegation = true;
+        _parallelWithPrevious = false;
+        _approvalMode = ParallelApprovalMode.All;
+        _rejectPolicy = ParallelRejectPolicy.Immediate;
         _approverPositionId = null;
         _approverPositionSearch = "";
+    }
+
+    /// <summary>How many step definitions share this one's order — more than one means a parallel group (spec §12.2).</summary>
+    private int GroupSize(WorkflowStepDefinition step) => _steps.Count(x => x.Order == step.Order);
+
+    private int EditingGroupSize() => _steps.FirstOrDefault(x => x.Id == _editingId) is { } step ? GroupSize(step) : 1;
+
+    /// <summary>
+    /// Why <paramref name="kind"/> / <paramref name="positionId"/> cannot sit in a group with
+    /// <paramref name="siblings"/>, or null when it can: an escalation expands into its own sequence,
+    /// and two members on the same fixed position would make that position approve twice side by side.
+    /// </summary>
+    private static string? ParallelMemberProblem(IReadOnlyCollection<WorkflowStepDefinition> siblings, ApproverRuleKind kind, Guid? positionId)
+    {
+        if (siblings.Count == 0)
+            return null;
+        if (kind == ApproverRuleKind.EscalateToTreeLevel || siblings.Any(x => x.ApproverRuleKind == ApproverRuleKind.EscalateToTreeLevel))
+            return "مرحله‌ی «ارجاع پله‌به‌پله» نمی‌تواند در گروه موازی باشد.";
+        if (kind == ApproverRuleKind.SpecificPosition && positionId is Guid pid && siblings.Any(x => x.ApproverPositionId == pid))
+            return "یک سمت نمی‌تواند دو بار در یک گروه موازی بیاید.";
+        return null;
     }
 
     private async Task SaveStep()
@@ -322,8 +383,17 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         if (_editingId is Guid id)
         {
             var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
+            var siblings = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == existing.WorkflowType && x.Order == existing.Order && x.Id != id).ToListAsync();
+            if (ParallelMemberProblem(siblings, _ruleKind, _approverPositionId) is string groupProblem)
+            {
+                AppState.AddToast(groupProblem, ToastLevel.Error);
+                return;
+            }
             existing.Rename(name);
             existing.SetAllowDelegation(_allowDelegation);
+            // One mode and one reject policy per group: saving either on a member updates the whole group.
+            foreach (var member in siblings.Append(existing))
+                member.SetParallelPolicy(_approvalMode, _rejectPolicy);
             switch (_ruleKind)
             {
                 case ApproverRuleKind.RequesterManagerLevel: existing.UseManagerLevel(_managerLevel); break;
@@ -335,8 +405,19 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         }
         else
         {
-            var nextOrder = (await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).Select(x =>
-(int?)x.Order).MaxAsync() ?? 0) + 1;
+            var lastOrder = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).Select(x =>
+(int?)x.Order).MaxAsync() ?? 0;
+            // Parallel: join the last group instead of starting a new order.
+            var joining = _parallelWithPrevious && lastOrder > 0;
+            var nextOrder = joining ? lastOrder : lastOrder + 1;
+            var groupMembers = joining
+                ? await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order == lastOrder).ToListAsync()
+                : new List<WorkflowStepDefinition>();
+            if (ParallelMemberProblem(groupMembers, _ruleKind, _approverPositionId) is string joinProblem)
+            {
+                AppState.AddToast(joinProblem, ToastLevel.Error);
+                return;
+            }
             var step = _ruleKind switch
             {
                 ApproverRuleKind.RequesterManagerLevel => new WorkflowStepDefinition(_selectedType, nextOrder, name, _managerLevel),
@@ -344,6 +425,11 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 _ => new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value),
             };
             step.SetAllowDelegation(_allowDelegation);
+            if (joining)
+            {
+                foreach (var member in groupMembers.Append(step))
+                    member.SetParallelPolicy(_approvalMode, _rejectPolicy);
+            }
             db.WorkflowStepDefinitions.Add(step);
             await db.SaveChangesAsync();
             AppState.AddToast("مرحله اضافه شد.", ToastLevel.Success);
@@ -365,21 +451,15 @@ ToastLevel.Error);
             return;
         }
 
-        // The delete and the renumbering that closes the gap are two saves (the gap can only be
-        // closed after the delete, or it would collide with the unique (WorkflowType, Order)
-        // index), so they run in one transaction: a failure in between rolls the delete back
-        // instead of leaving the step order with a hole in it.
+        // The delete and the renumbering that closes the gap are two saves, so they run in one
+        // transaction: a failure in between rolls the delete back instead of leaving the step order
+        // with a hole in it. Removing one member of a parallel group leaves the rest of the group at
+        // its order (a group of one is simply a sequential step), so only a vanished order closes up.
         await using var transaction = await db.Database.BeginTransactionAsync();
         var existing = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == id);
-        var removedOrder = existing.Order;
         db.WorkflowStepDefinitions.Remove(existing);
         await db.SaveChangesAsync();
-
-        var later = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order >
-removedOrder).OrderBy(x => x.Order).ToListAsync();
-        foreach (var step in later)
-            step.SetOrder(step.Order - 1);
-        await db.SaveChangesAsync();
+        await NormalizeOrdersAsync(db, _selectedType);
         await transaction.CommitAsync();
 
         AppState.AddToast("مرحله حذف شد.", ToastLevel.Success);
@@ -388,50 +468,99 @@ removedOrder).OrderBy(x => x.Order).ToListAsync();
         await LoadStepsAsync();
     }
 
-    private async Task MoveUp(Guid id)
+    /// <summary>Renumbers the type's orders to 1..N, keeping their relative order. Steps sharing an order keep sharing one.</summary>
+    private static async Task NormalizeOrdersAsync(ApplicationDbContext db, WorkflowTypeCode type)
     {
-        var ordered = _steps.OrderBy(x => x.Order).ToList();
-        var index = ordered.FindIndex(x => x.Id == id);
-        if (index <= 0)
-            return;
-        await SwapOrder(ordered[index].Id, ordered[index - 1].Id);
+        var all = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == type).ToListAsync();
+        var number = 0;
+        foreach (var group in all.GroupBy(x => x.Order).OrderBy(g => g.Key))
+        {
+            number++;
+            foreach (var definition in group.Where(d => d.Order != number))
+                definition.SetOrder(number);
+        }
+        await db.SaveChangesAsync();
     }
 
-    private async Task MoveDown(Guid id)
+    // Moving a step moves its whole order — a parallel group travels as one block.
+    private async Task MoveUp(Guid id) => await MoveGroupAsync(id, -1);
+
+    private async Task MoveDown(Guid id) => await MoveGroupAsync(id, +1);
+
+    private async Task MoveGroupAsync(Guid id, int direction)
     {
-        var ordered = _steps.OrderBy(x => x.Order).ToList();
-        var index = ordered.FindIndex(x => x.Id == id);
-        if (index < 0 || index >= ordered.Count - 1)
+        var step = _steps.FirstOrDefault(x => x.Id == id);
+        if (step is null)
             return;
-        await SwapOrder(ordered[index].Id, ordered[index + 1].Id);
+        var orders = _steps.Select(x => x.Order).Distinct().OrderBy(x => x).ToList();
+        var index = orders.IndexOf(step.Order) + direction;
+        if (index < 0 || index >= orders.Count)
+            return;
+        await SwapOrders(step.Order, orders[index]);
     }
 
-    private async Task SwapOrder(Guid firstId, Guid secondId)
+    private async Task SwapOrders(int firstOrder, int secondOrder)
+    {
+        if (!await EnsureNoBlockingRequestsAsync())
+            return;
+
+        // No unique (WorkflowType, Order) index any more (parallel groups share an order), so
+        // the swap is a single save.
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var affected = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && (x.Order == firstOrder || x.Order == secondOrder)).ToListAsync();
+        foreach (var definition in affected)
+            definition.SetOrder(definition.Order == firstOrder ? secondOrder : firstOrder);
+        await db.SaveChangesAsync();
+        await LoadStepsAsync();
+    }
+
+    /// <summary>
+    /// Makes a step run in parallel with the group before it, or — if it is already in a group —
+    /// splits it off into its own step right after that group (spec §12.2).
+    /// </summary>
+    private async Task ToggleParallel(Guid id)
     {
         if (!await EnsureNoBlockingRequestsAsync())
             return;
 
         await using var db = await DbFactory.CreateDbContextAsync();
-        var first = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == firstId);
-        var second = await db.WorkflowStepDefinitions.SingleAsync(x => x.Id == secondId);
-        var firstOrder = first.Order;
-        var secondOrder = second.Order;
+        var all = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).ToListAsync();
+        var step = all.SingleOrDefault(x => x.Id == id);
+        if (step is null)
+            return;
 
-        // Three saves are needed to swap two rows under a unique (WorkflowType, Order) index, so
-        // they run in one transaction: if the second one fails, the first rolls back instead of
-        // leaving a step stranded on its temporary order.
-        await using var transaction = await db.Database.BeginTransactionAsync();
-
-        // Park the first step on an order that is definitely unused (one past the current maximum
-        // for this type — a fixed offset could in principle collide) so the two real updates never
-        // momentarily collide on the unique index.
-        var parkingOrder = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == first.WorkflowType).MaxAsync(x => x.Order) + 1;
-        first.SetOrder(parkingOrder);
+        var group = all.Where(x => x.Order == step.Order).ToList();
+        if (group.Count > 1)
+        {
+            // Split: later orders make room, the step takes the order right after its old group.
+            foreach (var later in all.Where(x => x.Order > step.Order))
+                later.SetOrder(later.Order + 1);
+            step.SetOrder(step.Order + 1);
+            step.SetParallelPolicy(ParallelApprovalMode.All, ParallelRejectPolicy.Immediate);
+        }
+        else
+        {
+            var previousOrder = all.Where(x => x.Order < step.Order).Select(x => (int?)x.Order).Max();
+            if (previousOrder is null)
+            {
+                AppState.AddToast("مرحله‌ای پیش از این وجود ندارد که بتواند با آن موازی شود.", ToastLevel.Error);
+                return;
+            }
+            var previousGroup = all.Where(x => x.Order == previousOrder).ToList();
+            if (ParallelMemberProblem(previousGroup, step.ApproverRuleKind, step.ApproverPositionId) is string problem)
+            {
+                AppState.AddToast(problem, ToastLevel.Error);
+                return;
+            }
+            // The newcomer adopts the group's policy; a group that was a single step starts from the defaults.
+            foreach (var member in previousGroup.Append(step))
+                member.SetParallelPolicy(previousGroup[0].ApprovalMode, previousGroup[0].RejectPolicy);
+            step.SetOrder(previousOrder.Value);
+        }
         await db.SaveChangesAsync();
-        second.SetOrder(firstOrder);
-        first.SetOrder(secondOrder);
-        await db.SaveChangesAsync();
-        await transaction.CommitAsync();
+        await NormalizeOrdersAsync(db, _selectedType);
+        if (_editingId == id)
+            CancelEdit();
         await LoadStepsAsync();
     }
 

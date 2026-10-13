@@ -44,6 +44,33 @@ public enum ApproverRuleKind
     EscalateToTreeLevel,
 }
 
+/// <summary>
+/// How a group of parallel steps (sibling steps sharing one <c>Order</c>, spec §12.2/§12.4/§14) is
+/// satisfied. A group with a single step behaves the same either way.
+/// </summary>
+public enum ParallelApprovalMode
+{
+    /// <summary>All positions in the group must approve (spec §14.2).</summary>
+    All,
+
+    /// <summary>The first approval completes the group; the positions that have not answered yet are no longer needed (spec §14.1).</summary>
+    Any,
+}
+
+/// <summary>What a rejection inside a parallel group does (spec §14.3).</summary>
+public enum ParallelRejectPolicy
+{
+    /// <summary>The first rejection closes the request at once, even if other positions have not answered.</summary>
+    Immediate,
+
+    /// <summary>
+    /// A rejection is recorded but the request stays open until every position in the group has
+    /// answered. It is rejected only if the group ends up unsatisfied; with <see cref="ParallelApprovalMode.Any"/>
+    /// a later approval still completes the group.
+    /// </summary>
+    WaitForAll,
+}
+
 /// <summary>Overall lifecycle of a workflow request.</summary>
 public enum WorkflowRequestStatus
 {

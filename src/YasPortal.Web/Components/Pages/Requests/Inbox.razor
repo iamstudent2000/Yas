@@ -92,7 +92,9 @@
                                 @{
                                     var earlierSteps = item.Request.Steps
                                         .Where(s => s.Round == item.Request.CurrentRound && s.Order < item.CurrentStep.Order)
-                                        .OrderBy(s => s.Order)
+                                        .GroupBy(s => s.Order)
+                                        .OrderBy(g => g.Key)
+                                        .Select(g => (Order: g.Key, Name: string.Join(" / ", g.Select(x => x.Name).OrderBy(n => n, StringComparer.Ordinal))))
                                         .ToList();
                                 }
                                 @* Returning to the immediate previous step already has its own button, so a
@@ -358,7 +360,12 @@
 
             _items = requests.Select(r =>
             {
-                var current = r.Steps.Single(s => s.Round == r.CurrentRound && s.Order == r.CurrentStepOrder);
+                // In a parallel group (spec §12.2) several positions wait side by side; show the step this
+                // viewer can decide — their own position first, then one they cover by delegation.
+                var group = r.CurrentSteps.Where(s => s.Status == WorkflowStepStatus.Pending).ToList();
+                var current = group.FirstOrDefault(s => s.ApproverPositionId == positionId)
+                              ?? group.FirstOrDefault(s => _delegations.Any(d => d.PositionId == s.ApproverPositionId))
+                              ?? r.CurrentSteps.First();
                 var hasPrevious = r.Steps.Any(s => s.Round == r.CurrentRound && s.Order < r.CurrentStepOrder);
                 var name = requesterNames.TryGetValue(r.RequesterEmployeeId, out var n) ? n : "—";
                 return new InboxItem(r, current, name, hasPrevious, current.ApproverPositionId != positionId);
@@ -547,11 +554,22 @@
                 return;
             }
 
-            var currentStep = request.CurrentStep;
-            // Either the step is at the acting employee's own position, or a delegation covers it
-            // (spec §15.1/§15.2) — re-checked now, not trusted from when the page loaded.
-            var acting = await Workflows.ResolveActingAsync(employeeId, positionId, currentStep, DateTime.Now);
-            if (!acting.Allowed)
+            // Either a step of the live group is at the acting employee's own position, or a delegation
+            // covers one (spec §15.1/§15.2) — re-checked now, not trusted from when the page loaded.
+            // A parallel group has several waiting steps; the actor decides only the one that is theirs.
+            var stepOrderBefore = request.CurrentStepOrder;
+            WorkflowRequestStep? currentStep = null;
+            var acting = WorkflowService.ActingResult.Denied;
+            foreach (var candidate in request.CurrentSteps.Where(x => x.Status == WorkflowStepStatus.Pending))
+            {
+                var result = await Workflows.ResolveActingAsync(employeeId, positionId, candidate, DateTime.Now);
+                if (!result.Allowed)
+                    continue;
+                currentStep = candidate;
+                acting = result;
+                break;
+            }
+            if (currentStep is null)
             {
                 AppState.AddToast("این مرحله دیگر به سمت شما ارجاع نشده است؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
                 await LoadAsync();
@@ -584,7 +602,7 @@
                 WorkflowAction.Reject => WorkflowNotificationEvent.Rejected,
                 WorkflowAction.ReturnToRequester => WorkflowNotificationEvent.ReturnedToRequester,
                 _ => WorkflowNotificationEvent.ReturnedToPreviousStep,
-            });
+            }, stepOrderBefore);
 
             try
             {
