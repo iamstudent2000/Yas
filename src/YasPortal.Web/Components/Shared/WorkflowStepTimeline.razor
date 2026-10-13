@@ -26,7 +26,7 @@
                     <span class="badge badge-muted" style="margin-inline-start:6px">بازگشت خورده — @ToPersianDigits((earlierPasses.Count + 1).ToString())مین بار در حال بررسی</span>
                 }
                 <div class="approval-step-meta">
-                    @WorkflowDisplay.StepLabel(step, isCurrent)
+                    @WorkflowDisplay.StepLabel(step, isCurrent, Steps)
                     @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
                     {
                         <span> — @actorName</span>

@@ -88,6 +88,35 @@ public static class WorkflowDisplay
             ? "تایید قبلی باطل شد (درخواست به مرحله‌ای قبل‌تر بازگردانده شد؛ تایید دوباره لازم است)"
             : StepLabel(step.Status, isCurrent);
 
+    /// <summary>
+    /// Label for a step that may sit in a parallel group (spec §12.2). A step in a group that never
+    /// got its turn to decide says <i>why</i> — which sibling approved (ANY mode: one was enough),
+    /// rejected, or sent the request back — instead of the generic "set aside" text. Everything else
+    /// is labelled exactly as <see cref="StepLabel(WorkflowRequestStep, bool)"/>.
+    /// </summary>
+    public static string StepLabel(WorkflowRequestStep step, bool isCurrent, IEnumerable<WorkflowRequestStep> groupSiblings)
+    {
+        if (step.Status != WorkflowStepStatus.Superseded || step.ActedAtUtc is not null)
+            return StepLabel(step, isCurrent);
+
+        var siblings = groupSiblings.Where(x => x.Round == step.Round && x.Order == step.Order && x.Id != step.Id).ToList();
+        var approved = siblings.FirstOrDefault(x => x.Status == WorkflowStepStatus.Approved);
+        if (step.ApprovalMode == ParallelApprovalMode.Any && approved is not null)
+            return $"نیازی به تصمیم نبود — «{approved.Name}» از همین گروه موازی تایید کرد و تایید یکی کافی بود";
+
+        var rejected = siblings.FirstOrDefault(x => x.Status == WorkflowStepStatus.Rejected);
+        if (rejected is not null)
+            return $"تصمیمی ثبت نشد — «{rejected.Name}» از همین گروه موازی رد کرد و درخواست بسته شد";
+
+        var returned = siblings.FirstOrDefault(x => x.Status is WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep);
+        if (returned is not null)
+            return returned.Status == WorkflowStepStatus.ReturnedToRequester
+                ? $"تصمیمی ثبت نشد — «{returned.Name}» از همین گروه موازی درخواست را به درخواست‌کننده بازگرداند"
+                : $"تصمیمی ثبت نشد — «{returned.Name}» از همین گروه موازی درخواست را به مرحله‌ای قبل‌تر بازگرداند";
+
+        return StepLabel(step, isCurrent);
+    }
+
     /// <summary>CSS state class for <c>.approval-step-icon</c> — controls its background/color.</summary>
     public static string StepIconClass(WorkflowStepStatus status, bool isCurrent) => status switch
     {
