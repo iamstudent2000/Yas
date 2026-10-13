@@ -551,8 +551,11 @@ public sealed class WorkflowRequest
             ?? throw new InvalidOperationException("Only the request's current step can be acted on.");
     }
 
-    private static IReadOnlyList<WorkflowResolvedStep>? ToResolvedSteps(IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)>? steps) =>
-        steps?.Select(x => new WorkflowResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList();
+    /// <summary>Null becomes an empty path, which the main constructor/Resubmit then refuse ("needs at least one approval step"), as a null always was.</summary>
+    private static IReadOnlyList<WorkflowResolvedStep> ToResolvedSteps(IReadOnlyList<(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId)>? steps) =>
+        steps is null
+            ? []
+            : steps.Select(x => new WorkflowResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId)).ToList();
 
     /// <summary>
     /// Steps sharing an order are one parallel group: they must agree on mode and reject policy and
