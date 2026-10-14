@@ -1,88 +1,126 @@
 @using YasPortal.Domain.Workflows
 @using YasPortal.Web.Services
 
-<div class="approval-timeline">
-    @foreach (var step in Steps)
-    {
-        var isCurrent = step.Round == CurrentRound && step.Order == CurrentStepOrder && step.Status == WorkflowStepStatus.Pending;
-        // Earlier passes on this same step within this round — e.g. it was approved, then a
-        // later step returned the request to it, resetting it for a fresh decision. The step
-        // itself only shows its current pass; every pass it ever went through is in Decisions.
-        var earlierPasses = Decisions.Where(d => d.StepId == step.Id).OrderBy(d => d.ActedAtUtc).SkipLast(step.ActedAtUtc is null ? 0 : 1).ToList();
-        <div class="approval-step">
-            <span class="approval-step-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
-            <div class="approval-step-body">
-                <strong>@step.Name</strong>
-                @if (Steps.Count(x => x.Round == step.Round && x.Order == step.Order) > 1)
+@* One card per stage (one step, or a parallel group), in the same stage-card look as the admin workflow editor. *@
+@{
+    var stages = Steps.GroupBy(x => x.Order).OrderBy(g => g.Key).ToList();
+}
+@foreach (var stage in stages)
+{
+    var members = stage.OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id).ToList();
+    var parallel = members.Count > 1;
+    var live = RequestStatus == WorkflowRequestStatus.PendingApproval && members[0].Round == CurrentRound && stage.Key == CurrentStepOrder;
+    var summary = WorkflowStageSummary.Of(members, live);
+    var stateClass = WorkflowDisplay.StageStateClass(summary.State);
+    <div class="stage-card rt-stage @stateClass @(parallel ? "is-parallel" : "")">
+        <div class="stage-card-head">
+            <span class="rt-stage-icon @stateClass"><i class="bx @WorkflowDisplay.StageStateIcon(summary.State)"></i></span>
+            <strong>مرحله @ToPersianDigits(stage.Key.ToString())</strong>
+            @if (parallel)
+            {
+                <span class="badge badge-info"><i class="bx bx-git-compare"></i> موازی</span>
+                <span class="badge badge-muted">@(members[0].ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")</span>
+                <span class="badge badge-muted">@(members[0].RejectPolicy == ParallelRejectPolicy.WaitForAll ? "رد پس از پاسخ همه" : "رد فوری")</span>
+                @if (members[0].ApprovalMode == ParallelApprovalMode.All)
                 {
-                    <span class="badge badge-muted" style="margin-inline-start:6px">موازی — @(step.ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")@(step.RejectPolicy == ParallelRejectPolicy.WaitForAll ? "؛ رد پس از پاسخ همه" : "؛ رد فوری")</span>
+                    <span class="rt-stage-progress">@ToPersianDigits(summary.Approved.ToString()) از @ToPersianDigits(summary.Total.ToString()) تایید</span>
                 }
-                @if (HighlightStepId == step.Id)
-                {
-                    <span class="badge badge-info" style="margin-inline-start:6px">تصمیم شما</span>
-                }
-                @if (earlierPasses.Count > 0)
-                {
-                    <span class="badge badge-muted" style="margin-inline-start:6px">بازگشت خورده — @ToPersianDigits((earlierPasses.Count + 1).ToString())مین بار در حال بررسی</span>
-                }
-                <div class="approval-step-meta">
-                    @WorkflowDisplay.StepLabel(step, isCurrent, Steps)
-                    @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
-                    {
-                        <span> — @actorName</span>
-                        // Spec §15.2: who acted, and whose authority it was.
-                        var passOnBehalf = Decisions.Where(d => d.StepId == step.Id && d.ActedByEmployeeId == actorId).OrderByDescending(d => d.ActedAtUtc).FirstOrDefault()?.OnBehalfOfEmployeeId;
-                        if (passOnBehalf is Guid delegatorId && EmployeeNames.TryGetValue(delegatorId, out var delegatorName))
-                        {
-                            <span> (به نمایندگی از @delegatorName)</span>
-                        }
-                    }
-                    else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
-                    {
-                        <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
-                    }
-                    @if (step.ActedAtUtc is DateTime actedAt)
-                    {
-                        <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                    }
-                </div>
-                @if (!string.IsNullOrWhiteSpace(step.Comment))
-                {
-                    <div class="approval-step-comment">«@step.Comment»</div>
-                }
-                @if (earlierPasses.Count > 0)
-                {
-                    <div class="approval-step-earlier-passes">
-                        @foreach (var earlier in earlierPasses)
-                        {
-                            <div class="approval-step-earlier-pass">
-                                <span>@WorkflowDisplay.StepLabel(earlier.Outcome, isCurrent: false)</span>
-                                @if (EmployeeNames.TryGetValue(earlier.ActedByEmployeeId, out var earlierActor))
+            }
+            <span class="badge @WorkflowDisplay.StageStateBadgeClass(summary.State) rt-stage-status">@WorkflowDisplay.StageStateLabel(summary.State)</span>
+        </div>
+        <div class="stage-members">
+            @foreach (var step in members)
+            {
+                var isCurrent = live && step.Status == WorkflowStepStatus.Pending;
+                // Earlier passes on this same step within this round — e.g. it was approved, then a
+                // later step returned the request to it, resetting it for a fresh decision. The step
+                // itself only shows its current pass; every pass it ever went through is in Decisions.
+                var earlierPasses = Decisions.Where(d => d.StepId == step.Id).OrderBy(d => d.ActedAtUtc).SkipLast(step.ActedAtUtc is null ? 0 : 1).ToList();
+                <div class="rt-member @(isCurrent ? "is-current" : "")">
+                    <span class="approval-step-icon rt-member-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+                    <div class="rt-member-body">
+                        <div class="rt-member-title">
+                            <strong>@step.Name</strong>
+                            @if (YourStepId == step.Id)
+                            {
+                                <span class="badge badge-info">نوبت شماست</span>
+                            }
+                            @if (HighlightStepId == step.Id)
+                            {
+                                <span class="badge badge-info">تصمیم شما</span>
+                            }
+                            @if (earlierPasses.Count > 0)
+                            {
+                                <span class="badge badge-muted">بازگشت خورده — @ToPersianDigits((earlierPasses.Count + 1).ToString())مین بار در حال بررسی</span>
+                            }
+                        </div>
+                        <div class="approval-step-meta">
+                            @WorkflowDisplay.StepLabel(step, isCurrent, Steps)
+                            @if (step.ActedByEmployeeId is Guid actorId && EmployeeNames.TryGetValue(actorId, out var actorName))
+                            {
+                                <span> — @actorName</span>
+                                // Spec §15.2: who acted, and whose authority it was.
+                                var passOnBehalf = Decisions.Where(d => d.StepId == step.Id && d.ActedByEmployeeId == actorId).OrderByDescending(d => d.ActedAtUtc).FirstOrDefault()?.OnBehalfOfEmployeeId;
+                                if (passOnBehalf is Guid delegatorId && EmployeeNames.TryGetValue(delegatorId, out var delegatorName))
                                 {
-                                    <span> — @earlierActor</span>
-                                    @if (earlier.OnBehalfOfEmployeeId is Guid earlierDelegator && EmployeeNames.TryGetValue(earlierDelegator, out var earlierDelegatorName))
-                                    {
-                                        <span> (به نمایندگی از @earlierDelegatorName)</span>
-                                    }
+                                    <span> (به نمایندگی از @delegatorName)</span>
                                 }
-                                <span> · @earlier.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                                @if (!string.IsNullOrWhiteSpace(earlier.Comment))
+                            }
+                            else if (step.Status == WorkflowStepStatus.Pending && (!isCurrent || ShowHolderForCurrentStep))
+                            {
+                                <span> — نزد: @(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی است")</span>
+                            }
+                            @if (step.ActedAtUtc is DateTime actedAt)
+                            {
+                                <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(step.Comment))
+                        {
+                            <div class="approval-step-comment">«@step.Comment»</div>
+                        }
+                        @if (earlierPasses.Count > 0)
+                        {
+                            <div class="approval-step-earlier-passes">
+                                @foreach (var earlier in earlierPasses)
                                 {
-                                    <span> — «@earlier.Comment»</span>
+                                    <div class="approval-step-earlier-pass">
+                                        <span>@WorkflowDisplay.StepLabel(earlier.Outcome, isCurrent: false)</span>
+                                        @if (EmployeeNames.TryGetValue(earlier.ActedByEmployeeId, out var earlierActor))
+                                        {
+                                            <span> — @earlierActor</span>
+                                            @if (earlier.OnBehalfOfEmployeeId is Guid earlierDelegator && EmployeeNames.TryGetValue(earlierDelegator, out var earlierDelegatorName))
+                                            {
+                                                <span> (به نمایندگی از @earlierDelegatorName)</span>
+                                            }
+                                        }
+                                        <span> · @earlier.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                        @if (!string.IsNullOrWhiteSpace(earlier.Comment))
+                                        {
+                                            <span> — «@earlier.Comment»</span>
+                                        }
+                                    </div>
                                 }
                             </div>
                         }
                     </div>
-                }
-            </div>
+                </div>
+            }
         </div>
+    </div>
+    @if (stage.Key != stages[^1].Key)
+    {
+        <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
     }
-</div>
+}
 
 @code {
     [Parameter, EditorRequired] public IEnumerable<WorkflowRequestStep> Steps { get; set; } = [];
     [Parameter] public int CurrentRound { get; set; }
     [Parameter] public int CurrentStepOrder { get; set; }
+
+    /// <summary>The request's status: only a request pending approval has a stage that is waiting right now.</summary>
+    [Parameter] public WorkflowRequestStatus RequestStatus { get; set; } = WorkflowRequestStatus.PendingApproval;
     [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
     [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
 
@@ -95,6 +133,9 @@
 
     /// <summary>Optionally highlight one specific step as "your decision" — used by the inbox history view.</summary>
     [Parameter] public Guid? HighlightStepId { get; set; }
+
+    /// <summary>The step the viewer is being asked to decide right now (inbox) — marked "نوبت شماست".</summary>
+    [Parameter] public Guid? YourStepId { get; set; }
 
     /// <summary>Whether to show the current holder's name on the current (awaiting-action) step too, not just queued ones.</summary>
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;

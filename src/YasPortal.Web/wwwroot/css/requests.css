@@ -96,3 +96,62 @@
 .tree-org-filter{min-width:170px}
 .blocker-panel{margin-top:12px;padding:10px 12px;border:1px solid #fecdca;background:#fef3f2;border-radius:10px}
 .blocker-panel ul{margin:6px 0;padding-inline-start:18px}
+
+/* =============================================================
+   Request flow (My requests / Inbox / Admin rejected list):
+   progress strip, "where is it now" line, and one stage card per
+   stage — the same stage-card look as the admin workflow editor.
+   ============================================================= */
+.rt-progress{margin:14px 0 4px;padding:12px 14px;border:1px solid #e6ebf2;border-radius:12px;background:#fff}
+.rt-progress-track{display:flex;align-items:center;flex-wrap:wrap;row-gap:6px}
+.rt-progress-dot{width:28px;height:28px;flex:0 0 28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:800;line-height:1;background:#f2f4f7;color:#98a2b3;box-shadow:0 0 0 1px #e6ebf2}
+.rt-progress-dot i{font-size:15px}
+.rt-progress-dot.is-awaiting{background:#eef2ff;color:#1d4ed8;box-shadow:0 0 0 2px #c7d7ff}
+.rt-progress-dot.is-approved{background:#ecfdf3;color:#027a48;box-shadow:0 0 0 1px #abefc6}
+.rt-progress-dot.is-rejected{background:#fef3f2;color:#b42318;box-shadow:0 0 0 1px #fecdca}
+.rt-progress-dot.is-returned{background:#fffaeb;color:#b54708;box-shadow:0 0 0 1px #fedf89}
+.rt-progress-line{width:22px;height:2px;flex:0 0 22px;background:#e6ebf2}
+.rt-progress-line.is-done{background:#abefc6}
+.rt-now{margin:10px 0 0;display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.9;color:#1b2333}
+.rt-now i{font-size:17px;margin-top:3px;color:#667085}
+.rt-now.is-awaiting i{color:#1d4ed8}
+.rt-now.is-approved i{color:#027a48}
+.rt-now.is-rejected i{color:#b42318}
+.rt-now.is-returned i{color:#b54708}
+
+.rt-flow{display:flex;flex-direction:column;margin-top:12px}
+.rt-flow .stage-arrow{height:22px}
+.rt-event{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px dashed #bfdcf0;border-radius:12px;background:#f7fbff}
+.rt-event.is-cancelled{border-color:#d0d5dd;background:#f9fafb}
+.rt-event strong{font-size:13px;color:#1b2333}
+
+.rt-stage-icon{width:28px;height:28px;flex:0 0 28px;border-radius:50%;display:grid;place-items:center;font-size:15px;background:#f2f4f7;color:#98a2b3}
+.rt-stage-icon.is-requester{background:#f0f9ff;color:#0369a1}
+.rt-stage-icon.is-cancelled{background:#f2f4f7;color:#667085}
+.rt-stage-icon.is-awaiting{background:#eef2ff;color:#1d4ed8}
+.rt-stage-icon.is-approved{background:#ecfdf3;color:#027a48}
+.rt-stage-icon.is-rejected{background:#fef3f2;color:#b42318}
+.rt-stage-icon.is-returned{background:#fffaeb;color:#b54708}
+
+.rt-flow .stage-card.rt-stage{background:#fff}
+.rt-flow .stage-card.rt-stage.is-awaiting{border-color:#c7d7ff;box-shadow:0 0 0 3px rgba(29,78,216,.06)}
+.rt-flow .stage-card.rt-stage.is-approved{border-color:#abefc6}
+.rt-flow .stage-card.rt-stage.is-rejected{border-color:#fecdca}
+.rt-flow .stage-card.rt-stage.is-returned{border-color:#fedf89}
+.rt-flow .stage-card.rt-stage.is-skipped,.rt-flow .stage-card.rt-stage.is-queued{border-color:#e6ebf2}
+.rt-flow .stage-card.rt-stage.is-skipped .stage-members{opacity:.75}
+.rt-flow .stage-card.is-parallel .stage-members{margin-inline-start:0;border-inline-start:0}
+.rt-stage-status{margin-inline-start:auto}
+.rt-stage-progress{font-size:11.5px;color:#667085}
+.rt-member{display:flex;gap:10px;padding:9px 10px;border:1px solid #eef1f5;border-radius:10px;background:#fff}
+.rt-member.is-current{border-color:#c7d7ff;background:#f5f8ff}
+.rt-member-icon{width:28px;height:28px;flex:0 0 28px;font-size:14px}
+.rt-member-body{flex:1;min-width:0}
+.rt-member-title{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.rt-member-title strong{font-size:13px;color:#1b2333}
+
+@media(max-width:600px){
+    .rt-progress-line{width:14px;flex-basis:14px}
+    .rt-flow .stage-card-head{gap:6px}
+    .rt-stage-status{margin-inline-start:0}
+}

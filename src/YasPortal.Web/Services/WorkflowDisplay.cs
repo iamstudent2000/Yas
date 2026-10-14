@@ -148,4 +148,38 @@ public static class WorkflowDisplay
         WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => "badge-warning",
         _ => "badge-muted",
     };
+
+    // ---- whole-stage display (a stage = one step, or a parallel group) ----
+
+    /// <summary>CSS state modifier for a stage card / icon, e.g. <c>is-awaiting</c>.</summary>
+    public static string StageStateClass(WorkflowStageState state) => "is-" + state.ToString().ToLowerInvariant();
+
+    public static string StageStateLabel(WorkflowStageState state) => state switch
+    {
+        WorkflowStageState.Awaiting => "در انتظار تصمیم",
+        WorkflowStageState.Approved => "تایید شد",
+        WorkflowStageState.Rejected => "رد شد",
+        WorkflowStageState.Returned => "بازگردانده شد",
+        WorkflowStageState.Skipped => "بدون تصمیم",
+        _ => "در صف",
+    };
+
+    public static string StageStateBadgeClass(WorkflowStageState state) => state switch
+    {
+        WorkflowStageState.Awaiting => "badge-info",
+        WorkflowStageState.Approved => "badge-success",
+        WorkflowStageState.Rejected => "badge-danger",
+        WorkflowStageState.Returned => "badge-warning",
+        _ => "badge-muted",
+    };
+
+    public static string StageStateIcon(WorkflowStageState state) => state switch
+    {
+        WorkflowStageState.Awaiting => "bx-time-five",
+        WorkflowStageState.Approved => "bx-check",
+        WorkflowStageState.Rejected => "bx-x",
+        WorkflowStageState.Returned => "bx-undo",
+        WorkflowStageState.Skipped => "bx-minus",
+        _ => "bx-time",
+    };
 }

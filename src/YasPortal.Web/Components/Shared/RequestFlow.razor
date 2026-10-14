@@ -1,0 +1,129 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+
+@* One round of a request as a flow: the requester's submit/resubmit event, the stage cards, and — for the live round — how it ended if it was cancelled. *@
+<div class="rt-flow">
+    @if (RoundKey == 1)
+    {
+        <div class="rt-event">
+            <span class="rt-stage-icon is-requester"><i class="bx bx-plus-circle"></i></span>
+            <div>
+                <strong>ثبت درخواست</strong>
+                <div class="approval-step-meta">
+                    توسط درخواست‌کننده ثبت شد
+                    @if (RequesterName is not null)
+                    {
+                        <span> — @RequesterName</span>
+                    }
+                    <span> · @Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="rt-event">
+            <span class="rt-stage-icon is-requester"><i class="bx bx-refresh"></i></span>
+            <div>
+                <strong>ارسال مجدد</strong>
+                <div class="approval-step-meta">
+                    درخواست‌کننده پس از اصلاح دوباره ارسال کرد
+                    @if (RequesterName is not null)
+                    {
+                        <span> — @RequesterName</span>
+                    }
+                    @if (ActionTime(WorkflowRequesterActionKind.Resubmitted) is string resubmittedAt)
+                    {
+                        <span> · @resubmittedAt</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (RoundSteps.Count > 0)
+    {
+        <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+        <WorkflowStepTimeline Steps="RoundSteps"
+                              CurrentRound="Request.CurrentRound"
+                              CurrentStepOrder="Request.CurrentStepOrder"
+                              RequestStatus="Request.Status"
+                              EmployeeNames="EmployeeNames"
+                              Decisions="Decisions"
+                              HolderNames="HolderNames"
+                              HighlightStepId="HighlightStepId"
+                              YourStepId="YourStepId"
+                              ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
+    }
+
+    @if (IsCurrentRound && Request.Status == WorkflowRequestStatus.Cancelled)
+    {
+        <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+        @if (Request.ForceClosedByEmployeeId is Guid forceCloserId)
+        {
+            <div class="rt-event is-cancelled">
+                <span class="rt-stage-icon is-cancelled"><i class="bx bx-shield-x"></i></span>
+                <div>
+                    <strong>بستن اجباری توسط مدیر سامانه</strong>
+                    <div class="approval-step-meta">
+                        @(EmployeeNames.TryGetValue(forceCloserId, out var forceCloserName) ? forceCloserName : "مدیر سامانه")
+                        @if (Request.ForceClosedAtUtc is DateTime forceClosedAt)
+                        {
+                            <span> · @forceClosedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Request.ForceCloseReason))
+                    {
+                        <div class="approval-step-comment">«@Request.ForceCloseReason»</div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="rt-event is-cancelled">
+                <span class="rt-stage-icon is-cancelled"><i class="bx bx-x-circle"></i></span>
+                <div>
+                    <strong>لغو درخواست</strong>
+                    <div class="approval-step-meta">
+                        توسط درخواست‌کننده لغو شد
+                        @if (RequesterName is not null)
+                        {
+                            <span> — @RequesterName</span>
+                        }
+                        @if (ActionTime(WorkflowRequesterActionKind.Cancelled) is string cancelledAt)
+                        {
+                            <span> · @cancelledAt</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
+    [Parameter, EditorRequired] public int RoundKey { get; set; }
+    [Parameter] public IReadOnlyList<WorkflowRequestStep> RoundSteps { get; set; } = [];
+    [Parameter] public bool IsCurrentRound { get; set; }
+    [Parameter] public string? RequesterName { get; set; }
+    [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
+    [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
+    [Parameter] public IReadOnlyList<WorkflowStepDecision> Decisions { get; set; } = [];
+    [Parameter] public Guid? HighlightStepId { get; set; }
+    [Parameter] public Guid? YourStepId { get; set; }
+    [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
+
+    /// <summary>
+    /// Formats a real WorkflowRequesterAction timestamp for this round, when one was recorded.
+    /// Requests submitted before RequesterActions existed have none for round 1 — CreatedAtUtc is
+    /// used for that row instead — but resubmit/cancel on old data will render without a time,
+    /// rather than showing a wrong or made-up timestamp.
+    /// </summary>
+    private string? ActionTime(WorkflowRequesterActionKind kind) =>
+        Request.RequesterActions
+            .Where(a => a.Round == RoundKey && a.Kind == kind)
+            .OrderByDescending(a => a.AtUtc)
+            .FirstOrDefault()?.AtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+}

@@ -3,6 +3,49 @@
 @using System.Linq
 @using YasPortal.Web.Services
 
+@{
+    var currentSteps = Request.Steps.Where(x => x.Round == Request.CurrentRound).ToList();
+    var stageViews = currentSteps
+        .GroupBy(x => x.Order)
+        .OrderBy(g => g.Key)
+        .Select(g =>
+        {
+            var members = g.OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id).ToList();
+            var live = Request.Status == WorkflowRequestStatus.PendingApproval && g.Key == Request.CurrentStepOrder;
+            return new StageView(g.Key, members, WorkflowStageSummary.Of(members, live));
+        })
+        .ToList();
+}
+@if (stageViews.Count > 0)
+{
+    var now = DescribeNow(stageViews);
+    <div class="rt-progress">
+        <div class="rt-progress-track" role="list" aria-label="پیشرفت مسیر تایید">
+            @for (var i = 0; i < stageViews.Count; i++)
+            {
+                var view = stageViews[i];
+                var stateClass = WorkflowDisplay.StageStateClass(view.Summary.State);
+                var tip = string.Join(" / ", view.Members.Select(m => m.Name)) + " — " + WorkflowDisplay.StageStateLabel(view.Summary.State);
+                <span class="rt-progress-dot @stateClass" role="listitem" title="@tip">
+                    @if (view.Summary.State is WorkflowStageState.Approved or WorkflowStageState.Rejected or WorkflowStageState.Returned)
+                    {
+                        <i class="bx @WorkflowDisplay.StageStateIcon(view.Summary.State)"></i>
+                    }
+                    else
+                    {
+                        <text>@ToPersianDigits(view.Order.ToString())</text>
+                    }
+                </span>
+                @if (i < stageViews.Count - 1)
+                {
+                    <span class="rt-progress-line @(view.Summary.State == WorkflowStageState.Approved ? "is-done" : "")"></span>
+                }
+            }
+        </div>
+        <p class="rt-now @now.Class"><i class="bx @now.Icon"></i><span>@now.Text</span></p>
+    </div>
+}
+
 <div class="field-summary">
     <div class="field-summary-item"><span>شناسه درخواست</span><strong dir="ltr">#@(Request.Id.ToString("N")[..8])</strong></div>
     @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType))
@@ -53,119 +96,26 @@
 
 @{
     var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
-    if (rounds.Count == 0)
-    {
-        rounds = new[] { Request.Steps.GroupBy(x => 1).FirstOrDefault() }.Where(x => x != null).ToList()!;
-    }
     var requesterName = EmployeeNames.TryGetValue(Request.RequesterEmployeeId, out var rn) ? rn : null;
     var stepDecisions = Request.StepDecisions.ToList();
-    var allRoundKeys = rounds.Select(g => g.Key).DefaultIfEmpty(1).ToList();
+    var roundKeys = rounds.Select(g => g.Key).DefaultIfEmpty(1).ToList();
 }
 
-@foreach (var round in rounds.DefaultIfEmpty())
+@foreach (var roundKey in roundKeys)
 {
-    var roundKey = round?.Key ?? 1;
     var isCurrentRound = roundKey == Request.CurrentRound;
-    var roundSteps = round?.OrderBy(x => x.Order).ToList() ?? new List<WorkflowRequestStep>();
+    var roundSteps = rounds.FirstOrDefault(g => g.Key == roundKey)?.OrderBy(x => x.Order).ToList() ?? new List<WorkflowRequestStep>();
 
     if (isCurrentRound)
     {
-        @if (allRoundKeys.Count > 1)
+        @if (roundKeys.Count > 1)
         {
             <p class="round-heading">دور @ToPersianDigits(roundKey.ToString()) (فعلی)</p>
         }
-        <div class="approval-timeline">
-            @* Requester row — always visible *@
-            @if (roundKey == 1)
-            {
-                <div class="approval-step">
-                    <span class="approval-step-icon is-requester"><i class="bx bx-plus-circle"></i></span>
-                    <div class="approval-step-body">
-                        <strong>ثبت درخواست</strong>
-                        <div class="approval-step-meta">
-                            توسط درخواست‌کننده ثبت شد
-                            @if (requesterName is not null)
-                            {
-                                <span> — @requesterName</span>
-                            }
-                            <span> · @Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                        </div>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="approval-step">
-                    <span class="approval-step-icon is-requester"><i class="bx bx-refresh"></i></span>
-                    <div class="approval-step-body">
-                        <strong>ارسال مجدد</strong>
-                        <div class="approval-step-meta">
-                            درخواست‌کننده پس از اصلاح دوباره ارسال کرد
-                            @if (requesterName is not null)
-                            {
-                                <span> — @requesterName</span>
-                            }
-                            @{ var resubmittedAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Resubmitted); }
-                            @if (resubmittedAt is not null)
-                            {
-                                <span> · @resubmittedAt</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-            }
-
-            <WorkflowStepTimeline Steps="roundSteps"
-                                  CurrentRound="Request.CurrentRound"
-                                  CurrentStepOrder="Request.CurrentStepOrder"
-                                  EmployeeNames="EmployeeNames"
-                                  Decisions="stepDecisions"
-                                  HolderNames="HolderNames"
-                                  HighlightStepId="HighlightStepId"
-                                  ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
-
-            @if (Request.Status == WorkflowRequestStatus.Cancelled && Request.ForceClosedByEmployeeId is Guid forceCloserId)
-            {
-                <div class="approval-step">
-                    <span class="approval-step-icon is-cancelled"><i class="bx bx-shield-x"></i></span>
-                    <div class="approval-step-body">
-                        <strong>بستن اجباری توسط مدیر سامانه</strong>
-                        <div class="approval-step-meta">
-                            @(EmployeeNames.TryGetValue(forceCloserId, out var forceCloserName) ? forceCloserName : "مدیر سامانه")
-                            @if (Request.ForceClosedAtUtc is DateTime forceClosedAt)
-                            {
-                                <span> · @forceClosedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                            }
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(Request.ForceCloseReason))
-                        {
-                            <div class="approval-step-comment">«@Request.ForceCloseReason»</div>
-                        }
-                    </div>
-                </div>
-            }
-            else if (Request.Status == WorkflowRequestStatus.Cancelled)
-            {
-                <div class="approval-step">
-                    <span class="approval-step-icon is-cancelled"><i class="bx bx-x-circle"></i></span>
-                    <div class="approval-step-body">
-                        <strong>لغو درخواست</strong>
-                        <div class="approval-step-meta">
-                            توسط درخواست‌کننده لغو شد
-                            @if (requesterName is not null)
-                            {
-                                <span> — @requesterName</span>
-                            }
-                            @{ var cancelledAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Cancelled); }
-                            @if (cancelledAt is not null)
-                            {
-                                <span> · @cancelledAt</span>
-                            }
-                        </div>
-                    </div>
-                </div>
-            }
-        </div>
+        <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="true"
+                     RequesterName="requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
+                     Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
+                     ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
     }
     else
     {
@@ -177,54 +127,10 @@
             </button>
             @if (expanded)
             {
-                <div class="approval-timeline">
-                    @if (roundKey == 1)
-                    {
-                        <div class="approval-step">
-                            <span class="approval-step-icon is-requester"><i class="bx bx-plus-circle"></i></span>
-                            <div class="approval-step-body">
-                                <strong>ثبت درخواست</strong>
-                                <div class="approval-step-meta">
-                                    توسط درخواست‌کننده ثبت شد
-                                    @if (requesterName is not null)
-                                    {
-                                        <span> — @requesterName</span>
-                                    }
-                                    <span> · @Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="approval-step">
-                            <span class="approval-step-icon is-requester"><i class="bx bx-refresh"></i></span>
-                            <div class="approval-step-body">
-                                <strong>ارسال مجدد</strong>
-                                <div class="approval-step-meta">
-                                    درخواست‌کننده پس از اصلاح دوباره ارسال کرد
-                                    @if (requesterName is not null)
-                                    {
-                                        <span> — @requesterName</span>
-                                    }
-                                    @{ var historyResubmittedAt = GetActionTime(roundKey, WorkflowRequesterActionKind.Resubmitted); }
-                                    @if (historyResubmittedAt is not null)
-                                    {
-                                        <span> · @historyResubmittedAt</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    }
-                    <WorkflowStepTimeline Steps="roundSteps"
-                                          CurrentRound="Request.CurrentRound"
-                                          CurrentStepOrder="Request.CurrentStepOrder"
-                                          EmployeeNames="EmployeeNames"
-                                          Decisions="stepDecisions"
-                                          HolderNames="HolderNames"
-                                          HighlightStepId="HighlightStepId"
-                                          ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
-                </div>
+                <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="false"
+                             RequesterName="requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
+                             Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
+                             ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
             }
         </div>
     }
@@ -235,6 +141,9 @@
     [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
     [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
     [Parameter] public Guid? HighlightStepId { get; set; }
+
+    /// <summary>The step the viewer is being asked to decide right now (inbox), so the summary can say "نوبت شماست".</summary>
+    [Parameter] public Guid? YourStepId { get; set; }
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
     private readonly HashSet<int> _expandedRounds = [];
@@ -255,19 +164,56 @@
         catch (JsonException) { return null; }
     }
 
-    /// <summary>
-    /// Formats a real WorkflowRequesterAction timestamp for a round, when one was recorded.
-    /// Requests submitted before RequesterActions existed have none for round 1 — CreatedAtUtc is
-    /// used for that row instead — but resubmit/cancel on old data will render without a time,
-    /// same as before this feature, rather than showing a wrong or made-up timestamp.
-    /// </summary>
-    private string? GetActionTime(int round, WorkflowRequesterActionKind kind)
+    private sealed record StageView(int Order, List<WorkflowRequestStep> Members, WorkflowStageSummary Summary);
+
+    /// <summary>The one-sentence "where is this request now" line shown above the details.</summary>
+    private (string Icon, string Class, string Text) DescribeNow(List<StageView> stages)
     {
-        var action = Request.RequesterActions
-            .Where(a => a.Round == round && a.Kind == kind)
-            .OrderByDescending(a => a.AtUtc)
-            .FirstOrDefault();
-        return action?.AtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+        switch (Request.Status)
+        {
+            case WorkflowRequestStatus.PendingApproval:
+            {
+                var live = stages.FirstOrDefault(s => s.Order == Request.CurrentStepOrder);
+                var waiting = live?.Members.Where(m => m.Status == WorkflowStepStatus.Pending).ToList() ?? [];
+                if (waiting.Count == 0)
+                    return ("bx-time", "is-queued", "درخواست در حال بررسی است.");
+
+                string Who(WorkflowRequestStep step) => ShowHolderForCurrentStep
+                    ? $"«{step.Name}» — {(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی")}"
+                    : $"«{step.Name}»";
+
+                var yours = YourStepId is Guid mine && waiting.Any(m => m.Id == mine);
+                if (yours)
+                {
+                    var others = waiting.Where(m => m.Id != YourStepId).ToList();
+                    return ("bx-time-five", "is-awaiting",
+                        others.Count == 0
+                            ? "نوبت شماست."
+                            : "نوبت شماست؛ هم‌زمان در انتظار: " + string.Join("، ", others.Select(Who)) + ".");
+                }
+
+                return ("bx-time-five", "is-awaiting",
+                    waiting.Count == 1
+                        ? "در انتظار تصمیم " + Who(waiting[0]) + "."
+                        : $"در انتظار {ToPersianDigits(waiting.Count.ToString())} تاییدکننده هم‌زمان: " + string.Join("، ", waiting.Select(Who)) + ".");
+            }
+
+            case WorkflowRequestStatus.Approved:
+                return ("bx-check-circle", "is-approved", "درخواست تایید نهایی شد.");
+
+            case WorkflowRequestStatus.Rejected:
+            {
+                var rejecting = stages.SelectMany(s => s.Members).Where(m => m.Status == WorkflowStepStatus.Rejected).OrderByDescending(m => m.ActedAtUtc).FirstOrDefault();
+                var by = rejecting?.ActedByEmployeeId is Guid actor && EmployeeNames.TryGetValue(actor, out var actorName) ? " توسط " + actorName : "";
+                return ("bx-x-circle", "is-rejected", rejecting is null ? "درخواست رد شد." : $"درخواست در «{rejecting.Name}» رد شد{by}.");
+            }
+
+            case WorkflowRequestStatus.ReturnedToRequester:
+                return ("bx-undo", "is-returned", "درخواست به درخواست‌کننده بازگردانده شد؛ پس از اصلاح باید دوباره ارسال شود.");
+
+            default:
+                return ("bx-x-circle", "is-skipped", Request.ForceClosedByEmployeeId is not null ? "درخواست توسط مدیر سامانه بسته شد." : "درخواست لغو شد.");
+        }
     }
 
     private static string ToPersianDigits(string value)
