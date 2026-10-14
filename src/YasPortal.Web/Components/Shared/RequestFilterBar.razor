@@ -2,8 +2,16 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 
-<section class="card" dir="rtl">
-    <div class="admin-filters">
+<section class="card request-filter @(_open ? "is-open" : "")" dir="rtl">
+    <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
+        <i class="bx bx-filter-alt"></i> فیلترها
+        @if (ActiveCount > 0)
+        {
+            <span class="badge badge-info">@ActiveCount</span>
+        }
+        <i class="bx @(_open ? "bx-chevron-up" : "bx-chevron-down") request-filter-toggle-chevron"></i>
+    </button>
+    <div class="admin-filters request-filter-body">
         <div class="admin-filter">
             <label class="form-label">شناسه درخواست</label>
             <input class="form-control" placeholder="مثلا a1b2c3d4" value="@Filter.IdText" @oninput="e => SetDebounced(() => Filter.IdText = e.Value?.ToString())" />
@@ -63,6 +71,14 @@
 
     /// <summary>Raised after any change, so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }
+
+    // Only matters on phones, where the filters start folded so the list is the first thing on screen.
+    private bool _open;
+
+    private int ActiveCount =>
+        (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1);
 
     private async Task Set(Action apply)
     {

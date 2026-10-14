@@ -57,6 +57,7 @@
                     <span class="request-card-title">
                         <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                        <RequestNowLine Request="request" />
                     </span>
                     @if (!request.RequesterHasSeenLatestUpdate)
                     {

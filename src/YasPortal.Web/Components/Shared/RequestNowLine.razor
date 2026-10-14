@@ -1,0 +1,43 @@
+@using YasPortal.Domain.Workflows
+
+@* One scannable line under a request card's title: which stage the request is at, who it waits for, and for how long. *@
+@if (_headline is not null)
+{
+    <span class="rq-now @(_days >= 3 ? "is-late" : "")">
+        <span class="rq-now-stage">مرحله @ToPersianDigits(_headline.StageNumber.ToString()) از @ToPersianDigits(_headline.StageCount.ToString())</span>
+        @if (ShowWaitingFor)
+        {
+            <span class="rq-now-who"><i class="bx bx-time-five"></i> در انتظار @string.Join("، ", _headline.WaitingNames.Select(n => "«" + n + "»"))</span>
+        }
+        <span class="rq-now-age"><i class="bx bx-hourglass"></i> @AgeText()</span>
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
+
+    /// <summary>The approver's own inbox already names the step on the card, so it passes false to avoid saying it twice.</summary>
+    [Parameter] public bool ShowWaitingFor { get; set; } = true;
+
+    private WorkflowRequestHeadline? _headline;
+    private int _days;
+
+    protected override void OnParametersSet()
+    {
+        _headline = WorkflowRequestHeadline.Of(Request);
+        _days = _headline is null ? 0 : WorkflowRequestHeadline.WholeDaysWaiting(_headline.WaitingSinceUtc, DateTime.UtcNow);
+    }
+
+    private string AgeText() => _days switch
+    {
+        0 => "از امروز",
+        1 => "از دیروز",
+        _ => $"{ToPersianDigits(_days.ToString())} روز است",
+    };
+
+    private static string ToPersianDigits(string value)
+    {
+        const string digits = "۰۱۲۳۴۵۶۷۸۹";
+        return new string(value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray());
+    }
+}

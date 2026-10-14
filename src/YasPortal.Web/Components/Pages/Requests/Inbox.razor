@@ -60,6 +60,7 @@
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
                                 <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <RequestNowLine Request="item.Request" ShowWaitingFor="false" />
                             </span>
                             <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
                             @if (item.IsDelegated)
@@ -77,12 +78,15 @@
                             </div>
 
                             <div class="inbox-actions">
+                                <div class="inbox-actions-primary">
                                 <AuthorizeView Policy="Requests.Approve">
                                     <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="Requests.Reject">
                                     <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
                                 </AuthorizeView>
+                                </div>
+                                <div class="inbox-actions-secondary">
                                 <AuthorizeView Policy="Requests.ReturnToRequester">
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
                                 </AuthorizeView>
@@ -112,6 +116,7 @@
                                         <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="bx bx-skip-previous"></i> بازگشت به مرحله انتخاب‌شده</button>
                                     </AuthorizeView>
                                 }
+                                </div>
                                 @if (busy)
                                 {
                                     <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
