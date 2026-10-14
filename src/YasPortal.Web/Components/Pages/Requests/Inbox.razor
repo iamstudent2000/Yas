@@ -29,7 +29,7 @@
 
     @if (!_ready)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بررسی سمت فعال...</div></section>
+        <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
     }
     else if (_approverPositionId is null)
     {
@@ -160,7 +160,7 @@
 
             @if (_historyLoading)
             {
-                <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div></section>
+                <section class="card"><LoadingState /></section>
             }
             else if (_historyItems.Count == 0)
             {

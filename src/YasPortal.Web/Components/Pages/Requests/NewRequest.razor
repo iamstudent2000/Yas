@@ -32,7 +32,7 @@
 
     @if (!_ready)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بررسی سمت فعال...</div></section>
+        <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
     }
     else if (_requesterPositionId is null)
     {

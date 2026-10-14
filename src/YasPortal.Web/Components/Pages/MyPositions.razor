@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
 @attribute [Authorize]
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -15,6 +16,7 @@
 <div class="positions-page">
     <div class="page-header">
         <div>
+            <div class="page-kicker">حساب من</div>
             <h1 class="page-title">سمت‌های من</h1>
             <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
         </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
@@ -23,7 +25,7 @@
     @if (_positions is null)
     {
         <section class="card">
-            <p>در حال بارگذاری سمت‌ها...</p>
+            <LoadingState Text="در حال بارگذاری سمت‌ها..." />
         </section>
     }
     else if (_positions.Count == 0)

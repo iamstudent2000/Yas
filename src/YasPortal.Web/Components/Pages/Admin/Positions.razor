@@ -17,7 +17,7 @@
 <div dir="rtl" class="positions-page admin-page">
     <div class="page-header">
         <div>
-            <div class="page-subtitle">مدیریت سامانه / سمت‌ها</div>
+            <div class="page-kicker">مدیریت سامانه / سمت‌ها</div>
             <h1 class="page-title">ساختار و تخصیص سمت‌ها</h1>
             <p class="page-subtitle">ساختار سمت‌ها درختی است؛ برای تعداد زیاد سمت‌ها شاخه‌ها را باز و بسته کنید.</p>
         </div>
@@ -79,7 +79,7 @@
 
                             @if (_loading)
                             {
-                                <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div>
+                                <LoadingState />
                             }
                             else if (_positions.Count == 0)
                             {

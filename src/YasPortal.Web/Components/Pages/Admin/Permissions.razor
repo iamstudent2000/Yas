@@ -164,7 +164,7 @@
                                                                     }
                                 else if (_usage is null)
                                                                     {
-                                                                        <div class="admin-empty" style="min-height:100px"><span>اطلاعات مصرف این مجوز پیدا نشد.</span></div>
+                                                                        <div class="admin-empty is-compact"><span>اطلاعات مصرف این مجوز پیدا نشد.</span></div>
                                                                     }
                                                                     else
                                                                     {
@@ -185,12 +185,12 @@
                                                                                     @{ var filteredDirect = FilteredDirect(); }
                                                                                     @if (_usage.DirectAssignments.Count == 0)
                                                                                     {
-                                                                                        <div class="admin-empty" style="min-height:100px"><span>این مجوز مستقیماً به هیچ کاربری
+                                                                                        <div class="admin-empty is-compact"><span>این مجوز مستقیماً به هیچ کاربری
                                                                                             تخصیص داده نشده است.</span></div>
                                                                                         }
                                             else if (filteredDirect.Count == 0)
                                                                                         {
-                                                                                            <div class="admin-empty" style="min-height:80px"><span>موردی با این عبارت پیدا نشد.</span></div>
+                                                                                            <div class="admin-empty is-compact"><span>موردی با این عبارت پیدا نشد.</span></div>
                                                                                         }
                                                                                         else
                                                                                         {
@@ -223,12 +223,12 @@
                                                                                                 @{ var filteredGroups = FilteredGroups(); }
                                                                                                 @if (_usage.Groups.Count == 0)
                                                                                                 {
-                                                                                                    <div class="admin-empty" style="min-height:100px"><span>هیچ گروهی این مجوز را شامل
+                                                                                                    <div class="admin-empty is-compact"><span>هیچ گروهی این مجوز را شامل
                                                                                                         نمی‌شود.</span></div>
                                                                                                     }
                                             else if (filteredGroups.Count == 0)
                                                                                                 {
-                                                                                                    <div class="admin-empty" style="min-height:80px"><span>موردی با این عبارت پیدا نشد.</span></div>
+                                                                                                    <div class="admin-empty is-compact"><span>موردی با این عبارت پیدا نشد.</span></div>
                                                                                                 }
                                                                                                     else
                                                                                                     {

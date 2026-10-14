@@ -33,7 +33,7 @@
 
     @if (_loading)
     {
-        <p class="muted">در حال بارگذاری...</p>
+        <LoadingState />
     }
     else if (_requests.Count == 0)
     {

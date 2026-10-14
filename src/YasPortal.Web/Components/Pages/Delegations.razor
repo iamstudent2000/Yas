@@ -30,7 +30,7 @@
 
     @if (!_ready)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div></section>
+        <section class="card"><LoadingState /></section>
     }
     else if (!_canCreate && !_canManage)
     {

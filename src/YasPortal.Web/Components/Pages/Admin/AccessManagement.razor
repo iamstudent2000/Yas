@@ -87,7 +87,7 @@
                             </div>
                             @if (_permissionLoading)
                             {
-                                <div class="empty-state">در حال بارگذاری مجوزها...</div>
+                                <LoadingState Text="در حال بارگذاری مجوزها..." />
                             }
                             else if (_permissions.Count == 0)
                             {

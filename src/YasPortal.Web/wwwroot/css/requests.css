@@ -183,3 +183,11 @@
     .rt-flow .stage-card-head{gap:6px}
     .rt-stage-status{margin-inline-start:0}
 }
+
+/* ---- notification list: unread stands out, read recedes ---- */
+.notification-card.is-unread{border-inline-start:4px solid #1d4ed8;background:#f8faff}
+.notification-card.is-unread .request-card-title strong{white-space:normal}
+.notification-card.is-read{box-shadow:none}
+.notification-card.is-read .request-card-icon{background:#f2f4f7;color:#667085}
+.notification-card.is-read .request-card-title strong{color:#475467;font-weight:600;white-space:normal}
+.request-card-header:focus-visible{outline:2px solid #1d4ed8;outline-offset:-2px}

@@ -16,7 +16,7 @@
 <div class="admin-page" dir="rtl">
     <div class="page-header">
         <div>
-            <div class="page-subtitle">مدیریت سامانه / سازمان‌ها</div>
+            <div class="page-kicker">مدیریت سامانه / سازمان‌ها</div>
             <h1 class="page-title">مدیریت سازمان‌ها</h1>
             <p class="page-subtitle">ایجاد سازمان، تغییر وضعیت و تعیین سازمان هر کارمند</p>
         </div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
@@ -61,7 +61,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                     </div>
                     @if (_organizationLoading)
                     {
-                        <div class="empty-state">در حال بارگذاری...</div>
+                        <LoadingState />
                     }
                     else if (_organizations.Count == 0)
                     {
@@ -137,7 +137,7 @@ class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخ
                 </div>
                 @if (_employeeLoading)
                 {
-                    <div class="empty-state">در حال بارگذاری...</div>
+                    <LoadingState />
                 }
                 else
                 {

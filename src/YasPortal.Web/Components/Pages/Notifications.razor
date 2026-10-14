@@ -30,7 +30,7 @@
 
     @if (_loading)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری...</div></section>
+        <section class="card"><LoadingState /></section>
     }
     else if (_items.Count == 0)
     {
@@ -40,8 +40,8 @@
     {
         @foreach (var item in _items)
         {
-            <div class="request-card @(item.IsRead ? "" : "is-expanded")">
-                <div class="request-card-header is-clickable" @onclick="() => OpenAsync(item)">
+            <div class="request-card notification-card @(item.IsRead ? "is-read" : "is-unread")">
+                <div class="request-card-header is-clickable" role="link" tabindex="0" @onclick="() => OpenAsync(item)" @onkeydown="e => OnKeyAsync(e, item)">
                     <span class="request-card-icon"><i class="bx @IconFor(item.Kind)"></i></span>
                     <span class="request-card-title">
                         <strong>@item.Message</strong>
@@ -115,6 +115,12 @@
         _pageSize = Math.Clamp(size, 1, 100);
         _page = 1;
         await LoadAsync();
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs e, Notification item)
+    {
+        if (e.Key is "Enter" or " ")
+            await OpenAsync(item);
     }
 
     private async Task OpenAsync(Notification item)

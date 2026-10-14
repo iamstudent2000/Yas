@@ -1,0 +1,12 @@
+@* The one "loading" look used by every page: spinner + short text, same box as an empty state. *@
+<div class="empty-state is-loading @(Compact ? "is-compact" : "")" role="status" aria-live="polite">
+    <i class="bx bx-loader-alt bx-spin"></i>
+    <span>@Text</span>
+</div>
+
+@code {
+    [Parameter] public string Text { get; set; } = "در حال بارگذاری...";
+
+    /// <summary>For small inline panels (inside a card section) where the full-height box would be too big.</summary>
+    [Parameter] public bool Compact { get; set; }
+}
