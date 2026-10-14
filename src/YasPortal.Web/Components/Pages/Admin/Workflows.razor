@@ -111,29 +111,18 @@
                                                             Placeholder="یک سمت را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
                             }
 
-                            @if ((_editingId is null && _steps.Count > 0) || (_editingId is not null && EditingGroupSize() > 1))
+                            @if (_editingId is null && _steps.Count > 0)
                             {
-                                @if (_editingId is null)
-                                {
-                                    <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
-                                        <input type="checkbox" @bind="_parallelWithPrevious" />
-                                        <span>این مرحله هم‌زمان با آخرین مرحله تعریف‌شده انجام شود (مرحله موازی)</span>
-                                    </label>
-                                }
-                                @if (_editingId is not null || _parallelWithPrevious)
-                                {
-                                    <label class="form-label">شرط تکمیل مراحل موازی</label>
-                                    <div class="form-radio-group">
-                                        <label><input type="radio" name="approvalMode" checked="@(_approvalMode == ParallelApprovalMode.All)" @onchange='() => _approvalMode = ParallelApprovalMode.All' /> تایید همه لازم است</label>
-                                        <label><input type="radio" name="approvalMode" checked="@(_approvalMode == ParallelApprovalMode.Any)" @onchange='() => _approvalMode = ParallelApprovalMode.Any' /> تایید یکی کافی است</label>
-                                    </div>
-                                    <label class="form-label">در صورت رد توسط یکی از آن‌ها</label>
-                                    <div class="form-radio-group">
-                                        <label><input type="radio" name="rejectPolicy" checked="@(_rejectPolicy == ParallelRejectPolicy.Immediate)" @onchange='() => _rejectPolicy = ParallelRejectPolicy.Immediate' /> درخواست فوراً رد شود</label>
-                                        <label><input type="radio" name="rejectPolicy" checked="@(_rejectPolicy == ParallelRejectPolicy.WaitForAll)" @onchange='() => _rejectPolicy = ParallelRejectPolicy.WaitForAll' /> صبر شود تا همه پاسخ دهند</label>
-                                    </div>
-                                    <p class="muted">این تنظیمات برای کل گروه موازی یکسان است و با ذخیره، روی همه‌ی مرحله‌های هم‌ترتیب اعمال می‌شود. یک مرحله‌ی «ارجاع پله‌به‌پله» نمی‌تواند در گروه موازی باشد.</p>
-                                }
+                                <label class="form-label">محل افزودن</label>
+                                <select class="form-control" value="@_placement" @onchange="e => _placement = e.Value?.ToString() ?? PlacementEnd">
+                                    <option value="@PlacementEnd">مرحله جدید در انتهای مسیر</option>
+                                    @foreach (var order in _steps.Select(x => x.Order).Distinct().OrderBy(x => x))
+                                    {
+                                        <option value="@($"after:{order}")">مرحله جدید، بعد از مرحله @ToPersianDigits(order.ToString())</option>
+                                        <option value="@($"join:{order}")">تاییدکننده موازی در مرحله @ToPersianDigits(order.ToString())</option>
+                                    }
+                                </select>
+                                <p class="muted">«موازی» یعنی این تاییدکننده هم‌زمان با تاییدکننده‌های همان مرحله تصمیم می‌گیرد. شرط تکمیل و سیاست رد را در سرتیتر کارت همان مرحله تنظیم می‌کنید.</p>
                             }
 
                             <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
@@ -165,50 +154,136 @@
                                     }
             else
                                     {
-                                        <div class="admin-list-table-head"><span>ترتیب</span><span>مرحله</span><span>عملیات</span></div>
-                                        <div class="admin-list-rows">
-                                            @foreach (var step in _steps.OrderBy(x => x.Order))
+                                        var stages = _steps.GroupBy(x => x.Order).OrderBy(g => g.Key).ToList();
+                                        <div class="stage-list">
+                                            @foreach (var stage in stages)
                                             {
-                                                <div class="admin-list-row">
-                                                    <div class="admin-list-primary">
-                                                        <span class="admin-list-avatar">@step.Order</span>
-                                                        <span class="admin-list-text">
-                                                            <strong>@step.Name</strong>
-                                                            <span>@DescribeRule(step)</span>
-                                                            @if (!step.IsActive)
-                                                            {
-                                                                <span class="badge badge-muted">غیرفعال</span>
-                                                            }
-                                                            @if (!step.AllowDelegation)
-                                                            {
-                                                                <span class="badge badge-warning">بدون تفویض</span>
-                                                            }
-                                                            @if (GroupSize(step) > 1)
-                                                            {
-                                                                <span class="badge badge-info">موازی — @(step.ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")@(step.RejectPolicy == ParallelRejectPolicy.WaitForAll ? "؛ رد پس از پاسخ همه" : "؛ رد فوری")</span>
-                                                            }
+                                                var members = stage.OrderBy(x => x.Name, StringComparer.Ordinal).ToList();
+                                                var parallel = members.Count > 1;
+                                                <div class="stage-card @(parallel ? "is-parallel" : "")">
+                                                    <div class="stage-card-head">
+                                                        <span class="admin-list-avatar">@ToPersianDigits(stage.Key.ToString())</span>
+                                                        <strong>@(parallel ? "مرحله موازی" : "مرحله")</strong>
+                                                        @if (parallel)
+                                                        {
+                                                            <select class="form-control stage-policy" title="شرط تکمیل مرحله" value="@members[0].ApprovalMode" @onchange="e => SetStageApprovalModeAsync(stage.Key, e)">
+                                                                <option value="@ParallelApprovalMode.All">تایید همه لازم است</option>
+                                                                <option value="@ParallelApprovalMode.Any">تایید یکی کافی است</option>
+                                                            </select>
+                                                            <select class="form-control stage-policy" title="سیاست رد" value="@members[0].RejectPolicy" @onchange="e => SetStageRejectPolicyAsync(stage.Key, e)">
+                                                                <option value="@ParallelRejectPolicy.Immediate">رد فوری</option>
+                                                                <option value="@ParallelRejectPolicy.WaitForAll">رد پس از پاسخ همه</option>
+                                                            </select>
+                                                        }
+                                                        <span class="stage-actions">
+                                                            <button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به بالا" disabled="@(stage.Key == _steps.Min(x => x.Order))" @onclick="() => MoveUp(members[0].Id)"><i class="bx bx-up-arrow-alt"></i></button>
+                                                            <button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به پایین" disabled="@(stage.Key == _steps.Max(x => x.Order))" @onclick="() => MoveDown(members[0].Id)"><i class="bx bx-down-arrow-alt"></i></button>
+                                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementJoin(stage.Key))"><i class="bx bx-user-plus"></i> تاییدکننده موازی</button>
+                                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementAfter(stage.Key))"><i class="bx bx-layer-plus"></i> مرحله بعد از این</button>
                                                         </span>
                                                     </div>
-                                                    <div class="admin-list-actions">
-                                                        <button type="button" class="btn btn-secondary btn-sm" disabled="@(GroupSize(step) == 1 && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i
-                                                            class="bx bx-git-compare"></i> @(GroupSize(step) > 1 ? "جدا کردن از گروه موازی" : "موازی با مرحله قبل")</button>
-                                                        <button type="button" class="btn btn-secondary btn-sm" title="انتقال به بالا"
-                                                                disabled="@(step.Order == _steps.Min(x => x.Order))" @onclick="() => MoveUp(step.Id)"><i
-                                                            class="bx bx-up-arrow-alt"></i></button>
-                                                            <button type="button" class="btn btn-secondary btn-sm" title="انتقال به پایین"
-                                                                    disabled="@(step.Order == _steps.Max(x => x.Order))" @onclick="() => MoveDown(step.Id)"><i
-                                                                class="bx bx-down-arrow-alt"></i></button>
-                                                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i
-                                                                    class="bx bx-edit-alt"></i> ویرایش</button>
-                                                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i
-                                                                        class="bx @(step.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>
-                                                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i
-                                                                        class="bx bx-trash"></i> حذف</button>
+                                                    <div class="stage-members">
+                                                        @foreach (var step in members)
+                                                        {
+                                                            <div class="stage-member @(step.IsActive ? "" : "is-inactive")">
+                                                                <span class="admin-list-text">
+                                                                    <strong>@step.Name</strong>
+                                                                    <span>@DescribeRule(step)</span>
+                                                                    @if (!step.IsActive)
+                                                                    {
+                                                                        <span class="badge badge-muted">غیرفعال</span>
+                                                                    }
+                                                                    @if (!step.AllowDelegation)
+                                                                    {
+                                                                        <span class="badge badge-warning">بدون تفویض</span>
+                                                                    }
+                                                                </span>
+                                                                <span class="stage-actions">
+                                                                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(!parallel && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i class="bx bx-git-compare"></i> @(parallel ? "جدا کردن به مرحله مستقل" : "موازی با مرحله قبل")</button>
+                                                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="bx bx-edit-alt"></i> ویرایش</button>
+                                                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i class="bx @(step.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>
+                                                                    <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="bx bx-trash"></i> حذف</button>
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                                @if (stage.Key != stages[^1].Key)
+                                                {
+                                                    <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (_steps.Count > 0)
+                                    {
+                                        <hr class="section-divider" />
+                                        <div class="card-heading">
+                                            <div class="card-heading-icon"><i class="bx bx-test-tube"></i></div>
+                                            <div>
+                                                <h2 class="section-title">آزمایش مسیر</h2>
+                                                <p class="muted">سمت یک درخواست‌کننده را انتخاب کنید تا ببینید درخواستِ او دقیقاً از چه مسیری می‌گذرد؛ همان منطقی که هنگام ثبت واقعی اجرا می‌شود.</p>
+                                            </div>
+                                        </div>
+                                        <ServerSearchableGuidSelect Value="@_previewPositionId" ValueChanged="OnPreviewPositionAsync"
+                                                                    SearchAsync="SearchPositionsAsync"
+                                                                    Placeholder="سمت درخواست‌کننده را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
+                                        @if (_preview is not null)
+                                        {
+                                            @if (!_preview.Success)
+                                            {
+                                                <div class="empty-state" role="alert">
+                                                    <i class="bx bx-error-circle"></i>
+                                                    <strong>درخواستی از این سمت ثبت نمی‌شود</strong>
+                                                    <span>@WorkflowService.DescribeErrors(_preview.Errors)</span>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="stage-list stage-preview">
+                                                    @foreach (var stage in _preview.Stages)
+                                                    {
+                                                        <div class="stage-card @(stage.IsParallel ? "is-parallel" : "")">
+                                                            <div class="stage-card-head">
+                                                                <span class="admin-list-avatar">@ToPersianDigits(stage.Number.ToString())</span>
+                                                                <strong>@(stage.IsParallel ? "مرحله موازی" : "مرحله")</strong>
+                                                                @if (stage.IsParallel)
+                                                                {
+                                                                    <span class="badge badge-info">@(stage.Mode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")</span>
+                                                                    <span class="badge badge-muted">@(stage.RejectPolicy == ParallelRejectPolicy.WaitForAll ? "رد پس از پاسخ همه" : "رد فوری")</span>
+                                                                }
+                                                            </div>
+                                                            <div class="stage-members">
+                                                                @foreach (var approver in stage.Approvers)
+                                                                {
+                                                                    var holder = _previewHolders.TryGetValue(approver.PositionId, out var holderName) ? holderName : null;
+                                                                    <div class="stage-member">
+                                                                        <span class="admin-list-text">
+                                                                            <strong>@approver.Name</strong>
+                                                                            <span>@(_previewPositionNames.TryGetValue(approver.PositionId, out var positionName) ? positionName : "؟") — @(holder ?? "سمت خالی است")</span>
+                                                                            @if (holder is null)
+                                                                            {
+                                                                                <span class="badge badge-danger">سمت خالی؛ درخواست همین‌جا متوقف می‌شود</span>
+                                                                            }
+                                                                            @if (_previewInactivePositions.Contains(approver.PositionId))
+                                                                            {
+                                                                                <span class="badge badge-danger">سمت غیرفعال؛ ثبت درخواست رد می‌شود</span>
+                                                                            }
+                                                                        </span>
                                                                     </div>
-                                                                </div>
-                                                            }
+                                                                }
+                                                            </div>
                                                         </div>
+                                                        @if (stage.Number != _preview.Stages[^1].Number)
+                                                        {
+                                                            <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+                                                        }
                                                     }
+                                                </div>
+                                            }
+                                        }
+                                    }
                                                 </section>
                                             </div>
                                         </div>
@@ -231,9 +306,19 @@
     private int _managerLevel = 1;
     private int _treeLevel = 2;
     private bool _allowDelegation = true;
-    private bool _parallelWithPrevious;
-    private ParallelApprovalMode _approvalMode = ParallelApprovalMode.All;
-    private ParallelRejectPolicy _rejectPolicy = ParallelRejectPolicy.Immediate;
+
+    // Where a new step goes: "end", "after:N" (a new stage after stage N) or "join:N" (parallel approver in stage N).
+    private const string PlacementEnd = "end";
+    private static string PlacementAfter(int order) => $"after:{order}";
+    private static string PlacementJoin(int order) => $"join:{order}";
+    private string _placement = PlacementEnd;
+
+    // "Try it" preview: the resolved path for a chosen requester position.
+    private Guid? _previewPositionId;
+    private WorkflowPathPreview? _preview;
+    private Dictionary<Guid, string> _previewPositionNames = [];
+    private Dictionary<Guid, string> _previewHolders = [];
+    private HashSet<Guid> _previewInactivePositions = [];
     private Guid? _approverPositionId;
     private string _approverPositionSearch = "";
 
@@ -250,6 +335,7 @@
     private async Task SelectType(WorkflowTypeCode type)
     {
         _selectedType = type;
+        _previewPositionId = null;
         CancelEdit();
         await LoadStepsAsync();
     }
@@ -271,6 +357,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
             _holderNames = positionIds.Count == 0 ? [] : await WorkflowSvc.GetCurrentHolderNamesAsync(positionIds);
             _stepCounts[_selectedType] = _steps.Count;
             _blockingCount = await WorkflowSvc.CountBlockingRequestsAsync(_selectedType);
+            await RefreshPreviewAsync();
         }
         finally { _loading = false; }
     }
@@ -308,9 +395,6 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = step.ManagerLevel ?? 1;
         _treeLevel = step.TreeLevel ?? 2;
         _allowDelegation = step.AllowDelegation;
-        _parallelWithPrevious = false;
-        _approvalMode = step.ApprovalMode;
-        _rejectPolicy = step.RejectPolicy;
         _approverPositionId = step.ApproverPositionId;
         _approverPositionSearch = step.ApproverPositionId is Guid pid && _positionNames.TryGetValue(pid, out var name) ? name :
 "";
@@ -324,17 +408,10 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = 1;
         _treeLevel = 2;
         _allowDelegation = true;
-        _parallelWithPrevious = false;
-        _approvalMode = ParallelApprovalMode.All;
-        _rejectPolicy = ParallelRejectPolicy.Immediate;
+        _placement = PlacementEnd;
         _approverPositionId = null;
         _approverPositionSearch = "";
     }
-
-    /// <summary>How many step definitions share this one's order — more than one means a parallel group (spec §12.2).</summary>
-    private int GroupSize(WorkflowStepDefinition step) => _steps.Count(x => x.Order == step.Order);
-
-    private int EditingGroupSize() => _steps.FirstOrDefault(x => x.Id == _editingId) is { } step ? GroupSize(step) : 1;
 
     /// <summary>
     /// Why <paramref name="kind"/> / <paramref name="positionId"/> cannot sit in a group with
@@ -350,6 +427,83 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         if (kind == ApproverRuleKind.SpecificPosition && positionId is Guid pid && siblings.Any(x => x.ApproverPositionId == pid))
             return "یک سمت نمی‌تواند دو بار در یک گروه موازی بیاید.";
         return null;
+    }
+
+    private static (string Kind, int Order) ParsePlacement(string placement)
+    {
+        var parts = placement.Split(':', 2);
+        return parts.Length == 2 && int.TryParse(parts[1], out var order) && parts[0] is "after" or "join"
+            ? (parts[0], order)
+            : (PlacementEnd, 0);
+    }
+
+    /// <summary>Points the add form at a stage ("add a parallel approver here", "add a stage after this").</summary>
+    private void StartAdd(string placement)
+    {
+        CancelEdit();
+        _placement = placement;
+        AppState.AddToast("فرم افزودن در بالای صفحه برای همین محل تنظیم شد.", ToastLevel.Info);
+    }
+
+    private async Task SetStageApprovalModeAsync(int order, ChangeEventArgs e)
+    {
+        if (Enum.TryParse<ParallelApprovalMode>(e.Value?.ToString(), out var mode))
+            await SetStagePolicyAsync(order, mode, null);
+    }
+
+    private async Task SetStageRejectPolicyAsync(int order, ChangeEventArgs e)
+    {
+        if (Enum.TryParse<ParallelRejectPolicy>(e.Value?.ToString(), out var policy))
+            await SetStagePolicyAsync(order, null, policy);
+    }
+
+    /// <summary>One mode and one reject policy per stage: changing either updates every approver in it.</summary>
+    private async Task SetStagePolicyAsync(int order, ParallelApprovalMode? mode, ParallelRejectPolicy? policy)
+    {
+        if (!await EnsureNoBlockingRequestsAsync())
+        {
+            await LoadStepsAsync();
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var members = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order == order).ToListAsync();
+        foreach (var member in members)
+            member.SetParallelPolicy(mode ?? member.ApprovalMode, policy ?? member.RejectPolicy);
+        await db.SaveChangesAsync();
+        await LoadStepsAsync();
+    }
+
+    private async Task OnPreviewPositionAsync(Guid? positionId)
+    {
+        _previewPositionId = positionId;
+        await RefreshPreviewAsync();
+    }
+
+    /// <summary>
+    /// Resolves the path with the same <see cref="WorkflowStepResolver"/> real submissions use, so what
+    /// the admin sees here is what a request from that position would get — or why it would be refused.
+    /// </summary>
+    private async Task RefreshPreviewAsync()
+    {
+        _preview = null;
+        _previewPositionNames = [];
+        _previewHolders = [];
+        _previewInactivePositions = [];
+        if (_previewPositionId is not Guid positionId || _steps.Count == 0)
+            return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var parents = await db.Positions.AsNoTracking().Select(x => new { x.Id, x.ParentPositionId }).ToDictionaryAsync(x => x.Id, x => x.ParentPositionId);
+        _preview = WorkflowPathPreview.From(WorkflowStepResolver.Resolve(_steps, positionId, parents));
+
+        var ids = _preview.Stages.SelectMany(s => s.Approvers).Select(a => a.PositionId).Distinct().ToList();
+        if (ids.Count == 0)
+            return;
+        var positions = await db.Positions.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.Name, x.IsActive }).ToListAsync();
+        _previewPositionNames = positions.ToDictionary(x => x.Id, x => x.Name);
+        _previewInactivePositions = positions.Where(x => !x.IsActive).Select(x => x.Id).ToHashSet();
+        _previewHolders = await WorkflowSvc.GetCurrentHolderNamesAsync(ids);
     }
 
     private async Task SaveStep()
@@ -391,9 +545,6 @@ x.ApproverPositionId!.Value).Distinct().ToList();
             }
             existing.Rename(name);
             existing.SetAllowDelegation(_allowDelegation);
-            // One mode and one reject policy per group: saving either on a member updates the whole group.
-            foreach (var member in siblings.Append(existing))
-                member.SetParallelPolicy(_approvalMode, _rejectPolicy);
             switch (_ruleKind)
             {
                 case ApproverRuleKind.RequesterManagerLevel: existing.UseManagerLevel(_managerLevel); break;
@@ -405,18 +556,36 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         }
         else
         {
-            var lastOrder = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).Select(x =>
-(int?)x.Order).MaxAsync() ?? 0;
-            // Parallel: join the last group instead of starting a new order.
-            var joining = _parallelWithPrevious && lastOrder > 0;
-            var nextOrder = joining ? lastOrder : lastOrder + 1;
-            var groupMembers = joining
-                ? await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order == lastOrder).ToListAsync()
-                : new List<WorkflowStepDefinition>();
+            var existingSteps = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType).ToListAsync();
+            var lastOrder = existingSteps.Count == 0 ? 0 : existingSteps.Max(x => x.Order);
+            var (placementKind, placementOrder) = ParsePlacement(_placement);
+            // A placement pointing at a stage that no longer exists falls back to the end of the path.
+            if (existingSteps.Count == 0 || (placementKind != PlacementEnd && existingSteps.All(x => x.Order != placementOrder)))
+                placementKind = PlacementEnd;
+
+            var joining = placementKind == "join";
+            var groupMembers = joining ? existingSteps.Where(x => x.Order == placementOrder).ToList() : new List<WorkflowStepDefinition>();
             if (ParallelMemberProblem(groupMembers, _ruleKind, _approverPositionId) is string joinProblem)
             {
                 AppState.AddToast(joinProblem, ToastLevel.Error);
                 return;
+            }
+
+            int nextOrder;
+            switch (placementKind)
+            {
+                case "join":
+                    nextOrder = placementOrder;
+                    break;
+                case "after":
+                    // A new stage right after stage N: later stages make room (no unique order index to trip over).
+                    nextOrder = placementOrder + 1;
+                    foreach (var later in existingSteps.Where(x => x.Order > placementOrder))
+                        later.SetOrder(later.Order + 1);
+                    break;
+                default:
+                    nextOrder = lastOrder + 1;
+                    break;
             }
             var step = _ruleKind switch
             {
@@ -425,11 +594,9 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 _ => new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value),
             };
             step.SetAllowDelegation(_allowDelegation);
-            if (joining)
-            {
-                foreach (var member in groupMembers.Append(step))
-                    member.SetParallelPolicy(_approvalMode, _rejectPolicy);
-            }
+            // A newcomer to a parallel group follows the group's mode and reject policy (set on the stage card).
+            if (joining && groupMembers.Count > 0)
+                step.SetParallelPolicy(groupMembers[0].ApprovalMode, groupMembers[0].RejectPolicy);
             db.WorkflowStepDefinitions.Add(step);
             await db.SaveChangesAsync();
             AppState.AddToast("مرحله اضافه شد.", ToastLevel.Success);

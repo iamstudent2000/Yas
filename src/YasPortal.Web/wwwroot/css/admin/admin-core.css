@@ -70,3 +70,18 @@
 .workflow-type-list .admin-list-primary{flex:1 1 auto;min-width:0}
 .workflow-type-list .admin-list-meta{flex:0 0 auto}
 .workflow-type-list .admin-list-row-selected{background:var(--admin-primary-soft)}
+
+/* Workflow editor: stages as cards (one approver, or several side by side in a parallel stage). */
+.stage-list{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.stage-card{border:1px solid var(--admin-border);border-radius:12px;background:#fff;overflow:hidden}
+.stage-card.is-parallel{border-color:var(--admin-primary);background:var(--admin-primary-soft)}
+.stage-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;border-bottom:1px solid var(--admin-border)}
+.stage-card-head .stage-actions{margin-inline-start:auto}
+.stage-policy{width:auto;min-width:150px;padding:4px 8px;font-size:12px}
+.stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.stage-members{display:flex;flex-direction:column;gap:8px;padding:10px 12px}
+.stage-card.is-parallel .stage-members{border-inline-start:3px solid var(--admin-primary);margin-inline-start:12px}
+.stage-member{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 10px;border:1px solid var(--admin-border);border-radius:10px;background:#fff}
+.stage-member.is-inactive{opacity:.6}
+.stage-arrow{display:grid;place-items:center;height:26px;color:var(--admin-muted,#98a2b3);font-size:20px}
+.stage-preview .stage-member{justify-content:flex-start}
