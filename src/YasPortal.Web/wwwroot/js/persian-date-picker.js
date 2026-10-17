@@ -8,37 +8,37 @@
         return style.visibility !== 'hidden' && style.display !== 'none' && style.pointerEvents !== 'none';
     }
 
+    // Wanted width: as wide as the box it opens under, but never narrower than a readable calendar.
+    function popupWidth(boxWidth, min, max) {
+        return Math.min(Math.max(boxWidth, min), max, window.innerWidth - VIEWPORT_MARGIN * 2);
+    }
+
+    // Both popups line up with the right edge of their box (the start edge in a right-to-left page).
+    function placeBelow(element, anchorRect, width) {
+        // Measure the height at the final width first, then pick below/above and place it.
+        window.yasPopup.place(element, 0, 0, width);
+        const height = element.getBoundingClientRect().height;
+        const spaceBelow = window.innerHeight - anchorRect.bottom - POPUP_GAP - VIEWPORT_MARGIN;
+        const spaceAbove = anchorRect.top - POPUP_GAP - VIEWPORT_MARGIN;
+        const openAbove = height > spaceBelow && spaceAbove > spaceBelow;
+        let top = openAbove ? anchorRect.top - height - POPUP_GAP : anchorRect.bottom + POPUP_GAP;
+        top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - height - VIEWPORT_MARGIN));
+        let left = anchorRect.right - width;
+        left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - width - VIEWPORT_MARGIN));
+        window.yasPopup.place(element, left, top, width);
+    }
+
     function positionPopup(trigger, popup) {
         if (!trigger || !popup || !isVisible(popup)) return;
         const rect = trigger.getBoundingClientRect();
-        const width = Math.min(320, window.innerWidth - VIEWPORT_MARGIN * 2);
-        popup.style.position = 'fixed'; popup.style.width = `${width}px`; popup.style.right = 'auto'; popup.style.left = 'auto'; popup.style.top = '0px';
-        const popupRect = popup.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom - POPUP_GAP - VIEWPORT_MARGIN;
-        const spaceAbove = rect.top - POPUP_GAP - VIEWPORT_MARGIN;
-        const openAbove = popupRect.height > spaceBelow && spaceAbove > spaceBelow;
-        let top = openAbove ? rect.top - popupRect.height - POPUP_GAP : rect.bottom + POPUP_GAP;
-        top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - popupRect.height - VIEWPORT_MARGIN));
-        let left = rect.right - width;
-        left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - width - VIEWPORT_MARGIN));
-        popup.style.left = `${left}px`; popup.style.top = `${top}px`;
+        placeBelow(popup, rect, popupWidth(rect.width, 280, 420));
     }
 
     function positionMenu(button, menu) {
         if (!button || !menu || !isVisible(menu)) return;
         const rect = button.getBoundingClientRect();
-        const width = menu.classList.contains('pdp-month-menu') ? 190 : 180;
-        const maxWidth = Math.min(width, window.innerWidth - VIEWPORT_MARGIN * 2);
-        menu.style.position = 'fixed'; menu.style.width = `${maxWidth}px`; menu.style.right = 'auto'; menu.style.left = 'auto'; menu.style.top = '0px';
-        const menuRect = menu.getBoundingClientRect();
-        const spaceBelow = window.innerHeight - rect.bottom - POPUP_GAP - VIEWPORT_MARGIN;
-        const spaceAbove = rect.top - POPUP_GAP - VIEWPORT_MARGIN;
-        const openAbove = menuRect.height > spaceBelow && spaceAbove > spaceBelow;
-        let top = openAbove ? rect.top - menuRect.height - POPUP_GAP : rect.bottom + POPUP_GAP;
-        top = Math.max(VIEWPORT_MARGIN, Math.min(top, window.innerHeight - menuRect.height - VIEWPORT_MARGIN));
-        let left = rect.right - maxWidth;
-        left = Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - maxWidth - VIEWPORT_MARGIN));
-        menu.style.left = `${left}px`; menu.style.top = `${top}px`;
+        const min = menu.classList.contains('pdp-month-menu') ? 150 : 130;
+        placeBelow(menu, rect, popupWidth(rect.width, min, 240));
     }
 
     function hidePicker(container) {
