@@ -89,7 +89,6 @@ public static class DevelopmentDataSeeder
             ["Requests.Reject"] = new Permission("Requests.Reject", "رد درخواست‌ها"),
             ["Requests.ReturnToRequester"] = new Permission("Requests.ReturnToRequester", "بازگرداندن درخواست به درخواست‌کننده"),
             ["Requests.ReturnToPreviousStep"] = new Permission("Requests.ReturnToPreviousStep", "بازگرداندن درخواست به مرحله قبل"),
-            ["Employees.Manage"] = new Permission("Employees.Manage", "مدیریت کارکنان"),
             ["Admin.Users"] = new Permission("Admin.Users", "مدیریت کاربران"),
             ["Admin.Positions"] = new Permission("Admin.Positions", "مدیریت سمت‌ها"),
             ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها"),
@@ -116,7 +115,7 @@ public static class DevelopmentDataSeeder
 
         // Permissions that were once seeded but nothing ever checked; removed so they stop showing up in the access screens.
         // Deleting a permission also removes any grants of it (cascade).
-        string[] retired = ["Employees.View", "Organizations.View", "Positions.View", "Permissions.View"];
+        string[] retired = ["Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View"];
         var obsolete = await db.Permissions.Where(x => retired.Contains(x.Code)).ToListAsync(ct);
         if (obsolete.Count > 0)
             db.Permissions.RemoveRange(obsolete);
