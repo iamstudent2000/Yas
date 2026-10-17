@@ -2,7 +2,7 @@ namespace YasPortal.Domain.Preferences;
 
 public enum UiTheme { System, Light, Dark }
 public enum UiAccent { Blue, Teal, Violet, Rose, Amber, Green }
-public enum UiFont { Vazirmatn, System }
+public enum UiFont { Vazirmatn, System, Sahel, Shabnam }
 public enum UiTextSize { Small, Normal, Large, ExtraLarge }
 public enum UiDensity { Comfortable, Compact }
 
@@ -61,7 +61,7 @@ public sealed record UiPreferenceAttributes(string Theme, string Accent, string 
         : new(
             p.Theme switch { UiTheme.Light => "light", UiTheme.Dark => "dark", _ => "system" },
             p.Accent.ToString().ToLowerInvariant(),
-            p.Font == UiFont.System ? "system" : "vazirmatn",
+            p.Font switch { UiFont.System => "system", UiFont.Sahel => "sahel", UiFont.Shabnam => "shabnam", _ => "vazirmatn" },
             p.TextSize switch { UiTextSize.Small => "sm", UiTextSize.Large => "lg", UiTextSize.ExtraLarge => "xl", _ => "md" },
             p.Density == UiDensity.Compact ? "compact" : "comfortable");
 }

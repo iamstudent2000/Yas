@@ -52,6 +52,18 @@ html[data-scheme="dark"] :is(a:not(.btn)){color:color-mix(in srgb,var(--accent) 
 html[data-scheme="dark"] img.brand-mark{filter:none}
 
 /* ---- font family ---- */
+/* Sahel and Shabnam (Saber Rastikerdar, SIL OFL). The .woff2 files live in wwwroot/fonts and are copied in by hand
+   for the air-gapped deployment (see wwwroot/fonts/README.md); if a file is missing the browser falls back to the system font. */
+@font-face{font-family:'Sahel';src:url('/fonts/Sahel-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Sahel';src:url('/fonts/Sahel-SemiBold.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'Sahel';src:url('/fonts/Sahel-Bold.woff2') format('woff2');font-weight:700 900;font-display:swap}
+@font-face{font-family:'Shabnam';src:url('/fonts/Shabnam-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Shabnam';src:url('/fonts/Shabnam-Medium.woff2') format('woff2');font-weight:600;font-display:swap}
+@font-face{font-family:'Shabnam';src:url('/fonts/Shabnam-Bold.woff2') format('woff2');font-weight:700 900;font-display:swap}
+html[data-font="sahel"] body,
+html[data-font="sahel"] :is(button,input,select,textarea){font-family:'Sahel',Tahoma,system-ui,sans-serif}
+html[data-font="shabnam"] body,
+html[data-font="shabnam"] :is(button,input,select,textarea){font-family:'Shabnam',Tahoma,system-ui,sans-serif}
 html[data-font="system"] body,
 html[data-font="system"] :is(button,input,select,textarea){font-family:Tahoma,"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
 

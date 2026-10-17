@@ -57,10 +57,12 @@
 
             <section class="card appearance-group">
                 <h2>قلم</h2>
-                <p>«وزیرمتن» قلم پیش‌فرض یاس پورتال است؛ قلم سیستم در دستگاه‌های ضعیف سریع‌تر بارگذاری می‌شود.</p>
+                <p>«وزیرمتن» قلم پیش‌فرض یاس پورتال است. «ساحل» و «شبنم» دو قلم آزاد و شناخته‌شده‌ی فارسی‌اند؛ قلم سیستم نیازی به بارگذاری ندارد.</p>
                 <div class="choice-row" role="radiogroup" aria-label="قلم">
-                    <button type="button" role="radio" aria-checked="@(_font == UiFont.Vazirmatn)" class="choice @(_font == UiFont.Vazirmatn ? "is-selected" : "")" @onclick="() => SetAsync(font: UiFont.Vazirmatn)">وزیرمتن</button>
-                    <button type="button" role="radio" aria-checked="@(_font == UiFont.System)" class="choice @(_font == UiFont.System ? "is-selected" : "")" @onclick="() => SetAsync(font: UiFont.System)">قلم سیستم</button>
+                    @foreach (var (value, label, family) in Fonts)
+                    {
+                        <button type="button" role="radio" aria-checked="@(_font == value)" class="choice @(_font == value ? "is-selected" : "")" style="@(family is null ? "" : $"font-family:{family},Tahoma,sans-serif")" @onclick="() => SetAsync(font: value)">@label</button>
+                    }
                 </div>
             </section>
 
@@ -121,6 +123,14 @@
         (UiAccent.Rose, "سرخابی", "#e31b54"),
         (UiAccent.Amber, "کهربایی", "#dc6803"),
         (UiAccent.Green, "سبز", "#079455"),
+    ];
+
+    private static readonly (UiFont Value, string Label, string? Family)[] Fonts =
+    [
+        (UiFont.Vazirmatn, "وزیرمتن", "Vazirmatn"),
+        (UiFont.Sahel, "ساحل", "Sahel"),
+        (UiFont.Shabnam, "شبنم", "Shabnam"),
+        (UiFont.System, "قلم سیستم", null),
     ];
 
     private static readonly (UiTextSize Value, string Label)[] Sizes =

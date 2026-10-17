@@ -34,6 +34,18 @@ public class UserUiPreferenceTests
         Assert.Equal(code, UiPreferenceAttributes.From(p).Size);
     }
 
+    [Theory]
+    [InlineData(UiFont.Vazirmatn, "vazirmatn")]
+    [InlineData(UiFont.Sahel, "sahel")]
+    [InlineData(UiFont.Shabnam, "shabnam")]
+    [InlineData(UiFont.System, "system")]
+    public void Every_font_maps_to_its_stylesheet_code(UiFont font, string code)
+    {
+        var p = new UserUiPreference(Guid.NewGuid());
+        p.Update(UiTheme.Light, UiAccent.Blue, font, UiTextSize.Normal, UiDensity.Comfortable);
+        Assert.Equal(code, UiPreferenceAttributes.From(p).Font);
+    }
+
     [Fact]
     public void Reset_returns_to_defaults()
     {
