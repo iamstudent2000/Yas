@@ -15,13 +15,13 @@
 <div class="active-position-picker" @onclick:stopPropagation="true">
     @if (_positions.Count > 1)
     {
-        <form method="post" action="/account/position" class="active-position-form">
+        <form @ref="_form" method="post" action="/account/position" class="active-position-form">
             <AntiforgeryToken />
             <input type="hidden" name="returnUrl" value="@GetReturnUrl()" />
             <input type="hidden" name="positionId" value="@_activePositionId" />
 
             <button @ref="_trigger" type="button" class="active-position-trigger" aria-haspopup="listbox"
-                    aria-expanded="@_open" @onclick="ToggleDropdown">
+                    aria-expanded="@_open" disabled="@_switching" @onclick="ToggleDropdown">
                 <i class="bx bx-briefcase-alt-2"></i>
                 <span class="active-position-value" title="@ActivePositionName">@ActivePositionName</span>
                 <i class="bx bx-chevron-down active-position-chevron"></i>
@@ -49,8 +49,6 @@
                 </div>
             }
 
-            <button type="submit" class="active-position-submit" title="تغییر سمت فعال" aria-label="تغییر سمت فعال"><i
-                class="bx bx-check"></i></button>
         </form>
     }
     else if (_positions.Count == 1)
@@ -68,7 +66,10 @@
     private bool _open;
     private bool _jsReady;
     private bool _disposed;
+    private ElementReference _form;
     private ElementReference _trigger;
+    private bool _switching;
+    private bool _submitPending;
     private ElementReference _dropdown;
     private DotNetObjectReference<ActivePositionSelector>? _dotNetRef;
 
@@ -93,12 +94,24 @@
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
             _jsReady = true;
 
-        return Task.CompletedTask;
+        // The chosen position is now in the form's hidden input, so the switch can be sent.
+        if (_submitPending && !_disposed)
+        {
+            _submitPending = false;
+            try
+            {
+                await JS.InvokeVoidAsync("activePositionDropdown.submit", _form);
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone; the user can pick again after reconnecting.
+            }
+        }
     }
 
     private async Task ToggleDropdown()
@@ -127,9 +140,17 @@
         if (_disposed)
             return;
 
-        _activePositionId = positionId;
         _open = false;
         await StopDropdownAsync();
+
+        // Picking the position that is already active needs no round trip.
+        if (positionId == _activePositionId || _switching)
+            return;
+
+        // Switch right away: no separate confirm button. The page reloads with the new position's permissions.
+        _activePositionId = positionId;
+        _switching = true;
+        _submitPending = true;
     }
 
     [JSInvokable]

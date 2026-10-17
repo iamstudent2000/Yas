@@ -148,5 +148,12 @@ window.activePositionDropdown = (() => {
         outsideHandler = null;
     }
 
-    return { start, stop, position };
+    // Submits the position form once Blazor has written the chosen position into its hidden input.
+    function submit(form) {
+        if (!form) return;
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else form.submit();
+    }
+
+    return { start, stop, position, submit };
 })();
