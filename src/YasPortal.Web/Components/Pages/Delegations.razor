@@ -157,8 +157,8 @@
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
         var claimed = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
-        _canCreate = await Permissions.HasPermissionAsync("Delegations.Create");
-        _canManage = await Permissions.HasPermissionAsync("Delegations.Manage");
+        _canCreate = await Permissions.HasPermissionAsync("Requests.Delegation");
+        _canManage = await Permissions.HasPermissionAsync("Admin.Delegation");
         if (_employeeId is Guid emp && await Workflows.HoldsActivePositionAsync(emp, claimed))
             _ownPositionId = claimed;
         await LoadAsync();

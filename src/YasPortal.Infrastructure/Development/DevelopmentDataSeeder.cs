@@ -100,9 +100,23 @@ public static class DevelopmentDataSeeder
             ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده"),
             ["Requests.Reopen"] = new Permission("Requests.Reopen", "بازگشایی درخواست‌های ردشده"),
             ["Requests.ReturnToSpecificStep"] = new Permission("Requests.ReturnToSpecificStep", "بازگشت به مرحله دلخواه"),
-            ["Delegations.Create"] = new Permission("Delegations.Create", "تفویض اختیار سمت خود به دیگری"),
-            ["Delegations.Manage"] = new Permission("Delegations.Manage", "مدیریت تفویض‌ها و تعیین جانشین موقت (مدیر سامانه)")
+            ["Requests.Delegation"] = new Permission("Requests.Delegation", "تفویض اختیار سمت خود به دیگری"),
+            ["Admin.Delegation"] = new Permission("Admin.Delegation", "مدیریت تفویض‌ها و تعیین جانشین موقت")
         };
+
+        // Renamed permissions: rename the existing rows so every grant of them is kept, instead of dropping and re-creating them.
+        (string OldCode, string NewCode, string NewName)[] renamed =
+        [
+            ("Delegations.Create", "Requests.Delegation", "تفویض اختیار سمت خود به دیگری"),
+            ("Delegations.Manage", "Admin.Delegation", "مدیریت تفویض‌ها و تعیین جانشین موقت"),
+        ];
+        foreach (var (oldCode, newCode, newName) in renamed)
+        {
+            var oldRow = await db.Permissions.SingleOrDefaultAsync(x => x.Code == oldCode, ct);
+            if (oldRow is not null && !await db.Permissions.AnyAsync(x => x.Code == newCode, ct))
+                oldRow.Rename(newCode, newName);
+        }
+        await db.SaveChangesAsync(ct);
 
         foreach (var permission in permissions.Values.ToList())
         {
@@ -169,8 +183,8 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
         await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
-        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Delegations.Create" }, ct);
-        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Delegations.Create" }, ct);
+        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Requests.Delegation" }, ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation" }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
 
