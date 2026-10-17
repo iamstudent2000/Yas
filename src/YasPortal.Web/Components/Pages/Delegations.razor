@@ -75,10 +75,10 @@
                     <label class="form-label">تا تاریخ</label>
                     <PersianDatePicker @bind-Value="_to" Placeholder="تاریخ پایان" />
                 </div>
-            </div>
 
-            <div class="form-actions dlg-actions">
-                <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
+                <div class="form-field dlg-submit">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
+                </div>
             </div>
         </section>
 

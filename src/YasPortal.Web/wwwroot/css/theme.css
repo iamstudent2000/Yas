@@ -171,3 +171,13 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
         padding-inline:max(clamp(14px,2vw,26px),calc((100% - 1500px) / 2));
         scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
 }
+
+/* ---- delegations: the "new delegation" card is one full-width row ---- */
+.dlg-create{max-width:none}
+.dlg-create .form-grid{max-width:none;grid-template-columns:repeat(4,minmax(0,1fr)) auto;align-items:end}
+.dlg-create .dlg-submit .btn{height:34px;white-space:nowrap}
+@media(max-width:1100px){
+    .dlg-create .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .dlg-create .dlg-submit{grid-column:1/-1}
+}
+@media(max-width:760px){.dlg-create .form-grid{grid-template-columns:1fr}}
