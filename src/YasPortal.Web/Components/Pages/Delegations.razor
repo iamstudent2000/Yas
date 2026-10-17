@@ -109,6 +109,7 @@
                         </div>
                     </div>
                 }
+                <ServerPagination Page="_minePage" PageSize="_minePageSize" TotalCount="_mineTotal" Busy="_listBusy" PageChanged="GoToMinePageAsync" PageSizeChanged="OnMinePageSizeChangedAsync" />
             </section>
 
             <section class="card">
@@ -129,6 +130,7 @@
                         </div>
                     </div>
                 }
+                <ServerPagination Page="_receivedPage" PageSize="_receivedPageSize" TotalCount="_receivedTotal" Busy="_listBusy" PageChanged="GoToReceivedPageAsync" PageSizeChanged="OnReceivedPageSizeChangedAsync" />
             </section>
         </div>
     }
@@ -143,6 +145,12 @@
     private DateTime? _from, _to;
     private List<Row> _mine = [];
     private List<Row> _received = [];
+    private List<Guid> _myPositionIds = [];
+
+    // Each list is paged on its own, in the database, so a long history never loads at once.
+    private int _minePage = 1, _minePageSize = 10, _mineTotal;
+    private int _receivedPage = 1, _receivedPageSize = 10, _receivedTotal;
+    private bool _listBusy;
 
     protected override async Task OnInitializedAsync()
     {
@@ -160,34 +168,73 @@
     private async Task LoadAsync()
     {
         _ownPositionName = null;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        if (_ownPositionId is Guid own)
-            _ownPositionName = await db.Positions.AsNoTracking().Where(x => x.Id == own).Select(x => x.Name).SingleOrDefaultAsync();
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            if (_ownPositionId is Guid own)
+                _ownPositionName = await db.Positions.AsNoTracking().Where(x => x.Id == own).Select(x => x.Name).SingleOrDefaultAsync();
 
-        var query = db.PositionDelegations.AsNoTracking().AsQueryable();
-        var me = _employeeId;
-        var myPositionIds = await db.EmployeePositions.AsNoTracking().Where(ep => ep.EmployeeId == me && ep.EndedAt == null).Select(ep => ep.PositionId).ToListAsync();
-        var rows = await query
-            .Where(d => _canManage || d.DelegatorEmployeeId == me || myPositionIds.Contains(d.DelegatePositionId))
-            .OrderByDescending(d => d.CreatedAtUtc)
-            .Take(200)
-            .ToListAsync();
+            var me = _employeeId;
+            _myPositionIds = await db.EmployeePositions.AsNoTracking().Where(ep => ep.EmployeeId == me && ep.EndedAt == null).Select(ep => ep.PositionId).ToListAsync();
+        }
+        await LoadMineAsync();
+        await LoadReceivedAsync();
+    }
 
+    private async Task LoadMineAsync()
+    {
+        _listBusy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var me = _employeeId;
+            var query = db.PositionDelegations.AsNoTracking().Where(d => _canManage || d.DelegatorEmployeeId == me);
+            _mineTotal = await query.CountAsync();
+            _minePage = ClampPage(_minePage, _minePageSize, _mineTotal);
+            var rows = await query.OrderByDescending(d => d.CreatedAtUtc).Skip((_minePage - 1) * _minePageSize).Take(_minePageSize).ToListAsync();
+            _mine = await MapAsync(db, rows);
+        }
+        finally { _listBusy = false; }
+    }
+
+    private async Task LoadReceivedAsync()
+    {
+        _listBusy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var ids = _myPositionIds;
+            var query = db.PositionDelegations.AsNoTracking().Where(d => ids.Contains(d.DelegatePositionId));
+            _receivedTotal = await query.CountAsync();
+            _receivedPage = ClampPage(_receivedPage, _receivedPageSize, _receivedTotal);
+            var rows = await query.OrderByDescending(d => d.CreatedAtUtc).Skip((_receivedPage - 1) * _receivedPageSize).Take(_receivedPageSize).ToListAsync();
+            _received = await MapAsync(db, rows);
+        }
+        finally { _listBusy = false; }
+    }
+
+    /// <summary>Keeps the page number valid after the list shrinks (a delegation cancelled on the last page, say).</summary>
+    private static int ClampPage(int page, int pageSize, int total) =>
+        Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(total / (double)pageSize)));
+
+    private static async Task<List<Row>> MapAsync(ApplicationDbContext db, List<PositionDelegation> rows)
+    {
         var positionIds = rows.SelectMany(r => new[] { r.PositionId, r.DelegatePositionId }).Distinct().ToList();
         var empIds = rows.Select(r => r.DelegatorEmployeeId ?? Guid.Empty).Where(x => x != Guid.Empty).Distinct().ToList();
         var positions = await db.Positions.AsNoTracking().Where(p => positionIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name);
         var employees = await db.Employees.AsNoTracking().Where(e => empIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
 
         var today = DateTime.Now;
-        Row Map(PositionDelegation d) => new(d,
+        return rows.Select(d => new Row(d,
             positions.GetValueOrDefault(d.PositionId, "نامشخص"),
             positions.GetValueOrDefault(d.DelegatePositionId, "نامشخص"),
             d.DelegatorEmployeeId is Guid g ? employees.GetValueOrDefault(g) : null,
-            d.StatusOn(today));
-
-        _mine = rows.Where(d => _canManage || d.DelegatorEmployeeId == me).Select(Map).ToList();
-        _received = rows.Where(d => myPositionIds.Contains(d.DelegatePositionId)).Select(Map).ToList();
+            d.StatusOn(today))).ToList();
     }
+
+    private async Task GoToMinePageAsync(int page) { _minePage = page; await LoadMineAsync(); }
+    private async Task OnMinePageSizeChangedAsync(int size) { _minePageSize = size; _minePage = 1; await LoadMineAsync(); }
+    private async Task GoToReceivedPageAsync(int page) { _receivedPage = page; await LoadReceivedAsync(); }
+    private async Task OnReceivedPageSizeChangedAsync(int size) { _receivedPageSize = size; _receivedPage = 1; await LoadReceivedAsync(); }
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsWithHoldersAsync(search, null, ct, activeOnly: true);

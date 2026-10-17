@@ -145,3 +145,10 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 /* While a popup is open (or the field has focus) the card rises above the cards after it, but stays below the top bar. */
 :is(.card,.request-card,.admin-card,.filter-card,.table-card):has(.pdp-popover,.pdp-menu,.ys-search-dropdown),
 :is(.card,.request-card,.admin-card,.filter-card,.table-card):has(.pdp,.ys-search-select,.ys-search-select-host):focus-within{position:relative;z-index:40}
+
+/* ---- new request: three columns on wide screens ---- */
+.request-form-card{max-width:1180px}
+.request-form-card .form-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:none}
+@media(max-width:1100px){.request-form-card .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.request-form-card .form-grid{grid-template-columns:1fr}}
+.dlg-columns .server-pagination{margin-top:10px;flex-wrap:wrap;gap:8px}
