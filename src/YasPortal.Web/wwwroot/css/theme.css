@@ -152,3 +152,22 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 @media(max-width:1100px){.request-form-card .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.request-form-card .form-grid{grid-template-columns:1fr}}
 .dlg-columns .server-pagination{margin-top:10px;flex-wrap:wrap;gap:8px}
+
+/* =============================================================
+   App-style layout (wide screens): the window never scrolls.
+   The sidebar and top bar stay put and only <main class="content"> scrolls, so its scrollbar sits
+   against the content area instead of at the far edge of the window beyond the sidebar.
+   Below 851px the page scrolls as a whole again (see base.css).
+   ============================================================= */
+@media(min-width:851px){
+    :root{--app-h:calc(100vh / var(--ui-zoom,1))}
+    @supports (height:100dvh){:root{--app-h:calc(100dvh / var(--ui-zoom,1))}}
+    html,body{height:100%;overflow:hidden}
+    .application-shell,.application-body{height:var(--app-h);min-height:0;overflow:hidden}
+    .shell-main{height:var(--app-h);min-height:0;overflow:hidden}
+    .sidebar{height:var(--app-h)}
+    /* The scroll area is full width; the 1500px reading width moves into its side padding. */
+    .content{flex:1 1 auto;min-height:0;max-width:none;margin:0;width:100%;overflow-y:auto;overflow-x:hidden;
+        padding-inline:max(clamp(14px,2vw,26px),calc((100% - 1500px) / 2));
+        scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+}

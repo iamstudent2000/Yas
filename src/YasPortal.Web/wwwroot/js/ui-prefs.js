@@ -22,3 +22,23 @@ window.yasUi = (function () {
     };
 })();
 window.yasUi.resolve();
+
+// The content area (not the window) scrolls, so a page change has to scroll it back to the top itself.
+(function () {
+    var last = location.pathname;
+    function check() {
+        if (location.pathname === last) return;
+        last = location.pathname;
+        var content = document.querySelector('main.content');
+        if (content) content.scrollTop = 0;
+    }
+    ['pushState', 'replaceState'].forEach(function (name) {
+        var original = history[name];
+        history[name] = function () {
+            var result = original.apply(this, arguments);
+            setTimeout(check, 0);
+            return result;
+        };
+    });
+    window.addEventListener('popstate', check);
+})();
