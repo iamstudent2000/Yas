@@ -31,7 +31,7 @@
 .dash-hero-role{margin:6px 0 0;font-size:12.5px;color:var(--text-muted,#667085);line-height:1.8}
 .dash-hero-position{position:relative;flex:0 0 auto;display:flex;flex-direction:column;gap:6px;padding:14px 18px;border-radius:13px;background:linear-gradient(160deg,var(--accent-soft,#eef2ff),#eafaf1);min-width:170px}
 .dash-hero-position span{font-size:11px;color:#3854a6}
-.dash-hero-position strong{font-size:15px;font-weight:800;color:#182751}
+.dash-hero-position strong{font-size:15px;font-weight:800;color:var(--text,#182751)}
 .dash-hero-position a{display:inline-flex;align-items:center;gap:4px;margin-top:2px;font-size:11.5px;font-weight:700;color:var(--accent-strong,#1d4ed8)}
 .dash-hero-position a i{font-size:14px}
 
@@ -74,12 +74,12 @@
 /* =============================================================
    My positions
    ============================================================= */
-.position-active{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:linear-gradient(160deg,var(--accent-soft,#eef2ff),#eafaf1);border:1px solid #d8e5ff;border-radius:16px;padding:20px 24px;margin-bottom:16px}
+.position-active{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:linear-gradient(160deg,var(--accent-soft,#eef2ff),#eafaf1);border:1px solid var(--border,#d8e5ff);border-radius:16px;padding:20px 24px;margin-bottom:16px}
 .position-active-bloom{position:absolute;width:180px;height:180px;left:-40px;top:-55px;color:rgba(29,78,216,.08);pointer-events:none}
 .position-active-icon{position:relative;width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:13px;background:var(--surface,#fff);color:var(--accent-strong,#1d4ed8);font-size:23px;box-shadow:0 6px 16px rgba(29,78,216,.14)}
 .position-active-text{position:relative;flex:1;min-width:0}
 .position-active-text span{font-size:11.5px;color:#3854a6}
-.position-active-text h2{margin:2px 0 0;font-size:19px;font-weight:800;color:#182751}
+.position-active-text h2{margin:2px 0 0;font-size:19px;font-weight:800;color:var(--text,#182751)}
 
 .position-others{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:6px 20px 10px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
 .position-others .section-title{padding-top:12px}

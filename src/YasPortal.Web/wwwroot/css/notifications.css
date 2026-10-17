@@ -40,10 +40,10 @@
     pointer-events: auto !important;
     gap: 8px !important;
     background: var(--surface,#fff) !important;
-    border: 1px solid #e4e7ec !important;
+    border: 1px solid var(--border,#e4e7ec) !important;
     border-radius: 10px !important;
     box-shadow: 0 8px 20px rgba(16,24,40,.12) !important;
-    color: #1f2937 !important;
+    color: var(--text,#1f2937) !important;
     isolation: isolate;
     animation: app-toast-in .18s ease-out;
 }

@@ -36,7 +36,7 @@
 .admin-table-bordered-rows tbody td:last-child,
 .data-table-bordered-rows tbody td:last-child { border-left:1px solid var(--border,#e5eaf0); border-radius:8px 0 0 8px; }
 .admin-table-bordered-rows tbody tr:hover td,
-.data-table-bordered-rows tbody tr:hover td { background:var(--accent-soft,#eef4ff); border-color:#d8e0e8; }
+.data-table-bordered-rows tbody tr:hover td { background:var(--accent-soft,#eef4ff); border-color:var(--border,#d8e0e8); }
 .admin-table-bordered-rows tbody tr:last-child td,
 .data-table-bordered-rows tbody tr:last-child td { border-bottom:1px solid var(--border,#e5eaf0); }
 .admin-table-bordered-rows .action-cell,
