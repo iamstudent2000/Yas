@@ -6,6 +6,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
+using YasPortal.Domain.Preferences;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Authorization;
@@ -35,6 +36,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
     public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<UserUiPreference> UiPreferences => Set<UserUiPreference>();
     public DbSet<PositionDelegation> PositionDelegations => Set<PositionDelegation>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -56,7 +58,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     private void CaptureAuditEntries()
     {
-        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && x.Entity is not Notification && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
+        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && x.Entity is not Notification && x.Entity is not UserUiPreference && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
         foreach (var entry in entries)
         {
             var action = entry.State switch {
@@ -295,6 +297,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RecipientEmployeeId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.RecipientEmployeeId, x.IsRead, x.CreatedAtUtc });
             e.HasIndex(x => x.RequestId);
+        });
+        // Per-employee appearance settings: cosmetic only, one row per employee, never audited.
+        modelBuilder.Entity<UserUiPreference>(e =>
+        {
+            e.HasKey(x => x.EmployeeId);
+            e.Property(x => x.EmployeeId).ValueGeneratedNever();
+            e.Property(x => x.Theme).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.Accent).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.Font).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.TextSize).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.Density).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

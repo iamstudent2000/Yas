@@ -1,14 +1,20 @@
 @using Microsoft.AspNetCore.Components.Web
 @using YasPortal.Web.Components.Layout
 @using YasPortal.Web.Components
+@using System.Security.Claims
+@using YasPortal.Domain.Preferences
+@using YasPortal.Web.Services
+@inject UserPreferenceService PreferenceService
 
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa" dir="rtl" data-theme="@_ui.Theme" data-accent="@_ui.Accent" data-font="@_ui.Font" data-size="@_ui.Size" data-density="@_ui.Density">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    @* Resolves "system" theme to light/dark before first paint, so there is no flash. *@
+    <script>(function(){var r=document.documentElement,t=r.getAttribute('data-theme'),d=t==='dark'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);r.setAttribute('data-scheme',d?'dark':'light');})();</script>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <!--
         Stylesheet load order matters — each file's header comment explains
@@ -29,6 +35,7 @@
     <link rel="stylesheet" href="css/personal-pages.css?v=20260915-1" />
     <link rel="stylesheet" href="css/requests.css?v=20261014-3" />
     <link rel="stylesheet" href="css/login.css?v=20260916-1" />
+    <link rel="stylesheet" href="css/theme.css?v=20261017-1" />
     <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
     <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
     <link rel="stylesheet" href="lib/boxicons/css/boxicons.min.css" />
@@ -61,6 +68,20 @@
     <script src="js/server-lookup.js"></script>
     <script src="js/persian-date-picker.js"></script>
     <script src="js/persian-digits.js"></script>
+    <script src="js/ui-prefs.js"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private UiPreferenceAttributes _ui = UiPreferenceAttributes.Default;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = HttpContext?.User;
+        if (user?.Identity?.IsAuthenticated == true && Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+            _ui = UiPreferenceAttributes.From(await PreferenceService.GetAsync(employeeId));
+    }
+}

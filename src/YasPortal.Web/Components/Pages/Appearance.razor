@@ -1,0 +1,207 @@
+@page "/settings/appearance"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Preferences
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize]
+@inject UserPreferenceService Preferences
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AppState AppState
+@inject IJSRuntime Js
+
+<PageTitle>ظاهر برنامه - یاس پورتال</PageTitle>
+
+<div class="profile-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">حساب من</div>
+            <h1 class="page-title"><i class="bx bx-palette"></i> ظاهر برنامه</h1>
+            <p class="page-subtitle">تم، رنگ، قلم و اندازه‌ی نوشته را به دلخواه خود تنظیم کنید. تغییرات بلافاصله اعمال و برای حساب شما ذخیره می‌شوند.</p>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" disabled="@(!_ready || _saving)" @onclick="ResetAsync"><i class="bx bx-reset"></i> بازگشت به پیش‌فرض</button>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><LoadingState /></section>
+    }
+    else
+    {
+        <div class="appearance-grid">
+            <section class="card appearance-group">
+                <h2>تم</h2>
+                <p>روشن، تیره، یا هماهنگ با تنظیمات دستگاه شما.</p>
+                <div class="choice-row" role="radiogroup" aria-label="تم">
+                    @foreach (var (value, label, icon) in Themes)
+                    {
+                        <button type="button" role="radio" aria-checked="@(_theme == value)" class="choice @(_theme == value ? "is-selected" : "")" @onclick="() => SetAsync(theme: value)"><i class="bx @icon"></i> @label</button>
+                    }
+                </div>
+            </section>
+
+            <section class="card appearance-group">
+                <h2>رنگ اصلی</h2>
+                <p>رنگ دکمه‌ها، پیوندها و موارد انتخاب‌شده.</p>
+                <div class="choice-row" role="radiogroup" aria-label="رنگ اصلی">
+                    @foreach (var (value, label, color) in Accents)
+                    {
+                        <button type="button" role="radio" aria-checked="@(_accent == value)" class="choice @(_accent == value ? "is-selected" : "")" @onclick="() => SetAsync(accent: value)"><span class="swatch" style="background:@color"></span> @label</button>
+                    }
+                </div>
+            </section>
+
+            <section class="card appearance-group">
+                <h2>قلم</h2>
+                <p>«وزیرمتن» قلم پیش‌فرض یاس پورتال است؛ قلم سیستم در دستگاه‌های ضعیف سریع‌تر بارگذاری می‌شود.</p>
+                <div class="choice-row" role="radiogroup" aria-label="قلم">
+                    <button type="button" role="radio" aria-checked="@(_font == UiFont.Vazirmatn)" class="choice @(_font == UiFont.Vazirmatn ? "is-selected" : "")" @onclick="() => SetAsync(font: UiFont.Vazirmatn)">وزیرمتن</button>
+                    <button type="button" role="radio" aria-checked="@(_font == UiFont.System)" class="choice @(_font == UiFont.System ? "is-selected" : "")" @onclick="() => SetAsync(font: UiFont.System)">قلم سیستم</button>
+                </div>
+            </section>
+
+            <section class="card appearance-group">
+                <h2>اندازه‌ی نوشته</h2>
+                <p>کل برنامه (متن، دکمه‌ها و جدول‌ها) بزرگ یا کوچک می‌شود.</p>
+                <div class="choice-row" role="radiogroup" aria-label="اندازه‌ی نوشته">
+                    @foreach (var (value, label) in Sizes)
+                    {
+                        <button type="button" role="radio" aria-checked="@(_size == value)" class="choice @(_size == value ? "is-selected" : "")" @onclick="() => SetAsync(size: value)">@label</button>
+                    }
+                </div>
+            </section>
+
+            <section class="card appearance-group">
+                <h2>تراکم</h2>
+                <p>فشرده، فاصله‌ی کمتری در جدول‌ها و کارت‌ها می‌گذارد و اطلاعات بیشتری در یک صفحه نشان می‌دهد.</p>
+                <div class="choice-row" role="radiogroup" aria-label="تراکم">
+                    <button type="button" role="radio" aria-checked="@(_density == UiDensity.Comfortable)" class="choice @(_density == UiDensity.Comfortable ? "is-selected" : "")" @onclick="() => SetAsync(density: UiDensity.Comfortable)">راحت</button>
+                    <button type="button" role="radio" aria-checked="@(_density == UiDensity.Compact)" class="choice @(_density == UiDensity.Compact ? "is-selected" : "")" @onclick="() => SetAsync(density: UiDensity.Compact)">فشرده</button>
+                </div>
+            </section>
+        </div>
+
+        <section class="card appearance-preview">
+            <h2 class="section-title">پیش‌نمایش</h2>
+            <div class="request-card" style="margin-bottom:0">
+                <div class="request-card-header">
+                    <span class="request-card-icon"><i class="bx bx-calendar"></i></span>
+                    <span class="request-card-title"><strong>درخواست مرخصی</strong><span>از طرف علی رضایی · ۱۴۰۵/۰۷/۲۵</span></span>
+                    <span class="badge badge-warning">در انتظار تایید</span>
+                </div>
+                <div class="request-card-body">
+                    <div class="form-actions" style="margin-top:12px">
+                        <button class="btn btn-primary"><i class="bx bx-check"></i> تایید</button>
+                        <button class="btn btn-danger"><i class="bx bx-x"></i> رد</button>
+                        <button class="btn btn-secondary">بازگشت</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly (UiTheme Value, string Label, string Icon)[] Themes =
+    [
+        (UiTheme.System, "مطابق دستگاه", "bx-desktop"),
+        (UiTheme.Light, "روشن", "bx-sun"),
+        (UiTheme.Dark, "تیره", "bx-moon"),
+    ];
+
+    private static readonly (UiAccent Value, string Label, string Color)[] Accents =
+    [
+        (UiAccent.Blue, "آبی", "#155eef"),
+        (UiAccent.Teal, "فیروزه‌ای", "#0e9384"),
+        (UiAccent.Violet, "بنفش", "#7a5af8"),
+        (UiAccent.Rose, "سرخابی", "#e31b54"),
+        (UiAccent.Amber, "کهربایی", "#dc6803"),
+        (UiAccent.Green, "سبز", "#079455"),
+    ];
+
+    private static readonly (UiTextSize Value, string Label)[] Sizes =
+    [
+        (UiTextSize.Small, "کوچک"),
+        (UiTextSize.Normal, "معمولی"),
+        (UiTextSize.Large, "بزرگ"),
+        (UiTextSize.ExtraLarge, "خیلی بزرگ"),
+    ];
+
+    private bool _ready;
+    private bool _saving;
+    private Guid? _employeeId;
+    private UiTheme _theme = UiTheme.System;
+    private UiAccent _accent = UiAccent.Blue;
+    private UiFont _font = UiFont.Vazirmatn;
+    private UiTextSize _size = UiTextSize.Normal;
+    private UiDensity _density = UiDensity.Comfortable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        var saved = await Preferences.GetAsync(_employeeId);
+        if (saved is not null)
+            (_theme, _accent, _font, _size, _density) = (saved.Theme, saved.Accent, saved.Font, saved.TextSize, saved.Density);
+        _ready = true;
+    }
+
+    /// <summary>Applies the change on screen straight away, then saves it.</summary>
+    private async Task SetAsync(UiTheme? theme = null, UiAccent? accent = null, UiFont? font = null, UiTextSize? size = null, UiDensity? density = null)
+    {
+        if (_employeeId is not Guid employeeId || _saving)
+            return;
+        _theme = theme ?? _theme;
+        _accent = accent ?? _accent;
+        _font = font ?? _font;
+        _size = size ?? _size;
+        _density = density ?? _density;
+        await ApplyAsync();
+
+        _saving = true;
+        try
+        {
+            await Preferences.SaveAsync(employeeId, _theme, _accent, _font, _size, _density);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("ذخیره‌ی تنظیمات انجام نشد؛ تغییر فقط تا بستن صفحه اعمال می‌ماند.", ToastLevel.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task ResetAsync()
+    {
+        if (_employeeId is not Guid employeeId)
+            return;
+        _saving = true;
+        try
+        {
+            await Preferences.ResetAsync(employeeId);
+            (_theme, _accent, _font, _size, _density) = (UiTheme.System, UiAccent.Blue, UiFont.Vazirmatn, UiTextSize.Normal, UiDensity.Comfortable);
+            await ApplyAsync();
+            AppState.AddToast("ظاهر برنامه به حالت پیش‌فرض برگشت.", ToastLevel.Success);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("بازگشت به پیش‌فرض انجام نشد.", ToastLevel.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task ApplyAsync()
+    {
+        var a = UiPreferenceAttributes.From(BuildPreview());
+        await Js.InvokeVoidAsync("yasUi.apply", new { theme = a.Theme, accent = a.Accent, font = a.Font, size = a.Size, density = a.Density });
+    }
+
+    private UserUiPreference BuildPreview()
+    {
+        var p = new UserUiPreference(_employeeId ?? Guid.NewGuid());
+        p.Update(_theme, _accent, _font, _size, _density);
+        return p;
+    }
+}

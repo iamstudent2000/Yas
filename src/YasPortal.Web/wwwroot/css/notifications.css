@@ -39,7 +39,7 @@
     overflow: hidden !important;
     pointer-events: auto !important;
     gap: 8px !important;
-    background: #fff !important;
+    background: var(--surface,#fff) !important;
     border: 1px solid #e4e7ec !important;
     border-radius: 10px !important;
     box-shadow: 0 8px 20px rgba(16,24,40,.12) !important;
@@ -58,7 +58,7 @@
 }
 
 .app-toast-success::before { background: #12b76a !important; }
-.app-toast-info::before { background: #155eef !important; }
+.app-toast-info::before { background: var(--accent,#155eef) !important; }
 .app-toast-warning::before { background: #f79009 !important; }
 .app-toast-error::before { background: #f04438 !important; }
 
@@ -73,10 +73,10 @@
     font-size: 14px;
 }
 
-.app-toast-success .app-toast-icon { background: #ecfdf3; color: #039855; }
-.app-toast-info .app-toast-icon { background: #eef4ff; color: #155eef; }
-.app-toast-warning .app-toast-icon { background: #fffaeb; color: #dc6803; }
-.app-toast-error .app-toast-icon { background: #fef3f2; color: #d92d20; }
+.app-toast-success .app-toast-icon { background: var(--ok-soft,#ecfdf3); color: #039855; }
+.app-toast-info .app-toast-icon { background: var(--accent-soft,#eef4ff); color: var(--accent,#155eef); }
+.app-toast-warning .app-toast-icon { background: var(--warn-soft,#fffaeb); color: #dc6803; }
+.app-toast-error .app-toast-icon { background: var(--bad-soft,#fef3f2); color: #d92d20; }
 
 .app-toast-content {
     min-width: 0;
@@ -88,7 +88,7 @@
 
 .app-toast-title {
     margin: 0 0 2px;
-    color: #344054;
+    color: var(--text,#344054);
     font-size: 12px;
     font-weight: 800;
     line-height: 1.35;
@@ -96,7 +96,7 @@
 
 .app-toast-message {
     margin: 0;
-    color: #667085;
+    color: var(--text-muted,#667085);
     font-size: 11.5px;
     font-weight: 500;
     line-height: 1.45;
@@ -125,7 +125,7 @@
     margin: -1px 0 0;
     border: 0;
     background: transparent;
-    color: #98a2b3;
+    color: var(--text-muted,#98a2b3);
     border-radius: 6px;
     display: grid;
     place-items: center;
@@ -136,8 +136,8 @@
 }
 
 .app-toast-close:hover {
-    background: #f2f4f7;
-    color: #344054;
+    background: var(--surface-2,#f2f4f7);
+    color: var(--text,#344054);
 }
 
 .app-toast-close:focus-visible {

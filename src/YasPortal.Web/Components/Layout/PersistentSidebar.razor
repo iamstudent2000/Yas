@@ -38,6 +38,7 @@
                         <AuthorizeView Policy="Profile.View">
                             <NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink>
                         </AuthorizeView>
+                        <NavLink href="/settings/appearance"><i class="bx bx-palette"></i><span>ظاهر برنامه</span></NavLink>
                         <AuthorizeView Context="myPositionsAuth">
                             <Authorized>
                                 @if (!myPositionsAuth.User.HasClaim("yas_is_admin", "True"))

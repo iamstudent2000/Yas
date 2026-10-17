@@ -25,13 +25,13 @@
 
 .admin-page .permission-choice:hover,
 .admin-page .group-choice:hover {
-    border-color: var(--admin-primary, #3157d5);
+    border-color: var(--admin-primary, var(--accent,#3157d5));
 }
 
 .admin-page .permission-choice.selected,
 .admin-page .group-choice.selected {
-    border-color: var(--admin-primary, #3157d5);
-    background: var(--admin-primary, #3157d5);
+    border-color: var(--admin-primary, var(--accent,#3157d5));
+    background: var(--admin-primary, var(--accent,#3157d5));
 }
 
 .admin-page .permission-choice input,

@@ -1,0 +1,87 @@
+/* =============================================================
+   Theme layer — per-user appearance (theme, accent, font, size, density)
+   Loaded LAST (before rtl-utilities is fine, after every other sheet).
+   The other stylesheets read these variables with their old colors as
+   fallbacks, so with no data-* attributes the app looks as it always did.
+   <html> carries: data-theme (light|dark|system), data-scheme (light|dark,
+   the resolved result), data-accent, data-font, data-size, data-density.
+   ============================================================= */
+
+:root{
+    --accent:#155eef; --accent-strong:#1d4ed8; --accent-soft:#eef4ff; --accent-soft2:#dce6ff;
+    --surface:#fff; --surface-2:#f4f7fb; --border:#e6ebf2;
+    --text:#172033; --text-muted:#667085;
+    --ok-soft:#ecfdf3; --warn-soft:#fffaeb; --bad-soft:#fef3f2;
+    --ui-zoom:1;
+}
+
+/* ---- accent colors ---- */
+html[data-accent="teal"]  {--accent:#0e9384;--accent-strong:#0b7569;--accent-soft:#e6fbf7;--accent-soft2:#c5f3ec}
+html[data-accent="violet"]{--accent:#7a5af8;--accent-strong:#6941c6;--accent-soft:#f4f0ff;--accent-soft2:#e4dcff}
+html[data-accent="rose"]  {--accent:#e31b54;--accent-strong:#c01048;--accent-soft:#fff1f4;--accent-soft2:#ffd9e2}
+html[data-accent="amber"] {--accent:#dc6803;--accent-strong:#b54708;--accent-soft:#fff6e5;--accent-soft2:#fde7bd}
+html[data-accent="green"] {--accent:#079455;--accent-strong:#067647;--accent-soft:#ecfdf3;--accent-soft2:#c7f0d9}
+
+/* ---- admin design-system variables follow the same palette ---- */
+:root{
+    --admin-bg:var(--surface-2); --admin-surface:var(--surface); --admin-border:var(--border);
+    --admin-text:var(--text); --admin-muted:var(--text-muted);
+    --admin-primary:var(--accent); --admin-primary-dark:var(--accent-strong); --admin-primary-soft:var(--accent-soft);
+}
+
+/* ---- dark scheme ---- */
+html[data-scheme="dark"]{
+    color-scheme:dark;
+    --surface:#171c28; --surface-2:#0e121a; --border:#2b3447;
+    --text:#e7eaf2; --text-muted:#98a3b8;
+    --ok-soft:#10301f; --warn-soft:#3a2c0e; --bad-soft:#3d1a1a;
+    --accent-soft:color-mix(in srgb,var(--accent) 20%,#171c28);
+    --accent-soft2:color-mix(in srgb,var(--accent) 32%,#171c28);
+    --admin-border-strong:#394560; --admin-danger-soft:#3d1a1a; --admin-success-soft:#10301f; --admin-warning-soft:#3a2c0e;
+}
+html[data-scheme="dark"] body{color:var(--text)}
+html[data-scheme="dark"] :is(.card,.request-card,.topbar,.sidebar-panel,.stat-card,.position-card,.admin-detail,.stage-card,.rt-stage){background:var(--surface);border-color:var(--border);color:var(--text)}
+html[data-scheme="dark"] :is(input,select,textarea,.form-control){background:var(--surface-2);color:var(--text);border-color:var(--border)}
+html[data-scheme="dark"] ::placeholder{color:var(--text-muted)}
+html[data-scheme="dark"] :is(h1,h2,h3,h4,.page-title,.card-title,.section-title,strong,th){color:var(--text)}
+html[data-scheme="dark"] :is(table,.data-table,.admin-list-row,.admin-list-table-head){background:var(--surface);color:var(--text)}
+html[data-scheme="dark"] :is(td,th,hr){border-color:var(--border)}
+html[data-scheme="dark"] .page-header,html[data-scheme="dark"] .admin-page .admin-page-header{background:var(--surface);border-color:var(--border)}
+html[data-scheme="dark"] .btn-secondary{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+html[data-scheme="dark"] :is(a:not(.btn)){color:color-mix(in srgb,var(--accent) 70%,#fff)}
+html[data-scheme="dark"] img.brand-mark{filter:none}
+
+/* ---- font family ---- */
+html[data-font="system"] body,
+html[data-font="system"] :is(button,input,select,textarea){font-family:Tahoma,"Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+
+/* ---- text size: scales the whole app ---- */
+html[data-size="sm"]{--ui-zoom:.92}
+html[data-size="lg"]{--ui-zoom:1.1}
+html[data-size="xl"]{--ui-zoom:1.22}
+html[data-size] body{zoom:var(--ui-zoom)}
+html[data-size] body,html[data-size] .application-body{min-height:calc(100vh / var(--ui-zoom))}
+html[data-size] .sidebar{height:calc(100vh / var(--ui-zoom))}
+
+/* ---- density ---- */
+html[data-density="compact"] .card{padding:11px}
+html[data-density="compact"] :is(.data-table,table) :is(th,td){padding-block:5px}
+html[data-density="compact"] .admin-list-row{padding-block:5px}
+html[data-density="compact"] .request-card-header{padding:10px 14px}
+html[data-density="compact"] .request-card-body{padding-bottom:12px}
+html[data-density="compact"] .btn{min-height:28px;padding-block:4px}
+html[data-density="compact"] .form-control{min-height:30px;padding-block:4px}
+html[data-density="compact"] .page-header{padding-block:10px;margin-bottom:10px}
+html[data-density="compact"] .content{padding-block:12px}
+
+/* ---- settings page ---- */
+.appearance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.appearance-group h2{margin:0 0 4px;font-size:14px}
+.appearance-group p{margin:0 0 12px;font-size:12px;color:var(--text-muted)}
+.choice-row{display:flex;flex-wrap:wrap;gap:8px}
+.choice{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;transition:border-color .12s,background .12s}
+.choice:hover{border-color:var(--accent)}
+.choice.is-selected{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-strong);box-shadow:0 0 0 1px var(--accent) inset}
+.choice:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.swatch{width:16px;height:16px;border-radius:50%;display:inline-block;border:2px solid rgba(255,255,255,.7);box-shadow:0 0 0 1px rgba(0,0,0,.18)}
+.appearance-preview{margin-top:14px}
