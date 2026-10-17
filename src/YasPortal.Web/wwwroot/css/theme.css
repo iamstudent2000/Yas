@@ -107,3 +107,41 @@ html[data-scheme="dark"] .rt-event{background:var(--surface-2);color:var(--text)
 html[data-scheme="dark"] .rt-event.is-cancelled{background:var(--surface-2)}
 html[data-scheme="dark"] :is(.admin-pill,.badge-muted,.round-history-toggle,.approval-step-comment,.field-summary-item){background-color:var(--surface-2);color:var(--text-muted)}
 html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
+
+/* =============================================================
+   Forms and popups (all pages)
+   ============================================================= */
+/* Fields sit in a two-column grid instead of one long stack; wide ones (text areas) take the whole row. */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 20px;align-items:start;max-width:880px}
+.form-field{min-width:0}
+.form-field.is-wide{grid-column:1/-1}
+.form-field>.form-label{display:block;margin-bottom:5px}
+.form-field .form-control,.form-field .pdp,.form-field .ys-search-select{max-width:100%}
+.readonly-field{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:12.5px}
+.readonly-field>i{color:var(--accent);font-size:16px}
+.readonly-field.is-warning{color:#b54708}
+.readonly-field.is-warning>i{color:#b54708}
+.request-form-card{max-width:960px}
+.dlg-create{max-width:960px}
+.dlg-section-head{margin-bottom:14px}
+.dlg-section-head .card-title{margin:0 0 4px}
+.dlg-section-head p{margin:0;font-size:12px}
+.dlg-actions{margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+.dlg-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.dlg-columns .card-title{margin:0 0 6px;display:flex;align-items:center;gap:7px}
+.dlg-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 0;border-top:1px solid var(--border)}
+.dlg-row:first-of-type{border-top:0}
+.dlg-row-main{flex:1 1 220px;min-width:0}
+.dlg-row-main strong{display:block;font-size:13px;color:var(--text)}
+.dlg-row-main strong i{vertical-align:middle;color:var(--text-muted)}
+.dlg-row-main span{font-size:11.5px;color:var(--text-muted)}
+.dlg-row-side{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+@media(max-width:1100px){.dlg-columns{grid-template-columns:1fr}}
+@media(max-width:760px){.form-grid{grid-template-columns:1fr}}
+
+/* Popups must not be clipped by the card that holds the field, nor sit under the next card.
+   Cards clip their content (rounded corners); a card that contains a dropdown or date picker may not. */
+:is(.card,.request-card,.admin-card,.filter-card,.table-card):has(.pdp,.ys-search-select,.ys-search-select-host){overflow:visible}
+/* While a popup is open (or the field has focus) the card rises above the cards after it, but stays below the top bar. */
+:is(.card,.request-card,.admin-card,.filter-card,.table-card):has(.pdp-popover,.pdp-menu,.ys-search-dropdown),
+:is(.card,.request-card,.admin-card,.filter-card,.table-card):has(.pdp,.ys-search-select,.ys-search-select-host):focus-within{position:relative;z-index:40}

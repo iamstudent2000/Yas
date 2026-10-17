@@ -1,8 +1,10 @@
 @using System.Globalization
 @using YasPortal.Domain.Workflows
 
+<div class="form-grid">
 @foreach (var field in WorkflowFieldCatalog.GetFields(Type))
 {
+    <div class="form-field @(field.FieldType == WorkflowFieldType.TextArea ? "is-wide" : "")">
     <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
     @switch (field.FieldType)
     {
@@ -28,7 +30,9 @@
             <input class="form-control" type="text" value="@GetValue(field.Key)" @oninput="e => SetValue(field.Key, e)" />
             break;
     }
+    </div>
 }
+</div>
 <p class="request-form-hint">فیلدهای دارای علامت * برای ثبت الزامی هستند.</p>
 
 @code {

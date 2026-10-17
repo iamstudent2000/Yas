@@ -38,82 +38,99 @@
     }
     else
     {
-        <section class="card">
-            <h2 class="card-title">تفویض جدید</h2>
-            @if (_canManage)
-            {
-                <div class="admin-filter">
-                    <label class="form-label">سمت (جانشین موقت توسط مدیر سامانه)</label>
-                    <ServerSearchableGuidSelect @bind-Value="_positionId" SearchAsync="SearchPositionsAsync" Placeholder="انتخاب سمت..." />
-                </div>
-            }
-            else if (_ownPositionName is null)
-            {
-                <p class="muted">سمت فعال معتبری ندارید؛ تفویض ممکن نیست.</p>
-            }
-            else
-            {
-                <p class="muted">سمت: <strong>@_ownPositionName</strong></p>
-            }
-            <div class="admin-filter">
-                <label class="form-label">سمت دریافت‌کننده تفویض</label>
-                <ServerSearchableGuidSelect @bind-Value="_delegatePositionId" SearchAsync="SearchDelegatePositionsAsync" Placeholder="انتخاب سمت..." />
-                <p class="muted">اختیار به سمت داده می‌شود؛ هر کسی که در بازه تفویض آن سمت را دارد می‌تواند تصمیم بگیرد.</p>
+        <section class="card dlg-create">
+            <div class="dlg-section-head">
+                <h2 class="card-title"><i class="bx bx-plus-circle"></i> تفویض جدید</h2>
+                <p class="muted">اختیار به یک سمت داده می‌شود؛ هر کسی که در بازه‌ی تفویض آن سمت را دارد می‌تواند به نیابت تصمیم بگیرد.</p>
             </div>
-            <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_from" Placeholder="تاریخ شروع" /></div>
-            <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_to" Placeholder="تاریخ پایان" /></div>
-            <div class="form-actions">
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label class="form-label">@(_canManage ? "سمت تفویض‌کننده (جانشین موقت توسط مدیر سامانه)" : "سمت شما")</label>
+                    @if (_canManage)
+                    {
+                        <ServerSearchableGuidSelect @bind-Value="_positionId" SearchAsync="SearchPositionsAsync" Placeholder="انتخاب سمت..." />
+                    }
+                    else if (_ownPositionName is null)
+                    {
+                        <div class="readonly-field is-warning"><i class="bx bx-error-circle"></i> سمت فعال معتبری ندارید؛ تفویض ممکن نیست.</div>
+                    }
+                    else
+                    {
+                        <div class="readonly-field"><i class="bx bx-briefcase-alt-2"></i> <strong>@_ownPositionName</strong></div>
+                    }
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">سمت دریافت‌کننده‌ی تفویض</label>
+                    <ServerSearchableGuidSelect @bind-Value="_delegatePositionId" SearchAsync="SearchDelegatePositionsAsync" Placeholder="انتخاب سمت..." />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">از تاریخ</label>
+                    <PersianDatePicker @bind-Value="_from" Placeholder="تاریخ شروع" />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label">تا تاریخ</label>
+                    <PersianDatePicker @bind-Value="_to" Placeholder="تاریخ پایان" />
+                </div>
+            </div>
+
+            <div class="form-actions dlg-actions">
                 <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
             </div>
         </section>
 
-        <section class="card">
-            <h2 class="card-title">@(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
-            @if (_mine.Count == 0)
-            {
-                <div class="empty-state"><i class="bx bx-transfer"></i><strong>تفویضی ثبت نشده است</strong></div>
-            }
-            @foreach (var row in _mine)
-            {
-                <div class="request-card">
-                    <div class="request-card-header">
-                        <span class="request-card-title">
-                            <strong>@row.PositionName ← @row.DelegatePositionName</strong>
+        <div class="dlg-columns">
+            <section class="card">
+                <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
+                @if (_mine.Count == 0)
+                {
+                    <div class="empty-state is-compact"><i class="bx bx-transfer"></i><strong>تفویضی ثبت نشده است</strong></div>
+                }
+                @foreach (var row in _mine)
+                {
+                    <div class="dlg-row">
+                        <div class="dlg-row-main">
+                            <strong>@row.PositionName <i class="bx bx-left-arrow-alt"></i> @row.DelegatePositionName</strong>
                             <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · تفویض‌کننده: " + row.DelegatorName)</span>
-                        </span>
-                        @if (row.Delegation.ArrangedByAdmin)
-                        {
-                            <span class="badge badge-info">جانشین تعیین‌شده توسط مدیر</span>
-                        }
-                        <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
-                        @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming)
-                        {
-                            <button class="btn btn-secondary" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="bx bx-x"></i> لغو</button>
-                        }
+                        </div>
+                        <div class="dlg-row-side">
+                            @if (row.Delegation.ArrangedByAdmin)
+                            {
+                                <span class="badge badge-info">جانشین تعیین‌شده توسط مدیر</span>
+                            }
+                            <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                            @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming)
+                            {
+                                <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="bx bx-x"></i> لغو</button>
+                            }
+                        </div>
                     </div>
-                </div>
-            }
-        </section>
+                }
+            </section>
 
-        <section class="card">
-            <h2 class="card-title">تفویض‌های دریافتی</h2>
-            @if (_received.Count == 0)
-            {
-                <div class="empty-state"><i class="bx bx-inbox"></i><strong>تفویضی به شما سپرده نشده است</strong></div>
-            }
-            @foreach (var row in _received)
-            {
-                <div class="request-card">
-                    <div class="request-card-header">
-                        <span class="request-card-title">
+            <section class="card">
+                <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
+                @if (_received.Count == 0)
+                {
+                    <div class="empty-state is-compact"><i class="bx bx-inbox"></i><strong>تفویضی به شما سپرده نشده است</strong></div>
+                }
+                @foreach (var row in _received)
+                {
+                    <div class="dlg-row">
+                        <div class="dlg-row-main">
                             <strong>@row.PositionName</strong>
                             <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · از " + row.DelegatorName)</span>
-                        </span>
-                        <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                        </div>
+                        <div class="dlg-row-side">
+                            <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                        </div>
                     </div>
-                </div>
-            }
-        </section>
+                }
+            </section>
+        </div>
     }
 </div>
 
