@@ -17,17 +17,13 @@ window.serverLookupDropdown = (() => {
         const width = Math.min(rect.width, window.innerWidth - padding * 2);
         const left = Math.max(padding, Math.min(rect.left, window.innerWidth - width - padding));
 
-        menu.style.position = 'fixed';
         menu.style.zIndex = '2147483647';
-        menu.style.width = `${width}px`;
         menu.style.maxWidth = `calc(100vw - ${padding * 2}px)`;
         menu.style.maxHeight = `${height}px`;
-        menu.style.right = 'auto';
-        menu.style.left = `${left}px`;
-        menu.style.top = openUp
-            ? `${Math.max(padding, rect.top - height - gap)}px`
-            : `${Math.min(window.innerHeight - height - padding, rect.bottom + gap)}px`;
-        menu.style.bottom = 'auto';
+        const top = openUp
+            ? Math.max(padding, rect.top - height - gap)
+            : Math.min(window.innerHeight - height - padding, rect.bottom + gap);
+        window.yasPopup.place(menu, left, top, width);
         menu.dataset.openUp = openUp ? 'true' : 'false';
     }
 
