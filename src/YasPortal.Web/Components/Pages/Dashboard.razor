@@ -1,7 +1,12 @@
 @page "/dashboard"
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Infrastructure.Persistence
 @attribute [Authorize(Policy = "Dashboard.View")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>داشبورد - یاس پورتال</PageTitle>
 
@@ -10,7 +15,7 @@
         @{
             var isAdmin = auth.User.HasClaim("yas_is_admin", "True");
             var name = auth.User.Identity?.Name ?? "کاربر";
-            var activePosition = auth.User.FindFirst("yas_active_position_name")?.Value;
+            var activePosition = _activePositionName;
         }
         <div class="dashboard-page">
             <div class="page-header">
@@ -98,6 +103,28 @@
 </AuthorizeView>
 
 @code {
+    private string? _activePositionName;
+
+    /// <summary>
+    /// The name of the position the user is acting as. The sign-in only carries the position's id, so the name is looked up;
+    /// when the id is missing or no longer one of the user's positions, the first current position is shown (the same fallback the top-bar picker uses).
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+            return;
+        Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var activeId);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var mine = await db.EmployeePositions.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .OrderBy(x => x.Position.Name)
+            .Select(x => new { x.PositionId, x.Position.Name })
+            .ToListAsync();
+        _activePositionName = (mine.FirstOrDefault(x => x.PositionId == activeId) ?? mine.FirstOrDefault())?.Name;
+    }
+
     private static string GetGreeting() => DateTime.Now.Hour switch
     {
         >= 5 and < 12 => "صبح بخیر",

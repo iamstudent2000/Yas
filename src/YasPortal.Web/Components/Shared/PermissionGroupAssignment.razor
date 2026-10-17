@@ -165,7 +165,7 @@ groupId));
     .permission-group-assignment {
         margin-top: 18px;
         padding-top: 16px;
-        border-top: 1px solid #eaecf0
+        border-top: 1px solid var(--border,#eaecf0)
     }
 
     .group-assignment-header {
@@ -179,8 +179,8 @@ groupId));
         white-space: nowrap;
         padding: 7px 11px;
         border-radius: 999px;
-        background: #eef4ff;
-        color: #175cd3;
+        background: var(--accent-soft,#eef4ff);
+        color: var(--accent-strong,#175cd3);
         font-size: 12px;
         font-weight: 700
     }
@@ -216,18 +216,18 @@ groupId));
     }
 
     .group-info small {
-        color: #667085;
+        color: var(--text-muted,#667085);
         line-height: 1.6
     }
 
     .group-state {
         font-size: 11px;
-        color: #667085
+        color: var(--text-muted,#667085)
     }
 
     .group-assignment-card.assigned .group-state {
         font-weight: 700;
-        color: #175cd3
+        color: var(--accent-strong,#175cd3)
     }
 
     @@media(max-width:900px) {
