@@ -18,6 +18,10 @@
             <input class="form-control" placeholder="مثلا a1b2c3d4" @bind="_d.IdText" @bind:event="onchange" />
         </div>
         <div class="admin-filter">
+            <label class="form-label">متن در فرم درخواست</label>
+            <input class="form-control" placeholder="بخشی از هر فیلد، مثلا نام کالا" @bind="_d.Text" @bind:event="onchange" />
+        </div>
+        <div class="admin-filter">
             <label class="form-label">نوع درخواست</label>
             <select class="form-control" @onchange="e => _d.Type = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var t) ? t : null">
                 <option value="" selected="@(_d.Type is null)">همه انواع</option>
@@ -70,6 +74,24 @@
                                             SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
                                             Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
             </div>
+            <div class="admin-filter">
+                <label class="form-label">سازمان درخواست‌کننده</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterOrganizationId" ValueChanged="id => { _d.RequesterOrganizationId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchOrganizationsAsync" SelectedText=""
+                                            Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+            </div>
+            <div class="admin-filter">
+                <label class="form-label">منتظر تصمیم سمت</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.WaitingAtPositionId" ValueChanged="id => { _d.WaitingAtPositionId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchPositionsAsync" SelectedText=""
+                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
+            </div>
+            <div class="admin-filter">
+                <label class="form-label">تصمیم‌گیرنده (تایید/رد کرده)</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.ActedByEmployeeId" ValueChanged="id => { _d.ActedByEmployeeId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchEmployeesAsync" SelectedText=""
+                                            Placeholder="همه" SearchPlaceholder="نام، کد یا نام کاربری..." />
+            </div>
             <div class="admin-filter admin-filter-check">
                 <label class="check-row"><input type="checkbox" checked="@_d.CreatedByAdminOnly" @onchange="e => _d.CreatedByAdminOnly = (bool)(e.Value ?? false)" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
             </div>
@@ -116,13 +138,17 @@
     private int ActiveCount =>
         (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
         + (Filter.RequesterEmployeeId is null && string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
-        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0);
+        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0)
+        + (Filter.RequesterOrganizationId is null ? 0 : 1) + (Filter.WaitingAtPositionId is null ? 0 : 1) + (Filter.ActedByEmployeeId is null ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.Text) ? 0 : 1);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchEmployeesAsync(search, ct);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchOrganizationsAsync(search, true, ct);
 
     private Task SetRequester(Guid? id)
     {

@@ -76,4 +76,22 @@ public class WorkflowRequestCreatedByTests
         Assert.Equal(WorkflowTypeCode.Purchase, copy.Type);
         Assert.True(new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter { RequesterEmployeeId = Guid.NewGuid() }.IsEmpty == false);
     }
+
+    [Fact]
+    public void Advanced_filters_count_as_filters_and_survive_copy_and_clear()
+    {
+        var f = new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter
+        {
+            RequesterOrganizationId = Guid.NewGuid(), WaitingAtPositionId = Guid.NewGuid(), ActedByEmployeeId = Guid.NewGuid(), Text = "لپ‌تاپ",
+        };
+        Assert.False(f.IsEmpty);
+        var copy = new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter();
+        copy.CopyFrom(f);
+        Assert.Equal(f.RequesterOrganizationId, copy.RequesterOrganizationId);
+        Assert.Equal(f.WaitingAtPositionId, copy.WaitingAtPositionId);
+        Assert.Equal(f.ActedByEmployeeId, copy.ActedByEmployeeId);
+        Assert.Equal("لپ‌تاپ", copy.Text);
+        copy.Clear();
+        Assert.True(copy.IsEmpty);
+    }
 }

@@ -31,7 +31,13 @@
             <div class="card-toolbar">
                 <div>
                     <h2 class="section-title">فهرست درخواست‌ها <span class="badge badge-muted">@_total درخواست</span></h2>
-                    <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود؛ جدیدترین‌ها اول.</p>
+                    <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
+                </div>
+                <div class="toolbar-tools">
+                    <select class="form-control" title="ترتیب" @onchange="OnSortChangedAsync">
+                        <option value="new" selected="@(!_oldestFirst)">جدیدترین اول</option>
+                        <option value="old" selected="@_oldestFirst">قدیمی‌ترین اول</option>
+                    </select>
                 </div>
             </div>
             @if (_loading)
@@ -120,11 +126,13 @@
     private readonly WorkflowRequestFilter _filter = new();
     private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = Enum.GetValues<WorkflowRequestStatus>();
     private Guid? _openId;
+    private bool _oldestFirst;
     private int _page = 1, _pageSize = 20, _total;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task OnFilterChangedAsync() { _page = 1; _openId = null; await LoadAsync(); }
+    private async Task OnSortChangedAsync(ChangeEventArgs e) { _oldestFirst = e.Value?.ToString() == "old"; _page = 1; _openId = null; await LoadAsync(); }
     private async Task GoToPageAsync(int page) { _page = page; _openId = null; await LoadAsync(); }
     private async Task OnPageSizeChangedAsync(int size) { _pageSize = Math.Clamp(size, 1, 100); _page = 1; _openId = null; await LoadAsync(); }
 
@@ -140,13 +148,13 @@
             if (_page > 1 && (_page - 1) * _pageSize >= _total)
                 _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
 
-            _requests = await query
+            var ordered = _oldestFirst ? query.OrderBy(x => x.CreatedAtUtc) : query.OrderByDescending(x => x.CreatedAtUtc);
+            _requests = await ordered
                 .Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)
                 .Include(x => x.FieldChanges)
                 .AsSplitQuery()
-                .OrderByDescending(x => x.CreatedAtUtc)
                 .Skip((_page - 1) * _pageSize)
                 .Take(_pageSize)
                 .ToListAsync();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Domain.Workflows;
 
@@ -31,6 +32,18 @@ public sealed class WorkflowRequestFilter
     /// <summary>The position the requester submitted from.</summary>
     public Guid? RequesterPositionId { get; set; }
 
+    /// <summary>The requester belongs to this organization.</summary>
+    public Guid? RequesterOrganizationId { get; set; }
+
+    /// <summary>The request is currently waiting at this approver position (open requests only).</summary>
+    public Guid? WaitingAtPositionId { get; set; }
+
+    /// <summary>This employee approved, rejected or otherwise decided on a step of the request at some point.</summary>
+    public Guid? ActedByEmployeeId { get; set; }
+
+    /// <summary>Text to look for inside the filled-in form fields (case-insensitive, any part of a value).</summary>
+    public string? Text { get; set; }
+
     /// <summary>Only requests an administrator submitted on the requester's behalf.</summary>
     public bool CreatedByAdminOnly { get; set; }
 
@@ -41,7 +54,7 @@ public sealed class WorkflowRequestFilter
     public DateTime? To { get; set; }
 
     public bool IsEmpty =>
-        Status is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterPositionId is null && !CreatedByAdminOnly
+        Status is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
     public void Clear()
@@ -52,6 +65,10 @@ public sealed class WorkflowRequestFilter
         StepName = null;
         IdText = null;
         RequesterEmployeeId = null;
+        RequesterOrganizationId = null;
+        WaitingAtPositionId = null;
+        ActedByEmployeeId = null;
+        Text = null;
         RequesterPositionId = null;
         CreatedByAdminOnly = false;
         From = null;
@@ -64,6 +81,10 @@ public sealed class WorkflowRequestFilter
         Type = other.Type;
         RequesterName = other.RequesterName;
         RequesterEmployeeId = other.RequesterEmployeeId;
+        RequesterOrganizationId = other.RequesterOrganizationId;
+        WaitingAtPositionId = other.WaitingAtPositionId;
+        ActedByEmployeeId = other.ActedByEmployeeId;
+        Text = other.Text;
         RequesterPositionId = other.RequesterPositionId;
         CreatedByAdminOnly = other.CreatedByAdminOnly;
         StepName = other.StepName;
@@ -80,6 +101,20 @@ public sealed class WorkflowRequestFilter
             query = query.Where(x => x.WorkflowType == type);
         if (RequesterEmployeeId is Guid requesterId)
             query = query.Where(x => x.RequesterEmployeeId == requesterId);
+        if (RequesterOrganizationId is Guid organizationId)
+            query = query.Where(x => db.Employees.Any(e => e.Id == x.RequesterEmployeeId && e.OrganizationId == organizationId));
+        if (WaitingAtPositionId is Guid waitingId)
+            query = query.Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+                && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == waitingId));
+        if (ActedByEmployeeId is Guid actorId)
+            query = query.Where(x => x.StepDecisions.Any(d => d.ActedByEmployeeId == actorId));
+        if (!string.IsNullOrWhiteSpace(Text))
+        {
+            // Field values are stored as JSON with non-ASCII characters escaped (\u0645…), so match the escaped form as well as the plain one.
+            var raw = Text.Trim();
+            var escaped = JsonSerializer.Serialize(raw)[1..^1];
+            query = query.Where(x => x.FieldValuesJson.Contains(raw) || x.FieldValuesJson.Contains(escaped));
+        }
         if (RequesterPositionId is Guid positionId)
             query = query.Where(x => x.RequesterPositionId == positionId);
         if (CreatedByAdminOnly)
@@ -102,7 +137,9 @@ public sealed class WorkflowRequestFilter
         if (!string.IsNullOrWhiteSpace(StepName))
         {
             var step = StepName.Trim();
-            query = query.Where(x => x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Name.Contains(step)));
+            // "Current step" only means something while the request is waiting at a step; finished and returned requests keep their last step number.
+            query = query.Where(x => x.Status == WorkflowRequestStatus.PendingApproval
+                && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.Name.Contains(step)));
         }
         if (!string.IsNullOrWhiteSpace(IdText))
         {
