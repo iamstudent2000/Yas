@@ -203,8 +203,8 @@
         _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory");
         _requestsGroupVisible = await Can("Requests.Create") || await Can("Requests.View")
             || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen")
-            || await Can("Delegations.Create") || await Can("Delegations.Manage");
-        _delegationsVisible = await Can("Delegations.Create") || await Can("Delegations.Manage");
+            || await Can("Requests.Delegation") || await Can("Admin.Delegation");
+        _delegationsVisible = await Can("Requests.Delegation") || await Can("Admin.Delegation");
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
