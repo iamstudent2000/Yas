@@ -1,4 +1,5 @@
 using Xunit;
+using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
@@ -33,5 +34,27 @@ public class WorkflowRequestCreatedByTests
         var requester = Guid.NewGuid();
         var r = new WorkflowRequest(WorkflowTypeCode.Purchase, requester, Guid.NewGuid(), "{}", Steps, createdByEmployeeId: requester);
         Assert.Null(r.CreatedByEmployeeId);
+    }
+
+    [Fact]
+    public void Admin_created_request_also_notifies_the_requester()
+    {
+        var requester = Guid.NewGuid();
+        var byAdmin = new WorkflowRequest(WorkflowTypeCode.Purchase, requester, Guid.NewGuid(), "{}", Steps, createdByEmployeeId: Guid.NewGuid());
+        var targets = WorkflowNotificationPlanner.Plan(byAdmin, WorkflowNotificationEvent.Submitted);
+        Assert.Contains(targets, t => t.IsRequester && t.Kind == NotificationKind.RequestCreatedForYou);
+        Assert.Contains(targets, t => !t.IsRequester && t.Kind == NotificationKind.StepReached);
+
+        var bySelf = new WorkflowRequest(WorkflowTypeCode.Purchase, requester, Guid.NewGuid(), "{}", Steps);
+        Assert.DoesNotContain(WorkflowNotificationPlanner.Plan(bySelf, WorkflowNotificationEvent.Submitted), t => t.IsRequester);
+    }
+
+    [Fact]
+    public void Filter_can_restrict_to_admin_created_and_by_position()
+    {
+        var f = new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter { CreatedByAdminOnly = true, RequesterPositionId = Guid.NewGuid() };
+        Assert.False(f.IsEmpty);
+        f.Clear();
+        Assert.True(f.IsEmpty);
     }
 }

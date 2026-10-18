@@ -1,6 +1,7 @@
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
+@inject AdminQueryService AdminQueries
 
 <section class="card request-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
@@ -53,6 +54,18 @@
                 <input class="form-control" placeholder="بخشی از نام مرحله" value="@Filter.StepName" @oninput="e => SetDebounced(() => Filter.StepName = e.Value?.ToString())" />
             </div>
         }
+        @if (ShowAdminExtras)
+        {
+            <div class="admin-filter">
+                <label class="form-label">سمت درخواست‌کننده</label>
+                <ServerSearchableGuidSelect Value="Filter.RequesterPositionId" ValueChanged="id => Set(() => Filter.RequesterPositionId = id)"
+                                            SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
+                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
+            </div>
+            <div class="admin-filter admin-filter-check">
+                <label class="check-row"><input type="checkbox" checked="@Filter.CreatedByAdminOnly" @onchange="e => Set(() => Filter.CreatedByAdminOnly = (bool)(e.Value ?? false))" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
+            </div>
+        }
         <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="Filter.From" ValueChanged="d => Set(() => Filter.From = d)" Placeholder="تاریخ شروع" /></div>
         <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="Filter.To" ValueChanged="d => Set(() => Filter.To = d)" Placeholder="تاریخ پایان" /></div>
         <div class="admin-filter request-filter-clear">
@@ -69,6 +82,12 @@
     [Parameter] public bool ShowRequester { get; set; } = true;
     [Parameter] public bool ShowStep { get; set; }
 
+    /// <summary>Administrator-only filters: requester position and "submitted by an admin".</summary>
+    [Parameter] public bool ShowAdminExtras { get; set; }
+    private string _positionText = "";
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, null, null, ct);
+
     /// <summary>Raised after any change, so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }
 
@@ -78,7 +97,7 @@
     private int ActiveCount =>
         (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
         + (string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
-        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1);
+        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0);
 
     private async Task Set(Action apply)
     {

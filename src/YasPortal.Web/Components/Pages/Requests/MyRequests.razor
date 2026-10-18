@@ -9,6 +9,7 @@
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Requests.View")]
+@attribute [Authorize(Policy = "NonAdmin")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
 @inject NotificationService NotificationSvc

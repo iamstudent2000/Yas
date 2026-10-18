@@ -1,0 +1,172 @@
+@page "/admin/requests"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Admin.Requests")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+
+<PageTitle>همه درخواست‌ها - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-search-alt"></i> همه درخواست‌ها</h1>
+            <p class="page-subtitle">جستجو و فیلتر همه درخواست‌های سامانه با هر وضعیتی، صرف‌نظر از ثبت‌کننده. برای دیدن مسیر و سابقه، «جزئیات» را باز کنید.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/admin/active-requests"><i class="bx bx-error-circle"></i> درخواست‌های فعال</a>
+            <a class="btn btn-secondary" href="/admin/rejected-requests"><i class="bx bx-x-circle"></i> ردشده‌ها</a>
+        </div>
+    </div>
+
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Changed="OnFilterChangedAsync" />
+
+    <div class="admin-stack">
+        <section class="card table-card">
+            <div class="card-toolbar">
+                <div>
+                    <h2 class="section-title">فهرست درخواست‌ها <span class="badge badge-muted">@_total درخواست</span></h2>
+                    <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود؛ جدیدترین‌ها اول.</p>
+                </div>
+            </div>
+            @if (_loading)
+            {
+                <LoadingState />
+            }
+            else if (_requests.Count == 0)
+            {
+                <div class="empty-state"><i class="bx bx-search"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>شناسه</th>
+                                <th>نوع</th>
+                                <th>درخواست‌کننده</th>
+                                <th>وضعیت</th>
+                                <th>مرحله جاری</th>
+                                <th>نزد</th>
+                                <th>تاریخ ثبت</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var request in _requests)
+                            {
+                                var waiting = request.Status is WorkflowRequestStatus.PendingApproval
+                                    ? request.CurrentSteps.Where(s => s.Status == WorkflowStepStatus.Pending).ToList()
+                                    : new List<WorkflowRequestStep>();
+                                var open = _openId == request.Id;
+                                <tr>
+                                    <td dir="ltr">#@request.Id.ToString("N")[..8]</td>
+                                    <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
+                                    <td>
+                                        @(_names.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")
+                                        @if (request.CreatedByEmployeeId is Guid by)
+                                        {
+                                            <span class="badge badge-muted" title="ثبت‌شده توسط مدیر"><i class="bx bx-user-plus"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
+                                        }
+                                    </td>
+                                    <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
+                                    <td>@(waiting.Count == 0 ? "—" : string.Join(" / ", waiting.Select(s => s.Name)))</td>
+                                    <td>
+                                        @if (waiting.Count == 0)
+                                        {
+                                            <span class="muted">—</span>
+                                        }
+                                        else
+                                        {
+                                            @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var h) ? h : "سمت خالی"))
+                                        }
+                                    </td>
+                                    <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
+                                    <td>
+                                        <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openId = open ? null : request.Id">
+                                            <i class="bx @(open ? "bx-chevron-up" : "bx-show")"></i> @(open ? "بستن" : "جزئیات")
+                                        </button>
+                                    </td>
+                                </tr>
+                                @if (open)
+                                {
+                                    <tr>
+                                        <td colspan="8">
+                                            <RequestSummary Request="request" EmployeeNames="_names" HolderNames="_holders" />
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private bool _loading = true;
+    private List<WorkflowRequest> _requests = [];
+    private Dictionary<Guid, string> _names = [];
+    private Dictionary<Guid, string> _holders = [];
+    private readonly WorkflowRequestFilter _filter = new();
+    private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = Enum.GetValues<WorkflowRequestStatus>();
+    private Guid? _openId;
+    private int _page = 1, _pageSize = 20, _total;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task OnFilterChangedAsync() { _page = 1; _openId = null; await LoadAsync(); }
+    private async Task GoToPageAsync(int page) { _page = page; _openId = null; await LoadAsync(); }
+    private async Task OnPageSizeChangedAsync(int size) { _pageSize = Math.Clamp(size, 1, 100); _page = 1; _openId = null; await LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var query = _filter.Apply(db.WorkflowRequests.AsNoTracking(), db);
+            _total = await query.CountAsync();
+            if (_page > 1 && (_page - 1) * _pageSize >= _total)
+                _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+
+            _requests = await query
+                .Include(x => x.Steps)
+                .Include(x => x.RequesterActions)
+                .Include(x => x.StepDecisions)
+                .Include(x => x.FieldChanges)
+                .AsSplitQuery()
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Skip((_page - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToListAsync();
+
+            var ids = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+            ids.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+            ids.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
+            ids.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
+            ids.AddRange(_requests.Where(x => x.CreatedByEmployeeId is not null).Select(x => x.CreatedByEmployeeId!.Value));
+            ids.AddRange(_requests.Select(x => x.RequesterEmployeeId));
+            ids.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
+            ids = ids.Distinct().ToList();
+            _names = ids.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+            var pending = _requests.SelectMany(x => x.CurrentSteps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+            _holders = pending.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pending);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

@@ -41,6 +41,14 @@ public static class WorkflowNotificationPlanner
         switch (evt)
         {
             case WorkflowNotificationEvent.Submitted:
+            {
+                var atStep = AtCurrentStep(request, NotificationKind.StepReached);
+                // An administrator submitted it for the requester: tell the requester too.
+                return request.CreatedByEmployeeId is not null
+                    ? [ToRequester(NotificationKind.RequestCreatedForYou), .. atStep]
+                    : atStep;
+            }
+
             case WorkflowNotificationEvent.Resubmitted:
                 return AtCurrentStep(request, NotificationKind.StepReached);
 

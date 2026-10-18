@@ -40,8 +40,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
 });
 builder.Services.AddAuthorization(options => {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.Delegation", "Admin.Delegation", "Admin.RequestForOthers", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
+    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.Delegation", "Admin.Delegation", "Admin.RequestForOthers", "Admin.Requests", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
+    // Administrator accounts have no organizational position, so the personal request pages (new / mine / inbox) are not for them.
+    options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();

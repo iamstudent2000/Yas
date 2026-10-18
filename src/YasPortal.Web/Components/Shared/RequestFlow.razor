@@ -10,7 +10,14 @@
             <div>
                 <strong>ثبت درخواست</strong>
                 <div class="approval-step-meta">
-                    توسط درخواست‌کننده ثبت شد
+                    @if (Request.CreatedByEmployeeId is Guid createdBy)
+                    {
+                        <span>توسط مدیر سامانه (@(EmployeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")) برای درخواست‌کننده ثبت شد</span>
+                    }
+                    else
+                    {
+                        <span>توسط درخواست‌کننده ثبت شد</span>
+                    }
                     @if (RequesterName is not null)
                     {
                         <span> — @RequesterName</span>

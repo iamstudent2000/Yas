@@ -25,6 +25,12 @@ public sealed class WorkflowRequestFilter
     /// </summary>
     public string? IdText { get; set; }
 
+    /// <summary>The position the requester submitted from.</summary>
+    public Guid? RequesterPositionId { get; set; }
+
+    /// <summary>Only requests an administrator submitted on the requester's behalf.</summary>
+    public bool CreatedByAdminOnly { get; set; }
+
     /// <summary>First day to include (the whole day).</summary>
     public DateTime? From { get; set; }
 
@@ -32,7 +38,7 @@ public sealed class WorkflowRequestFilter
     public DateTime? To { get; set; }
 
     public bool IsEmpty =>
-        Status is null && Type is null && From is null && To is null
+        Status is null && Type is null && From is null && To is null && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
     public void Clear()
@@ -42,6 +48,8 @@ public sealed class WorkflowRequestFilter
         RequesterName = null;
         StepName = null;
         IdText = null;
+        RequesterPositionId = null;
+        CreatedByAdminOnly = false;
         From = null;
         To = null;
     }
@@ -52,6 +60,10 @@ public sealed class WorkflowRequestFilter
             query = query.Where(x => x.Status == status);
         if (Type is WorkflowTypeCode type)
             query = query.Where(x => x.WorkflowType == type);
+        if (RequesterPositionId is Guid positionId)
+            query = query.Where(x => x.RequesterPositionId == positionId);
+        if (CreatedByAdminOnly)
+            query = query.Where(x => x.CreatedByEmployeeId != null);
         if (From is DateTime from)
         {
             var start = from.Date;

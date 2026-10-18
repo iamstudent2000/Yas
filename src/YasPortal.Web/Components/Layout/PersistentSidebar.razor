@@ -111,22 +111,31 @@
                         گردش‌کار</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_requestsExpanded ? "expanded" : "")">
                         <AuthorizeView Policy="Requests.Create">
+                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/new"><i class="bx bx-plus-circle"></i><span>درخواست جدید</span></NavLink>
+                          </AuthorizeView>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="Admin.Requests">
+                            <NavLink href="/admin/requests"><i class="bx bx-search-alt"></i><span>همه درخواست‌ها</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="Admin.RequestForOthers">
                             <NavLink href="/admin/requests/new"><i class="bx bx-user-plus"></i><span>ثبت درخواست برای دیگران</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="Requests.View">
+                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
                                 {
                                     <span class="nav-badge">@_myRequestsBadge</span>
                                 }</NavLink>
+                          </AuthorizeView>
                         </AuthorizeView>
                         <AuthorizeView Policy="Requests.View">
+                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
                                 {
                                     <span class="nav-badge">@_inboxBadge</span>
                                 }</NavLink>
+                          </AuthorizeView>
                         </AuthorizeView>
                         <AuthorizeView Policy="Requests.View">
                             <NavLink href="/notifications"><i class="bx bx-bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
@@ -181,7 +190,7 @@
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests/new", "requests/mine", "requests/inbox", "notifications", "delegations", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "notifications", "delegations", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -207,7 +216,7 @@
             || !user.HasClaim("yas_is_admin", "True");
         _accessGroupVisible = await Can("Admin.Users") || await Can("Admin.Access") || await Can("Admin.Permissions");
         _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory");
-        _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Requests.View")
+        _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Admin.Requests") || await Can("Requests.View")
             || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen")
             || await Can("Requests.Delegation") || await Can("Admin.Delegation");
         _delegationsVisible = await Can("Requests.Delegation") || await Can("Admin.Delegation");
