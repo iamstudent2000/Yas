@@ -79,13 +79,15 @@
                             <h2 class="section-title">فهرست کاربران</h2>
                             <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
                         </div>
-                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                        
+                        </div>
+                        <div class="admin-filters users-filter-row">
+                            <div class="admin-filter users-filter-search"><label class="form-label">جستجو</label>
+<div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                            placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput"
                                                                                            @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
-                            type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
-                        </div>
-                        <div class="admin-filters">
-                            <div class="admin-filter"><label class="form-label">وضعیت</label>
+                            type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div></div>
+<div class="admin-filter"><label class="form-label">وضعیت</label>
                                 <select class="form-control" value="@_statusFilter" @onchange="StatusFilterChanged">
                                     <option value="">همه</option>
                                     <option value="active">فعال</option>

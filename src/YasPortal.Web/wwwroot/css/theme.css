@@ -203,3 +203,11 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 .workflow-type-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .positions-layout{grid-template-columns:minmax(0,1fr)}
 @media (max-width:1100px){.admin-row-grid>.form-field,.admin-row-grid>.form-field.is-grow{flex:1 1 calc(50% - 12px)}}
+
+/* /admin/users: search and all filters on one row */
+.users-filter-row{display:flex!important;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.users-filter-row>.admin-filter{flex:1 1 160px;min-width:0;margin:0}
+.users-filter-row>.users-filter-search{flex:1.4 1 200px}
+.users-filter-row>.request-filter-clear{flex:0 0 auto}
+.users-filter-row .search-box{width:100%;min-width:0}
+.users-filter-row .form-label{display:block;margin:0 0 5px}
