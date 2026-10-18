@@ -57,4 +57,23 @@ public class WorkflowRequestCreatedByTests
         f.Clear();
         Assert.True(f.IsEmpty);
     }
+
+    [Fact]
+    public void Filter_copy_carries_every_field_and_a_picked_requester_counts_as_a_filter()
+    {
+        var source = new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter
+        {
+            RequesterEmployeeId = Guid.NewGuid(), StepName = "مدیر", IdText = "ab12", CreatedByAdminOnly = true, Type = WorkflowTypeCode.Purchase,
+        };
+        var copy = new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter();
+        Assert.True(copy.IsEmpty);
+        copy.CopyFrom(source);
+        Assert.False(copy.IsEmpty);
+        Assert.Equal(source.RequesterEmployeeId, copy.RequesterEmployeeId);
+        Assert.Equal("مدیر", copy.StepName);
+        Assert.Equal("ab12", copy.IdText);
+        Assert.True(copy.CreatedByAdminOnly);
+        Assert.Equal(WorkflowTypeCode.Purchase, copy.Type);
+        Assert.True(new YasPortal.Infrastructure.Persistence.WorkflowRequestFilter { RequesterEmployeeId = Guid.NewGuid() }.IsEmpty == false);
+    }
 }

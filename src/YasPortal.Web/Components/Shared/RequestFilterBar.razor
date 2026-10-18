@@ -15,15 +15,15 @@
     <div class="admin-filters request-filter-body">
         <div class="admin-filter">
             <label class="form-label">شناسه درخواست</label>
-            <input class="form-control" placeholder="مثلا a1b2c3d4" value="@Filter.IdText" @oninput="e => SetDebounced(() => Filter.IdText = e.Value?.ToString())" />
+            <input class="form-control" placeholder="مثلا a1b2c3d4" @bind="_d.IdText" @bind:event="onchange" />
         </div>
         <div class="admin-filter">
             <label class="form-label">نوع درخواست</label>
-            <select class="form-control" value="@(Filter.Type?.ToString() ?? "")" @onchange="e => Set(() => Filter.Type = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var t) ? t : null)">
-                <option value="">همه انواع</option>
+            <select class="form-control" @onchange="e => _d.Type = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var t) ? t : null">
+                <option value="" selected="@(_d.Type is null)">همه انواع</option>
                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
                 {
-                    <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
+                    <option value="@type" selected="@(_d.Type == type)">@WorkflowFieldCatalog.GetDisplayName(type)</option>
                 }
             </select>
         </div>
@@ -31,11 +31,11 @@
         {
             <div class="admin-filter">
                 <label class="form-label">وضعیت</label>
-                <select class="form-control" value="@(Filter.Status?.ToString() ?? "")" @onchange="e => Set(() => Filter.Status = Enum.TryParse<WorkflowRequestStatus>(e.Value?.ToString(), out var s) ? s : null)">
-                    <option value="">همه وضعیت‌ها</option>
+                <select class="form-control" @onchange="e => _d.Status = Enum.TryParse<WorkflowRequestStatus>(e.Value?.ToString(), out var st) ? st : null">
+                    <option value="" selected="@(_d.Status is null)">همه وضعیت‌ها</option>
                     @foreach (var status in StatusOptions)
                     {
-                        <option value="@status">@WorkflowDisplay.StatusLabel(status)</option>
+                        <option value="@status" selected="@(_d.Status == status)">@WorkflowDisplay.StatusLabel(status)</option>
                     }
                 </select>
             </div>
@@ -44,32 +44,41 @@
         {
             <div class="admin-filter">
                 <label class="form-label">درخواست‌کننده</label>
-                <input class="form-control" placeholder="بخشی از نام" value="@Filter.RequesterName" @oninput="e => SetDebounced(() => Filter.RequesterName = e.Value?.ToString())" />
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterEmployeeId" ValueChanged="SetRequester"
+                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_requesterText"
+                                            Placeholder="همه درخواست‌کننده‌ها" SearchPlaceholder="نام، کد یا نام کاربری..." />
             </div>
         }
         @if (ShowStep)
         {
             <div class="admin-filter">
                 <label class="form-label">مرحله جاری</label>
-                <input class="form-control" placeholder="بخشی از نام مرحله" value="@Filter.StepName" @oninput="e => SetDebounced(() => Filter.StepName = e.Value?.ToString())" />
+                <select class="form-control" @onchange="e => _d.StepName = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value!.ToString()">
+                    <option value="" selected="@string.IsNullOrWhiteSpace(_d.StepName)">همه مرحله‌ها</option>
+                    @foreach (var name in _stepNames)
+                    {
+                        <option value="@name" selected="@(_d.StepName == name)">@name</option>
+                    }
+                </select>
             </div>
         }
         @if (ShowAdminExtras)
         {
             <div class="admin-filter">
                 <label class="form-label">سمت درخواست‌کننده</label>
-                <ServerSearchableGuidSelect Value="Filter.RequesterPositionId" ValueChanged="id => Set(() => Filter.RequesterPositionId = id)"
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterPositionId" ValueChanged="id => { _d.RequesterPositionId = id; return Task.CompletedTask; }"
                                             SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
                                             Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
             </div>
             <div class="admin-filter admin-filter-check">
-                <label class="check-row"><input type="checkbox" checked="@Filter.CreatedByAdminOnly" @onchange="e => Set(() => Filter.CreatedByAdminOnly = (bool)(e.Value ?? false))" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
+                <label class="check-row"><input type="checkbox" checked="@_d.CreatedByAdminOnly" @onchange="e => _d.CreatedByAdminOnly = (bool)(e.Value ?? false)" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
             </div>
         }
-        <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="Filter.From" ValueChanged="d => Set(() => Filter.From = d)" Placeholder="تاریخ شروع" /></div>
-        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="Filter.To" ValueChanged="d => Set(() => Filter.To = d)" Placeholder="تاریخ پایان" /></div>
+        <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_d.From" ValueChanged="d => _d.From = d" Placeholder="تاریخ شروع" /></div>
+        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_d.To" ValueChanged="d => _d.To = d" Placeholder="تاریخ پایان" /></div>
         <div class="admin-filter request-filter-clear">
-            <button type="button" class="btn btn-secondary" disabled="@Filter.IsEmpty" @onclick="ClearAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
+            <button type="button" class="btn btn-primary" @onclick="SearchAsync"><i class="bx bx-search"></i> جستجو</button>
+            <button type="button" class="btn btn-secondary" disabled="@(Filter.IsEmpty && _d.IsEmpty)" @onclick="ClearAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
         </div>
     </div>
 </section>
@@ -84,49 +93,55 @@
 
     /// <summary>Administrator-only filters: requester position and "submitted by an admin".</summary>
     [Parameter] public bool ShowAdminExtras { get; set; }
-    private string _positionText = "";
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
-        AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
-    /// <summary>Raised after any change, so the page reloads from page 1.</summary>
+    /// <summary>Raised when the user presses "جستجو" (or clears), so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }
+
+    // Edits are kept in a draft and only applied to Filter when the search button is pressed — nothing searches while typing or picking.
+    private readonly WorkflowRequestFilter _d = new();
+    private string _requesterText = "", _positionText = "";
+    private IReadOnlyList<string> _stepNames = [];
+    private int _resetKey;
 
     // Only matters on phones, where the filters start folded so the list is the first thing on screen.
     private bool _open;
 
-    private int ActiveCount =>
-        (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
-        + (string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
-        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0);
-
-    private async Task Set(Action apply)
+    protected override async Task OnInitializedAsync()
     {
-        apply();
-        await Changed.InvokeAsync();
+        _d.CopyFrom(Filter);
+        if (ShowStep)
+            _stepNames = await AdminQueries.GetWorkflowStepNamesAsync();
     }
 
-    private CancellationTokenSource? _debounce;
+    private int ActiveCount =>
+        (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
+        + (Filter.RequesterEmployeeId is null && string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0);
 
-    /// <summary>Text boxes search while typing, shortly after the last keystroke, so nothing needs Enter or a click away.</summary>
-    private async Task SetDebounced(Action apply)
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchEmployeesAsync(search, ct);
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, null, null, ct);
+
+    private Task SetRequester(Guid? id)
     {
-        apply();
-        _debounce?.Cancel();
-        var cts = _debounce = new CancellationTokenSource();
-        try
-        {
-            await Task.Delay(400, cts.Token);
-        }
-        catch (TaskCanceledException)
-        {
-            return;
-        }
+        _d.RequesterEmployeeId = id;
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchAsync()
+    {
+        Filter.CopyFrom(_d);
         await Changed.InvokeAsync();
     }
 
     private async Task ClearAsync()
     {
         Filter.Clear();
+        _d.Clear();
+        _requesterText = _positionText = "";
+        _resetKey++;   // re-creates the pickers so they show "all" again
         await Changed.InvokeAsync();
     }
 }

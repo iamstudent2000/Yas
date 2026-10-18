@@ -96,6 +96,10 @@
                             <NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص
                                 سمت‌ها</span></NavLink>
                         </AuthorizeView>
+                        @if (_delegationsVisible)
+                        {
+                            <NavLink href="/delegations"><i class="bx bx-transfer"></i><span>تفویض اختیار</span></NavLink>
+                        }
                     </div>
                 </div>
             }
@@ -116,7 +120,7 @@
                           </AuthorizeView>
                         </AuthorizeView>
                         <AuthorizeView Policy="Admin.Requests">
-                            <NavLink href="/admin/requests"><i class="bx bx-search-alt"></i><span>همه درخواست‌ها</span></NavLink>
+                            <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="bx bx-search-alt"></i><span>همه درخواست‌ها</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="Admin.RequestForOthers">
                             <NavLink href="/admin/requests/new"><i class="bx bx-user-plus"></i><span>ثبت درخواست برای دیگران</span></NavLink>
@@ -143,10 +147,6 @@
                                     <span class="nav-badge">@_notificationBadge</span>
                                 }</NavLink>
                         </AuthorizeView>
-                        @if (_delegationsVisible)
-                        {
-                            <NavLink href="/delegations"><i class="bx bx-transfer"></i><span>تفویض اختیار</span></NavLink>
-                        }
                         <AuthorizeView Policy="Admin.Workflows">
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
@@ -189,8 +189,8 @@
     private bool _delegationsVisible;
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
-    private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "notifications", "delegations", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
+    private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history", "delegations" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -215,10 +215,10 @@
             || await Can("Profile.View")
             || !user.HasClaim("yas_is_admin", "True");
         _accessGroupVisible = await Can("Admin.Users") || await Can("Admin.Access") || await Can("Admin.Permissions");
-        _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory");
-        _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Admin.Requests") || await Can("Requests.View")
-            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen")
+        _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory")
             || await Can("Requests.Delegation") || await Can("Admin.Delegation");
+        _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Admin.Requests") || await Can("Requests.View")
+            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen");
         _delegationsVisible = await Can("Requests.Delegation") || await Can("Admin.Delegation");
     }
 

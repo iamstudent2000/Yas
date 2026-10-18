@@ -226,3 +226,6 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 .profile-security-grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
 .profile-security-grid>.form-field{flex:1 1 200px;min-width:0;margin:0}
 .profile-security-grid .form-label{display:block;margin:0 0 5px}
+
+/* Request filter bar: the search and clear buttons sit side by side */
+.request-filter-clear{display:flex;gap:8px;align-items:flex-end}

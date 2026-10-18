@@ -40,6 +40,13 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Organizations.AsNoTracking().Where(x => (!activeOnly || x.IsActive) && (q == "" || x.Name.Contains(q) || x.Code.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
     }
+    /// <summary>Distinct names of workflow steps, for the "current step" filter list.</summary>
+    public async Task<IReadOnlyList<string>> GetWorkflowStepNamesAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.WorkflowStepDefinitions.AsNoTracking().Select(x => x.Name).Distinct().OrderBy(x => x).ToListAsync(ct);
+    }
+
     /// <summary>Active, non-admin employees who hold at least one active position — the people a request can be submitted for.</summary>
     public async Task<IReadOnlyList<LookupItem>> SearchRequestersAsync(string? search, CancellationToken ct = default)
     {

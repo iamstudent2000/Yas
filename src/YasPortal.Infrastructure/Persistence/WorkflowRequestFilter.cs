@@ -16,6 +16,9 @@ public sealed class WorkflowRequestFilter
     /// <summary>Part of the requester's full name.</summary>
     public string? RequesterName { get; set; }
 
+    /// <summary>Exactly this requester (picked from a list).</summary>
+    public Guid? RequesterEmployeeId { get; set; }
+
     /// <summary>Part of the name of the step the request is currently at.</summary>
     public string? StepName { get; set; }
 
@@ -38,7 +41,7 @@ public sealed class WorkflowRequestFilter
     public DateTime? To { get; set; }
 
     public bool IsEmpty =>
-        Status is null && Type is null && From is null && To is null && RequesterPositionId is null && !CreatedByAdminOnly
+        Status is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
     public void Clear()
@@ -48,10 +51,25 @@ public sealed class WorkflowRequestFilter
         RequesterName = null;
         StepName = null;
         IdText = null;
+        RequesterEmployeeId = null;
         RequesterPositionId = null;
         CreatedByAdminOnly = false;
         From = null;
         To = null;
+    }
+
+    public void CopyFrom(WorkflowRequestFilter other)
+    {
+        Status = other.Status;
+        Type = other.Type;
+        RequesterName = other.RequesterName;
+        RequesterEmployeeId = other.RequesterEmployeeId;
+        RequesterPositionId = other.RequesterPositionId;
+        CreatedByAdminOnly = other.CreatedByAdminOnly;
+        StepName = other.StepName;
+        IdText = other.IdText;
+        From = other.From;
+        To = other.To;
     }
 
     public IQueryable<WorkflowRequest> Apply(IQueryable<WorkflowRequest> query, ApplicationDbContext db)
@@ -60,6 +78,8 @@ public sealed class WorkflowRequestFilter
             query = query.Where(x => x.Status == status);
         if (Type is WorkflowTypeCode type)
             query = query.Where(x => x.WorkflowType == type);
+        if (RequesterEmployeeId is Guid requesterId)
+            query = query.Where(x => x.RequesterEmployeeId == requesterId);
         if (RequesterPositionId is Guid positionId)
             query = query.Where(x => x.RequesterPositionId == positionId);
         if (CreatedByAdminOnly)
