@@ -35,19 +35,27 @@
             class="stat-value">@_allEmployees.Count</strong>
         </div>
     </div>
-    <div class="admin-two-col">
-        <section class="card">
-            <h2 class="section-title"><i class="bx bx-plus-circle"></i> @(_editingId is null ? "ایجاد سازمان جدید" :
-                                 "ویرایش سازمان")</h2><label class="form-label">کد سازمان</label><input class="form-control"
-                                                                                        @bind="_code" maxlength="50" placeholder="مثلاً ORG-004" /><label class="form-label">نام سازمان</label><input class="form-control"
-                                                                                        @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" />
-                <div class="form-actions"><button class="btn btn-primary" @onclick="SaveOrganization"><i
-class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>@if(_editingId
-                is not null){
-                        <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
-                    }
-                </div>
-            </section>
+    <div class="admin-stack">
+<section class="card admin-form-row">
+    <div class="admin-form-row-head">
+        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
+        <p class="muted">کد و نام سازمان را وارد کنید.</p>
+    </div>
+    <div class="admin-row-grid">
+        <div class="form-field"><label class="form-label">کد سازمان</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً ORG-004" /></div>
+        <div class="form-field is-grow"><label class="form-label">نام سازمان</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" /></div>
+        <div class="form-field admin-row-submit">
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveOrganization"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                }
+            </div>
+        </div>
+    </div>
+    </section>
+
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>

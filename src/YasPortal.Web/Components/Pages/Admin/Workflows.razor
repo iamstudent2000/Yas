@@ -23,7 +23,7 @@
         </div>
     </div>
 
-    <div class="admin-two-col">
+<div class="admin-stack">
         <section class="card">
             <div class="card-heading">
                 <div class="card-heading-icon"><i class="bx bx-list-ul"></i></div>
@@ -53,7 +53,7 @@
             </div>
         </section>
 
-        <section class="card">
+<section class="card admin-form-row workflow-form-row">
             <div class="card-heading">
                 <div class="card-heading-icon"><i
                     class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i></div>
@@ -74,9 +74,13 @@
                         </div>
                     }
 
+<div class="admin-row-grid">
+<div class="form-field is-grow">
                     <label class="form-label">نام مرحله</label>
                     <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً تایید مدیر مستقیم" />
+</div>
 
+<div class="form-field is-grow">
                     <label class="form-label">نحوه تعیین تاییدکننده</label>
                     <div class="form-radio-group">
                         <label><input type="radio" name="approverKind"
@@ -90,29 +94,37 @@
                                               checked="@(_ruleKind == ApproverRuleKind.EscalateToTreeLevel)"
                                               @onchange='() => _ruleKind = ApproverRuleKind.EscalateToTreeLevel' /> ارجاع پله‌به‌پله تا یک سطح از بالای درخت سازمانی</label>
                             </div>
+</div>
 
                             @if (_ruleKind == ApproverRuleKind.RequesterManagerLevel)
                             {
+<div class="form-field">
                                 <label class="form-label">چند سطح بالاتر از سمت درخواست‌کننده؟</label>
                                 <input class="form-control" type="number" min="1" max="10" @bind="_managerLevel" />
                                 <p class="muted">۱ یعنی مدیر مستقیم سمت درخواست‌کننده، ۲ یعنی مدیرِ مدیر او و به همین ترتیب.</p>
+</div>
                             }
                             else if (_ruleKind == ApproverRuleKind.EscalateToTreeLevel)
                             {
+<div class="form-field">
                                 <label class="form-label">تا کدام سطح از بالای درخت سازمانی؟</label>
                                 <input class="form-control" type="number" min="1" max="20" @bind="_treeLevel" />
                                 <p class="muted">بالاترین سمت سازمان «سطح ۱» است و زیرمجموعه‌های مستقیم آن «سطح ۲». درخواست ابتدا به مدیر مستقیم درخواست‌کننده می‌رسد و بعد پله‌به‌پله، یکی‌یکی از تک‌تک مدیران میانی عبور می‌کند تا به سمتِ این سطح برسد؛ پس از تایید آن سمت، به مرحله بعدی می‌رود. تعداد تاییدها به عمق سمت درخواست‌کننده بستگی دارد.</p>
+</div>
                             }
                             else
                             {
+<div class="form-field">
                                 <label class="form-label">سمت تاییدکننده</label>
                                 <ServerSearchableGuidSelect Value="@_approverPositionId" ValueChanged="id => _approverPositionId = id"
                                                             SearchAsync="SearchPositionsAsync" SelectedText="@_approverPositionSearch"
                                                             Placeholder="یک سمت را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
+</div>
                             }
 
                             @if (_editingId is null && _steps.Count > 0)
                             {
+<div class="form-field">
                                 <label class="form-label">محل افزودن</label>
                                 <select class="form-control" value="@_placement" @onchange="e => _placement = e.Value?.ToString() ?? PlacementEnd">
                                     <option value="@PlacementEnd">مرحله جدید در انتهای مسیر</option>
@@ -123,14 +135,18 @@
                                     }
                                 </select>
                                 <p class="muted">«موازی» یعنی این تاییدکننده هم‌زمان با تاییدکننده‌های همان مرحله تصمیم می‌گیرد. شرط تکمیل و سیاست رد را در سرتیتر کارت همان مرحله تنظیم می‌کنید.</p>
+</div>
                             }
 
-                            <label class="form-label" style="margin-top:12px;display:flex;align-items:center;gap:8px">
+<div class="form-field is-grow admin-row-check">
+                            <label class="form-label" style="display:flex;align-items:center;gap:8px">
                                 <input type="checkbox" @bind="_allowDelegation" />
                                 <span>تاییدکننده می‌تواند اختیار این مرحله را تفویض کند</span>
                             </label>
                             <p class="muted">اگر خاموش باشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
+</div>
 
+<div class="form-field admin-row-submit">
                             <div class="form-actions">
                                 <button class="btn btn-primary" @onclick="SaveStep"><i class="bx bx-save"></i> @(_editingId is null ?
                                           "افزودن مرحله" : "ذخیره")</button>
@@ -139,8 +155,9 @@
                                         <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
                                     }
                                 </div>
-
-                                <hr class="section-divider" />
+</div></div>
+</section>
+<section class="card workflow-steps-card">
 
                                 @if (_loading)
                                 {

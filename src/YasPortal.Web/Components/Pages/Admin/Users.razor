@@ -44,29 +44,34 @@
                 </div>
             </div>
 
-            <div class="admin-two-col">
-                <section class="card">
-                    <h2 class="section-title"><i class="bx bx-user-plus"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
-                    <label class="form-label">کد کارمند</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً EMP-006" />
-                    <label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256"
-                                                                       disabled="@(_editingId is not null)" />
-                    <label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName"
-                                                                               maxlength="256" />
-                    <label class="form-label">سازمان</label>
-                    <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged"
-                                                SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName"
-                                                Placeholder="سازمان را جستجو و انتخاب کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." />
-                    <label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input
-                    class="form-control" type="password" @bind="_password" autocomplete="new-password" />
-                    <label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label>
-                    <div class="help-text">مدیر سامانه <strong>سمت سازمانی لازم ندارد</strong>. دسترسی مدیر در «مدیریت دسترسی»
-                        حساب‌محور است.</div>
-                        <div class="form-actions"><button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i>
-                            @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>@if(_editingId is not null){
-                            <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
-                        }
-                    </div>
-                </section>
+            <div class="admin-stack">
+<section class="card admin-form-row">
+    <div class="admin-form-row-head">
+        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-user-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
+        <p class="muted">مدیر سامانه سمت سازمانی لازم ندارد؛ دسترسی مدیر در «مدیریت دسترسی» حساب‌محور است.</p>
+    </div>
+    <div class="admin-row-grid">
+        <div class="form-field"><label class="form-label">کد کارمند</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً EMP-006" /></div>
+        <div class="form-field"><label class="form-label">نام کاربری</label><input class="form-control" @bind="_username" maxlength="256" disabled="@(_editingId is not null)" /></div>
+        <div class="form-field"><label class="form-label">نام و نام خانوادگی</label><input class="form-control" @bind="_fullName" maxlength="256" /></div>
+        <div class="form-field"><label class="form-label">سازمان</label>
+            <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged"
+                                        SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName"
+                                        Placeholder="سازمان را جستجو کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
+        <div class="form-field"><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" /></div>
+        <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label></div>
+        <div class="form-field admin-row-submit">
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                }
+            </div>
+        </div>
+    </div>
+    </section>
+
 
                 <section class="card">
                     <div class="card-toolbar">

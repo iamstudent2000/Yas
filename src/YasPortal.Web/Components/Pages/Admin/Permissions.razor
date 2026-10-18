@@ -45,34 +45,27 @@
             </div>
         </div>
 
-        <div class="admin-two-col">
-            <section class="card">
-                <div class="admin-card-heading">
-                    <div class="admin-card-heading-icon"><i
-                        class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i></div>
-                        <div>
-                            <h2 class="section-title">@(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2>
-                            <p class="muted">کد فنی یکتا و نام نمایشی قابل فهم وارد کنید.</p>
-                        </div>
-                    </div>
-                    <div class="admin-form-body">
-                        <label class="form-label">نام مجوز</label>
-                        <input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" />
-                        <label class="form-label">کد فنی مجوز</label>
-                        <input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve"
-                               dir="ltr" />
-                        <div class="admin-form-hint"><i class="bx bx-info-circle"></i><span>کد فنی در این صفحه نمایش داده می‌شود
-                            و برای شناسایی دقیق مجوز استفاده می‌شود.</span></div>
-                            <div class="form-actions" style="margin-top:14px">
-                                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ?
-                                                         "ایجاد مجوز" : "ذخیره تغییرات")</button>
-                                    @if (_editingId is not null)
-                                    {
-                                        <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
-                                    }
-                                </div>
-                            </div>
-                        </section>
+        <div class="admin-stack">
+<section class="card admin-form-row">
+    <div class="admin-form-row-head">
+        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "مجوز جدید" : "ویرایش مجوز")</h2>
+        <p class="muted">کد فنی یکتا و نام نمایشی قابل فهم وارد کنید. کد فنی برای شناسایی دقیق مجوز استفاده می‌شود.</p>
+    </div>
+    <div class="admin-row-grid">
+        <div class="form-field is-grow"><label class="form-label">نام مجوز</label><input class="form-control" @bind="_name" maxlength="300" placeholder="مثلاً تأیید درخواست‌ها" /></div>
+        <div class="form-field is-grow"><label class="form-label">کد فنی مجوز</label><input class="form-control" @bind="_code" maxlength="200" placeholder="مثلاً Requests.Approve" dir="ltr" /></div>
+        <div class="form-field admin-row-submit">
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد مجوز" : "ذخیره تغییرات")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
+                }
+            </div>
+        </div>
+    </div>
+    </section>
+
 
                         <section class="card">
                             <div class="card-toolbar">

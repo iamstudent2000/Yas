@@ -24,25 +24,28 @@
                 مجوزها</a><a class="btn btn-primary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت
                 دسترسی</a></div>
             </div>
-            <div class="admin-two-col">
-                <section class="card">
-                    <div class="card-heading">
-                        <div class="card-heading-icon"><i
-                            class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i></div>
-                            <div>
-                                <h2 class="section-title">@(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
-                                <p class="muted">نام گروه برای مدیران واضح باشد.</p>
-                            </div>
-                        </div><label class="form-label">کد گروه</label><input class="form-control" @bind="_code" maxlength="50"
-                                                                               placeholder="مثلاً GRP-006" /><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200"
-                                                                               placeholder="مثلاً اپراتور درخواست" /><label class="form-label">توضیح</label><textarea
-                        class="form-control" @bind="_description" maxlength="500" rows="4"></textarea>
-                        <div class="form-actions"><button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i>
-                            @(_editingId is null ? "ایجاد گروه" : "ذخیره")</button>@if(_editingId is not null){
-                            <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
-                        }
-                    </div>
-                </section>
+            <div class="admin-stack">
+<section class="card admin-form-row">
+    <div class="admin-form-row-head">
+        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
+        <p class="muted">نام گروه برای مدیران واضح باشد.</p>
+    </div>
+    <div class="admin-row-grid">
+        <div class="form-field"><label class="form-label">کد گروه</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً GRP-006" /></div>
+        <div class="form-field"><label class="form-label">نام گروه</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً اپراتور درخواست" /></div>
+        <div class="form-field is-grow"><label class="form-label">توضیح</label><input class="form-control" @bind="_description" maxlength="500" /></div>
+        <div class="form-field admin-row-submit">
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد گروه" : "ذخیره")</button>
+                @if (_editingId is not null)
+                {
+                    <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                }
+            </div>
+        </div>
+    </div>
+    </section>
+
                 <section class="card">
                     <div class="card-toolbar">
                         <div>

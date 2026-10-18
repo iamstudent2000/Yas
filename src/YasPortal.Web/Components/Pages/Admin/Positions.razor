@@ -42,6 +42,57 @@
         </div>
     </div>
 
+        <section class="card admin-form-row position-form-row">
+        <div class="admin-form-row-head">
+            <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
+            <p class="muted">بدون بالادست = سمت ریشه. سمت زیرمجموعه باید در همان سازمان سمت بالادست باشد؛ سمت ریشه می‌تواند سازمان نداشته باشد.</p>
+        </div>
+        <div class="admin-row-grid">
+            <div class="form-field"><label class="form-label">کد سمت</label><input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً POS-006" /></div>
+            <div class="form-field"><label class="form-label">نام سمت</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" /></div>
+            <div class="form-field"><label class="form-label">سمت بالادست</label>
+                <ServerSearchableGuidSelect Value="@_parentPositionId" ValueChanged="ParentChanged"
+                                            SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName"
+                                            Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." /></div>
+            <div class="form-field"><label class="form-label">سازمان (دپارتمان)</label>
+                <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged" SearchAsync="SearchOrganizationsAsync"
+                                            SelectedText="@_organizationName" Placeholder="بدون سازمان" SearchPlaceholder="نام سازمان..." /></div>
+            <div class="form-field admin-row-submit">
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
+                    @if (_editingId is not null)
+                    {
+                        <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                    }
+                </div>
+            </div>
+        </div>
+        @if (_blockers.Count > 0)
+                                        {
+                                            <div class="blocker-panel">
+                                                <strong>@_blockerTitle</strong>
+                                                <p class="muted">تا زمانی که این درخواست‌ها بسته یا به نتیجه نرسند، تغییر انجام نمی‌شود. در «درخواست‌های فعال» می‌توانید آن‌ها را به‌صورت اجباری ببندید.</p>
+                                                <ul>
+                                                    @foreach (var b in _blockers.Take(20))
+                                                    {
+                                                        <li><span dir="ltr">#@b.ShortId</span> — @WorkflowFieldCatalog.GetDisplayName(b.Type) — @b.Reason</li>
+                                                    }
+                                                </ul>
+                                                @if (_blockers.Count > 20)
+                                                {
+                                                    <p class="muted">و @(_blockers.Count - 20) مورد دیگر…</p>
+                                                }
+                                                <a class="btn btn-secondary btn-sm" href="/admin/active-requests"><i class="bx bx-error-circle"></i> رفتن به درخواست‌های فعال</a>
+                                            </div>
+                                        }
+        <div class="rules-mini">
+                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
+                                            <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
+                                        </div>
+    </section>
+
     <div class="positions-layout">
         <section class="card position-tree-card-wrap">
             <div class="card-toolbar positions-tree-toolbar">
@@ -117,55 +168,6 @@
                                     }
                                 </section>
 
-                                <section class="card position-side-panel">
-                                    <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i>
-                                        @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
-                                        <p class="muted">بالادست را جستجو و انتخاب کنید؛ درخت می‌تواند چند سطح داشته باشد.</p>
-                                        <label class="form-label">کد سمت</label>
-                                        <input class="form-control" @bind="_code" maxlength="50" placeholder="مثلاً POS-006" />
-                                        <label class="form-label">نام سمت</label>
-                                        <input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً مدیر واحد" />
-                                        <label class="form-label">سمت بالادست</label>
-                                        <ServerSearchableGuidSelect Value="@_parentPositionId" ValueChanged="ParentChanged"
-                                                                    SearchAsync="SearchParentPositionsAsync" SelectedText="@_parentPositionName"
-                                                                    Placeholder="ریشه / انتخاب بالادست..." SearchPlaceholder="نام سمت بالادست را جستجو کنید..." />
-                                        <small class="help-text">بدون بالادست = سمت ریشه.</small>
-                                        <label class="form-label">سازمان (دپارتمان)</label>
-                                        <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged" SearchAsync="SearchOrganizationsAsync"
-                                                                    SelectedText="@_organizationName" Placeholder="بدون سازمان" SearchPlaceholder="نام سازمان..." />
-                                        <small class="help-text">سمت زیرمجموعه باید در همان سازمان سمت بالادست باشد؛ سمت ریشه می‌تواند سازمان نداشته باشد.</small>
-                                        @if (_blockers.Count > 0)
-                                        {
-                                            <div class="blocker-panel">
-                                                <strong>@_blockerTitle</strong>
-                                                <p class="muted">تا زمانی که این درخواست‌ها بسته یا به نتیجه نرسند، تغییر انجام نمی‌شود. در «درخواست‌های فعال» می‌توانید آن‌ها را به‌صورت اجباری ببندید.</p>
-                                                <ul>
-                                                    @foreach (var b in _blockers.Take(20))
-                                                    {
-                                                        <li><span dir="ltr">#@b.ShortId</span> — @WorkflowFieldCatalog.GetDisplayName(b.Type) — @b.Reason</li>
-                                                    }
-                                                </ul>
-                                                @if (_blockers.Count > 20)
-                                                {
-                                                    <p class="muted">و @(_blockers.Count - 20) مورد دیگر…</p>
-                                                }
-                                                <a class="btn btn-secondary btn-sm" href="/admin/active-requests"><i class="bx bx-error-circle"></i> رفتن به درخواست‌های فعال</a>
-                                            </div>
-                                        }
-                                        <div class="form-actions">
-                                            <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
-                                            @if (_editingId is not null)
-                                            {
-                                                <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
-                                            }
-                                        </div>
-                                        <div class="rules-mini">
-                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
-                                        </div>
-                                    </section>
                                 </div>
 
                                 @if (_selectedPositionId is Guid selectedPositionId)
