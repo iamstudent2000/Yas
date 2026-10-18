@@ -57,6 +57,10 @@
                     <span class="request-card-title">
                         <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                        @if (request.CreatedByEmployeeId is Guid createdBy)
+                        {
+                            <span class="badge badge-muted"><i class="bx bx-user-plus"></i> ثبت‌شده توسط مدیر: @(_employeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")</span>
+                        }
                         <RequestNowLine Request="request" />
                     </span>
                     @if (!request.RequesterHasSeenLatestUpdate)
@@ -196,6 +200,7 @@
             actorIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
             actorIds.AddRange(_requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
             actorIds.AddRange(_requests.Select(x => x.RequesterEmployeeId));
+            actorIds.AddRange(_requests.Where(x => x.CreatedByEmployeeId is not null).Select(x => x.CreatedByEmployeeId!.Value));
             actorIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
             actorIds = actorIds.Distinct().ToList();
             _employeeNames = actorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => actorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);

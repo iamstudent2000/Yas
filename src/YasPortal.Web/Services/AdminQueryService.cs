@@ -40,6 +40,30 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Organizations.AsNoTracking().Where(x => (!activeOnly || x.IsActive) && (q == "" || x.Name.Contains(q) || x.Code.Contains(q))).OrderBy(x => x.Name).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.Name)).ToListAsync(ct);
     }
+    /// <summary>Active, non-admin employees who hold at least one active position — the people a request can be submitted for.</summary>
+    public async Task<IReadOnlyList<LookupItem>> SearchRequestersAsync(string? search, CancellationToken ct = default)
+    {
+        var q = Normalize(search);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Employees.AsNoTracking()
+            .Where(x => x.IsActive && !x.IsAdmin && db.EmployeePositions.Any(ep => ep.EmployeeId == x.Id && ep.EndedAt == null)
+                        && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)))
+            .OrderBy(x => x.FullName).Take(30)
+            .Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username)).ToListAsync(ct);
+    }
+
+    /// <summary>The position to pre-select for an employee: their last chosen active position, else their first active one.</summary>
+    public async Task<LookupItem?> GetDefaultPositionAsync(Guid employeeId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var last = await db.Employees.AsNoTracking().Where(x => x.Id == employeeId).Select(x => x.LastActivePositionId).SingleOrDefaultAsync(ct);
+        var rows = await db.EmployeePositions.AsNoTracking()
+            .Where(x => x.EmployeeId == employeeId && x.EndedAt == null)
+            .Select(x => new { x.PositionId, x.Position.Code, x.Position.Name }).ToListAsync(ct);
+        var pick = rows.FirstOrDefault(x => x.PositionId == last) ?? rows.OrderBy(x => x.Name).FirstOrDefault();
+        return pick is null ? null : new LookupItem(pick.PositionId, pick.Code + " — " + pick.Name);
+    }
+
     public async Task<IReadOnlyList<LookupItem>> SearchPositionsAsync(string? search, Guid? employeeId = null, Guid? excludeId = null, CancellationToken ct = default, bool activeOnly = false)
     {
         var q = Normalize(search);

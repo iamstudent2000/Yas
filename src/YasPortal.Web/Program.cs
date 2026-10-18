@@ -40,7 +40,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
 });
 builder.Services.AddAuthorization(options => {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.Delegation", "Admin.Delegation", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
+    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.Delegation", "Admin.Delegation", "Admin.RequestForOthers", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -92,6 +92,12 @@ if (app.Environment.IsDevelopment())
         """);
     await db.Database.ExecuteSqlRawAsync("""
         IF COL_LENGTH(N'dbo.Employees', N'AvatarKey') IS NULL ALTER TABLE [dbo].[Employees] ADD [AvatarKey] nvarchar(40) NULL;
+        IF COL_LENGTH(N'dbo.WorkflowRequests', N'CreatedByEmployeeId') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[WorkflowRequests] ADD [CreatedByEmployeeId] uniqueidentifier NULL;
+            CREATE INDEX [IX_WorkflowRequests_CreatedByEmployeeId] ON [dbo].[WorkflowRequests] ([CreatedByEmployeeId]);
+            ALTER TABLE [dbo].[WorkflowRequests] ADD CONSTRAINT [FK_WorkflowRequests_Employees_CreatedByEmployeeId] FOREIGN KEY ([CreatedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id]);
+        END;
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);

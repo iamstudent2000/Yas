@@ -1,0 +1,199 @@
+@page "/admin/requests/new"
+@using System.Security.Claims
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Admin.RequestForOthers")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+@inject AdminQueryService AdminQueries
+@inject NotificationService NotificationSvc
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>ثبت درخواست برای دیگران - یاس پورتال</PageTitle>
+
+<div class="requests-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت</div>
+            <h1 class="page-title"><i class="bx bx-user-plus"></i> ثبت درخواست برای دیگران</h1>
+            <p class="page-subtitle">درخواست به نام کارمند انتخاب‌شده و از سمت او ثبت می‌شود و مسیر تأیید بر اساس همان سمت تعیین می‌شود. ثبت‌کننده (شما) در سابقه درخواست دیده می‌شود.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/admin/active-requests"><i class="bx bx-list-check"></i> درخواست‌های فعال</a>
+        </div>
+    </div>
+
+    <section class="card admin-form-row">
+        <div class="admin-form-row-head">
+            <h2 class="section-title"><i class="bx bx-user-check"></i> درخواست‌دهنده</h2>
+            <p class="muted">فقط کارمندان فعال دارای سمت فعال فهرست می‌شوند. مدیران سامانه سمت ندارند و انتخاب نمی‌شوند.</p>
+        </div>
+        <div class="admin-row-grid">
+            <div class="form-field is-grow"><label class="form-label">کارمند</label>
+                <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
+                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeText"
+                                            Placeholder="کارمند را جستجو و انتخاب کنید..." SearchPlaceholder="نام، کد یا نام کاربری..." /></div>
+            <div class="form-field is-grow"><label class="form-label">سمت درخواست‌دهنده</label>
+                @if (_employeeId is null)
+                {
+                    <input class="form-control" disabled placeholder="ابتدا کارمند را انتخاب کنید" />
+                }
+                else
+                {
+                    <ServerSearchableGuidSelect @key="_employeeId" Value="@_positionId" ValueChanged="PositionChanged"
+                                                SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
+                                                Placeholder="سمت را انتخاب کنید..." SearchPlaceholder="نام یا کد سمت..." />
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (_employeeId is not null && _positionId is not null)
+    {
+        <section class="card">
+            <h2 class="section-title">نوع درخواست</h2>
+            <div class="request-type-grid">
+                @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                {
+                    <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
+                        <span class="request-type-card-icon"><i class="bx @WorkflowDisplay.IconFor(type)"></i></span>
+                        <span>@WorkflowFieldCatalog.GetDisplayName(type)</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="card request-form-card">
+            <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
+
+            <WorkflowFieldsForm Type="_selectedType" Values="_values" />
+
+            <div class="form-actions">
+                <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
+                    @if (_submitting)
+                    {
+                        <i class="bx bx-loader-alt bx-spin"></i>
+                        <span>در حال ثبت...</span>
+                    }
+                    else
+                    {
+                        <i class="bx bx-send"></i>
+                        <span>ثبت درخواست برای @_employeeName</span>
+                    }
+                </button>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private Guid? _adminId;
+    private Guid? _employeeId, _positionId;
+    private string _employeeText = "", _employeeName = "", _positionText = "";
+    private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
+    private Dictionary<string, string?> _values = [];
+    private bool _submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _adminId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchRequestersAsync(search, ct);
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, _employeeId, null, ct, true);
+
+    private async Task EmployeeChanged(Guid? id)
+    {
+        _employeeId = id;
+        _positionId = null; _positionText = ""; _values = [];
+        if (id is Guid eid)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var emp = await db.Employees.AsNoTracking().Where(x => x.Id == eid).Select(x => new { x.Code, x.FullName, x.Username }).SingleOrDefaultAsync();
+            _employeeText = emp is null ? "" : $"{emp.Code} — {emp.FullName} — {emp.Username}";
+            _employeeName = emp?.FullName ?? "";
+            var def = await AdminQueries.GetDefaultPositionAsync(eid);
+            if (def is not null) { _positionId = def.Id; _positionText = def.Text; }
+        }
+        else
+        {
+            _employeeText = _employeeName = "";
+        }
+    }
+
+    private void PositionChanged(Guid? id)
+    {
+        _positionId = id;
+        _values = [];
+    }
+
+    private void SelectType(WorkflowTypeCode type)
+    {
+        _selectedType = type;
+        _values = [];
+    }
+
+    private async Task Submit()
+    {
+        if (_submitting) return;
+        if (_adminId is not Guid adminId || _employeeId is not Guid employeeId || _positionId is not Guid positionId)
+            return;
+
+        var errors = WorkflowFieldCatalog.ValidateValues(_selectedType, _values);
+        if (errors.Count > 0)
+        {
+            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            // Re-verified against the database: the chosen position must still be an active assignment of this employee,
+            // and the employee must be an active, non-admin user (the same people the picker offers).
+            await using var check = await DbFactory.CreateDbContextAsync();
+            var eligible = await check.Employees.AsNoTracking().AnyAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
+            if (!eligible || !await Workflows.HoldsActivePositionAsync(employeeId, positionId))
+            {
+                AppState.AddToast("این کارمند دیگر سمت فعال انتخاب‌شده را ندارد؛ دوباره انتخاب کنید.", ToastLevel.Error);
+                return;
+            }
+
+            var resolved = await Workflows.ResolveStepsAsync(_selectedType, positionId);
+            if (!resolved.Success)
+            {
+                AppState.AddToast(resolved.Error!, ToastLevel.Error);
+                return;
+            }
+
+            var request = new WorkflowRequest(
+                _selectedType,
+                employeeId,
+                positionId,
+                JsonSerializer.Serialize(_values),
+                resolved.Steps.Select(s => s.ToDomain()).ToList(),
+                createdByEmployeeId: adminId);
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.WorkflowRequests.Add(request);
+            await NotificationSvc.StageAsync(db, request, WorkflowNotificationEvent.Submitted);
+            await db.SaveChangesAsync();
+
+            AppState.AddToast($"درخواست برای {_employeeName} ثبت شد.", ToastLevel.Success);
+            Navigation.NavigateTo("/admin/active-requests");
+        }
+        finally { _submitting = false; }
+    }
+}

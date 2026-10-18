@@ -46,7 +46,8 @@ public sealed class WorkflowRequest
         Guid requesterEmployeeId,
         Guid requesterPositionId,
         string fieldValuesJson,
-        IReadOnlyList<WorkflowResolvedStep> resolvedSteps)
+        IReadOnlyList<WorkflowResolvedStep> resolvedSteps,
+        Guid? createdByEmployeeId = null)
     {
         if (requesterEmployeeId == Guid.Empty)
             throw new ArgumentException("Requester is required.", nameof(requesterEmployeeId));
@@ -61,6 +62,8 @@ public sealed class WorkflowRequest
         WorkflowType = workflowType;
         RequesterEmployeeId = requesterEmployeeId;
         RequesterPositionId = requesterPositionId;
+        // Set only when an administrator submitted the request for the requester; null when the requester submitted it.
+        CreatedByEmployeeId = createdByEmployeeId is { } by && by != requesterEmployeeId ? by : null;
         FieldValuesJson = fieldValuesJson;
         CreatedAtUtc = DateTime.UtcNow;
         Status = WorkflowRequestStatus.PendingApproval;
@@ -70,13 +73,15 @@ public sealed class WorkflowRequest
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
 
         CurrentStepOrder = Steps.Min(x => x.Order);
-        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, requesterEmployeeId));
+        RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, CreatedByEmployeeId ?? requesterEmployeeId));
     }
 
     public Guid Id { get; private set; } = Guid.NewGuid();
     public WorkflowTypeCode WorkflowType { get; private set; }
     public Guid RequesterEmployeeId { get; private set; }
     public Guid RequesterPositionId { get; private set; }
+    /// <summary>The administrator who submitted this request on the requester's behalf, or null when the requester submitted it themselves.</summary>
+    public Guid? CreatedByEmployeeId { get; private set; }
     public string FieldValuesJson { get; private set; } = null!;
     public DateTime CreatedAtUtc { get; private set; }
     public WorkflowRequestStatus Status { get; private set; }
