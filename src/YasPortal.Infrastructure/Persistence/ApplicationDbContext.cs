@@ -7,6 +7,7 @@ using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Preferences;
+using YasPortal.Domain.Security;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Authorization;
@@ -37,6 +38,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<UserUiPreference> UiPreferences => Set<UserUiPreference>();
+    public DbSet<PasswordPolicy> PasswordPolicies => Set<PasswordPolicy>();
     public DbSet<PositionDelegation> PositionDelegations => Set<PositionDelegation>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -237,7 +239,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         modelBuilder.Entity<AuditEntry>(e => { e.HasKey(x => x.Id); e.Property(x => x.Action).HasMaxLength(100).IsRequired(); e.Property(x => x.EntityType).HasMaxLength(200).IsRequired(); e.Property(x => x.EntityId).HasMaxLength(500); e.Property(x => x.BeforeJson).HasColumnType("nvarchar(max)"); e.Property(x => x.AfterJson).HasColumnType("nvarchar(max)"); e.HasIndex(x => x.OccurredAtUtc); e.HasIndex(x => new { x.EntityType, x.EntityId }); e.HasIndex(x => x.EmployeeId); });
         modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); });
-        modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
+        modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.Property(x => x.AvatarKey).HasMaxLength(Employee.AvatarKeyMaxLength); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
+        modelBuilder.Entity<PasswordPolicy>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); });
         modelBuilder.Entity<Position>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.HasOne(x => x.ParentPosition).WithMany(x => x.Children).HasForeignKey(x => x.ParentPositionId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.IsActive).HasDefaultValue(true); e.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => x.OrganizationId); });
         modelBuilder.Entity<EmployeePosition>(e => { e.HasKey(x => new { x.EmployeeId, x.PositionId }); e.HasOne(x => x.Employee).WithMany(x => x.Positions).HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL"); });
         modelBuilder.Entity<PositionAssignmentHistory>(e => { e.HasKey(x => x.Id); e.HasIndex(x => new { x.EmployeeId, x.StartedAt }); e.HasIndex(x => new { x.PositionId, x.StartedAt }); e.HasIndex(x => x.PositionId).IsUnique().HasFilter("[EndedAt] IS NULL"); e.HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict); });

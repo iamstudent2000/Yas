@@ -12,6 +12,7 @@
 @inject IPasswordHasher<Employee> PasswordHasher
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
+@inject PasswordPolicyService PolicyService
 
 <PageTitle>کاربران - یاس پورتال</PageTitle>
 
@@ -58,7 +59,8 @@
             <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged"
                                         SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName"
                                         Placeholder="سازمان را جستجو کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
-        <div class="form-field"><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" /></div>
+        <div class="form-field"><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
+            <small class="help-text">@string.Join(" · ", _policy.Describe())</small></div>
         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label></div>
         <div class="form-field admin-row-submit">
             <div class="form-actions">
@@ -221,7 +223,7 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync() { _policy = await PolicyService.GetAsync(); await LoadAsync(); }
     private async Task LoadAsync()
     {
         _loading = true; try
@@ -279,6 +281,7 @@ CancelEdit()
         _editingId = null; _code = _username = _fullName = _password = _organizationName = ""; _organizationId = null; _isAdmin =
 false;
     }
+    private YasPortal.Domain.Security.PasswordPolicy _policy = YasPortal.Domain.Security.PasswordPolicy.CreateDefault();
     private async Task
 SaveEmployee()
     {
@@ -288,6 +291,12 @@ null) { AppState.AddToast("کد، نام کاربری، نام و سازمان �
         await using var db = await
 DbFactory.CreateDbContextAsync();
         if (await db.Employees.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("کارمندی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
+        if (!string.IsNullOrWhiteSpace(_password))
+        {
+            _policy = await PolicyService.GetAsync();
+            var passwordErrors = _policy.Validate(_password, _username);
+            if (passwordErrors.Count > 0) { AppState.AddToast(string.Join(" ", passwordErrors), ToastLevel.Error); return; }
+        }
         Employee employee; var wasAdmin = false; if (_editingId is Guid id)
         {
             employee = await

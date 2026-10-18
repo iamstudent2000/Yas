@@ -4,9 +4,16 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using YasPortal.Domain.Organization
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Profile.View")]
 @inject ApplicationDbContext Db
+@inject IPasswordHasher<Employee> Hasher
+@inject PasswordPolicyService PolicyService
+@inject AvatarService Avatars
+@inject AppState AppState
 
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
@@ -21,7 +28,14 @@
     </div>
 
     <section class="profile-identity">
-        <div class="profile-avatar" aria-hidden="true">@GetInitial(FullName)</div>
+        @if (AvatarCatalog.Find(_avatarKey) is { } picked)
+        {
+            <div class="profile-avatar profile-avatar--picked" style="background:@picked.Color" aria-hidden="true"><i class="bx @picked.Icon"></i></div>
+        }
+        else
+        {
+            <div class="profile-avatar" aria-hidden="true">@GetInitial(FullName)</div>
+        }
         <div class="profile-identity-text">
             <h2>@FullName</h2>
             <div class="profile-identity-chips">
@@ -61,6 +75,46 @@
             <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="bx bx-left-arrow-alt"></i></a>
         </section>
     </div>
+    <section class="profile-card">
+        <h2 class="section-title"><i class="bx bx-image-alt"></i> تصویر پروفایل</h2>
+        <p class="muted">یکی از تصویرهای آماده را انتخاب کنید؛ در نوار بالای صفحه هم نمایش داده می‌شود.</p>
+        <div class="avatar-grid" role="radiogroup" aria-label="تصویر پروفایل">
+            <button type="button" class="avatar-choice avatar-choice--default @(_avatarKey is null ? "is-selected" : "")" title="پیش‌فرض (حرف اول نام)"
+                    role="radio" aria-checked="@(_avatarKey is null)" @onclick="() => PickAvatarAsync(null)">@GetInitial(FullName)</button>
+            @foreach (var option in AvatarCatalog.All)
+            {
+                <button type="button" class="avatar-choice @(_avatarKey == option.Key ? "is-selected" : "")" style="background:@option.Color" title="@option.Label"
+                        role="radio" aria-checked="@(_avatarKey == option.Key)" @onclick="() => PickAvatarAsync(option.Key)"><i class="bx @option.Icon"></i></button>
+            }
+        </div>
+    </section>
+
+    <section class="profile-card">
+        <h2 class="section-title"><i class="bx bx-lock-alt"></i> تغییر رمز عبور</h2>
+        <div class="profile-security-grid">
+            <div class="form-field"><label class="form-label">رمز عبور فعلی</label>
+                <input class="form-control" type="password" autocomplete="current-password" @bind="_currentPassword" /></div>
+            <div class="form-field"><label class="form-label">رمز عبور جدید</label>
+                <input class="form-control" type="password" autocomplete="new-password" @bind="_newPassword" /></div>
+            <div class="form-field"><label class="form-label">تکرار رمز عبور جدید</label>
+                <input class="form-control" type="password" autocomplete="new-password" @bind="_confirmPassword" /></div>
+            <div class="form-field admin-row-submit">
+                <button class="btn btn-primary" disabled="@_changing" @onclick="ChangePasswordAsync"><i class="bx bx-save"></i> تغییر رمز عبور</button>
+            </div>
+        </div>
+        @if (_errors.Count > 0)
+        {
+            <ul class="pw-rules" role="alert" style="color:var(--danger,#b42318)">
+                @foreach (var e in _errors) { <li><i class="bx bx-error-circle"></i>@e</li> }
+            </ul>
+        }
+        else
+        {
+            <ul class="pw-rules">
+                @foreach (var line in _policy.Describe()) { <li><i class="bx bx-check"></i>@line</li> }
+            </ul>
+        }
+    </section>
 </div>
 
 @code {
@@ -72,20 +126,81 @@
     private string OrganizationStatus { get; set; } = "نامشخص";
     private string AccountType { get; set; } = "کاربر عادی";
 
+    private Guid? _employeeId;
+    private string? _avatarKey;
+    private string _currentPassword = "", _newPassword = "", _confirmPassword = "";
+    private bool _changing;
+    private List<string> _errors = new();
+    private YasPortal.Domain.Security.PasswordPolicy _policy = YasPortal.Domain.Security.PasswordPolicy.CreateDefault();
+
     protected override async Task OnInitializedAsync()
     {
+        _policy = await PolicyService.GetAsync();
         if (AuthenticationStateTask is null) return;
         var user = (await AuthenticationStateTask).User;
         Username = user.Identity?.Name ?? "کاربر";
         AccountType = user.HasClaim("yas_is_admin", "True") ? "مدیر سیستم" : "کاربر عادی";
         if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId)) return;
+        _employeeId = employeeId;
         var employee = await Db.Employees.AsNoTracking().Include(x => x.Organization).SingleOrDefaultAsync(x => x.Id ==
 employeeId);
         if (employee is null) return;
         FullName = employee.FullName;
+        _avatarKey = employee.AvatarKey;
         EmployeeCode = employee.Code;
         OrganizationName = employee.Organization.Name;
         OrganizationStatus = employee.Organization.IsActive ? "فعال" : "غیرفعال";
+    }
+
+    private async Task PickAvatarAsync(string? key)
+    {
+        if (_employeeId is not Guid id) return;
+        try
+        {
+            await Avatars.SaveAsync(id, key);
+            _avatarKey = key;
+            AppState.AddToast("تصویر پروفایل ذخیره شد.", ToastLevel.Success);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("ذخیره تصویر پروفایل انجام نشد.", ToastLevel.Error);
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _errors = new();
+        if (_employeeId is not Guid id) return;
+        if (string.IsNullOrEmpty(_currentPassword)) _errors.Add("رمز عبور فعلی را وارد کنید.");
+        if (_newPassword != _confirmPassword) _errors.Add("رمز عبور جدید و تکرار آن یکسان نیستند.");
+        if (_errors.Count > 0) return;
+
+        _changing = true;
+        try
+        {
+            _policy = await PolicyService.GetAsync();
+            var employee = await Db.Employees.SingleOrDefaultAsync(x => x.Id == id);
+            if (employee is null) return;
+            if (string.IsNullOrWhiteSpace(employee.PasswordHash)
+                || Hasher.VerifyHashedPassword(employee, employee.PasswordHash, _currentPassword) == PasswordVerificationResult.Failed)
+            {
+                _errors.Add("رمز عبور فعلی درست نیست.");
+                return;
+            }
+            _errors.AddRange(_policy.Validate(_newPassword, employee.Username));
+            if (_policy.DisallowReuseOfCurrent && _newPassword == _currentPassword)
+                _errors.Add("رمز عبور جدید باید با رمز عبور فعلی متفاوت باشد.");
+            if (_errors.Count > 0) return;
+
+            employee.SetPasswordHash(Hasher.HashPassword(employee, _newPassword));
+            await Db.SaveChangesAsync();
+            _currentPassword = _newPassword = _confirmPassword = "";
+            AppState.AddToast("رمز عبور تغییر کرد.", ToastLevel.Success);
+        }
+        finally
+        {
+            _changing = false;
+        }
     }
 
     private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "ک" : value.Trim()[0].ToString();

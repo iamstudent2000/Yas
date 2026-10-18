@@ -65,6 +65,9 @@
                             <NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span>
                             </NavLink>
                         </AuthorizeView>
+                        <AuthorizeView Policy="Admin.Users">
+                            <NavLink href="/admin/password-policy"><i class="bx bx-lock-open-alt"></i><span>سیاست رمز عبور</span></NavLink>
+                        </AuthorizeView>
                         <AuthorizeView Policy="Admin.Permissions">
                             <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
                         </AuthorizeView>
@@ -173,7 +176,7 @@
     private bool _requestsGroupVisible;
     private bool _delegationsVisible;
 
-    private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups" };
+    private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history" };
     private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/mine", "requests/inbox", "notifications", "delegations", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 

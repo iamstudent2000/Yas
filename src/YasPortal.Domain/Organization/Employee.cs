@@ -51,10 +51,26 @@ public sealed class Employee
         get; private set;
     }
 
+    /// <summary>Key of the predefined avatar the employee picked on their profile; null means the default (initial letter).</summary>
+    public string? AvatarKey
+    {
+        get; private set;
+    }
+
     public ICollection<EmployeePosition> Positions { get; private set; } = new List<EmployeePosition>();
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
     public void SetPasswordHash(string passwordHash) => PasswordHash = passwordHash;
+
+    public const int AvatarKeyMaxLength = 40;
+
+    public void SetAvatar(string? avatarKey)
+    {
+        avatarKey = string.IsNullOrWhiteSpace(avatarKey) ? null : avatarKey.Trim();
+        if (avatarKey is { Length: > AvatarKeyMaxLength })
+            throw new ArgumentException("Avatar key is too long.", nameof(avatarKey));
+        AvatarKey = avatarKey;
+    }
 
     public void SetLastActivePosition(Guid? positionId)
     {

@@ -61,6 +61,8 @@ builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<UserPreferenceService>();
+builder.Services.AddScoped<PasswordPolicyService>();
+builder.Services.AddScoped<AvatarService>();
 
 var app = builder.Build();
 
@@ -87,6 +89,11 @@ if (app.Environment.IsDevelopment())
     await db.Database.ExecuteSqlRawAsync("""
         IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions') AND name = N'IX_EmployeePositions_PositionId') DROP INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions];
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions') AND name = N'IX_EmployeePositions_PositionId') CREATE UNIQUE INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions] ([PositionId]) WHERE [EndedAt] IS NULL;
+        """);
+    await db.Database.ExecuteSqlRawAsync("""
+        IF COL_LENGTH(N'dbo.Employees', N'AvatarKey') IS NULL ALTER TABLE [dbo].[Employees] ADD [AvatarKey] nvarchar(40) NULL;
+        IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
+            CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }

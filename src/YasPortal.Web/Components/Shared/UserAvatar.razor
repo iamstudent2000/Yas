@@ -1,0 +1,36 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Services
+@implements IDisposable
+@inject AvatarService Avatars
+
+@if (AvatarCatalog.Find(_key) is { } avatar)
+{
+    <span class="user-avatar user-avatar--picked" style="background:@avatar.Color" title="@avatar.Label"><i class="bx @avatar.Icon"></i></span>
+}
+else
+{
+    <span class="user-avatar"><i class="bx bx-user"></i></span>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    private string? _key;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Avatars.Changed += OnChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (AuthenticationStateTask is null) return;
+        var user = (await AuthenticationStateTask).User;
+        _key = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? await Avatars.GetKeyAsync(id) : null;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    public void Dispose() => Avatars.Changed -= OnChanged;
+}
