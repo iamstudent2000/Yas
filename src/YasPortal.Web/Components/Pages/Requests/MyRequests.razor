@@ -291,7 +291,11 @@
         if (summary is null)
             return;
 
-        var errors = WorkflowFieldCatalog.ValidateValues(summary.WorkflowType, values);
+        // Only the requester's own part (part 1) is theirs to edit; the parts approvers filled stay as they left them.
+        var requesterKeys = WorkflowFieldCatalog.GetFields(summary.WorkflowType, 1).Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
+        var requesterValues = values.Where(kv => requesterKeys.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+
+        var errors = WorkflowFieldCatalog.ValidateValues(summary.WorkflowType, requesterValues);
         if (errors.Count > 0)
         {
             AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
@@ -324,8 +328,12 @@
                 return;
             }
 
+            var merged = ParseFieldValues(tracked.FieldValuesJson);
+            foreach (var (key, value) in requesterValues)
+                merged[key] = value;
+
             tracked.Resubmit(
-                JsonSerializer.Serialize(values),
+                JsonSerializer.Serialize(merged),
                 resolved.Steps.Select(s => s.ToDomain()).ToList());
             await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Resubmitted);
             try

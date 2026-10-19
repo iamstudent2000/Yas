@@ -264,9 +264,18 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
-    public void Approve(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
+    /// <param name="partValues">
+    /// The values the approver filled in for the form part their step owns (see <see cref="WorkflowPartDefinition"/>).
+    /// Required — and validated — when the step owns a part; refused when it does not. The step is the
+    /// live, pending one, so a part is only ever editable by its own step while that step is waiting:
+    /// once it has approved the part is locked, and it opens again only when the request is returned
+    /// or reopened to that step. Every changed value is appended to <see cref="FieldChanges"/>.
+    /// </param>
+    public void Approve(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null, IReadOnlyDictionary<string, string?>? partValues = null)
     {
         var step = RequireActionableStep(stepId);
+        // Before anything is marked, so a refused part leaves the request exactly as it was.
+        ApplyStepPart(step, actingEmployeeId, partValues);
         step.Approve(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment, authority: authority);
 
@@ -293,6 +302,39 @@ public sealed class WorkflowRequest
             CloseAsRejected();
         RequesterHasSeenLatestUpdate = false;
         Revision++;
+    }
+
+    /// <summary>
+    /// Saves the form part owned by <paramref name="step"/> (if any) into <see cref="FieldValuesJson"/>
+    /// and appends a <see cref="WorkflowFieldChange"/> for every value that changed, attributed to
+    /// the person who actually filled it and to the step's position (§11.3). Only the fields of that
+    /// part are touched; the requester's values and other parts stay as they are.
+    /// </summary>
+    private void ApplyStepPart(WorkflowRequestStep step, Guid actingEmployeeId, IReadOnlyDictionary<string, string?>? partValues)
+    {
+        var part = WorkflowFieldCatalog.GetPartFilledAtStep(WorkflowType, step.Order);
+        if (part is null)
+        {
+            if (partValues is { Count: > 0 })
+                throw new InvalidOperationException("This step does not own a part of the form.");
+            return;
+        }
+
+        var errors = WorkflowFieldCatalog.ValidatePartValues(WorkflowType, part.Part, partValues ?? new Dictionary<string, string?>());
+        if (errors.Count > 0)
+            throw new ArgumentException("The form part of this step is not valid: " + string.Join("; ", errors.Select(e => $"{e.Key} — {e.Message}")), nameof(partValues));
+
+        var before = ParseFieldValues(FieldValuesJson);
+        var after = new Dictionary<string, string?>(before, StringComparer.Ordinal);
+        foreach (var field in WorkflowFieldCatalog.GetFields(WorkflowType, part.Part))
+        {
+            string? raw = null;
+            partValues?.TryGetValue(field.Key, out raw);
+            after[field.Key] = Normalize(raw);
+        }
+
+        RecordFieldChanges(before, after, actingEmployeeId, step.ApproverPositionId);
+        FieldValuesJson = JsonSerializer.Serialize(after);
     }
 
     /// <summary>Whether the group has all the approvals its mode asks for (§14.1 ANY, §14.2 ALL).</summary>
@@ -473,18 +515,19 @@ public sealed class WorkflowRequest
             throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
         ValidateParallelGroups(resolvedSteps);
 
+        var previousValues = ParseFieldValues(FieldValuesJson);
+        var newValues = ParseFieldValues(fieldValuesJson);
+        EnsureOnlyRequesterPartChanged(previousValues, newValues);
+
         // Any step in the round being closed that was never reached (because an earlier step
         // already returned the request) is now moot — mark it Superseded so it doesn't sit
         // there looking like it's still awaiting action forever.
         foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
             step.Supersede();
 
-        var previousValues = ParseFieldValues(FieldValuesJson);
-        var newValues = ParseFieldValues(fieldValuesJson);
-
         FieldValuesJson = fieldValuesJson;
         CurrentRound++;
-        RecordFieldChanges(previousValues, newValues);
+        RecordFieldChanges(previousValues, newValues, RequesterEmployeeId, RequesterPositionId);
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
@@ -502,7 +545,7 @@ public sealed class WorkflowRequest
     /// and a missing value count as the same thing (null), so re-saving an untouched empty
     /// optional field never produces noise.
     /// </summary>
-    private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after)
+    private void RecordFieldChanges(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after, Guid changedByEmployeeId, Guid changedByPositionId)
     {
         foreach (var key in before.Keys.Union(after.Keys, StringComparer.Ordinal).OrderBy(k => k, StringComparer.Ordinal))
         {
@@ -510,7 +553,23 @@ public sealed class WorkflowRequest
             var newValue = Normalize(after.TryGetValue(key, out var n) ? n : null);
             if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
                 continue;
-            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, RequesterEmployeeId, RequesterPositionId));
+            FieldChanges.Add(new WorkflowFieldChange(Id, CurrentRound, key, oldValue, newValue, changedByEmployeeId, changedByPositionId));
+        }
+    }
+
+    /// <summary>
+    /// A requester resubmitting a returned request may change only their own part of the form (part 1).
+    /// Values filled by approvers at later steps are not theirs to edit — they stay as the approvers
+    /// left them and the steps of the new round confirm or change them.
+    /// </summary>
+    private void EnsureOnlyRequesterPartChanged(IReadOnlyDictionary<string, string?> before, IReadOnlyDictionary<string, string?> after)
+    {
+        foreach (var field in WorkflowFieldCatalog.GetFields(WorkflowType).Where(f => f.Part > 1))
+        {
+            var oldValue = Normalize(before.TryGetValue(field.Key, out var o) ? o : null);
+            var newValue = Normalize(after.TryGetValue(field.Key, out var n) ? n : null);
+            if (!string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                throw new InvalidOperationException("Only the requester's part of the form can be changed when resubmitting.");
         }
     }
 

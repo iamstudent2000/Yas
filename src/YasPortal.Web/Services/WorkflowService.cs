@@ -41,6 +41,13 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         if (inactive.Count > 0)
             return new ResolveResult(false, "مسیر تایید از سمت غیرفعال عبور می‌کند: " + string.Join("، ", inactive) + ". مدیر سامانه باید گردش‌کار را اصلاح یا سمت را فعال کند.", []);
 
+        // A multi-part form needs a single approver at the step that owns each part; refuse rather than start a request that can never complete its form.
+        var unfillable = WorkflowFieldCatalog.UnfillableParts(type, resolution.Steps);
+        if (unfillable.Count > 0)
+            return new ResolveResult(false,
+                string.Join(" ", unfillable.Select(p => $"بخش «{p.Title}» این فرم باید در مرحله {p.FillAtStepOrder} مسیر تایید تکمیل شود، اما مسیر تعریف‌شده چنین مرحله‌ای (با یک تاییدکننده) ندارد. مدیر سامانه باید گردش‌کار را اصلاح کند.")),
+                []);
+
         return new ResolveResult(true, null,
             resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId, x.Mode, x.RejectPolicy)).ToList());
     }

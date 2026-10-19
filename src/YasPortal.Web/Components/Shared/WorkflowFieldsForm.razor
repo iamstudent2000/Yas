@@ -2,7 +2,7 @@
 @using YasPortal.Domain.Workflows
 
 <div class="form-grid">
-@foreach (var field in WorkflowFieldCatalog.GetFields(Type))
+@foreach (var field in WorkflowFieldCatalog.GetFields(Type, Part))
 {
     <div class="form-field @(field.FieldType == WorkflowFieldType.TextArea ? "is-wide" : "")">
     <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
@@ -34,9 +34,16 @@
 }
 </div>
 <p class="request-form-hint">فیلدهای دارای علامت * برای ثبت الزامی هستند.</p>
+@if (Part == 1 && WorkflowFieldCatalog.IsMultiPart(Type))
+{
+    <p class="request-form-hint">این فرم چندبخشی است؛ بخش‌های بعدی در مراحل تایید توسط تاییدکنندگان تکمیل می‌شود.</p>
+}
 
 @code {
     [Parameter, EditorRequired] public WorkflowTypeCode Type { get; set; }
+
+    /// <summary>Which part of the form to show; part 1 is the requester's, later parts belong to approvers.</summary>
+    [Parameter] public int Part { get; set; } = 1;
     [Parameter, EditorRequired] public Dictionary<string, string?> Values { get; set; } = [];
     [Parameter] public EventCallback ValuesChanged { get; set; }
 

@@ -6,8 +6,10 @@ namespace YasPortal.Domain.Workflows;
 /// they are never updated or deleted — so <see cref="WorkflowRequest.FieldValuesJson"/> (which
 /// always holds just the latest values) can never silently destroy what a field used to say.
 ///
-/// Today the only way field values change after submission is a requester editing a returned
-/// request and resubmitting it, so each row belongs to the <see cref="Round"/> that edit opened.
+/// Field values change after submission in two ways: a requester editing a returned request and
+/// resubmitting it (the row belongs to the <see cref="Round"/> that edit opened), and an approver
+/// filling the form part their step owns when approving (the row belongs to the round that is live;
+/// the position is the step's). <see cref="ChangedByEmployeeId"/> is always the person who really did it.
 /// </summary>
 public sealed class WorkflowFieldChange
 {

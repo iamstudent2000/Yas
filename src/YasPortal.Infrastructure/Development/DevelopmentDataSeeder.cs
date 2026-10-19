@@ -210,6 +210,10 @@ public static class DevelopmentDataSeeder
             (Order: 1, Name: "ارجاع به مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.WorkReport, ct,
             (Order: 1, Name: "مشاهده مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null));
+        // Vehicle request is multi-part: step 1 fills "تخصیص خودرو", step 2 fills "ثبت حراست" (see WorkflowFieldCatalog).
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.VehicleRequest, ct,
+            (Order: 1, Name: "تخصیص خودرو (مدیر واحد)", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
+            (Order: 2, Name: "ثبت حراست (مدیر منابع انسانی)", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
         await db.SaveChangesAsync(ct);
     }
 
