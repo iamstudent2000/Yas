@@ -1,0 +1,169 @@
+/* Shared by ServerSearchableGuidSelect and LookupSelect. */
+    .server-lookup {
+        position: relative;
+        width: 100%;
+        min-width: 0
+    }
+
+    .server-lookup-trigger {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        text-align: right;
+        min-height: 42px;
+        padding-inline-end: 8px;
+        cursor: pointer;
+        direction: rtl
+    }
+
+    .server-lookup-open {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        font: inherit;
+        color: inherit;
+        text-align: right;
+        cursor: pointer
+    }
+
+    .server-lookup-open:disabled {
+        cursor: default
+    }
+
+    .server-lookup-chevron {
+        flex: 0 0 auto;
+        color: var(--text-muted,#667085);
+        pointer-events: none
+    }
+
+    .server-lookup-clear {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--text-muted,#667085);
+        cursor: pointer;
+        padding: 0
+    }
+
+    .server-lookup-clear:hover {
+        background: rgba(0, 0, 0, .06);
+        color: #ef4444
+    }
+
+    .server-lookup.disabled {
+        opacity: .65
+    }
+
+    .server-lookup-value {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0
+    }
+
+    .server-lookup-backdrop {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background: transparent;
+        z-index: 2147483646;
+        cursor: default
+    }
+
+    .server-lookup-menu {
+        position: fixed !important;
+        z-index: 2147483647 !important;
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 12px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, .18);
+        overflow: hidden;
+        direction: rtl;
+        min-width: 180px
+    }
+
+    .server-lookup-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        background: var(--surface, #fff);
+        position: sticky;
+        top: 0;
+        z-index: 1
+    }
+
+    .server-lookup-search i {
+        color: var(--text-muted,#667085);
+        flex: 0 0 auto
+    }
+
+    .server-lookup-search input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        padding: 5px;
+        text-align: right;
+        font: inherit
+    }
+
+    .server-lookup-results {
+        max-height: 260px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 5px
+    }
+
+    .server-lookup-option {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border: 0;
+        background: transparent;
+        padding: 9px 10px;
+        border-radius: 8px;
+        text-align: right;
+        cursor: pointer;
+        font: inherit;
+        direction: rtl
+    }
+
+    .server-lookup-option:hover,
+    .server-lookup-option.selected {
+        background: rgba(37, 99, 235, .08)
+    }
+
+    .server-lookup-option span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0
+    }
+
+    .server-lookup-empty {
+        padding: 18px;
+        text-align: center;
+        color: var(--text-muted,#667085);
+        font-size: 12px
+    }

@@ -1,58 +1,163 @@
-@using YasPortal.Web.Services
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
-@* A fixed list of choices shown with the same picker as ServerSearchableGuidSelect (server-lookup-trigger form-control,
-   search box, ✕ to clear), so enum / text choices look and behave like every other selector. *@
-<ServerSearchableGuidSelect Value="ToGuid(Value)" ValueChanged="OnPickedAsync" SearchAsync="SearchOptionsAsync"
-                            SelectedText="@SelectedLabel" Placeholder="@Placeholder" SearchPlaceholder="@SearchPlaceholder" />
+@* A fixed list of choices (enum / text) shown with the same picker look as ServerSearchableGuidSelect:
+   server-lookup-trigger form-control, search box, ✕ to clear. The value is a string key. *@
+<div class="server-lookup" dir="rtl">
+    <div @ref="_trigger" class="server-lookup-trigger form-control">
+        <button type="button" class="server-lookup-open" @onclick="ToggleAsync">
+            <span class="server-lookup-value">@Label</span>
+        </button>
+        @if (Value is not null)
+        {
+            <button type="button" class="server-lookup-clear" aria-label="پاک کردن انتخاب" title="پاک کردن انتخاب"
+                    @onclick="ClearAsync" @onclick:stopPropagation="true">
+                <i class="bx bx-x"></i>
+            </button>
+        }
+        <i class="bx bx-chevron-down server-lookup-chevron"></i>
+    </div>
+    @if (_open)
+    {
+        <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
+        <div @ref="_menu" class="server-lookup-menu">
+            <div class="server-lookup-search">
+                <i class="bx bx-search"></i>
+                <input @ref="_input" value="@_search" @oninput="OnSearchInput" @onkeydown="OnKeyDown"
+                       placeholder="@SearchPlaceholder" autocomplete="off" />
+            </div>
+            @if (Visible.Count == 0)
+            {
+                <div class="server-lookup-empty">نتیجه‌ای پیدا نشد.</div>
+            }
+            else
+            {
+                <div class="server-lookup-results">
+                    @foreach (var option in Visible)
+                    {
+                        var key = option.Key;
+                        <button type="button" class="server-lookup-option @(key == Value ? "selected" : "")" @onclick="() => PickAsync(key)">
+                            <span>@option.Text</span>
+                            @if (key == Value)
+                            {
+                                <i class="bx bx-check"></i>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
 
 @code {
-    /// <summary>The choices as (key, label); the key is what <see cref="Value"/> holds.</summary>
+    /// <summary>The choices as (key, label); <see cref="Value"/> holds the key.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<(string Key, string Text)> Options { get; set; } = [];
     [Parameter] public string? Value { get; set; }
     [Parameter] public EventCallback<string?> ValueChanged { get; set; }
     [Parameter] public string Placeholder { get; set; } = "انتخاب کنید...";
     [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
 
-    private string SelectedLabel => Value is null ? "" : Options.FirstOrDefault(o => o.Key == Value).Text ?? "";
+    private ElementReference _trigger, _menu, _input;
+    private string _search = "";
+    private bool _open, _positioned;
 
-    // The picker works with GUIDs; give every option a stable one built from its position.
-    private Guid? ToGuid(string? key)
+    private string Label
     {
-        if (key is null)
-            return null;
-        var index = IndexOf(key);
-        return index < 0 ? null : IdAt(index);
-    }
-
-    private int IndexOf(string key)
-    {
-        for (var i = 0; i < Options.Count; i++)
-            if (Options[i].Key == key)
-                return i;
-        return -1;
-    }
-
-    private static Guid IdAt(int index) => new(index + 1, 0, 0, new byte[8]);
-
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOptionsAsync(string search, CancellationToken ct)
-    {
-        var term = (search ?? "").Trim();
-        IReadOnlyList<AdminQueryService.LookupItem> result = Options
-            .Select((o, i) => new AdminQueryService.LookupItem(IdAt(i), o.Text))
-            .Where(x => term.Length == 0 || x.Text.Contains(term, StringComparison.CurrentCultureIgnoreCase))
-            .ToList();
-        return Task.FromResult(result);
-    }
-
-    private async Task OnPickedAsync(Guid? id)
-    {
-        string? key = null;
-        if (id is Guid g)
+        get
         {
-            var index = (int)BitConverter.ToUInt32(g.ToByteArray(), 0) - 1;
-            if (index >= 0 && index < Options.Count)
-                key = Options[index].Key;
+            if (Value is null)
+                return Placeholder;
+            foreach (var option in Options)
+                if (option.Key == Value)
+                    return option.Text;
+            return Placeholder;
         }
+    }
+
+    private List<(string Key, string Text)> Visible
+    {
+        get
+        {
+            var term = _search.Trim();
+            return Options
+                .Where(o => term.Length == 0 || o.Text.Contains(term, StringComparison.CurrentCultureIgnoreCase))
+                .ToList();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_open || _positioned)
+            return;
+        _positioned = true;
+        try
+        {
+            await JS.InvokeVoidAsync("serverLookupDropdown.attach", _trigger, _menu);
+            await _input.FocusAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task ToggleAsync()
+    {
+        _open = !_open;
+        _positioned = false;
+        _search = "";
+        return Task.CompletedTask;
+    }
+
+    private Task CloseAsync()
+    {
+        _open = false;
+        _positioned = false;
+        _search = "";
+        return Task.CompletedTask;
+    }
+
+    private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            _open = false;
+            _positioned = false;
+        }
+    }
+
+    private async Task PickAsync(string key)
+    {
+        _open = false;
+        _positioned = false;
+        _search = "";
         await ValueChanged.InvokeAsync(key);
+    }
+
+    private async Task ClearAsync()
+    {
+        _open = false;
+        _positioned = false;
+        _search = "";
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_open)
+                await JS.InvokeVoidAsync("serverLookupDropdown.detach", _trigger, _menu);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 }
