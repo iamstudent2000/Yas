@@ -1,0 +1,58 @@
+@using YasPortal.Web.Services
+
+@* A fixed list of choices shown with the same picker as ServerSearchableGuidSelect (server-lookup-trigger form-control,
+   search box, ✕ to clear), so enum / text choices look and behave like every other selector. *@
+<ServerSearchableGuidSelect Value="ToGuid(Value)" ValueChanged="OnPickedAsync" SearchAsync="SearchOptionsAsync"
+                            SelectedText="@SelectedLabel" Placeholder="@Placeholder" SearchPlaceholder="@SearchPlaceholder" />
+
+@code {
+    /// <summary>The choices as (key, label); the key is what <see cref="Value"/> holds.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<(string Key, string Text)> Options { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "انتخاب کنید...";
+    [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
+
+    private string SelectedLabel => Value is null ? "" : Options.FirstOrDefault(o => o.Key == Value).Text ?? "";
+
+    // The picker works with GUIDs; give every option a stable one built from its position.
+    private Guid? ToGuid(string? key)
+    {
+        if (key is null)
+            return null;
+        var index = IndexOf(key);
+        return index < 0 ? null : IdAt(index);
+    }
+
+    private int IndexOf(string key)
+    {
+        for (var i = 0; i < Options.Count; i++)
+            if (Options[i].Key == key)
+                return i;
+        return -1;
+    }
+
+    private static Guid IdAt(int index) => new(index + 1, 0, 0, new byte[8]);
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOptionsAsync(string search, CancellationToken ct)
+    {
+        var term = (search ?? "").Trim();
+        IReadOnlyList<AdminQueryService.LookupItem> result = Options
+            .Select((o, i) => new AdminQueryService.LookupItem(IdAt(i), o.Text))
+            .Where(x => term.Length == 0 || x.Text.Contains(term, StringComparison.CurrentCultureIgnoreCase))
+            .ToList();
+        return Task.FromResult(result);
+    }
+
+    private async Task OnPickedAsync(Guid? id)
+    {
+        string? key = null;
+        if (id is Guid g)
+        {
+            var index = (int)BitConverter.ToUInt32(g.ToByteArray(), 0) - 1;
+            if (index >= 0 && index < Options.Count)
+                key = Options[index].Key;
+        }
+        await ValueChanged.InvokeAsync(key);
+    }
+}

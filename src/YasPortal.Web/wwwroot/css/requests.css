@@ -193,4 +193,4 @@
 .request-card-header:focus-visible{outline:2px solid var(--accent-strong,#1d4ed8);outline-offset:-2px}
 
 /* Filter-bar dropdowns match the searchable pickers (42px) so every box on the row is the same size. */
-.request-filter .form-control,.request-filter .server-lookup-trigger{height:40px;min-height:40px;padding-block:0;box-sizing:border-box}
+.request-filter .form-control,.request-filter .server-lookup-trigger{height:42px;min-height:42px;box-sizing:border-box}
