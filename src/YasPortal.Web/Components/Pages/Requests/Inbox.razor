@@ -73,6 +73,18 @@
                         <div class="request-card-body">
                             <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id" />
 
+                            @{
+                                // Multi-part forms: the approver at this step fills their own part before approving.
+                                var stepPart = WorkflowFieldCatalog.GetPartFilledAtStep(item.Request.WorkflowType, item.CurrentStep.Order);
+                            }
+                            @if (stepPart is not null)
+                            {
+                                <div class="resubmit-panel">
+                                    <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px"><i class="bx bx-edit"></i> بخش @ToPersianDigits(stepPart.Part.ToString()): @stepPart.Title — پیش از تایید، این بخش را تکمیل کنید</h3>
+                                    <WorkflowFieldsForm Type="item.Request.WorkflowType" Part="stepPart.Part" Values="GetPartValues(item)" />
+                                </div>
+                            }
+
                             <div class="inbox-comment">
                                 <label class="form-label">نظر (اختیاری)</label>
                                 <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
@@ -519,6 +531,30 @@
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
     };
 
+    // The values an approver is typing into the form part their step owns, per request. Seeded from what is
+    // already stored (a step that was returned to sees what it filled the last time) and dropped once acted on.
+    private Dictionary<Guid, Dictionary<string, string?>> _partValues = [];
+
+    private Dictionary<string, string?> GetPartValues(InboxItem item)
+    {
+        if (_partValues.TryGetValue(item.Request.Id, out var existing))
+            return existing;
+
+        var seeded = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var part = WorkflowFieldCatalog.GetPartFilledAtStep(item.Request.WorkflowType, item.CurrentStep.Order);
+        if (part is not null)
+        {
+            Dictionary<string, string?>? stored = null;
+            try { stored = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(item.Request.FieldValuesJson); }
+            catch (System.Text.Json.JsonException) { }
+            foreach (var field in WorkflowFieldCatalog.GetFields(item.Request.WorkflowType, part.Part))
+                if (stored is not null && stored.TryGetValue(field.Key, out var value))
+                    seeded[field.Key] = value;
+        }
+        _partValues[item.Request.Id] = seeded;
+        return seeded;
+    }
+
     private Dictionary<Guid, int> _returnTargets = [];
     private int GetReturnTarget(Guid requestId) => _returnTargets.TryGetValue(requestId, out var t) ? t : 0;
     private void SetReturnTarget(Guid requestId, ChangeEventArgs e) => _returnTargets[requestId] = int.TryParse(e.Value?.ToString(), out var t) ? t : 0;
@@ -582,12 +618,27 @@
                 return;
             }
 
+            // Approving a step that owns a form part needs that part filled in and valid (spec §26.1 — checked
+            // on the server, naming the field and the reason). Reject and the return actions do not need it.
+            IReadOnlyDictionary<string, string?>? partValues = null;
+            if (action == WorkflowAction.Approve && WorkflowFieldCatalog.GetPartFilledAtStep(request.WorkflowType, currentStep.Order) is { } ownedPart)
+            {
+                var typed = GetPartValues(item);
+                var partErrors = WorkflowFieldCatalog.ValidatePartValues(request.WorkflowType, ownedPart.Part, typed);
+                if (partErrors.Count > 0)
+                {
+                    AppState.AddToast(string.Join(" ", partErrors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+                    return;
+                }
+                partValues = typed;
+            }
+
             var comment = GetComment(item.Request.Id);
             try
             {
                 switch (action)
                 {
-                    case WorkflowAction.Approve: request.Approve(currentStep.Id, employeeId, comment, acting.Authority); break;
+                    case WorkflowAction.Approve: request.Approve(currentStep.Id, employeeId, comment, acting.Authority, partValues); break;
                     case WorkflowAction.Reject: request.Reject(currentStep.Id, employeeId, comment, acting.Authority); break;
                     case WorkflowAction.ReturnToRequester: request.ReturnToRequester(currentStep.Id, employeeId, comment, acting.Authority); break;
                     case WorkflowAction.ReturnToPreviousStep: request.ReturnToPreviousStep(currentStep.Id, employeeId, comment, acting.Authority); break;
@@ -624,6 +675,7 @@
             }
             _comments.Remove(item.Request.Id);
             _returnTargets.Remove(item.Request.Id);
+            _partValues.Remove(item.Request.Id);
             AppState.AddToast("ثبت شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();
             await LoadAsync();

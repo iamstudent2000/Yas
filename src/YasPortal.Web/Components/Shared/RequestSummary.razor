@@ -46,9 +46,17 @@
     </div>
 }
 
+@{
+    var formParts = WorkflowFieldCatalog.GetParts(Request.WorkflowType);
+    var isMultiPart = formParts.Count > 1;
+}
 <div class="field-summary">
     <div class="field-summary-item"><span>شناسه درخواست</span><strong dir="ltr">#@(Request.Id.ToString("N")[..8])</strong></div>
-    @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType))
+    @if (isMultiPart)
+    {
+        <p class="round-heading">بخش @ToPersianDigits(formParts[0].Part.ToString()): @formParts[0].Title</p>
+    }
+    @foreach (var field in WorkflowFieldCatalog.GetFields(Request.WorkflowType, 1))
     {
         var value = WorkflowDisplay.FormatFieldValue(field, GetFieldValue(field.Key));
         if (!string.IsNullOrWhiteSpace(value))
@@ -57,6 +65,28 @@
         }
     }
 </div>
+@if (isMultiPart)
+{
+    @foreach (var part in formParts.Where(p => p.Part > 1))
+    {
+        var partFields = WorkflowFieldCatalog.GetFields(Request.WorkflowType, part.Part);
+        var filled = partFields
+            .Select(f => (Field: f, Value: WorkflowDisplay.FormatFieldValue(f, GetFieldValue(f.Key))))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Value))
+            .ToList();
+        <div class="field-summary">
+            <p class="round-heading">بخش @ToPersianDigits(part.Part.ToString()): @part.Title</p>
+            @if (filled.Count == 0)
+            {
+                <div class="field-summary-item"><span>وضعیت</span><strong class="muted">هنوز تکمیل نشده است</strong></div>
+            }
+            @foreach (var item in filled)
+            {
+                <div class="field-summary-item"><span>@item.Field.Label</span><strong>@item.Value</strong></div>
+            }
+        </div>
+    }
+}
 
 @if (Request.RequesterActions.Any(a => a.Kind == WorkflowRequesterActionKind.Reopened))
 {

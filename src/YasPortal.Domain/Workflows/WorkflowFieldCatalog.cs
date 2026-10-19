@@ -2,8 +2,20 @@ using System.Globalization;
 
 namespace YasPortal.Domain.Workflows;
 
-/// <summary>A single fixed field on a workflow type's form.</summary>
-public sealed record WorkflowFieldDefinition(string Key, string Label, WorkflowFieldType FieldType, bool Required, IReadOnlyList<string>? Options = null);
+/// <summary>
+/// A single fixed field on a workflow type's form. <paramref name="Part"/> says which part of the
+/// form the field belongs to: part 1 is always filled by the requester when submitting; later parts
+/// are filled by the approver at a workflow step (see <see cref="WorkflowPartDefinition"/>).
+/// </summary>
+public sealed record WorkflowFieldDefinition(string Key, string Label, WorkflowFieldType FieldType, bool Required, IReadOnlyList<string>? Options = null, int Part = 1);
+
+/// <summary>
+/// One part of a multi-part form. Part 1 belongs to the requester (<see cref="FillAtStepOrder"/> is
+/// null). Every later part is filled by the approver at the workflow step with order
+/// <see cref="FillAtStepOrder"/> (the order in the request's resolved path, 1-based) and must be
+/// completed before that step can approve. Like the fields, parts are fixed in code (spec §11.1).
+/// </summary>
+public sealed record WorkflowPartDefinition(int Part, string Title, int? FillAtStepOrder);
 
 /// <summary>
 /// One validation failure, identifying the specific field and the reason (spec §26.1 — generic
@@ -53,6 +65,22 @@ public static class WorkflowFieldCatalog
                 new WorkflowFieldDefinition("priority", "اولویت", WorkflowFieldType.Select, true, new[] { "کم", "متوسط", "زیاد", "بحرانی" }),
                 new WorkflowFieldDefinition("description", "شرح مشکل", WorkflowFieldType.TextArea, true),
             }),
+            [WorkflowTypeCode.VehicleRequest] = ("درخواست خودرو", new[]
+            {
+                // Part 1 — requester.
+                new WorkflowFieldDefinition("destination", "مقصد", WorkflowFieldType.Text, true),
+                new WorkflowFieldDefinition("tripDate", "تاریخ رفت", WorkflowFieldType.Date, true),
+                new WorkflowFieldDefinition("returnDate", "تاریخ برگشت", WorkflowFieldType.Date, true),
+                new WorkflowFieldDefinition("passengers", "تعداد سرنشین", WorkflowFieldType.Number, true),
+                new WorkflowFieldDefinition("purpose", "هدف از سفر", WorkflowFieldType.TextArea, true),
+                // Part 2 — filled at workflow step 1 (vehicle assignment).
+                new WorkflowFieldDefinition("vehicleType", "نوع خودرو", WorkflowFieldType.Select, true, new[] { "سواری", "ون", "وانت", "مینی‌بوس" }, Part: 2),
+                new WorkflowFieldDefinition("plateNumber", "شماره پلاک", WorkflowFieldType.Text, true, Part: 2),
+                new WorkflowFieldDefinition("driverName", "نام راننده", WorkflowFieldType.Text, true, Part: 2),
+                // Part 3 — filled at workflow step 2 (security).
+                new WorkflowFieldDefinition("gatePassNumber", "شماره مجوز خروج", WorkflowFieldType.Text, true, Part: 3),
+                new WorkflowFieldDefinition("securityNote", "ملاحظات حراست", WorkflowFieldType.TextArea, false, Part: 3),
+            }),
             [WorkflowTypeCode.WorkReport] = ("گزارش کار", new[]
             {
                 new WorkflowFieldDefinition("reportDate", "تاریخ گزارش", WorkflowFieldType.Date, true),
@@ -61,20 +89,66 @@ public static class WorkflowFieldCatalog
             }),
         };
 
+    /// <summary>
+    /// The parts of each multi-part type. A type missing here has one part: everything is filled by
+    /// the requester. Part N (N &gt; 1) is filled at the workflow step with the given order.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>> MultiPartCatalog =
+        new Dictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>>
+        {
+            [WorkflowTypeCode.VehicleRequest] = new[]
+            {
+                new WorkflowPartDefinition(1, "اطلاعات سفر", null),
+                new WorkflowPartDefinition(2, "تخصیص خودرو", 1),
+                new WorkflowPartDefinition(3, "ثبت حراست", 2),
+            },
+        };
+
+    private static readonly IReadOnlyList<WorkflowPartDefinition> SinglePart = new[] { new WorkflowPartDefinition(1, "اطلاعات درخواست", null) };
+
     public static string GetDisplayName(WorkflowTypeCode type) => Catalog[type].Name;
 
+    /// <summary>Every field of every part of the type.</summary>
     public static IReadOnlyList<WorkflowFieldDefinition> GetFields(WorkflowTypeCode type) => Catalog[type].Fields;
+
+    /// <summary>The fields of one part of the type.</summary>
+    public static IReadOnlyList<WorkflowFieldDefinition> GetFields(WorkflowTypeCode type, int part) =>
+        Catalog[type].Fields.Where(f => f.Part == part).ToList();
+
+    /// <summary>The parts of the type in order; a single requester part for ordinary types.</summary>
+    public static IReadOnlyList<WorkflowPartDefinition> GetParts(WorkflowTypeCode type) =>
+        MultiPartCatalog.TryGetValue(type, out var parts) ? parts : SinglePart;
+
+    public static bool IsMultiPart(WorkflowTypeCode type) => GetParts(type).Count > 1;
+
+    /// <summary>
+    /// The part the approver at <paramref name="stepOrder"/> (the 1-based order in the request's
+    /// resolved path) has to fill before approving, or null when that step fills nothing.
+    /// </summary>
+    public static WorkflowPartDefinition? GetPartFilledAtStep(WorkflowTypeCode type, int stepOrder) =>
+        GetParts(type).FirstOrDefault(p => p.Part > 1 && p.FillAtStepOrder == stepOrder);
+
+    /// <summary>
+    /// The parts that cannot be filled on the given path because it has no step at the part's order,
+    /// or that step is a parallel group (it would not be clear who fills the part). Empty when the
+    /// path suits the type. Checked at submission so a request never starts on a path that cannot
+    /// complete its form — the admin must fix the workflow instead (spec §24).
+    /// </summary>
+    public static IReadOnlyList<WorkflowPartDefinition> UnfillableParts(WorkflowTypeCode type, IReadOnlyList<WorkflowResolvedStep> steps) =>
+        GetParts(type)
+            .Where(p => p.Part > 1 && steps.Count(s => s.Order == p.FillAtStepOrder) != 1)
+            .ToList();
 
     public static IReadOnlyList<WorkflowTypeCode> AllTypes { get; } = Enum.GetValues<WorkflowTypeCode>();
 
     /// <summary>
     /// Validates a submitted set of field values against the type's fixed schema.
-    /// Returns the human-readable labels of any missing required fields.
+    /// Returns the human-readable labels of any missing required fields of the requester's part (part 1).
     /// </summary>
     public static IReadOnlyList<string> ValidateRequiredFields(WorkflowTypeCode type, IReadOnlyDictionary<string, string?> values)
     {
         var missing = new List<string>();
-        foreach (var field in GetFields(type))
+        foreach (var field in GetFields(type, 1))
         {
             if (!field.Required)
                 continue;
@@ -93,10 +167,18 @@ public static class WorkflowFieldCatalog
     /// Formats match what the form stores: dates as <c>yyyy-MM-dd</c>, numbers in invariant
     /// culture, and select values exactly equal to one of the field's options.
     /// </summary>
-    public static IReadOnlyList<WorkflowFieldError> ValidateValues(WorkflowTypeCode type, IReadOnlyDictionary<string, string?> values)
+    public static IReadOnlyList<WorkflowFieldError> ValidateValues(WorkflowTypeCode type, IReadOnlyDictionary<string, string?> values) =>
+        ValidatePartValues(type, 1, values);
+
+    /// <summary>
+    /// Same checks as <see cref="ValidateValues"/> for one part of the form: only that part's fields
+    /// are required and accepted, so a value for a field of another part is an error (a requester
+    /// cannot fill the approver's part, and the reverse). Part 1 is what the requester submits.
+    /// </summary>
+    public static IReadOnlyList<WorkflowFieldError> ValidatePartValues(WorkflowTypeCode type, int part, IReadOnlyDictionary<string, string?> values)
     {
         var errors = new List<WorkflowFieldError>();
-        var fields = GetFields(type);
+        var fields = GetFields(type, part);
 
         foreach (var field in fields)
         {
@@ -133,17 +215,25 @@ public static class WorkflowFieldCatalog
         foreach (var key in values.Keys.Where(k => !knownKeys.Contains(k)).OrderBy(k => k, StringComparer.Ordinal))
             errors.Add(new WorkflowFieldError(key, key, "این فیلد برای این نوع درخواست تعریف نشده است."));
 
-        if (type == WorkflowTypeCode.Leave
-            && values.TryGetValue("startDate", out var startRaw) && TryParseDate(startRaw?.Trim(), out var start)
-            && values.TryGetValue("endDate", out var endRaw) && TryParseDate(endRaw?.Trim(), out var end)
+        if (part == 1 && DateRangeKeys(type) is { } range
+            && values.TryGetValue(range.Start, out var startRaw) && TryParseDate(startRaw?.Trim(), out var start)
+            && values.TryGetValue(range.End, out var endRaw) && TryParseDate(endRaw?.Trim(), out var end)
             && end < start)
         {
-            var endField = fields.Single(f => f.Key == "endDate");
+            var endField = fields.Single(f => f.Key == range.End);
             errors.Add(new WorkflowFieldError(endField.Key, endField.Label, "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."));
         }
 
         return errors;
     }
+
+    /// <summary>The start/end date fields of a type whose end may not be before its start, or null.</summary>
+    private static (string Start, string End)? DateRangeKeys(WorkflowTypeCode type) => type switch
+    {
+        WorkflowTypeCode.Leave => ("startDate", "endDate"),
+        WorkflowTypeCode.VehicleRequest => ("tripDate", "returnDate"),
+        _ => null,
+    };
 
     private static bool TryParseNumber(string value, out decimal number) =>
         decimal.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out number);

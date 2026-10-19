@@ -13,6 +13,9 @@ public enum WorkflowTypeCode
     Loan,
     Helpdesk,
     WorkReport,
+
+    /// <summary>Vehicle request — the first multi-part form (see <see cref="WorkflowPartDefinition"/>).</summary>
+    VehicleRequest,
 }
 
 /// <summary>How a single fixed field on a workflow type should be presented and validated.</summary>

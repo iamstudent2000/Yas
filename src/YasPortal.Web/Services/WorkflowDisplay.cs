@@ -14,6 +14,7 @@ public static class WorkflowDisplay
         WorkflowTypeCode.Loan => "bx-money",
         WorkflowTypeCode.Helpdesk => "bx-support",
         WorkflowTypeCode.WorkReport => "bx-file-blank",
+        WorkflowTypeCode.VehicleRequest => "bx-car",
         _ => "bx-file",
     };
 
