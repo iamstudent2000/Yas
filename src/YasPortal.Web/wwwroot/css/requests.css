@@ -191,3 +191,6 @@
 .notification-card.is-read .request-card-icon{background:var(--surface-2,#f2f4f7);color:var(--text-muted,#667085)}
 .notification-card.is-read .request-card-title strong{color:var(--text-muted,#475467);font-weight:600;white-space:normal}
 .request-card-header:focus-visible{outline:2px solid var(--accent-strong,#1d4ed8);outline-offset:-2px}
+
+/* Filter-bar dropdowns match the searchable pickers (42px) so every box on the row is the same size. */
+.request-filter select.form-control{min-height:42px;height:42px}

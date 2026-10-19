@@ -35,7 +35,7 @@
         {
             <div class="admin-filter">
                 <label class="form-label">وضعیت</label>
-                <select class="form-control" @onchange="e => _d.Status = Enum.TryParse<WorkflowRequestStatus>(e.Value?.ToString(), out var st) ? st : null">
+                <select class="form-control" @onchange="OnStatusChanged">
                     <option value="" selected="@(_d.Status is null)">همه وضعیت‌ها</option>
                     @foreach (var status in StatusOptions)
                     {
@@ -68,6 +68,14 @@
         }
         @if (ShowAdminExtras)
         {
+            <div class="admin-filter">
+                <label class="form-label">نحوه لغو</label>
+                <select class="form-control" @onchange="OnCancelKindChanged">
+                    <option value="" selected="@(_d.CancelledBy is null)">همه</option>
+                    <option value="ByRequester" selected="@(_d.CancelledBy == WorkflowRequestFilter.CancelKind.ByRequester)">لغو توسط درخواست‌کننده</option>
+                    <option value="ByAdmin" selected="@(_d.CancelledBy == WorkflowRequestFilter.CancelKind.ByAdmin)">بسته‌شده توسط مدیر</option>
+                </select>
+            </div>
             <div class="admin-filter">
                 <label class="form-label">سمت درخواست‌کننده</label>
                 <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterPositionId" ValueChanged="id => { _d.RequesterPositionId = id; return Task.CompletedTask; }"
@@ -136,7 +144,7 @@
     }
 
     private int ActiveCount =>
-        (Filter.Status is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
+        (Filter.Status is null ? 0 : 1) + (Filter.CancelledBy is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
         + (Filter.RequesterEmployeeId is null && string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0)
         + (Filter.RequesterOrganizationId is null ? 0 : 1) + (Filter.WaitingAtPositionId is null ? 0 : 1) + (Filter.ActedByEmployeeId is null ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.Text) ? 0 : 1);
@@ -149,6 +157,21 @@
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchOrganizationsAsync(search, true, ct);
+
+    private void OnStatusChanged(ChangeEventArgs e)
+    {
+        _d.Status = Enum.TryParse<WorkflowRequestStatus>(e.Value?.ToString(), out var st) ? st : null;
+        // A cancel kind only makes sense for cancelled requests, so choosing another status drops it.
+        if (_d.Status is not null && _d.Status != WorkflowRequestStatus.Cancelled)
+            _d.CancelledBy = null;
+    }
+
+    private void OnCancelKindChanged(ChangeEventArgs e)
+    {
+        _d.CancelledBy = Enum.TryParse<WorkflowRequestFilter.CancelKind>(e.Value?.ToString(), out var k) ? k : null;
+        if (_d.CancelledBy is not null)
+            _d.Status = WorkflowRequestStatus.Cancelled;
+    }
 
     private Task SetRequester(Guid? id)
     {

@@ -103,7 +103,7 @@ public static class DevelopmentDataSeeder
             ["Requests.Delegation"] = new Permission("Requests.Delegation", "تفویض اختیار سمت خود به دیگری"),
             ["Admin.Delegation"] = new Permission("Admin.Delegation", "مدیریت تفویض‌ها و تعیین جانشین موقت"),
             ["Admin.RequestForOthers"] = new Permission("Admin.RequestForOthers", "ثبت درخواست برای دیگران"),
-            ["Admin.Requests"] = new Permission("Admin.Requests", "مشاهده و جستجوی همه درخواست‌ها")
+            ["Admin.Requests"] = new Permission("Admin.Requests", "گزارش و جستجوی درخواست‌ها")
         };
 
         // Renamed permissions: rename the existing rows so every grant of them is kept, instead of dropping and re-creating them.

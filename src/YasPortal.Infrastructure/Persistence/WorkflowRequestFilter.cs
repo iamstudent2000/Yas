@@ -11,6 +11,12 @@ namespace YasPortal.Infrastructure.Persistence;
 /// </summary>
 public sealed class WorkflowRequestFilter
 {
+    /// <summary>Who ended a cancelled request: the requester withdrew it, or an administrator force-closed it.</summary>
+    public enum CancelKind { ByRequester, ByAdmin }
+
+    /// <summary>Only cancelled requests of this kind (implies the Cancelled status).</summary>
+    public CancelKind? CancelledBy { get; set; }
+
     public WorkflowRequestStatus? Status { get; set; }
     public WorkflowTypeCode? Type { get; set; }
 
@@ -54,12 +60,13 @@ public sealed class WorkflowRequestFilter
     public DateTime? To { get; set; }
 
     public bool IsEmpty =>
-        Status is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
+        Status is null && CancelledBy is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
     public void Clear()
     {
         Status = null;
+        CancelledBy = null;
         Type = null;
         RequesterName = null;
         StepName = null;
@@ -78,6 +85,7 @@ public sealed class WorkflowRequestFilter
     public void CopyFrom(WorkflowRequestFilter other)
     {
         Status = other.Status;
+        CancelledBy = other.CancelledBy;
         Type = other.Type;
         RequesterName = other.RequesterName;
         RequesterEmployeeId = other.RequesterEmployeeId;
@@ -97,6 +105,9 @@ public sealed class WorkflowRequestFilter
     {
         if (Status is WorkflowRequestStatus status)
             query = query.Where(x => x.Status == status);
+        if (CancelledBy is CancelKind kind)
+            query = query.Where(x => x.Status == WorkflowRequestStatus.Cancelled
+                && (kind == CancelKind.ByAdmin ? x.ForceClosedByEmployeeId != null : x.ForceClosedByEmployeeId == null));
         if (Type is WorkflowTypeCode type)
             query = query.Where(x => x.WorkflowType == type);
         if (RequesterEmployeeId is Guid requesterId)
