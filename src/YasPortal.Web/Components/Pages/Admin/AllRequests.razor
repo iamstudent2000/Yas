@@ -70,6 +70,7 @@
                                 var waiting = request.Status is WorkflowRequestStatus.PendingApproval
                                     ? request.CurrentSteps.Where(s => s.Status == WorkflowStepStatus.Pending).ToList()
                                     : new List<WorkflowRequestStep>();
+                                var end = waiting.Count == 0 ? WorkflowRequestEndState.Of(request) : null;
                                 var open = _openId == request.Id;
                                 <tr>
                                     <td dir="ltr">#@request.Id.ToString("N")[..8]</td>
@@ -82,15 +83,30 @@
                                         }
                                     </td>
                                     <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
-                                    <td>@(waiting.Count == 0 ? "—" : string.Join(" / ", waiting.Select(s => s.Name)))</td>
+                                    <td>@(waiting.Count > 0 ? string.Join(" / ", waiting.Select(s => s.Name)) : end?.StageLabel ?? "—")</td>
                                     <td>
-                                        @if (waiting.Count == 0)
+                                        @if (waiting.Count > 0)
                                         {
-                                            <span class="muted">—</span>
+                                            @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var h) ? h : "سمت خالی"))
+                                        }
+                                        else if (end is not null)
+                                        {
+                                            @if (end.WithRequester)
+                                            {
+                                                <span>@(_names.TryGetValue(request.RequesterEmployeeId, out var who) ? who : "—") <span class="muted">(درخواست‌کننده)</span></span>
+                                            }
+                                            else if (end.DeciderEmployeeId is Guid deciderId)
+                                            {
+                                                <span>@(_names.TryGetValue(deciderId, out var decider) ? decider : "—") <span class="muted">(تصمیم‌گیرنده)</span></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="muted">—</span>
+                                            }
                                         }
                                         else
                                         {
-                                            @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var h) ? h : "سمت خالی"))
+                                            <span class="muted">—</span>
                                         }
                                     </td>
                                     <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
