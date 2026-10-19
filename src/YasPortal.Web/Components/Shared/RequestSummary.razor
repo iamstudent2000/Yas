@@ -113,7 +113,7 @@
             <p class="round-heading">دور @ToPersianDigits(roundKey.ToString()) (فعلی)</p>
         }
         <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="true"
-                     RequesterName="requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
+                     RequesterName="@requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
                      Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
                      ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
     }
@@ -128,7 +128,7 @@
             @if (expanded)
             {
                 <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="false"
-                             RequesterName="requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
+                             RequesterName="@requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
                              Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
                              ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
             }
