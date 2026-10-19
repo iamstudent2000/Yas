@@ -23,13 +23,13 @@
         </div>
         <div class="admin-filter">
             <label class="form-label">نوع درخواست</label>
-            <LookupSelect @key="_resetKey" Options="_typeOptions" Value="_d.Type?.ToString()" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
+            <LookupSelect @key="_resetKey" Options="_typeOptions" Value="@(_d.Type?.ToString())" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
         </div>
         @if (StatusOptions.Count > 0)
         {
             <div class="admin-filter">
                 <label class="form-label">وضعیت</label>
-                <LookupSelect @key="_resetKey" Options="_statusChoices" Value="_d.Status?.ToString()" ValueChanged="OnStatusChanged" Placeholder="همه وضعیت‌ها" />
+                <LookupSelect @key="_resetKey" Options="_statusChoices" Value="@(_d.Status?.ToString())" ValueChanged="OnStatusChanged" Placeholder="همه وضعیت‌ها" />
             </div>
         }
         @if (ShowRequester)
@@ -45,14 +45,14 @@
         {
             <div class="admin-filter">
                 <label class="form-label">مرحله جاری</label>
-                <LookupSelect @key="_resetKey" Options="_stepChoices" Value="_d.StepName" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
+                <LookupSelect @key="_resetKey" Options="_stepChoices" Value="@(_d.StepName)" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
             </div>
         }
         @if (ShowAdminExtras)
         {
             <div class="admin-filter">
                 <label class="form-label">نحوه لغو</label>
-                <LookupSelect @key="_resetKey" Options="_cancelChoices" Value="_d.CancelledBy?.ToString()" ValueChanged="OnCancelKindChanged" Placeholder="همه" />
+                <LookupSelect @key="_resetKey" Options="_cancelChoices" Value="@(_d.CancelledBy?.ToString())" ValueChanged="OnCancelKindChanged" Placeholder="همه" />
             </div>
             <div class="admin-filter">
                 <label class="form-label">سمت درخواست‌کننده</label>
