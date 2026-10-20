@@ -129,11 +129,13 @@ public static class WorkflowFieldCatalog
         fillsPart is int number && number > 1 ? GetParts(type).FirstOrDefault(p => p.Part == number) : null;
 
     /// <summary>
-    /// The parts that cannot be filled on the given path: every part after the first needs exactly one
-    /// step assigned to it, and that step must be alone at its order (a parallel group would leave it
-    /// unclear who fills the part, and an escalation expands into several steps). Empty when the path
-    /// suits the type. Checked at submission so a request never starts on a path that cannot complete
-    /// its form — the admin must fix the workflow instead (spec §24).
+    /// The parts that cannot be filled on the given path. Every part after the first belongs to exactly
+    /// one stage (one order) of the path, and that stage must be either a single approver or a parallel
+    /// group in "any one approves" mode whose every member carries the part — then whichever member
+    /// approves first fills it. An "all must approve" group would have several people writing the same
+    /// part, and an escalation expands into several steps, so neither can hold a part. Empty when the
+    /// path suits the type. Checked at submission so a request never starts on a path that cannot
+    /// complete its form — the admin must fix the workflow instead (spec §24).
     /// </summary>
     public static IReadOnlyList<WorkflowPartDefinition> UnfillableParts(WorkflowTypeCode type, IReadOnlyList<WorkflowResolvedStep> steps) =>
         GetParts(type)
@@ -141,7 +143,14 @@ public static class WorkflowFieldCatalog
             .Where(p =>
             {
                 var assigned = steps.Where(s => s.FillsPart == p.Part).ToList();
-                return assigned.Count != 1 || steps.Count(s => s.Order == assigned[0].Order) != 1;
+                if (assigned.Count == 0 || assigned.Select(s => s.Order).Distinct().Count() != 1)
+                    return true;
+
+                var stage = steps.Where(s => s.Order == assigned[0].Order).ToList();
+                if (stage.Count == 1)
+                    return false;
+                // A parallel group: every member must carry the part, and the first approval must finish the group.
+                return stage.Count != assigned.Count || stage[0].Mode != ParallelApprovalMode.Any;
             })
             .ToList();
 

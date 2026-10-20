@@ -244,8 +244,8 @@ public class WorkflowMultiPartFormTests
         Assert.Equal("12ب345", Stored(request)["plateNumber"]);
     }
 
-    private static WorkflowResolvedStep Step(int order, int? fills = null) =>
-        new(Guid.NewGuid(), order, $"s{order}", Guid.NewGuid(), FillsPart: fills);
+    private static WorkflowResolvedStep Step(int order, int? fills = null, ParallelApprovalMode mode = ParallelApprovalMode.All, ParallelRejectPolicy reject = ParallelRejectPolicy.Immediate, string? name = null) =>
+        new(Guid.NewGuid(), order, name ?? $"s{order}", Guid.NewGuid(), Mode: mode, RejectPolicy: reject, FillsPart: fills);
 
     [Fact]
     public void Every_part_needs_exactly_one_step_assigned_to_it()
@@ -268,11 +268,97 @@ public class WorkflowMultiPartFormTests
     }
 
     [Fact]
-    public void A_step_in_a_parallel_group_cannot_fill_a_part()
+    public void A_parallel_group_can_fill_a_part_only_when_any_one_approving_is_enough_and_every_member_carries_it()
     {
-        // Two steps share order 1, one of them assigned part 2: who would fill it is unclear.
-        var parallel = WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1, 2), Step(1), Step(2, 3)]);
-        Assert.Equal(2, Assert.Single(parallel).Part);
+        var any = ParallelApprovalMode.Any;
+
+        // Any-one mode, both members carry part 2: fine, whichever approves first fills it.
+        Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest,
+            [Step(1, 2, any), Step(1, 2, any), Step(2, 3)]));
+
+        // The reject policy does not matter.
+        Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest,
+            [Step(1, 2, any, ParallelRejectPolicy.WaitForAll), Step(1, 2, any, ParallelRejectPolicy.WaitForAll), Step(2, 3)]));
+
+        // "All must approve": several people would write the same part.
+        Assert.Equal(2, Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest,
+            [Step(1, 2), Step(1, 2), Step(2, 3)])).Part);
+
+        // One member does not carry the part: unclear who fills it.
+        Assert.Equal(2, Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest,
+            [Step(1, 2, any), Step(1, null, any), Step(2, 3)])).Part);
+
+        // The same part on two different stages.
+        Assert.Equal(2, Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest,
+            [Step(1, 2, any), Step(1, 2, any), Step(2, 2), Step(3, 3)])).Part);
+    }
+
+    private static WorkflowRequest CreateAnyGroupRequest(ParallelRejectPolicy reject, out Guid aId, out Guid bId, out Guid aPosition, out Guid bPosition)
+    {
+        aPosition = Guid.NewGuid();
+        bPosition = Guid.NewGuid();
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.VehicleRequest, Guid.NewGuid(), Guid.NewGuid(), RequesterJson,
+            new[]
+            {
+                new WorkflowResolvedStep(Guid.NewGuid(), 1, "A", aPosition, ParallelApprovalMode.Any, reject, 2),
+                new WorkflowResolvedStep(Guid.NewGuid(), 1, "B", bPosition, ParallelApprovalMode.Any, reject, 2),
+                new WorkflowResolvedStep(Guid.NewGuid(), 2, "C", Guid.NewGuid(), FillsPart: 3),
+            });
+        aId = request.Steps.Single(x => x.Name == "A").Id;
+        bId = request.Steps.Single(x => x.Name == "B").Id;
+        return request;
+    }
+
+    [Fact]
+    public void In_an_any_one_group_whichever_member_approves_first_fills_the_part()
+    {
+        var request = CreateAnyGroupRequest(ParallelRejectPolicy.Immediate, out var aId, out var bId, out _, out var bPosition);
+        var memberB = Guid.NewGuid();
+
+        // Each member still has to fill the part to approve.
+        Assert.Throws<ArgumentException>(() => request.Approve(bId, memberB, null));
+
+        request.Approve(bId, memberB, null, partValues: Part2("B-PLATE"));
+
+        Assert.Equal("B-PLATE", Stored(request)["plateNumber"]);
+        var change = Assert.Single(request.FieldChanges, c => c.FieldKey == "plateNumber");
+        Assert.Equal(memberB, change.ChangedByEmployeeId);
+        Assert.Equal(bPosition, change.ChangedByPositionId);
+
+        // The group is done: step 2 is live and the other member can no longer act or overwrite the part.
+        Assert.Equal(2, request.CurrentStepOrder);
+        Assert.Equal(WorkflowStepStatus.Superseded, request.Steps.Single(x => x.Id == aId).Status);
+        Assert.Throws<InvalidOperationException>(() => request.Approve(aId, Guid.NewGuid(), null, partValues: Part2("A-PLATE")));
+        Assert.Equal("B-PLATE", Stored(request)["plateNumber"]);
+    }
+
+    [Fact]
+    public void With_wait_for_all_a_rejection_does_not_stop_the_other_member_from_filling_the_part()
+    {
+        var request = CreateAnyGroupRequest(ParallelRejectPolicy.WaitForAll, out var aId, out var bId, out _, out _);
+
+        request.Reject(aId, Guid.NewGuid(), "رد");
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        Assert.Empty(request.FieldChanges); // a rejection saves no part
+
+        request.Approve(bId, Guid.NewGuid(), null, partValues: Part2());
+
+        Assert.Equal(WorkflowRequestStatus.PendingApproval, request.Status);
+        Assert.Equal(2, request.CurrentStepOrder);
+        Assert.Equal("12ب345", Stored(request)["plateNumber"]);
+    }
+
+    [Fact]
+    public void With_immediate_reject_the_first_rejection_closes_the_request_and_no_part_is_saved()
+    {
+        var request = CreateAnyGroupRequest(ParallelRejectPolicy.Immediate, out var aId, out _, out _, out _);
+
+        request.Reject(aId, Guid.NewGuid(), "رد");
+
+        Assert.Equal(WorkflowRequestStatus.Rejected, request.Status);
+        Assert.Empty(request.FieldChanges);
+        Assert.Equal(RequesterJson, request.FieldValuesJson);
     }
 
     [Fact]

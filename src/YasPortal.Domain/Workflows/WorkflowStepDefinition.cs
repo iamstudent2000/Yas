@@ -61,8 +61,9 @@ public sealed class WorkflowStepDefinition
     /// <summary>
     /// The part of the type's multi-part form (see <see cref="WorkflowPartDefinition"/>) the approver at
     /// this step fills in before approving, or null when the step fills nothing. Part 1 is always the
-    /// requester's, so only parts 2 and up can be set. A part needs exactly one single-approver step
-    /// (not a parallel group, not an escalation) — enforced when the editor saves and again when a
+    /// requester's, so only parts 2 and up can be set. A part belongs to one stage: a single approver, or
+    /// a parallel group in "any one approves" mode whose every member carries the part (whichever member
+    /// approves first fills it). Never an escalation — enforced when the editor saves and again when a
     /// request is submitted.
     /// </summary>
     public int? FillsPart { get; private set; }
