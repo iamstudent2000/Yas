@@ -59,6 +59,22 @@ public sealed class WorkflowStepDefinition
     public void SetAllowDelegation(bool allow) => AllowDelegation = allow;
 
     /// <summary>
+    /// The part of the type's multi-part form (see <see cref="WorkflowPartDefinition"/>) the approver at
+    /// this step fills in before approving, or null when the step fills nothing. Part 1 is always the
+    /// requester's, so only parts 2 and up can be set. A part needs exactly one single-approver step
+    /// (not a parallel group, not an escalation) — enforced when the editor saves and again when a
+    /// request is submitted.
+    /// </summary>
+    public int? FillsPart { get; private set; }
+
+    public void SetFillsPart(int? part)
+    {
+        if (part is not null && !WorkflowFieldCatalog.GetParts(WorkflowType).Any(p => p.Part == part && p.Part > 1))
+            throw new ArgumentOutOfRangeException(nameof(part), "This workflow type has no such form part to fill at a step.");
+        FillsPart = part;
+    }
+
+    /// <summary>
     /// How this step's group is satisfied when it shares its <see cref="Order"/> with sibling
     /// definitions (parallel step, spec §12.2/§14). Every definition in a group must carry the same
     /// value; a definition alone at its order ignores it. Defaults to <see cref="ParallelApprovalMode.All"/>.

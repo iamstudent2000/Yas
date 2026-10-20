@@ -194,26 +194,26 @@ public static class DevelopmentDataSeeder
         // with Admin.Workflows can add/reorder/remove steps afterward from /admin/workflows,
         // so this never re-seeds once a type already has at least one step defined.
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Leave, ct,
-            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
-            (Order: 2, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null),
+            (Order: 2, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Purchase, ct,
-            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
-            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id));
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null),
+            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Access, ct,
-            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
-            (Order: 2, Name: "تایید مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id));
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null),
+            (Order: 2, Name: "تایید مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Loan, ct,
-            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
-            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id),
-            (Order: 3, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null),
+            (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id, FillsPart: (int?)null),
+            (Order: 3, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Helpdesk, ct,
-            (Order: 1, Name: "ارجاع به مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id));
+            (Order: 1, Name: "ارجاع به مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.WorkReport, ct,
-            (Order: 1, Name: "مشاهده مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null));
-        // Vehicle request is multi-part: step 1 fills "تخصیص خودرو", step 2 fills "ثبت حراست" (see WorkflowFieldCatalog).
+            (Order: 1, Name: "مشاهده مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null));
+        // Vehicle request is multi-part: step 1 fills part 2 (تخصیص خودرو), step 2 fills part 3 (ثبت حراست). An admin can change this in /admin/workflows.
         await EnsureWorkflowSteps(db, WorkflowTypeCode.VehicleRequest, ct,
-            (Order: 1, Name: "تخصیص خودرو (مدیر واحد)", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null),
-            (Order: 2, Name: "ثبت حراست (مدیر منابع انسانی)", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id));
+            (Order: 1, Name: "تخصیص خودرو (مدیر واحد)", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)2),
+            (Order: 2, Name: "ثبت حراست (مدیر منابع انسانی)", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id, FillsPart: (int?)3));
         await db.SaveChangesAsync(ct);
     }
 
@@ -278,15 +278,17 @@ public static class DevelopmentDataSeeder
         ApplicationDbContext db,
         WorkflowTypeCode workflowType,
         CancellationToken ct,
-        params (int Order, string Name, int? ManagerLevel, Guid? ApproverPositionId)[] steps)
+        params (int Order, string Name, int? ManagerLevel, Guid? ApproverPositionId, int? FillsPart)[] steps)
     {
         if (await db.WorkflowStepDefinitions.AnyAsync(x => x.WorkflowType == workflowType, ct))
             return;
         foreach (var step in steps)
         {
-            db.WorkflowStepDefinitions.Add(step.ApproverPositionId is Guid positionId
+            var definition = step.ApproverPositionId is Guid positionId
                 ? new WorkflowStepDefinition(workflowType, step.Order, step.Name, positionId)
-                : new WorkflowStepDefinition(workflowType, step.Order, step.Name, step.ManagerLevel!.Value));
+                : new WorkflowStepDefinition(workflowType, step.Order, step.Name, step.ManagerLevel!.Value);
+            definition.SetFillsPart(step.FillsPart);
+            db.WorkflowStepDefinitions.Add(definition);
         }
         await db.SaveChangesAsync(ct);
     }
