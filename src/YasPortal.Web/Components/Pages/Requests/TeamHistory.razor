@@ -278,8 +278,8 @@
     private async Task<bool> RefreshScopeAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
-        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
-        var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : null;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
+        var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
 
         _positionId = _employeeId is Guid employeeId && await Workflows.HoldsActivePositionAsync(employeeId, claimedPositionId)
             ? claimedPositionId
