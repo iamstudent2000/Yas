@@ -162,9 +162,10 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 @media(min-width:851px){
     :root{--app-h:calc(100vh / var(--ui-zoom,1))}
     @supports (height:100dvh){:root{--app-h:calc(100dvh / var(--ui-zoom,1))}}
-    html,body{height:100%;overflow:hidden}
-    .application-shell,.application-body{height:var(--app-h);min-height:0;overflow:hidden}
-    .shell-main{height:var(--app-h);min-height:0;overflow:hidden}
+    /* overflow:clip (not hidden): hidden boxes can still be scrolled by focus()/scrollIntoView, which pushed the whole shell up and left a white band below. */
+    html,body{height:100%;overflow:hidden;overflow:clip}
+    .application-shell,.application-body{height:var(--app-h);min-height:0;overflow:hidden;overflow:clip}
+    .shell-main{height:var(--app-h);min-height:0;overflow:hidden;overflow:clip}
     .sidebar{height:var(--app-h)}
     /* The scroll area is full width; the 1500px reading width moves into its side padding. */
     .content{flex:1 1 auto;min-height:0;max-width:none;margin:0;width:100%;overflow-y:auto;overflow-x:hidden;
