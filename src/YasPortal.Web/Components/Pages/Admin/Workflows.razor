@@ -157,7 +157,7 @@
                                     <option value="@part.Part">بخش @ToPersianDigits(part.Part.ToString()): @part.Title</option>
                                 }
                             </select>
-                            <p class="muted">این فرم چندبخشی است. بخش اول را درخواست‌کننده پر می‌کند؛ هر بخش بعدی باید به یک مرحله‌ی تایید (با یک تاییدکننده؛ نه موازی و نه پله‌به‌پله) اختصاص یابد. تاییدکننده پیش از تایید باید آن بخش را تکمیل کند.</p>
+                            <p class="muted">این فرم چندبخشی است. بخش اول را درخواست‌کننده پر می‌کند؛ هر بخش بعدی به یک مرحله‌ی تایید اختصاص می‌یابد: یک تاییدکننده، یا یک گروه موازی با شرط «تایید یکی کافی است» (هر عضوی که اول تایید کند بخش را پر می‌کند و تنظیم برای همه‌ی اعضای گروه یکسان می‌شود). مرحله‌ی «ارجاع پله‌به‌پله» نمی‌تواند بخشی را تکمیل کند. تاییدکننده پیش از تایید باید آن بخش را تکمیل کند.</p>
 </div>
 }
 
@@ -480,16 +480,20 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         return null;
     }
 
-    /// <summary>Why a step cannot fill the chosen form part, or null when it can (0 = no part).</summary>
-    private static string? FillsPartProblem(int part, ApproverRuleKind kind, bool inParallelGroup, IEnumerable<WorkflowStepDefinition> others)
+    /// <summary>
+    /// Why a step cannot fill the chosen form part, or null when it can (0 = no part).
+    /// <paramref name="groupMode"/> is the approval mode of the parallel group the step ends up in (null when it
+    /// is alone); <paramref name="otherStages"/> are the steps outside this step's own stage.
+    /// </summary>
+    private static string? FillsPartProblem(int part, ApproverRuleKind kind, ParallelApprovalMode? groupMode, IEnumerable<WorkflowStepDefinition> otherStages)
     {
         if (part == 0)
             return null;
         if (kind == ApproverRuleKind.EscalateToTreeLevel)
             return "مرحله‌ی «ارجاع پله‌به‌پله» چند تاییدکننده دارد و نمی‌تواند یک بخش فرم را تکمیل کند.";
-        if (inParallelGroup)
-            return "مرحله‌ی موازی نمی‌تواند بخش فرم را تکمیل کند؛ باید یک تاییدکننده‌ی مشخص آن را پر کند.";
-        if (others.Any(x => x.IsActive && x.FillsPart == part))
+        if (groupMode == ParallelApprovalMode.All)
+            return "در گروه موازی، بخش فرم فقط وقتی قابل تکمیل است که شرط تکمیل مرحله «تایید یکی کافی است» باشد؛ هر عضوی که اول تایید کند آن را پر می‌کند. ابتدا شرط تکمیل مرحله را تغییر دهید.";
+        if (otherStages.Any(x => x.IsActive && x.FillsPart == part))
             return "این بخش از فرم قبلاً به مرحله‌ی دیگری اختصاص داده شده است.";
         return null;
     }
@@ -502,11 +506,23 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         {
             var assigned = _steps.Where(x => x.IsActive && x.FillsPart == part.Part).ToList();
             if (assigned.Count == 0)
+            {
                 problems.Add($"بخش «{part.Title}» به هیچ مرحله‌ای اختصاص داده نشده است؛ تا آن زمان ثبت درخواست جدید از این نوع ممکن نیست.");
-            else if (assigned.Count > 1)
+                continue;
+            }
+            if (assigned.Select(x => x.Order).Distinct().Count() > 1)
+            {
                 problems.Add($"بخش «{part.Title}» به بیش از یک مرحله اختصاص داده شده است؛ هر بخش فقط به یک مرحله تعلق دارد.");
-            else if (assigned[0].ApproverRuleKind == ApproverRuleKind.EscalateToTreeLevel || _steps.Count(x => x.IsActive && x.Order == assigned[0].Order) > 1)
-                problems.Add($"بخش «{part.Title}» به مرحله‌ی «{assigned[0].Name}» اختصاص دارد که موازی یا پله‌به‌پله است و نمی‌تواند آن را تکمیل کند.");
+                continue;
+            }
+
+            var stage = _steps.Where(x => x.IsActive && x.Order == assigned[0].Order).ToList();
+            if (stage.Any(x => x.ApproverRuleKind == ApproverRuleKind.EscalateToTreeLevel))
+                problems.Add($"بخش «{part.Title}» به مرحله‌ی «ارجاع پله‌به‌پله» اختصاص دارد که نمی‌تواند آن را تکمیل کند.");
+            else if (stage.Count > 1 && stage.Count != assigned.Count)
+                problems.Add($"بخش «{part.Title}» باید برای همه‌ی تاییدکننده‌های گروه موازی یکسان تنظیم شود.");
+            else if (stage.Count > 1 && stage[0].ApprovalMode != ParallelApprovalMode.Any)
+                problems.Add($"بخش «{part.Title}» به یک گروه موازی اختصاص دارد؛ شرط تکمیل آن گروه باید «تایید یکی کافی است» باشد.");
         }
         return problems;
     }
@@ -550,6 +566,12 @@ x.ApproverPositionId!.Value).Distinct().ToList();
 
         await using var db = await DbFactory.CreateDbContextAsync();
         var members = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == _selectedType && x.Order == order).ToListAsync();
+        if (mode == ParallelApprovalMode.All && members.Count > 1 && members.Any(x => x.FillsPart is not null))
+        {
+            AppState.AddToast("این گروه موازی یک بخش فرم را تکمیل می‌کند و باید روی «تایید یکی کافی است» بماند؛ ابتدا تخصیص بخش را از آن بردارید.", ToastLevel.Error);
+            await LoadStepsAsync();
+            return;
+        }
         foreach (var member in members)
             member.SetParallelPolicy(mode ?? member.ApprovalMode, policy ?? member.RejectPolicy);
         await db.SaveChangesAsync();
@@ -625,15 +647,17 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 AppState.AddToast(groupProblem, ToastLevel.Error);
                 return;
             }
-            var otherSteps = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == existing.WorkflowType && x.Id != id).ToListAsync();
-            if (FillsPartProblem(_fillsPart, _ruleKind, siblings.Count > 0, otherSteps) is string partProblem)
+            var otherStages = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == existing.WorkflowType && x.Order != existing.Order).ToListAsync();
+            if (FillsPartProblem(_fillsPart, _ruleKind, siblings.Count > 0 ? siblings[0].ApprovalMode : null, otherStages) is string partProblem)
             {
                 AppState.AddToast(partProblem, ToastLevel.Error);
                 return;
             }
             existing.Rename(name);
             existing.SetAllowDelegation(_allowDelegation);
-            existing.SetFillsPart(_fillsPart == 0 ? null : _fillsPart);
+            // One part per stage: in a parallel group the setting applies to every member, so whichever approves first fills it.
+            foreach (var member in siblings.Append(existing))
+                member.SetFillsPart(_fillsPart == 0 ? null : _fillsPart);
             switch (_ruleKind)
             {
                 case ApproverRuleKind.RequesterManagerLevel: existing.UseManagerLevel(_managerLevel); break;
@@ -660,14 +684,19 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 return;
             }
 
-            if (FillsPartProblem(_fillsPart, _ruleKind, joining, existingSteps) is string newPartProblem)
+            // A newcomer to a group that fills a part carries the same part (one part per stage); choosing a different one is refused.
+            var groupPart = groupMembers.Select(x => x.FillsPart).FirstOrDefault(x => x is not null);
+            if (joining && groupPart is not null && _fillsPart != 0 && _fillsPart != groupPart)
             {
-                AppState.AddToast(newPartProblem, ToastLevel.Error);
+                AppState.AddToast("این گروه موازی بخش دیگری از فرم را تکمیل می‌کند؛ تاییدکننده‌ی جدید باید همان بخش را تکمیل کند.", ToastLevel.Error);
                 return;
             }
-            if (joining && groupMembers.Any(x => x.FillsPart is not null))
+            var effectivePart = _fillsPart != 0 ? _fillsPart : groupPart ?? 0;
+            // A group of one becomes "any one approves" when it is made to fill a part; an existing group keeps its mode.
+            ParallelApprovalMode? resultingMode = joining ? (groupMembers.Count == 1 ? ParallelApprovalMode.Any : groupMembers[0].ApprovalMode) : null;
+            if (FillsPartProblem(effectivePart, _ruleKind, resultingMode, existingSteps.Where(x => !(joining && x.Order == placementOrder))) is string newPartProblem)
             {
-                AppState.AddToast("یکی از مرحله‌های این گروه یک بخش فرم را تکمیل می‌کند و نمی‌تواند موازی شود.", ToastLevel.Error);
+                AppState.AddToast(newPartProblem, ToastLevel.Error);
                 return;
             }
 
@@ -694,10 +723,18 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 _ => new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value),
             };
             step.SetAllowDelegation(_allowDelegation);
-            step.SetFillsPart(_fillsPart == 0 ? null : _fillsPart);
+            step.SetFillsPart(effectivePart == 0 ? null : effectivePart);
             // A newcomer to a parallel group follows the group's mode and reject policy (set on the stage card).
             if (joining && groupMembers.Count > 0)
-                step.SetParallelPolicy(groupMembers[0].ApprovalMode, groupMembers[0].RejectPolicy);
+            {
+                var mode = effectivePart != 0 && groupMembers.Count == 1 ? ParallelApprovalMode.Any : groupMembers[0].ApprovalMode;
+                foreach (var member in groupMembers.Append(step))
+                {
+                    member.SetParallelPolicy(mode, groupMembers[0].RejectPolicy);
+                    if (effectivePart != 0)
+                        member.SetFillsPart(effectivePart);
+                }
+            }
             db.WorkflowStepDefinitions.Add(step);
             await db.SaveChangesAsync();
             AppState.AddToast("مرحله اضافه شد.", ToastLevel.Success);
@@ -805,6 +842,8 @@ ToastLevel.Error);
                 later.SetOrder(later.Order + 1);
             step.SetOrder(step.Order + 1);
             step.SetParallelPolicy(ParallelApprovalMode.All, ParallelRejectPolicy.Immediate);
+            // The rest of the group keeps the form part (one part per stage); the separated step fills nothing.
+            step.SetFillsPart(null);
         }
         else
         {
@@ -820,14 +859,31 @@ ToastLevel.Error);
                 AppState.AddToast(problem, ToastLevel.Error);
                 return;
             }
-            if (step.FillsPart is not null || previousGroup.Any(x => x.FillsPart is not null))
+            // One form part per stage: the merged stage carries the part of whichever side had one (both different is refused),
+            // and a part needs "any one approves" — a group of one switches to it, an existing "all must approve" group is refused.
+            var groupPart = previousGroup.Select(x => x.FillsPart).FirstOrDefault(x => x is not null);
+            if (groupPart is not null && step.FillsPart is not null && groupPart != step.FillsPart)
             {
-                AppState.AddToast("مرحله‌ای که یک بخش فرم را تکمیل می‌کند نمی‌تواند موازی باشد؛ ابتدا تخصیص بخش را از آن بردارید.", ToastLevel.Error);
+                AppState.AddToast("این دو مرحله بخش‌های متفاوتی از فرم را تکمیل می‌کنند و نمی‌توانند موازی شوند؛ ابتدا یکی از تخصیص‌ها را بردارید.", ToastLevel.Error);
                 return;
+            }
+            var mergedPart = groupPart ?? step.FillsPart;
+            var mergedMode = previousGroup[0].ApprovalMode;
+            if (mergedPart is not null)
+            {
+                if (previousGroup.Count > 1 && mergedMode != ParallelApprovalMode.Any)
+                {
+                    AppState.AddToast("بخش فرم فقط در گروه موازیِ «تایید یکی کافی است» قابل تکمیل است؛ ابتدا شرط تکمیل آن گروه را تغییر دهید.", ToastLevel.Error);
+                    return;
+                }
+                mergedMode = ParallelApprovalMode.Any;
             }
             // The newcomer adopts the group's policy; a group that was a single step starts from the defaults.
             foreach (var member in previousGroup.Append(step))
-                member.SetParallelPolicy(previousGroup[0].ApprovalMode, previousGroup[0].RejectPolicy);
+            {
+                member.SetParallelPolicy(mergedMode, previousGroup[0].RejectPolicy);
+                member.SetFillsPart(mergedPart);
+            }
             step.SetOrder(previousOrder.Value);
         }
         await db.SaveChangesAsync();

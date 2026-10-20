@@ -45,7 +45,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         var unfillable = WorkflowFieldCatalog.UnfillableParts(type, resolution.Steps);
         if (unfillable.Count > 0)
             return new ResolveResult(false,
-                string.Join(" ", unfillable.Select(p => $"بخش «{p.Title}» این فرم باید در یک مرحله‌ی تایید (با یک تاییدکننده، نه موازی و نه ارجاع پله‌به‌پله) تکمیل شود، اما در مسیر تعریف‌شده به هیچ مرحله‌ای اختصاص داده نشده یا به بیش از یک مرحله اختصاص یافته است. مدیر سامانه باید در ویرایشگر گردش‌کار تعیین کند کدام مرحله این بخش را تکمیل می‌کند.")),
+                string.Join(" ", unfillable.Select(p => $"بخش «{p.Title}» این فرم باید در یک مرحله‌ی تایید (با یک تاییدکننده، یا گروه موازی با شرط «تایید یکی کافی است»؛ نه پله‌به‌پله) تکمیل شود، اما در مسیر تعریف‌شده به هیچ مرحله‌ای اختصاص داده نشده، به بیش از یک مرحله اختصاص یافته یا مرحله‌ی آن شرایط را ندارد. مدیر سامانه باید در ویرایشگر گردش‌کار تعیین کند کدام مرحله این بخش را تکمیل می‌کند.")),
                 []);
 
         return new ResolveResult(true, null,
