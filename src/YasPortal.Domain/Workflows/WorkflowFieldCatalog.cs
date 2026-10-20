@@ -10,12 +10,12 @@ namespace YasPortal.Domain.Workflows;
 public sealed record WorkflowFieldDefinition(string Key, string Label, WorkflowFieldType FieldType, bool Required, IReadOnlyList<string>? Options = null, int Part = 1);
 
 /// <summary>
-/// One part of a multi-part form. Part 1 belongs to the requester (<see cref="FillAtStepOrder"/> is
-/// null). Every later part is filled by the approver at the workflow step with order
-/// <see cref="FillAtStepOrder"/> (the order in the request's resolved path, 1-based) and must be
-/// completed before that step can approve. Like the fields, parts are fixed in code (spec §11.1).
+/// One part of a multi-part form. Part 1 belongs to the requester. Every later part is filled by the
+/// approver at the workflow step an admin assigned it to (<see cref="WorkflowStepDefinition.FillsPart"/>)
+/// and must be completed before that step can approve. The parts and their fields are fixed in code
+/// (spec §11.1); which step fills which part is the admin's choice in the workflow editor.
 /// </summary>
-public sealed record WorkflowPartDefinition(int Part, string Title, int? FillAtStepOrder);
+public sealed record WorkflowPartDefinition(int Part, string Title);
 
 /// <summary>
 /// One validation failure, identifying the specific field and the reason (spec §26.1 — generic
@@ -73,11 +73,11 @@ public static class WorkflowFieldCatalog
                 new WorkflowFieldDefinition("returnDate", "تاریخ برگشت", WorkflowFieldType.Date, true),
                 new WorkflowFieldDefinition("passengers", "تعداد سرنشین", WorkflowFieldType.Number, true),
                 new WorkflowFieldDefinition("purpose", "هدف از سفر", WorkflowFieldType.TextArea, true),
-                // Part 2 — filled at workflow step 1 (vehicle assignment).
+                // Part 2 — vehicle assignment, filled at the workflow step an admin assigns it to.
                 new WorkflowFieldDefinition("vehicleType", "نوع خودرو", WorkflowFieldType.Select, true, new[] { "سواری", "ون", "وانت", "مینی‌بوس" }, Part: 2),
                 new WorkflowFieldDefinition("plateNumber", "شماره پلاک", WorkflowFieldType.Text, true, Part: 2),
                 new WorkflowFieldDefinition("driverName", "نام راننده", WorkflowFieldType.Text, true, Part: 2),
-                // Part 3 — filled at workflow step 2 (security).
+                // Part 3 — security gate pass, filled at the workflow step an admin assigns it to.
                 new WorkflowFieldDefinition("gatePassNumber", "شماره مجوز خروج", WorkflowFieldType.Text, true, Part: 3),
                 new WorkflowFieldDefinition("securityNote", "ملاحظات حراست", WorkflowFieldType.TextArea, false, Part: 3),
             }),
@@ -91,20 +91,20 @@ public static class WorkflowFieldCatalog
 
     /// <summary>
     /// The parts of each multi-part type. A type missing here has one part: everything is filled by
-    /// the requester. Part N (N &gt; 1) is filled at the workflow step with the given order.
+    /// the requester. Parts after the first are filled at the workflow steps an admin assigns them to.
     /// </summary>
     private static readonly IReadOnlyDictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>> MultiPartCatalog =
         new Dictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>>
         {
             [WorkflowTypeCode.VehicleRequest] = new[]
             {
-                new WorkflowPartDefinition(1, "اطلاعات سفر", null),
-                new WorkflowPartDefinition(2, "تخصیص خودرو", 1),
-                new WorkflowPartDefinition(3, "ثبت حراست", 2),
+                new WorkflowPartDefinition(1, "اطلاعات سفر"),
+                new WorkflowPartDefinition(2, "تخصیص خودرو"),
+                new WorkflowPartDefinition(3, "ثبت حراست"),
             },
         };
 
-    private static readonly IReadOnlyList<WorkflowPartDefinition> SinglePart = new[] { new WorkflowPartDefinition(1, "اطلاعات درخواست", null) };
+    private static readonly IReadOnlyList<WorkflowPartDefinition> SinglePart = new[] { new WorkflowPartDefinition(1, "اطلاعات درخواست") };
 
     public static string GetDisplayName(WorkflowTypeCode type) => Catalog[type].Name;
 
@@ -122,21 +122,27 @@ public static class WorkflowFieldCatalog
     public static bool IsMultiPart(WorkflowTypeCode type) => GetParts(type).Count > 1;
 
     /// <summary>
-    /// The part the approver at <paramref name="stepOrder"/> (the 1-based order in the request's
-    /// resolved path) has to fill before approving, or null when that step fills nothing.
+    /// The part (2 or later) a step is set to fill, or null when it fills nothing or the number is
+    /// not a fillable part of this type.
     /// </summary>
-    public static WorkflowPartDefinition? GetPartFilledAtStep(WorkflowTypeCode type, int stepOrder) =>
-        GetParts(type).FirstOrDefault(p => p.Part > 1 && p.FillAtStepOrder == stepOrder);
+    public static WorkflowPartDefinition? GetStepPart(WorkflowTypeCode type, int? fillsPart) =>
+        fillsPart is int number && number > 1 ? GetParts(type).FirstOrDefault(p => p.Part == number) : null;
 
     /// <summary>
-    /// The parts that cannot be filled on the given path because it has no step at the part's order,
-    /// or that step is a parallel group (it would not be clear who fills the part). Empty when the
-    /// path suits the type. Checked at submission so a request never starts on a path that cannot
-    /// complete its form — the admin must fix the workflow instead (spec §24).
+    /// The parts that cannot be filled on the given path: every part after the first needs exactly one
+    /// step assigned to it, and that step must be alone at its order (a parallel group would leave it
+    /// unclear who fills the part, and an escalation expands into several steps). Empty when the path
+    /// suits the type. Checked at submission so a request never starts on a path that cannot complete
+    /// its form — the admin must fix the workflow instead (spec §24).
     /// </summary>
     public static IReadOnlyList<WorkflowPartDefinition> UnfillableParts(WorkflowTypeCode type, IReadOnlyList<WorkflowResolvedStep> steps) =>
         GetParts(type)
-            .Where(p => p.Part > 1 && steps.Count(s => s.Order == p.FillAtStepOrder) != 1)
+            .Where(p => p.Part > 1)
+            .Where(p =>
+            {
+                var assigned = steps.Where(s => s.FillsPart == p.Part).ToList();
+                return assigned.Count != 1 || steps.Count(s => s.Order == assigned[0].Order) != 1;
+            })
             .ToList();
 
     public static IReadOnlyList<WorkflowTypeCode> AllTypes { get; } = Enum.GetValues<WorkflowTypeCode>();

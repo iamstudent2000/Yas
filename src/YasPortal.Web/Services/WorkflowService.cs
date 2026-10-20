@@ -8,10 +8,10 @@ namespace YasPortal.Web.Services;
 /// <summary>Resolves a workflow request's approval path and applies approver actions to it.</summary>
 public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFactory)
 {
-    public sealed record ResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId, ParallelApprovalMode Mode = ParallelApprovalMode.All, ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate)
+    public sealed record ResolvedStep(Guid StepDefinitionId, int Order, string Name, Guid ApproverPositionId, ParallelApprovalMode Mode = ParallelApprovalMode.All, ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate, int? FillsPart = null)
     {
         /// <summary>The domain form of this step, for creating or resubmitting a request.</summary>
-        public WorkflowResolvedStep ToDomain() => new(StepDefinitionId, Order, Name, ApproverPositionId, Mode, RejectPolicy);
+        public WorkflowResolvedStep ToDomain() => new(StepDefinitionId, Order, Name, ApproverPositionId, Mode, RejectPolicy, FillsPart);
     }
     public sealed record ResolveResult(bool Success, string? Error, IReadOnlyList<ResolvedStep> Steps);
 
@@ -41,15 +41,15 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         if (inactive.Count > 0)
             return new ResolveResult(false, "مسیر تایید از سمت غیرفعال عبور می‌کند: " + string.Join("، ", inactive) + ". مدیر سامانه باید گردش‌کار را اصلاح یا سمت را فعال کند.", []);
 
-        // A multi-part form needs a single approver at the step that owns each part; refuse rather than start a request that can never complete its form.
+        // Every part after the first needs exactly one single-approver step assigned to it; refuse rather than start a request that can never complete its form.
         var unfillable = WorkflowFieldCatalog.UnfillableParts(type, resolution.Steps);
         if (unfillable.Count > 0)
             return new ResolveResult(false,
-                string.Join(" ", unfillable.Select(p => $"بخش «{p.Title}» این فرم باید در مرحله {p.FillAtStepOrder} مسیر تایید تکمیل شود، اما مسیر تعریف‌شده چنین مرحله‌ای (با یک تاییدکننده) ندارد. مدیر سامانه باید گردش‌کار را اصلاح کند.")),
+                string.Join(" ", unfillable.Select(p => $"بخش «{p.Title}» این فرم باید در یک مرحله‌ی تایید (با یک تاییدکننده، نه موازی و نه ارجاع پله‌به‌پله) تکمیل شود، اما در مسیر تعریف‌شده به هیچ مرحله‌ای اختصاص داده نشده یا به بیش از یک مرحله اختصاص یافته است. مدیر سامانه باید در ویرایشگر گردش‌کار تعیین کند کدام مرحله این بخش را تکمیل می‌کند.")),
                 []);
 
         return new ResolveResult(true, null,
-            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId, x.Mode, x.RejectPolicy)).ToList());
+            resolution.Steps.Select(x => new ResolvedStep(x.StepDefinitionId, x.Order, x.Name, x.ApproverPositionId, x.Mode, x.RejectPolicy, x.FillsPart)).ToList());
     }
 
     /// <summary>User-facing (Persian) explanation of why a path could not be resolved, one sentence per problem.</summary>

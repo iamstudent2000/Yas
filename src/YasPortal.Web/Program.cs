@@ -100,6 +100,16 @@ if (app.Environment.IsDevelopment())
             CREATE INDEX [IX_WorkflowRequests_CreatedByEmployeeId] ON [dbo].[WorkflowRequests] ([CreatedByEmployeeId]);
             ALTER TABLE [dbo].[WorkflowRequests] ADD CONSTRAINT [FK_WorkflowRequests_Employees_CreatedByEmployeeId] FOREIGN KEY ([CreatedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id]);
         END;
+        IF COL_LENGTH(N'dbo.WorkflowStepDefinitions', N'FillsPart') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[WorkflowStepDefinitions] ADD [FillsPart] int NULL;
+            EXEC(N'UPDATE [dbo].[WorkflowStepDefinitions] SET [FillsPart] = [Order] + 1 WHERE [WorkflowType] = N''VehicleRequest'' AND [Order] IN (1, 2)');
+        END;
+        IF COL_LENGTH(N'dbo.WorkflowRequestSteps', N'FillsPart') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[WorkflowRequestSteps] ADD [FillsPart] int NULL;
+            EXEC(N'UPDATE s SET s.[FillsPart] = s.[Order] + 1 FROM [dbo].[WorkflowRequestSteps] s INNER JOIN [dbo].[WorkflowRequests] r ON r.[Id] = s.[RequestId] WHERE r.[WorkflowType] = N''VehicleRequest'' AND s.[Order] IN (1, 2)');
+        END;
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);

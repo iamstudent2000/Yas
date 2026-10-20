@@ -6,8 +6,8 @@ namespace YasPortal.Tests;
 
 /// <summary>
 /// Multi-part forms: part 1 is filled by the requester, every later part by the approver at the
-/// workflow step that owns it. The Vehicle Request type is the first such form (part 2 at step 1,
-/// part 3 at step 2).
+/// workflow step an admin assigned it to (<see cref="WorkflowStepDefinition.FillsPart"/>). The Vehicle
+/// Request type is the first such form (three parts).
 /// </summary>
 public class WorkflowMultiPartFormTests
 {
@@ -36,8 +36,8 @@ public class WorkflowMultiPartFormTests
             fieldValuesJson: RequesterJson,
             resolvedSteps: new[]
             {
-                (Guid.NewGuid(), 1, "تخصیص خودرو", step1Position),
-                (Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid()),
+                new WorkflowResolvedStep(Guid.NewGuid(), 1, "تخصیص خودرو", step1Position, FillsPart: 2),
+                new WorkflowResolvedStep(Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid(), FillsPart: 3),
             });
         step1Id = request.Steps.First(x => x.Order == 1).Id;
         step2Id = request.Steps.First(x => x.Order == 2).Id;
@@ -52,9 +52,6 @@ public class WorkflowMultiPartFormTests
     {
         var parts = WorkflowFieldCatalog.GetParts(WorkflowTypeCode.VehicleRequest);
         Assert.Equal(new[] { 1, 2, 3 }, parts.Select(p => p.Part).ToArray());
-        Assert.Null(parts[0].FillAtStepOrder);
-        Assert.Equal(1, parts[1].FillAtStepOrder);
-        Assert.Equal(2, parts[2].FillAtStepOrder);
 
         var all = WorkflowFieldCatalog.GetFields(WorkflowTypeCode.VehicleRequest);
         var perPart = parts.SelectMany(p => WorkflowFieldCatalog.GetFields(WorkflowTypeCode.VehicleRequest, p.Part)).ToList();
@@ -216,8 +213,8 @@ public class WorkflowMultiPartFormTests
         edited["destination"] = "اصفهان";
         request.Resubmit(JsonSerializer.Serialize(edited), new[]
         {
-            (Guid.NewGuid(), 1, "تخصیص خودرو", Guid.NewGuid()),
-            (Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid()),
+            new WorkflowResolvedStep(Guid.NewGuid(), 1, "تخصیص خودرو", Guid.NewGuid(), FillsPart: 2),
+            new WorkflowResolvedStep(Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid(), FillsPart: 3),
         });
 
         var stored = Stored(request);
@@ -239,30 +236,124 @@ public class WorkflowMultiPartFormTests
 
         Assert.Throws<InvalidOperationException>(() => request.Resubmit(JsonSerializer.Serialize(tampered), new[]
         {
-            (Guid.NewGuid(), 1, "تخصیص خودرو", Guid.NewGuid()),
-            (Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid()),
+            new WorkflowResolvedStep(Guid.NewGuid(), 1, "تخصیص خودرو", Guid.NewGuid(), FillsPart: 2),
+            new WorkflowResolvedStep(Guid.NewGuid(), 2, "ثبت حراست", Guid.NewGuid(), FillsPart: 3),
         }));
         Assert.Equal(WorkflowRequestStatus.ReturnedToRequester, request.Status);
         Assert.Equal(1, request.CurrentRound);
         Assert.Equal("12ب345", Stored(request)["plateNumber"]);
     }
 
+    private static WorkflowResolvedStep Step(int order, int? fills = null) =>
+        new(Guid.NewGuid(), order, $"s{order}", Guid.NewGuid(), FillsPart: fills);
+
     [Fact]
-    public void A_path_must_have_a_single_approver_at_each_part_owning_step()
+    public void Every_part_needs_exactly_one_step_assigned_to_it()
     {
-        WorkflowResolvedStep Step(int order) => new(Guid.NewGuid(), order, $"s{order}", Guid.NewGuid());
+        Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1, 2), Step(2, 3)]));
 
-        Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1), Step(2)]));
+        // Which step fills which part is the admin's choice: the reverse assignment and a longer path are fine.
+        Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1, 3), Step(2), Step(3, 2)]));
 
-        // Only one step: part 3 (step 2) has nobody to fill it.
-        var tooShort = Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1)]));
-        Assert.Equal(3, tooShort.Part);
+        // Nothing assigned: both parts are unfillable.
+        var none = WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1), Step(2)]);
+        Assert.Equal(new[] { 2, 3 }, none.Select(p => p.Part).ToArray());
 
-        // A parallel group at step 1: part 2 would have two possible fillers.
-        var parallel = Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1), Step(1), Step(2)]));
-        Assert.Equal(2, parallel.Part);
+        // One part assigned to two steps.
+        var twice = Assert.Single(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1, 2), Step(2, 2), Step(3, 3)]));
+        Assert.Equal(2, twice.Part);
 
         // Ordinary types never have a problem.
         Assert.Empty(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.Leave, [Step(1)]));
+    }
+
+    [Fact]
+    public void A_step_in_a_parallel_group_cannot_fill_a_part()
+    {
+        // Two steps share order 1, one of them assigned part 2: who would fill it is unclear.
+        var parallel = WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, [Step(1, 2), Step(1), Step(2, 3)]);
+        Assert.Equal(2, Assert.Single(parallel).Part);
+    }
+
+    [Fact]
+    public void Assignment_is_copied_onto_the_requests_steps_and_decides_who_fills_what()
+    {
+        // Swapped relative to the default: step 1 fills part 3, step 2 fills part 2.
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.VehicleRequest, Guid.NewGuid(), Guid.NewGuid(), RequesterJson,
+            new[]
+            {
+                new WorkflowResolvedStep(Guid.NewGuid(), 1, "حراست", Guid.NewGuid(), FillsPart: 3),
+                new WorkflowResolvedStep(Guid.NewGuid(), 2, "تخصیص", Guid.NewGuid(), FillsPart: 2),
+            });
+        var first = request.Steps.Single(x => x.Order == 1);
+        var second = request.Steps.Single(x => x.Order == 2);
+        Assert.Equal(3, first.FillsPart);
+        Assert.Equal(2, second.FillsPart);
+
+        // Step 1 owns part 3, so part 2's values are refused there.
+        Assert.Throws<ArgumentException>(() => request.Approve(first.Id, Guid.NewGuid(), null, partValues: Part2()));
+        request.Approve(first.Id, Guid.NewGuid(), null, partValues: Part3());
+        request.Approve(second.Id, Guid.NewGuid(), null, partValues: Part2());
+
+        Assert.Equal(WorkflowRequestStatus.Approved, request.Status);
+        Assert.Equal("G-100", Stored(request)["gatePassNumber"]);
+        Assert.Equal("12ب345", Stored(request)["plateNumber"]);
+    }
+
+    [Fact]
+    public void A_step_with_no_assigned_part_just_approves_and_refuses_values()
+    {
+        var request = new WorkflowRequest(
+            WorkflowTypeCode.VehicleRequest, Guid.NewGuid(), Guid.NewGuid(), RequesterJson,
+            new[] { new WorkflowResolvedStep(Guid.NewGuid(), 1, "تایید", Guid.NewGuid()) });
+        var step = request.Steps.Single();
+
+        Assert.Throws<InvalidOperationException>(() => request.Approve(step.Id, Guid.NewGuid(), null, partValues: Part2()));
+        request.Approve(step.Id, Guid.NewGuid(), null);
+        Assert.Equal(WorkflowRequestStatus.Approved, request.Status);
+    }
+
+    [Fact]
+    public void A_step_definition_can_only_be_set_to_fill_a_real_later_part()
+    {
+        var step = new WorkflowStepDefinition(WorkflowTypeCode.VehicleRequest, 1, "تخصیص", 1);
+        Assert.Null(step.FillsPart);
+
+        step.SetFillsPart(2);
+        Assert.Equal(2, step.FillsPart);
+        step.SetFillsPart(3);
+        Assert.Equal(3, step.FillsPart);
+        step.SetFillsPart(null);
+        Assert.Null(step.FillsPart);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => step.SetFillsPart(1)); // part 1 is the requester's
+        Assert.Throws<ArgumentOutOfRangeException>(() => step.SetFillsPart(4)); // no such part
+
+        var leave = new WorkflowStepDefinition(WorkflowTypeCode.Leave, 1, "مدیر", 1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => leave.SetFillsPart(2)); // single-part type
+    }
+
+    [Fact]
+    public void The_resolver_carries_the_assignment_and_an_escalation_cannot_hold_a_part()
+    {
+        var requester = Guid.NewGuid();
+        var manager = Guid.NewGuid();
+        var top = Guid.NewGuid();
+        var parents = new Dictionary<Guid, Guid?> { [requester] = manager, [manager] = top, [top] = null };
+
+        var fixedStep = new WorkflowStepDefinition(WorkflowTypeCode.VehicleRequest, 1, "ثابت", top);
+        fixedStep.SetFillsPart(2);
+        var ok = WorkflowStepResolver.Resolve(new[] { fixedStep }, requester, parents);
+        Assert.True(ok.Success);
+        Assert.Equal(2, Assert.Single(ok.Steps).FillsPart);
+
+        var escalating = WorkflowStepDefinition.EscalatingToTreeLevel(WorkflowTypeCode.VehicleRequest, 1, "پله‌به‌پله", 1);
+        escalating.SetFillsPart(2);
+        var resolved = WorkflowStepResolver.Resolve(new[] { escalating }, requester, parents);
+        Assert.True(resolved.Success);
+        Assert.True(resolved.Steps.Count > 1);
+        // The expansion carries the part on every step, so the path is refused at submission.
+        Assert.Contains(WorkflowFieldCatalog.UnfillableParts(WorkflowTypeCode.VehicleRequest, resolved.Steps), p => p.Part == 2);
     }
 }

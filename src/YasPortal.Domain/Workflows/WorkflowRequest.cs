@@ -70,7 +70,7 @@ public sealed class WorkflowRequest
         CurrentRound = 1;
 
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
+            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy, step.FillsPart));
 
         CurrentStepOrder = Steps.Min(x => x.Order);
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, CreatedByEmployeeId ?? requesterEmployeeId));
@@ -312,7 +312,7 @@ public sealed class WorkflowRequest
     /// </summary>
     private void ApplyStepPart(WorkflowRequestStep step, Guid actingEmployeeId, IReadOnlyDictionary<string, string?>? partValues)
     {
-        var part = WorkflowFieldCatalog.GetPartFilledAtStep(WorkflowType, step.Order);
+        var part = WorkflowFieldCatalog.GetStepPart(WorkflowType, step.FillsPart);
         if (part is null)
         {
             if (partValues is { Count: > 0 })
@@ -529,7 +529,7 @@ public sealed class WorkflowRequest
         CurrentRound++;
         RecordFieldChanges(previousValues, newValues, RequesterEmployeeId, RequesterPositionId);
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
-            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy));
+            Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy, step.FillsPart));
         CurrentStepOrder = resolvedSteps.Min(x => x.Order);
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Resubmitted, RequesterEmployeeId));
         Status = WorkflowRequestStatus.PendingApproval;
@@ -646,7 +646,7 @@ public sealed class WorkflowRequestStep
     }
 
     internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int round, int order, string name, Guid approverPositionId,
-        ParallelApprovalMode approvalMode = ParallelApprovalMode.All, ParallelRejectPolicy rejectPolicy = ParallelRejectPolicy.Immediate)
+        ParallelApprovalMode approvalMode = ParallelApprovalMode.All, ParallelRejectPolicy rejectPolicy = ParallelRejectPolicy.Immediate, int? fillsPart = null)
     {
         RequestId = requestId;
         StepDefinitionId = stepDefinitionId;
@@ -656,6 +656,7 @@ public sealed class WorkflowRequestStep
         ApproverPositionId = approverPositionId;
         ApprovalMode = approvalMode;
         RejectPolicy = rejectPolicy;
+        FillsPart = fillsPart;
         Status = WorkflowStepStatus.Pending;
     }
 
@@ -684,6 +685,13 @@ public sealed class WorkflowRequestStep
 
     /// <summary>What a rejection in this step's group does (§14.3) — a submission-time copy, like <see cref="ApprovalMode"/>.</summary>
     public ParallelRejectPolicy RejectPolicy { get; private set; } = ParallelRejectPolicy.Immediate;
+
+    /// <summary>
+    /// The form part the approver at this step fills in before approving — a submission-time copy of the
+    /// workflow step's setting, like <see cref="ApprovalMode"/>, so later edits to the workflow cannot
+    /// change a request in flight. Null when the step fills nothing.
+    /// </summary>
+    public int? FillsPart { get; private set; }
     public WorkflowStepStatus Status { get; private set; }
     public Guid? ActedByEmployeeId { get; private set; }
     public DateTime? ActedAtUtc { get; private set; }

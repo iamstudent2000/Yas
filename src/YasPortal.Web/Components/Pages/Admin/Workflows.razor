@@ -146,6 +146,21 @@
                             <p class="muted">اگر خاموش باشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
 </div>
 
+@if (WorkflowFieldCatalog.IsMultiPart(_selectedType))
+{
+<div class="form-field is-grow">
+                            <label class="form-label">بخشی از فرم که تاییدکننده‌ی این مرحله تکمیل می‌کند</label>
+                            <select class="form-control" disabled="@(_ruleKind == ApproverRuleKind.EscalateToTreeLevel)" value="@_fillsPart" @onchange="e => _fillsPart = int.TryParse(e.Value?.ToString(), out var chosenPart) ? chosenPart : 0">
+                                <option value="0">— هیچ بخشی (فقط تصمیم می‌گیرد) —</option>
+                                @foreach (var part in WorkflowFieldCatalog.GetParts(_selectedType).Where(p => p.Part > 1))
+                                {
+                                    <option value="@part.Part">بخش @ToPersianDigits(part.Part.ToString()): @part.Title</option>
+                                }
+                            </select>
+                            <p class="muted">این فرم چندبخشی است. بخش اول را درخواست‌کننده پر می‌کند؛ هر بخش بعدی باید به یک مرحله‌ی تایید (با یک تاییدکننده؛ نه موازی و نه پله‌به‌پله) اختصاص یابد. تاییدکننده پیش از تایید باید آن بخش را تکمیل کند.</p>
+</div>
+}
+
 <div class="form-field admin-row-submit">
                             <div class="form-actions">
                                 <button class="btn btn-primary" @onclick="SaveStep"><i class="bx bx-save"></i> @(_editingId is null ?
@@ -158,6 +173,18 @@
 </div></div>
 </section>
 <section class="card workflow-steps-card">
+
+                                @if (!_loading && _steps.Count > 0 && WorkflowFieldCatalog.IsMultiPart(_selectedType) && PartProblems() is { Count: > 0 } partProblems)
+                                {
+                                    <div class="empty-state" role="alert">
+                                        <i class="bx bx-error-circle"></i>
+                                        <strong>تخصیص بخش‌های فرم کامل نیست</strong>
+                                        @foreach (var problem in partProblems)
+                                        {
+                                            <span>@problem</span>
+                                        }
+                                    </div>
+                                }
 
                                 @if (_loading)
                                 {
@@ -213,6 +240,10 @@
                                                                     @if (!step.AllowDelegation)
                                                                     {
                                                                         <span class="badge badge-warning">بدون تفویض</span>
+                                                                    }
+                                                                    @if (WorkflowFieldCatalog.GetStepPart(step.WorkflowType, step.FillsPart) is { } fillsPart)
+                                                                    {
+                                                                        <span class="badge badge-info"><i class="bx bx-edit"></i> تکمیل بخش @ToPersianDigits(fillsPart.Part.ToString()): @fillsPart.Title</span>
                                                                     }
                                                                 </span>
                                                                 <span class="stage-actions">
@@ -323,6 +354,7 @@
     private int _managerLevel = 1;
     private int _treeLevel = 2;
     private bool _allowDelegation = true;
+    private int _fillsPart; // 0 = the step fills no part of the form
 
     // Where a new step goes: "end", "after:N" (a new stage after stage N) or "join:N" (parallel approver in stage N).
     private const string PlacementEnd = "end";
@@ -412,6 +444,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = step.ManagerLevel ?? 1;
         _treeLevel = step.TreeLevel ?? 2;
         _allowDelegation = step.AllowDelegation;
+        _fillsPart = step.FillsPart ?? 0;
         _approverPositionId = step.ApproverPositionId;
         _approverPositionSearch = step.ApproverPositionId is Guid pid && _positionNames.TryGetValue(pid, out var name) ? name :
 "";
@@ -425,6 +458,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _managerLevel = 1;
         _treeLevel = 2;
         _allowDelegation = true;
+        _fillsPart = 0;
         _placement = PlacementEnd;
         _approverPositionId = null;
         _approverPositionSearch = "";
@@ -444,6 +478,37 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         if (kind == ApproverRuleKind.SpecificPosition && positionId is Guid pid && siblings.Any(x => x.ApproverPositionId == pid))
             return "یک سمت نمی‌تواند دو بار در یک گروه موازی بیاید.";
         return null;
+    }
+
+    /// <summary>Why a step cannot fill the chosen form part, or null when it can (0 = no part).</summary>
+    private static string? FillsPartProblem(int part, ApproverRuleKind kind, bool inParallelGroup, IEnumerable<WorkflowStepDefinition> others)
+    {
+        if (part == 0)
+            return null;
+        if (kind == ApproverRuleKind.EscalateToTreeLevel)
+            return "مرحله‌ی «ارجاع پله‌به‌پله» چند تاییدکننده دارد و نمی‌تواند یک بخش فرم را تکمیل کند.";
+        if (inParallelGroup)
+            return "مرحله‌ی موازی نمی‌تواند بخش فرم را تکمیل کند؛ باید یک تاییدکننده‌ی مشخص آن را پر کند.";
+        if (others.Any(x => x.IsActive && x.FillsPart == part))
+            return "این بخش از فرم قبلاً به مرحله‌ی دیگری اختصاص داده شده است.";
+        return null;
+    }
+
+    /// <summary>What is wrong with how the selected type's form parts are assigned to its active steps (empty when all is well).</summary>
+    private List<string> PartProblems()
+    {
+        var problems = new List<string>();
+        foreach (var part in WorkflowFieldCatalog.GetParts(_selectedType).Where(p => p.Part > 1))
+        {
+            var assigned = _steps.Where(x => x.IsActive && x.FillsPart == part.Part).ToList();
+            if (assigned.Count == 0)
+                problems.Add($"بخش «{part.Title}» به هیچ مرحله‌ای اختصاص داده نشده است؛ تا آن زمان ثبت درخواست جدید از این نوع ممکن نیست.");
+            else if (assigned.Count > 1)
+                problems.Add($"بخش «{part.Title}» به بیش از یک مرحله اختصاص داده شده است؛ هر بخش فقط به یک مرحله تعلق دارد.");
+            else if (assigned[0].ApproverRuleKind == ApproverRuleKind.EscalateToTreeLevel || _steps.Count(x => x.IsActive && x.Order == assigned[0].Order) > 1)
+                problems.Add($"بخش «{part.Title}» به مرحله‌ی «{assigned[0].Name}» اختصاص دارد که موازی یا پله‌به‌پله است و نمی‌تواند آن را تکمیل کند.");
+        }
+        return problems;
     }
 
     private static (string Kind, int Order) ParsePlacement(string placement)
@@ -560,8 +625,15 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 AppState.AddToast(groupProblem, ToastLevel.Error);
                 return;
             }
+            var otherSteps = await db.WorkflowStepDefinitions.Where(x => x.WorkflowType == existing.WorkflowType && x.Id != id).ToListAsync();
+            if (FillsPartProblem(_fillsPart, _ruleKind, siblings.Count > 0, otherSteps) is string partProblem)
+            {
+                AppState.AddToast(partProblem, ToastLevel.Error);
+                return;
+            }
             existing.Rename(name);
             existing.SetAllowDelegation(_allowDelegation);
+            existing.SetFillsPart(_fillsPart == 0 ? null : _fillsPart);
             switch (_ruleKind)
             {
                 case ApproverRuleKind.RequesterManagerLevel: existing.UseManagerLevel(_managerLevel); break;
@@ -588,6 +660,17 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 return;
             }
 
+            if (FillsPartProblem(_fillsPart, _ruleKind, joining, existingSteps) is string newPartProblem)
+            {
+                AppState.AddToast(newPartProblem, ToastLevel.Error);
+                return;
+            }
+            if (joining && groupMembers.Any(x => x.FillsPart is not null))
+            {
+                AppState.AddToast("یکی از مرحله‌های این گروه یک بخش فرم را تکمیل می‌کند و نمی‌تواند موازی شود.", ToastLevel.Error);
+                return;
+            }
+
             int nextOrder;
             switch (placementKind)
             {
@@ -611,6 +694,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
                 _ => new WorkflowStepDefinition(_selectedType, nextOrder, name, _approverPositionId!.Value),
             };
             step.SetAllowDelegation(_allowDelegation);
+            step.SetFillsPart(_fillsPart == 0 ? null : _fillsPart);
             // A newcomer to a parallel group follows the group's mode and reject policy (set on the stage card).
             if (joining && groupMembers.Count > 0)
                 step.SetParallelPolicy(groupMembers[0].ApprovalMode, groupMembers[0].RejectPolicy);
@@ -734,6 +818,11 @@ ToastLevel.Error);
             if (ParallelMemberProblem(previousGroup, step.ApproverRuleKind, step.ApproverPositionId) is string problem)
             {
                 AppState.AddToast(problem, ToastLevel.Error);
+                return;
+            }
+            if (step.FillsPart is not null || previousGroup.Any(x => x.FillsPart is not null))
+            {
+                AppState.AddToast("مرحله‌ای که یک بخش فرم را تکمیل می‌کند نمی‌تواند موازی باشد؛ ابتدا تخصیص بخش را از آن بردارید.", ToastLevel.Error);
                 return;
             }
             // The newcomer adopts the group's policy; a group that was a single step starts from the defaults.

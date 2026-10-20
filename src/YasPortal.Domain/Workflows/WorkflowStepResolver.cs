@@ -37,7 +37,8 @@ public sealed record WorkflowResolvedStep(
     string Name,
     Guid ApproverPositionId,
     ParallelApprovalMode Mode = ParallelApprovalMode.All,
-    ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate);
+    ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate,
+    int? FillsPart = null);
 
 public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Steps, IReadOnlyList<WorkflowResolutionError> Errors)
 {
@@ -69,7 +70,7 @@ public static class WorkflowStepResolver
             return new WorkflowResolution([], [new WorkflowResolutionError(WorkflowResolutionErrorKind.NoActiveSteps, null)]);
 
         var errors = new List<WorkflowResolutionError>();
-        var resolved = new List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy)>();
+        var resolved = new List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy, int? FillsPart)>();
 
         // Definitions sharing one Order are a parallel group (spec §12.2): they resolve to steps that
         // share one live order. A definition alone at its order is an ordinary sequential step.
@@ -91,7 +92,7 @@ public static class WorkflowStepResolver
             {
                 case ApproverRuleKind.SpecificPosition:
                     slot++;
-                    resolved.Add((definition.Id, slot, definition.Name, definition.ApproverPositionId!.Value, definition.ApprovalMode, definition.RejectPolicy));
+                    resolved.Add((definition.Id, slot, definition.Name, definition.ApproverPositionId!.Value, definition.ApprovalMode, definition.RejectPolicy, definition.FillsPart));
                     break;
 
                 case ApproverRuleKind.RequesterManagerLevel:
@@ -101,7 +102,7 @@ public static class WorkflowStepResolver
                     if (approver is Guid positionId)
                     {
                         slot++;
-                        resolved.Add((definition.Id, slot, definition.Name, positionId, definition.ApprovalMode, definition.RejectPolicy));
+                        resolved.Add((definition.Id, slot, definition.Name, positionId, definition.ApprovalMode, definition.RejectPolicy, definition.FillsPart));
                     }
                     else
                         errors.Add(new WorkflowResolutionError(WorkflowResolutionErrorKind.ManagerLevelUnavailable, definition.Name, ManagerLevel: definition.ManagerLevel));
@@ -124,7 +125,7 @@ public static class WorkflowStepResolver
                     {
                         slot++;
                         var name = chain.Count == 1 ? definition.Name : $"{definition.Name} ({i + 1}/{chain.Count})";
-                        resolved.Add((definition.Id, slot, name, chain[i], definition.ApprovalMode, definition.RejectPolicy));
+                        resolved.Add((definition.Id, slot, name, chain[i], definition.ApprovalMode, definition.RejectPolicy, definition.FillsPart));
                     }
                     break;
                 }
@@ -140,7 +141,7 @@ public static class WorkflowStepResolver
         // An inactive step in the middle leaves a gap in the configured orders and an escalation
         // expands into several steps, so the live trail is numbered consecutively (slots already are).
         var steps = resolved
-            .Select(x => new WorkflowResolvedStep(x.DefinitionId, x.Slot, x.Name, x.PositionId, x.Mode, x.RejectPolicy))
+            .Select(x => new WorkflowResolvedStep(x.DefinitionId, x.Slot, x.Name, x.PositionId, x.Mode, x.RejectPolicy, x.FillsPart))
             .ToList();
         return new WorkflowResolution(steps, []);
     }
@@ -156,7 +157,7 @@ public static class WorkflowStepResolver
         int slot,
         Guid requesterPositionId,
         IReadOnlyDictionary<Guid, Guid?> parentByPosition,
-        List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy)> resolved,
+        List<(Guid DefinitionId, int Slot, string Name, Guid PositionId, ParallelApprovalMode Mode, ParallelRejectPolicy RejectPolicy, int? FillsPart)> resolved,
         List<WorkflowResolutionError> errors)
     {
         var groupName = string.Join(" / ", members.Select(m => m.Name));
@@ -206,7 +207,7 @@ public static class WorkflowStepResolver
         }
 
         foreach (var (definition, positionId) in positions)
-            resolved.Add((definition.Id, slot, definition.Name, positionId, mode, rejectPolicy));
+            resolved.Add((definition.Id, slot, definition.Name, positionId, mode, rejectPolicy, definition.FillsPart));
     }
 
     /// <summary>

@@ -75,7 +75,7 @@
 
                             @{
                                 // Multi-part forms: the approver at this step fills their own part before approving.
-                                var stepPart = WorkflowFieldCatalog.GetPartFilledAtStep(item.Request.WorkflowType, item.CurrentStep.Order);
+                                var stepPart = WorkflowFieldCatalog.GetStepPart(item.Request.WorkflowType, item.CurrentStep.FillsPart);
                             }
                             @if (stepPart is not null)
                             {
@@ -541,7 +541,7 @@
             return existing;
 
         var seeded = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var part = WorkflowFieldCatalog.GetPartFilledAtStep(item.Request.WorkflowType, item.CurrentStep.Order);
+        var part = WorkflowFieldCatalog.GetStepPart(item.Request.WorkflowType, item.CurrentStep.FillsPart);
         if (part is not null)
         {
             Dictionary<string, string?>? stored = null;
@@ -621,7 +621,7 @@
             // Approving a step that owns a form part needs that part filled in and valid (spec §26.1 — checked
             // on the server, naming the field and the reason). Reject and the return actions do not need it.
             IReadOnlyDictionary<string, string?>? partValues = null;
-            if (action == WorkflowAction.Approve && WorkflowFieldCatalog.GetPartFilledAtStep(request.WorkflowType, currentStep.Order) is { } ownedPart)
+            if (action == WorkflowAction.Approve && WorkflowFieldCatalog.GetStepPart(request.WorkflowType, currentStep.FillsPart) is { } ownedPart)
             {
                 var typed = GetPartValues(item);
                 var partErrors = WorkflowFieldCatalog.ValidatePartValues(request.WorkflowType, ownedPart.Part, typed);
