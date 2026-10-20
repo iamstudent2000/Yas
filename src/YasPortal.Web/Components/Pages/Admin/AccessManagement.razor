@@ -107,7 +107,7 @@
                                             <div class="permission-grid">@foreach(var p in area){var
                                                 selected = _directPermissionIds.Contains(p.Id);
                                                 <label class="permission-choice @(selected ? "selected" : "")"><input
-                                                    type="checkbox" checked="@selected" disabled="@_saving"
+                                                    type="checkbox" checked="@selected"
                                                     @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span
                                                     class="choice-text"><strong>@p.Name</strong></span></label>
@@ -146,7 +146,7 @@
                                             <div class="group-list">@foreach(var group in _groups){var
                                                 selected = _assignedGroupIds.Contains(group.Id);
                                                 <label class="group-choice @(selected ? "selected" : "")"><input type="checkbox" checked="@selected"
-                                                                                                                     disabled="@_saving" @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool v && v)" /><span
+                                                                                                                     @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span
                                                     class="choice-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز ·
                                                     @group.AssignmentCount تخصیص</small></span></label>
@@ -315,6 +315,7 @@ LoadGroupListAsync();
     private void ClearEffectiveSearch() => _effectiveSearch = "";
     private async Task ToggleDirectAsync(Guid id, bool selected)
     {
+        if (_saving) return;
         if (selected) _directPermissionIds.Add(id);
         else
             _directPermissionIds.Remove(id); await PersistDirectAsync();
@@ -354,6 +355,7 @@ RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخی
     }
     private async Task ToggleGroupAsync(Guid id, bool selected)
     {
+        if (_saving) return;
         if (selected) _assignedGroupIds.Add(id);
         else
             _assignedGroupIds.Remove(id); await PersistGroupsAsync();
