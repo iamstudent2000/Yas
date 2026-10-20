@@ -153,9 +153,6 @@ public static class WorkflowFieldCatalog
                 return stage.Count != assigned.Count || stage[0].Mode != ParallelApprovalMode.Any;
             })
             .ToList();
-                return assigned.Count != 1 || steps.Count(s => s.Order == assigned[0].Order) != 1;
-            })
-            .ToList();
 
     public static IReadOnlyList<WorkflowTypeCode> AllTypes { get; } = Enum.GetValues<WorkflowTypeCode>();
 
