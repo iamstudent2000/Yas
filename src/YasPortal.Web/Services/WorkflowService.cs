@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Domain.Delegations;
+using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
@@ -95,6 +96,28 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             .Where(x => x.EndedAt == null && positionIds.Contains(x.PositionId))
             .Join(db.Employees.AsNoTracking(), ep => ep.EmployeeId, e => e.Id, (ep, e) => new { ep.PositionId, e.FullName })
             .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
+    }
+
+    public sealed record SubordinatePosition(Guid Id, string Name);
+
+    /// <summary>
+    /// Every position below <paramref name="positionId"/> in the organization tree (direct reports and all
+    /// levels under them, active or not — history stays visible), by name. Computed fresh from the tree on
+    /// every call, so a re-parented branch moves in or out of someone's view at once. The position itself is
+    /// not included. This is what "the viewer's subordinates" means for the team history pages.
+    /// </summary>
+    public async Task<IReadOnlyList<SubordinatePosition>> GetSubordinatePositionsAsync(Guid positionId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var parents = await db.Positions.AsNoTracking().Select(x => new { x.Id, x.ParentPositionId }).ToDictionaryAsync(x => x.Id, x => x.ParentPositionId, ct);
+        var ids = PositionHierarchy.GetDescendantPositionIds(positionId, parents);
+        if (ids.Count == 0)
+            return [];
+        return await db.Positions.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .OrderBy(x => x.Name)
+            .Select(x => new SubordinatePosition(x.Id, x.Name))
+            .ToListAsync(ct);
     }
 
     /// <summary>

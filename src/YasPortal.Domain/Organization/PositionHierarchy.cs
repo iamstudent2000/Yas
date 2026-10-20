@@ -79,4 +79,44 @@ public static class PositionHierarchy
         }
         return chain;
     }
+
+    /// <summary>
+    /// Every position below <paramref name="positionId"/> in the tree — its direct reports, theirs, and
+    /// so on down to the leaves — in no particular order. The position itself is not included, and a
+    /// position with nobody below it (or one that is not in the tree at all) gives an empty list. A
+    /// parent cycle in the data is cut off rather than looping forever.
+    /// </summary>
+    public static IReadOnlyList<Guid> GetDescendantPositionIds(
+        Guid positionId,
+        IReadOnlyDictionary<Guid, Guid?> parentByPosition)
+    {
+        var childrenByParent = new Dictionary<Guid, List<Guid>>();
+        foreach (var (child, parent) in parentByPosition)
+        {
+            if (parent is not Guid parentId)
+                continue;
+            if (!childrenByParent.TryGetValue(parentId, out var children))
+                childrenByParent[parentId] = children = [];
+            children.Add(child);
+        }
+
+        var result = new List<Guid>();
+        var seen = new HashSet<Guid> { positionId };
+        var pending = new Queue<Guid>();
+        pending.Enqueue(positionId);
+        while (pending.Count > 0)
+        {
+            var current = pending.Dequeue();
+            if (!childrenByParent.TryGetValue(current, out var children))
+                continue;
+            foreach (var child in children)
+            {
+                if (!seen.Add(child))
+                    continue;
+                result.Add(child);
+                pending.Enqueue(child);
+            }
+        }
+        return result;
+    }
 }

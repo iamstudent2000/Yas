@@ -1,0 +1,456 @@
+@page "/requests/team"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Application.Authorization
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = "Requests.ViewSubordinates")]
+@attribute [Authorize(Policy = "NonAdmin")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker Permissions
+@inject WorkflowService Workflows
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>درخواست‌ها و تاییدات زیرمجموعه - یاس پورتال</PageTitle>
+
+<div class="requests-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="bx bx-sitemap"></i> درخواست‌ها و تاییدات زیرمجموعه</h1>
+            <p class="page-subtitle">سابقه‌ی درخواست‌ها و تصمیم‌های تاییدیِ همه‌ی سمت‌هایی که در درخت سازمانی زیر سمت فعال شما قرار دارند. فقط مشاهده است.</p>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
+    }
+    else if (_positionId is null)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
+    }
+    else if (!_canRequests && !_canApprovals)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-lock-alt"></i><strong>سمت فعال شما مجوز مشاهده‌ی زیرمجموعه را ندارد</strong><span>این مجوز به سمت فعال شما داده می‌شود؛ با تغییر سمت فعال، دسترسی هم تغییر می‌کند.</span></div></section>
+    }
+    else if (_subordinates.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><i class="bx bx-sitemap"></i><strong>سمت فعال شما زیرمجموعه‌ای ندارد</strong><span>در درخت سازمانی هیچ سمتی زیر سمت شما نیست.</span></div></section>
+    }
+    else
+    {
+        <div class="inbox-tabs">
+            @if (_canRequests)
+            {
+                <button type="button" class="inbox-tab @(_tab == Tab.Requests ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Requests)"><i class="bx bx-list-check"></i> درخواست‌های زیرمجموعه</button>
+            }
+            @if (_canApprovals)
+            {
+                <button type="button" class="inbox-tab @(_tab == Tab.Approvals ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Approvals)"><i class="bx bx-history"></i> تصمیم‌های تاییدی زیرمجموعه</button>
+            }
+        </div>
+        <p class="muted">شامل @_subordinates.Count سمت زیر سمت فعال شما (همه‌ی سطح‌ها). درخواست‌ها بر اساس سمتی که درخواست‌کننده هنگام ثبت از آن ثبت کرده، و تصمیم‌ها بر اساس سمتِ مرحله‌ی تایید شناسایی می‌شوند.</p>
+
+        @if (_tab == Tab.Requests)
+        {
+            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Changed="OnFilterChangedAsync" />
+
+            <section class="card table-card">
+                <div class="card-toolbar">
+                    <div>
+                        <h2 class="section-title">درخواست‌های زیرمجموعه <span class="badge badge-muted">@_reqTotal درخواست</span></h2>
+                    </div>
+                </div>
+                @if (_reqLoading)
+                {
+                    <LoadingState />
+                }
+                else if (_requests.Count == 0)
+                {
+                    <div class="empty-state"><i class="bx bx-search"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی از زیرمجموعه‌ی شما ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
+                }
+                else
+                {
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>شناسه</th>
+                                    <th>نوع</th>
+                                    <th>درخواست‌کننده</th>
+                                    <th>سمت</th>
+                                    <th>وضعیت</th>
+                                    <th>مرحله جاری</th>
+                                    <th>نزد</th>
+                                    <th>تاریخ ثبت</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var request in _requests)
+                                {
+                                    var waiting = request.Status is WorkflowRequestStatus.PendingApproval
+                                        ? request.CurrentSteps.Where(s => s.Status == WorkflowStepStatus.Pending).ToList()
+                                        : new List<WorkflowRequestStep>();
+                                    var end = waiting.Count == 0 ? WorkflowRequestEndState.Of(request) : null;
+                                    var open = _openRequestId == request.Id;
+                                    <tr>
+                                        <td dir="ltr">#@request.Id.ToString("N")[..8]</td>
+                                        <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
+                                        <td>@(_names.TryGetValue(request.RequesterEmployeeId, out var requesterName) ? requesterName : "—")</td>
+                                        <td>@(_positionNames.TryGetValue(request.RequesterPositionId, out var positionName) ? positionName : "—")</td>
+                                        <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
+                                        <td>@(waiting.Count > 0 ? string.Join(" / ", waiting.Select(s => s.Name)) : end?.StageLabel ?? "—")</td>
+                                        <td>
+                                            @if (waiting.Count > 0)
+                                            {
+                                                @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var holder) ? holder : "سمت خالی"))
+                                            }
+                                            else if (end is not null && end.WithRequester)
+                                            {
+                                                <span>@(_names.TryGetValue(request.RequesterEmployeeId, out var who) ? who : "—") <span class="muted">(درخواست‌کننده)</span></span>
+                                            }
+                                            else if (end is not null && end.DeciderEmployeeId is Guid deciderId)
+                                            {
+                                                <span>@(_names.TryGetValue(deciderId, out var decider) ? decider : "—") <span class="muted">(تصمیم‌گیرنده)</span></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="muted">—</span>
+                                            }
+                                        </td>
+                                        <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
+                                        <td>
+                                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openRequestId = open ? null : request.Id">
+                                                <i class="bx @(open ? "bx-chevron-up" : "bx-show")"></i> @(open ? "بستن" : "جزئیات")
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    @if (open)
+                                    {
+                                        <tr>
+                                            <td colspan="9">
+                                                <RequestSummary Request="request" EmployeeNames="_names" HolderNames="_holders" />
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <ServerPagination Page="_reqPage" PageSize="_reqPageSize" TotalCount="_reqTotal" Busy="_reqLoading" PageChanged="GoToRequestPageAsync" PageSizeChanged="OnRequestPageSizeChangedAsync" />
+                }
+            </section>
+        }
+        else
+        {
+            <section class="card">
+                <div class="admin-filters">
+                    <div class="admin-filter">
+                        <label class="form-label">نوع درخواست</label>
+                        <select class="form-control" value="@(_apType?.ToString() ?? "")" @onchange="ApprovalTypeChanged">
+                            <option value="">همه انواع</option>
+                            @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                            {
+                                <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="admin-filter">
+                        <label class="form-label">نتیجه</label>
+                        <select class="form-control" value="@(_apOutcome?.ToString() ?? "")" @onchange="ApprovalOutcomeChanged">
+                            <option value="">همه نتایج</option>
+                            <option value="@WorkflowStepStatus.Approved">تایید شد</option>
+                            <option value="@WorkflowStepStatus.Rejected">رد شد</option>
+                            <option value="@WorkflowStepStatus.ReturnedToRequester">بازگشت به درخواست‌کننده</option>
+                            <option value="@WorkflowStepStatus.ReturnedToPreviousStep">بازگشت به مرحله قبل</option>
+                            <option value="@WorkflowStepStatus.ReturnedToSpecificStep">بازگشت به مرحله دلخواه</option>
+                        </select>
+                    </div>
+                    <div class="admin-filter">
+                        <label class="form-label">سمت تصمیم‌گیرنده</label>
+                        <LookupSelect Options="_positionOptions" Value="@(_apPosition?.ToString())" ValueChanged="ApprovalPositionChanged" Placeholder="همه سمت‌های زیرمجموعه" />
+                    </div>
+                    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_apFrom" ValueChanged="ApprovalFromChanged" Placeholder="تاریخ شروع" /></div>
+                    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_apTo" ValueChanged="ApprovalToChanged" Placeholder="تاریخ پایان" /></div>
+                </div>
+            </section>
+
+            @if (_apLoading)
+            {
+                <section class="card"><LoadingState /></section>
+            }
+            else if (_apItems.Count == 0)
+            {
+                <section class="card"><div class="empty-state"><i class="bx bx-history"></i><strong>موردی یافت نشد</strong><span>با این فیلترها تصمیمی از سمت‌های زیرمجموعه‌ی شما ثبت نشده است.</span></div></section>
+            }
+            else
+            {
+                @foreach (var item in _apItems)
+                {
+                    var expanded = _expandedDecisionId == item.Decision.Id;
+                    <div class="request-card @(expanded ? "is-expanded" : "")">
+                        <div class="request-card-header is-clickable" @onclick="() => _expandedDecisionId = expanded ? null : item.Decision.Id">
+                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-title">
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                                <span>درخواست‌کننده: @item.RequesterName · تصمیم در «@item.StepName» · سمت «@item.PositionName» · توسط @(item.ActorName + (item.Decision.DelegationId is null ? "" : " (نیابتی)")) · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </span>
+                            <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
+                            <i class="bx bx-chevron-down request-card-chevron"></i>
+                        </div>
+                        @if (expanded)
+                        {
+                            <div class="request-card-body">
+                                @if (!string.IsNullOrWhiteSpace(item.Decision.Comment))
+                                {
+                                    <p><strong>نظر تصمیم‌گیرنده:</strong> @item.Decision.Comment</p>
+                                }
+                                <RequestSummary Request="item.Request" EmployeeNames="_names" HolderNames="_holders" HighlightStepId="item.Decision.StepId" />
+                            </div>
+                        }
+                    </div>
+                }
+                <ServerPagination Page="_apPage" PageSize="_apPageSize" TotalCount="_apTotal" Busy="_apLoading" PageChanged="GoToApprovalPageAsync" PageSizeChanged="OnApprovalPageSizeChangedAsync" />
+            }
+        }
+    }
+</div>
+
+@code {
+    private enum Tab { Requests, Approvals }
+
+    private sealed record ApprovalItem(WorkflowRequest Request, WorkflowStepDecision Decision, string StepName, string RequesterName, string PositionName, string ActorName);
+
+    private bool _ready;
+    private Guid? _employeeId;
+    private Guid? _positionId;
+    private bool _canRequests;
+    private bool _canApprovals;
+    private Tab _tab = Tab.Requests;
+
+    private IReadOnlyList<WorkflowService.SubordinatePosition> _subordinates = [];
+    private Dictionary<Guid, string> _positionNames = [];
+    private IReadOnlyList<(string Key, string Text)> _positionOptions = [];
+    private Dictionary<Guid, string> _names = [];
+    private Dictionary<Guid, string> _holders = [];
+
+    // Requests tab
+    private readonly WorkflowRequestFilter _filter = new();
+    private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = Enum.GetValues<WorkflowRequestStatus>();
+    private List<WorkflowRequest> _requests = [];
+    private Guid? _openRequestId;
+    private bool _reqLoading;
+    private int _reqPage = 1, _reqPageSize = 20, _reqTotal;
+
+    // Approvals tab
+    private List<ApprovalItem> _apItems = [];
+    private WorkflowTypeCode? _apType;
+    private WorkflowStepStatus? _apOutcome;
+    private Guid? _apPosition;
+    private DateTime? _apFrom;
+    private DateTime? _apTo;
+    private Guid? _expandedDecisionId;
+    private bool _apLoading;
+    private int _apPage = 1, _apPageSize = 20, _apTotal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canRequests = await Permissions.HasPermissionAsync("Requests.ViewSubordinateRequests");
+        _canApprovals = await Permissions.HasPermissionAsync("Requests.ViewSubordinateApprovals");
+        _tab = _canRequests ? Tab.Requests : Tab.Approvals;
+
+        if (await RefreshScopeAsync() && (_canRequests || _canApprovals) && _subordinates.Count > 0)
+            await LoadCurrentTabAsync();
+        _ready = true;
+    }
+
+    /// <summary>
+    /// Re-establishes who the viewer is acting as and which positions are below them — fresh from the database
+    /// on every load, never trusted from the cookie alone, so a revoked or changed active position or a re-parented
+    /// branch takes effect immediately. Returns false when the viewer has no valid active position.
+    /// </summary>
+    private async Task<bool> RefreshScopeAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : null;
+
+        _positionId = _employeeId is Guid employeeId && await Workflows.HoldsActivePositionAsync(employeeId, claimedPositionId)
+            ? claimedPositionId
+            : null;
+        if (_positionId is not Guid positionId)
+        {
+            _subordinates = [];
+            _positionNames = [];
+            _positionOptions = [];
+            return false;
+        }
+
+        _subordinates = await Workflows.GetSubordinatePositionsAsync(positionId);
+        _positionNames = _subordinates.ToDictionary(x => x.Id, x => x.Name);
+        _positionOptions = _subordinates.Select(x => (x.Id.ToString(), x.Name)).ToList();
+        return true;
+    }
+
+    private async Task ShowTabAsync(Tab tab)
+    {
+        _tab = tab;
+        await LoadCurrentTabAsync();
+    }
+
+    private Task LoadCurrentTabAsync() => _tab == Tab.Requests ? LoadRequestsAsync() : LoadApprovalsAsync();
+
+    // ---------- Requests tab ----------
+
+    private async Task OnFilterChangedAsync() { _reqPage = 1; _openRequestId = null; await LoadRequestsAsync(); }
+    private async Task GoToRequestPageAsync(int page) { _reqPage = page; _openRequestId = null; await LoadRequestsAsync(); }
+    private async Task OnRequestPageSizeChangedAsync(int size) { _reqPageSize = Math.Clamp(size, 1, 100); _reqPage = 1; _openRequestId = null; await LoadRequestsAsync(); }
+
+    private async Task LoadRequestsAsync()
+    {
+        if (!_canRequests || !await RefreshScopeAsync() || _subordinates.Count == 0)
+        {
+            _requests = [];
+            _reqTotal = 0;
+            return;
+        }
+
+        _reqLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var subordinateIds = _subordinates.Select(x => x.Id).ToList();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            // The subtree restriction is applied first; the user's filters can only narrow it further.
+            var query = _filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), db);
+            _reqTotal = await query.CountAsync();
+            if (_reqPage > 1 && (_reqPage - 1) * _reqPageSize >= _reqTotal)
+                _reqPage = Math.Max(1, (int)Math.Ceiling(_reqTotal / (double)_reqPageSize));
+
+            _requests = await query.OrderByDescending(x => x.CreatedAtUtc)
+                .Include(x => x.Steps)
+                .Include(x => x.RequesterActions)
+                .Include(x => x.StepDecisions)
+                .Include(x => x.FieldChanges)
+                .AsSplitQuery()
+                .Skip((_reqPage - 1) * _reqPageSize)
+                .Take(_reqPageSize)
+                .ToListAsync();
+
+            await LoadNamesAsync(db, _requests);
+        }
+        finally { _reqLoading = false; }
+    }
+
+    // ---------- Approvals tab ----------
+
+    private async Task ApprovalTypeChanged(ChangeEventArgs e) { _apType = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) ? type : null; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalOutcomeChanged(ChangeEventArgs e) { _apOutcome = Enum.TryParse<WorkflowStepStatus>(e.Value?.ToString(), out var outcome) ? outcome : null; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalPositionChanged(string? key) { _apPosition = Guid.TryParse(key, out var id) ? id : null; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalFromChanged(DateTime? value) { _apFrom = value; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalToChanged(DateTime? value) { _apTo = value; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalFilterChangedAsync() { _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
+    private async Task GoToApprovalPageAsync(int page) { _apPage = page; _expandedDecisionId = null; await LoadApprovalsAsync(); }
+    private async Task OnApprovalPageSizeChangedAsync(int size) { _apPageSize = Math.Clamp(size, 1, 100); _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
+
+    private async Task LoadApprovalsAsync()
+    {
+        if (!_canApprovals || !await RefreshScopeAsync() || _subordinates.Count == 0)
+        {
+            _apItems = [];
+            _apTotal = 0;
+            return;
+        }
+
+        _apLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var subordinateIds = _subordinates.Select(x => x.Id).ToList();
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            // Decisions are read from the permanent decision log (a step's own ActedBy/ActedAt is wiped when it is reopened).
+            // A decision belongs to the position its step was assigned to; the subtree restriction is applied first.
+            var matchQuery = db.WorkflowStepDecisions.AsNoTracking()
+                .Where(d => subordinateIds.Contains(d.ApproverPositionId))
+                .Join(
+                    db.WorkflowRequests.AsNoTracking(),
+                    d => d.RequestId,
+                    r => r.Id,
+                    (d, r) => new { DecisionId = d.Id, RequestId = r.Id, r.WorkflowType, d.Outcome, d.ActedAtUtc, d.ApproverPositionId });
+
+            if (_apType is WorkflowTypeCode typeFilter)
+                matchQuery = matchQuery.Where(x => x.WorkflowType == typeFilter);
+            if (_apOutcome is WorkflowStepStatus outcomeFilter)
+                matchQuery = matchQuery.Where(x => x.Outcome == outcomeFilter);
+            if (_apPosition is Guid positionFilter)
+                matchQuery = matchQuery.Where(x => x.ApproverPositionId == positionFilter);
+            if (_apFrom is DateTime from)
+                matchQuery = matchQuery.Where(x => x.ActedAtUtc >= from);
+            if (_apTo is DateTime to)
+                matchQuery = matchQuery.Where(x => x.ActedAtUtc < to.AddDays(1));
+
+            _apTotal = await matchQuery.CountAsync();
+            if (_apPage > 1 && (_apPage - 1) * _apPageSize >= _apTotal)
+                _apPage = Math.Max(1, (int)Math.Ceiling(_apTotal / (double)_apPageSize));
+
+            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc)
+                .Skip((_apPage - 1) * _apPageSize)
+                .Take(_apPageSize)
+                .ToListAsync();
+
+            var decisionIds = matches.Select(x => x.DecisionId).ToList();
+            var decisionsById = decisionIds.Count == 0
+                ? []
+                : await db.WorkflowStepDecisions.AsNoTracking().Where(d => decisionIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id);
+
+            var requestIds = matches.Select(x => x.RequestId).Distinct().ToList();
+            var requestsById = requestIds.Count == 0
+                ? []
+                : (await db.WorkflowRequests.AsNoTracking().Include(x => x.Steps).Include(x => x.RequesterActions).Include(x => x.StepDecisions).Include(x => x.FieldChanges).AsSplitQuery().Where(x => requestIds.Contains(x.Id)).ToListAsync())
+                    .ToDictionary(x => x.Id);
+
+            await LoadNamesAsync(db, requestsById.Values.ToList());
+
+            _apItems = matches
+                .Where(x => requestsById.ContainsKey(x.RequestId) && decisionsById.ContainsKey(x.DecisionId))
+                .Select(x =>
+                {
+                    var request = requestsById[x.RequestId];
+                    var decision = decisionsById[x.DecisionId];
+                    var stepName = request.Steps.SingleOrDefault(s => s.Id == decision.StepId)?.Name ?? "—";
+                    var requesterName = _names.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—";
+                    var positionName = _positionNames.TryGetValue(decision.ApproverPositionId, out var pn) ? pn : "—";
+                    var actorName = _names.TryGetValue(decision.ActedByEmployeeId, out var an) ? an : "—";
+                    return new ApprovalItem(request, decision, stepName, requesterName, positionName, actorName);
+                })
+                .ToList();
+        }
+        finally { _apLoading = false; }
+    }
+
+    // ---------- Shared ----------
+
+    /// <summary>Loads the employee names and current holders of waiting positions that the cards and the summary need.</summary>
+    private async Task LoadNamesAsync(ApplicationDbContext db, IReadOnlyCollection<WorkflowRequest> requests)
+    {
+        var ids = requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
+        ids.AddRange(requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+        ids.AddRange(requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
+        ids.AddRange(requests.Where(x => x.ForceClosedByEmployeeId is not null).Select(x => x.ForceClosedByEmployeeId!.Value));
+        ids.AddRange(requests.Where(x => x.CreatedByEmployeeId is not null).Select(x => x.CreatedByEmployeeId!.Value));
+        ids.AddRange(requests.Select(x => x.RequesterEmployeeId));
+        ids.AddRange(requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
+        ids = ids.Distinct().ToList();
+        _names = ids.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
+
+        var pending = requests.SelectMany(x => x.Steps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
+        _holders = pending.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pending);
+    }
+}

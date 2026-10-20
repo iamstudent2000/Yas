@@ -87,4 +87,46 @@ public class PositionHierarchyTests
 
         Assert.Null(PositionHierarchy.GetClosestAncestorPositionId(ceo, 1, parents));
     }
+
+    [Fact]
+    public void Descendants_are_every_position_below_but_not_the_position_itself()
+    {
+        // ceo ─ unitManager ─ employee
+        //     └ other
+        var (ceo, unitManager, employee, parents) = BuildChain();
+        var other = Guid.NewGuid();
+        parents[other] = ceo;
+
+        var below = PositionHierarchy.GetDescendantPositionIds(ceo, parents);
+        Assert.Equal(3, below.Count);
+        Assert.Contains(unitManager, below);
+        Assert.Contains(employee, below);
+        Assert.Contains(other, below);
+        Assert.DoesNotContain(ceo, below);
+
+        var belowManager = PositionHierarchy.GetDescendantPositionIds(unitManager, parents);
+        Assert.Equal(new[] { employee }, belowManager.ToArray());
+    }
+
+    [Fact]
+    public void A_position_with_nobody_below_or_not_in_the_tree_has_no_descendants()
+    {
+        var (_, _, employee, parents) = BuildChain();
+
+        Assert.Empty(PositionHierarchy.GetDescendantPositionIds(employee, parents));
+        Assert.Empty(PositionHierarchy.GetDescendantPositionIds(Guid.NewGuid(), parents));
+    }
+
+    [Fact]
+    public void Descendants_survive_a_parent_cycle()
+    {
+        var (ceo, unitManager, employee, parents) = BuildChain();
+        parents[ceo] = employee; // corrupt data: the top now points back at the bottom
+
+        var below = PositionHierarchy.GetDescendantPositionIds(unitManager, parents);
+
+        // The walk ends instead of looping; the starting position is never reported as its own descendant.
+        Assert.DoesNotContain(unitManager, below);
+        Assert.Equal(below.Count, below.Distinct().Count());
+    }
 }
