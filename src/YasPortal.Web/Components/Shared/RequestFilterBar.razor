@@ -48,6 +48,13 @@
                 <LookupSelect @key="_resetKey" Options="_stepChoices" Value="@(_d.StepName)" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
             </div>
         }
+        @if (PositionOptions is not null)
+        {
+            <div class="admin-filter">
+                <label class="form-label">سمت درخواست‌کننده</label>
+                <LookupSelect @key="_resetKey" Options="PositionOptions" Value="@(_d.RequesterPositionId?.ToString())" ValueChanged="k => _d.RequesterPositionId = Guid.TryParse(k, out var chosenPosition) ? chosenPosition : null" Placeholder="همه سمت‌های زیرمجموعه" />
+            </div>
+        }
         @if (ShowAdminExtras)
         {
             <div class="admin-filter">
@@ -101,6 +108,13 @@
 
     /// <summary>Administrator-only filters: requester position and "submitted by an admin".</summary>
     [Parameter] public bool ShowAdminExtras { get; set; }
+
+    /// <summary>
+    /// A fixed list of positions (key = position id) offered as the "requester position" filter instead of the
+    /// search-everything picker of <see cref="ShowAdminExtras"/> — used where the viewer may only see part of the
+    /// tree (their subordinates). Null hides it.
+    /// </summary>
+    [Parameter] public IReadOnlyList<(string Key, string Text)>? PositionOptions { get; set; }
 
     /// <summary>Raised when the user presses "جستجو" (or clears), so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }

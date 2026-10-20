@@ -141,6 +141,11 @@
                                 }</NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
+                        <AuthorizeView Policy="Requests.ViewSubordinates">
+                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
+                            <NavLink href="/requests/team"><i class="bx bx-sitemap"></i><span>درخواست‌های زیرمجموعه</span></NavLink>
+                          </AuthorizeView>
+                        </AuthorizeView>
                         <AuthorizeView Policy="Requests.View">
                             <NavLink href="/notifications"><i class="bx bx-bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
                                 {
@@ -190,7 +195,7 @@
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history", "delegations" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "requests/team", "notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,7 +223,7 @@
         _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory")
             || await Can("Requests.Delegation") || await Can("Admin.Delegation");
         _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Admin.Requests") || await Can("Requests.View")
-            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen");
+            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen") || await Can("Requests.ViewSubordinates");
         _delegationsVisible = await Can("Requests.Delegation") || await Can("Admin.Delegation");
     }
 
