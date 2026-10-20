@@ -20,6 +20,7 @@
     border-radius: 999px;
     background: var(--admin-surface, #fff);
     cursor: pointer;
+    position: relative;
     transition: border-color .12s ease, background .12s ease;
 }
 
@@ -37,6 +38,10 @@
 .admin-page .permission-choice input,
 .admin-page .group-choice input {
     position: absolute;
+    top: 0;
+    inset-inline-start: 0;
+    width: 1px;
+    height: 1px;
     opacity: 0;
     pointer-events: none;
 }
