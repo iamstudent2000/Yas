@@ -82,11 +82,11 @@
                         <LookupSelect Options="_statusOptions" Value="@(_draft.Status == "" ? null : _draft.Status)" ValueChanged="k => _draft.Status = k ?? string.Empty" Placeholder="همه" /></div>
                     <div class="admin-filter"><label class="form-label">سازمان</label>
                         <ServerSearchableGuidSelect @key="_resetKey" Value="_draft.OrganizationId" ValueChanged="id => { _draft.OrganizationId = id; return Task.CompletedTask; }"
-                                                    SearchAsync="SearchOrganizationsAsync" SelectedText="@_draft.OrganizationName"
+                                                    SearchAsync="SearchOrganizationsAsync"
                                                     Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
                     <div class="admin-filter"><label class="form-label">سمت فعلی</label>
                         <ServerSearchableGuidSelect @key="_resetKey" Value="_draft.PositionId" ValueChanged="id => { _draft.PositionId = id; return Task.CompletedTask; }"
-                                                    SearchAsync="SearchFilterPositionsAsync" SelectedText="@_draft.PositionName"
+                                                    SearchAsync="SearchFilterPositionsAsync"
                                                     Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت را تایپ کنید..." /></div>
                 </ListFilterBar>
 
@@ -203,7 +203,6 @@
     {
         public string Search = "", Status = "";
         public Guid? OrganizationId, PositionId;
-        public string? OrganizationName, PositionName;
         public int Count => (Search.Trim().Length > 0 ? 1 : 0) + (Status != "" ? 1 : 0) + (OrganizationId is null ? 0 : 1) + (PositionId is null ? 0 : 1);
         public UserFilter Clone() => (UserFilter)MemberwiseClone();
     }

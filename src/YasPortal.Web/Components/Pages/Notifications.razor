@@ -118,6 +118,54 @@
         finally { _loading = false; }
     }
 
+    // The boxes edit the draft (_d…); "جستجو" copies it to _kind/_unreadOnly, which LoadAsync reads.
+    private NotificationKind? _dKind;
+    private bool _dUnread;
+    private int _resetKey;
+    private static readonly IReadOnlyList<(string Key, string Text)> _readOptions = [("unread", "فقط خوانده‌نشده")];
+
+    private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
+        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), KindLabel(k))).ToList();
+
+    private async Task SearchAsync()
+    {
+        _kind = _dKind;
+        _unreadOnly = _dUnread;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        _kind = _dKind = null;
+        _unreadOnly = _dUnread = false;
+        _resetKey++;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnSortChangedAsync(string value)
+    {
+        _sort = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private static string KindLabel(NotificationKind kind) => kind switch
+    {
+        NotificationKind.StepReached => "رسیدن درخواست به مرحله شما",
+        NotificationKind.ReturnedToStep => "بازگشت درخواست به مرحله شما",
+        NotificationKind.RequestApproved => "تایید نهایی درخواست",
+        NotificationKind.RequestRejected => "رد درخواست",
+        NotificationKind.RequestReturned => "بازگشت درخواست به شما",
+        NotificationKind.RequestForceClosed => "بسته‌شدن توسط مدیر",
+        NotificationKind.RequestReopened => "بازگشایی درخواست",
+        NotificationKind.DelegationReceived => "تفویض دریافتی",
+        NotificationKind.RequestCreatedForYou => "ثبت درخواست توسط مدیر",
+        NotificationKind.VacantPosition => "سمت خالی",
+        _ => kind.ToString(),
+    };
+
     private async Task GoToPageAsync(int page)
     {
         _page = page;
