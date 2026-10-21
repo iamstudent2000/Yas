@@ -33,12 +33,6 @@
                     <h2 class="section-title">فهرست درخواست‌ها <span class="badge badge-muted">@_total درخواست</span></h2>
                     <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
                 </div>
-                <div class="toolbar-tools">
-                    <select class="form-control" title="ترتیب" @onchange="OnSortChangedAsync">
-                        <option value="new" selected="@(!_oldestFirst)">جدیدترین اول</option>
-                        <option value="old" selected="@_oldestFirst">قدیمی‌ترین اول</option>
-                    </select>
-                </div>
             </div>
             @if (_loading)
             {
@@ -54,13 +48,13 @@
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>شناسه</th>
-                                <th>نوع</th>
-                                <th>درخواست‌کننده</th>
-                                <th>وضعیت</th>
+                                <SortableHeader Text="شناسه" Column="id" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                <SortableHeader Text="نوع" Column="type" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                <SortableHeader Text="درخواست‌کننده" Column="requester" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                 <th>مرحله جاری</th>
                                 <th>نزد</th>
-                                <th>تاریخ ثبت</th>
+                                <SortableHeader Text="تاریخ ثبت" Column="created" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                 <th></th>
                             </tr>
                         </thead>
@@ -142,13 +136,20 @@
     private readonly WorkflowRequestFilter _filter = new();
     private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = Enum.GetValues<WorkflowRequestStatus>();
     private Guid? _openId;
-    private bool _oldestFirst;
+    private string _sortBy = WorkflowRequestSort.Created;
+    private bool _sortDesc = true;
+    private async Task SortByAsync(string column)
+    {
+        if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
+        _page = 1;
+        _openId = null;
+        await LoadAsync();
+    }
     private int _page = 1, _pageSize = 20, _total;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task OnFilterChangedAsync() { _page = 1; _openId = null; await LoadAsync(); }
-    private async Task OnSortChangedAsync(ChangeEventArgs e) { _oldestFirst = e.Value?.ToString() == "old"; _page = 1; _openId = null; await LoadAsync(); }
     private async Task GoToPageAsync(int page) { _page = page; _openId = null; await LoadAsync(); }
     private async Task OnPageSizeChangedAsync(int size) { _pageSize = Math.Clamp(size, 1, 100); _page = 1; _openId = null; await LoadAsync(); }
 
@@ -164,7 +165,7 @@
             if (_page > 1 && (_page - 1) * _pageSize >= _total)
                 _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
 
-            var ordered = _oldestFirst ? query.OrderBy(x => x.CreatedAtUtc) : query.OrderByDescending(x => x.CreatedAtUtc);
+            var ordered = WorkflowRequestSort.Apply(query, _sortBy, _sortDesc, db);
             _requests = await ordered
                 .Include(x => x.Steps)
                 .Include(x => x.RequesterActions)

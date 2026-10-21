@@ -80,14 +80,14 @@
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th>شناسه</th>
-                                    <th>نوع</th>
-                                    <th>درخواست‌کننده</th>
-                                    <th>سمت</th>
-                                    <th>وضعیت</th>
+                                    <SortableHeader Text="شناسه" Column="id" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                    <SortableHeader Text="نوع" Column="type" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                    <SortableHeader Text="درخواست‌کننده" Column="requester" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                    <SortableHeader Text="سمت" Column="position" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                                    <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                     <th>مرحله جاری</th>
                                     <th>نزد</th>
-                                    <th>تاریخ ثبت</th>
+                                    <SortableHeader Text="تاریخ ثبت" Column="created" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                                     <th></th>
                                 </tr>
                             </thead>
@@ -312,6 +312,16 @@
     private async Task GoToRequestPageAsync(int page) { _reqPage = page; _openRequestId = null; await LoadRequestsAsync(); }
     private async Task OnRequestPageSizeChangedAsync(int size) { _reqPageSize = Math.Clamp(size, 1, 100); _reqPage = 1; _openRequestId = null; await LoadRequestsAsync(); }
 
+    private string _sortBy = WorkflowRequestSort.Created;
+    private bool _sortDesc = true;
+    private async Task SortByAsync(string column)
+    {
+        if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
+        _reqPage = 1;
+        _openRequestId = null;
+        await LoadRequestsAsync();
+    }
+
     private async Task LoadRequestsAsync()
     {
         if (!_canRequests || !await RefreshScopeAsync() || _subordinates.Count == 0)
@@ -333,7 +343,7 @@
             if (_reqPage > 1 && (_reqPage - 1) * _reqPageSize >= _reqTotal)
                 _reqPage = Math.Max(1, (int)Math.Ceiling(_reqTotal / (double)_reqPageSize));
 
-            _requests = await query.OrderByDescending(x => x.CreatedAtUtc)
+            _requests = await WorkflowRequestSort.Apply(query, _sortBy, _sortDesc, db)
                 .Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)

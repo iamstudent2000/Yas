@@ -45,12 +45,12 @@
             <table class="admin-table">
                 <thead>
                     <tr>
-                        <th>نوع</th>
-                        <th>درخواست‌کننده</th>
-                        <th>وضعیت</th>
+                        <SortableHeader Text="نوع" Column="type" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                        <SortableHeader Text="درخواست‌کننده" Column="requester" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                        <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                         <th>مرحله جاری</th>
                         <th>نزد سمت</th>
-                        <th>تاریخ ثبت</th>
+                        <SortableHeader Text="تاریخ ثبت" Column="created" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                         <th></th>
                     </tr>
                 </thead>
@@ -159,6 +159,15 @@
         await LoadAsync();
     }
 
+    private string _sortBy = WorkflowRequestSort.Created;
+    private bool _sortDesc = false;
+    private async Task SortByAsync(string column)
+    {
+        if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
+        _page = 1;
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
@@ -171,9 +180,8 @@
         if (_page > 1 && (_page - 1) * _pageSize >= _total)
             _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
 
-        _requests = await query
+        _requests = await WorkflowRequestSort.Apply(query, _sortBy, _sortDesc, db)
             .Include(x => x.Steps)
-            .OrderBy(x => x.CreatedAtUtc)
             .Skip((_page - 1) * _pageSize)
             .Take(_pageSize)
             .ToListAsync();
