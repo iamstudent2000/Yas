@@ -56,16 +56,18 @@
     </div>
     </section>
 
+            <ListFilterBar Busy="_organizationLoading" ActiveCount="@(_organizationSearch.Trim().Length > 0 ? 1 : 0)"
+                           CanClear="@(_organizationSearch != "" || _draftOrganizationSearch != "")" OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync">
+                <div class="admin-filter"><label class="form-label">جستجو</label>
+                    <input class="form-control" placeholder="نام سازمان..." @bind="_draftOrganizationSearch" @bind:event="oninput" /></div>
+            </ListFilterBar>
+
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0">فهرست سازمان‌ها</h2>
                         <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
                     </div>
-                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                       placeholder="نام سازمان..." @bind="_organizationSearch" @bind:event="oninput"
-                                                                                       @onkeyup="OrganizationSearchChanged" />@if(!string.IsNullOrEmpty(_organizationSearch)){<button
-                        type="button" class="search-clear" @onclick="ClearOrganizationSearch"><i class="bx bx-x"></i></button>}</div>
                     </div>
                     @if (_organizationLoading)
                     {
@@ -288,12 +290,10 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         foreach (var key in matches.Select(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!).Distinct())
             _collapsedOrgGroups.Remove(key);
     }
-    private async Task OrganizationSearchChanged(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or
-"Tab" || _organizationSearch.Length == 0) { _organizationPage = 1; await LoadOrganizationsAsync(); }
-    }
-    private async Task ClearOrganizationSearch() { _organizationSearch = ""; _organizationPage = 1; await LoadOrganizationsAsync(); }
+    // The box edits the draft; "جستجو" copies it into _organizationSearch, which every load (paging, sorting) uses.
+    private string _draftOrganizationSearch = "";
+    private async Task SearchOrganizationsFilterAsync() { _organizationSearch = _draftOrganizationSearch.Trim(); _organizationPage = 1; await LoadOrganizationsAsync(); }
+    private async Task ClearOrganizationFilterAsync() { _organizationSearch = _draftOrganizationSearch = ""; _organizationPage = 1; await LoadOrganizationsAsync(); }
     private void EmployeeSearchChanged(KeyboardEventArgs e) => RecomputeOrgAssignVisible();
     private void ClearEmployeeSearch() { _employeeSearch = ""; _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; }
     private async Task OrganizationPageChanged(int page) { _organizationPage = page; await LoadOrganizationsAsync(); }

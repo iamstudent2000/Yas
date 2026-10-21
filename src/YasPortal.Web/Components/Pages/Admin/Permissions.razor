@@ -67,6 +67,14 @@
         }
 
 
+                        <ListFilterBar Busy="_loading" ActiveCount="@((_search.Trim().Length > 0 ? 1 : 0) + (_usageFilter != "" ? 1 : 0))"
+                                       CanClear="@(_search != "" || _usageFilter != "" || _draftSearch != "" || _draftUsage != "")" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync">
+                            <div class="admin-filter"><label class="form-label">جستجو</label>
+                                <input class="form-control" placeholder="نام یا کد مجوز..." @bind="_draftSearch" @bind:event="oninput" /></div>
+                            <div class="admin-filter"><label class="form-label">مصرف</label>
+                                <LookupSelect Options="_usageOptions" Value="@(_draftUsage == "" ? null : _draftUsage)" ValueChanged="k => _draftUsage = k ?? string.Empty" Placeholder="همه" /></div>
+                        </ListFilterBar>
+
                         <section class="card">
                             <div class="card-toolbar">
                                 <div>
@@ -76,11 +84,6 @@
                                 <div class="toolbar-tools">
                                     <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllAreas"><i class="bx bx-expand-alt"></i> باز کردن همه</button>
                                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllAreas"><i class="bx bx-collapse-alt"></i> بستن همه</button>
-                                    <div class="compact-select" style="min-width:170px"><LookupSelect Options="_usageOptions" Value="@(_usageFilter == "" ? null : _usageFilter)" ValueChanged="UsageChanged" Placeholder="همه" /></div>
-                                    <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                                       placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
-                                                                                                       @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
-                                        type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div>
                                 </div>
                             </div>
 
@@ -290,11 +293,11 @@
     private async Task ExpandAllAreas()
     {
         _collapsedAreas.Clear();
-        if (!string.IsNullOrWhiteSpace(_search)) { _search = string.Empty; await LoadAsync(); }
+        if (!string.IsNullOrWhiteSpace(_search)) { _search = _draftSearch = string.Empty; await LoadAsync(); }
     }
     private async Task CollapseAllAreas()
     {
-        if (!string.IsNullOrWhiteSpace(_search)) { _search = string.Empty; await LoadAsync(); }
+        if (!string.IsNullOrWhiteSpace(_search)) { _search = _draftSearch = string.Empty; await LoadAsync(); }
         _collapsedAreas = _permissions.Select(x => PermissionCategory(x.Code)).ToHashSet();
     }
 
@@ -349,32 +352,27 @@
 
     private static List<T> PageOf<T>(List<T> items, int page) => items.Skip((page - 1) * UsagePageSize).Take(UsagePageSize).ToList();
 
-    private async Task SearchChanged(KeyboardEventArgs e)
+    // The boxes edit the draft; "جستجو" copies it into _search/_usageFilter, which every load uses.
+    private string _draftSearch = "", _draftUsage = "";
+
+    private async Task SearchFiltersAsync()
     {
-        if (e.Key is "Enter" or "Tab" || _search.Length == 0)
-        {
-            _expandedPermissionId = null;
-            _usage = null;
-            await LoadAsync();
-        }
+        _search = _draftSearch.Trim();
+        _usageFilter = _draftUsage;
+        _expandedPermissionId = null;
+        _usage = null;
+        await LoadAsync();
     }
-    private async Task ClearSearch()
+    private async Task ClearFiltersAsync()
     {
-        _search = "";
+        _search = _draftSearch = "";
+        _usageFilter = _draftUsage = "";
         _expandedPermissionId = null;
         _usage = null;
         await LoadAsync();
     }
 
     private static readonly IReadOnlyList<(string Key, string Text)> _usageOptions = [("used", "در حال استفاده"), ("unused", "بدون استفاده")];
-
-    private async Task UsageChanged(string? key)
-    {
-        _usageFilter = key ?? "";
-        _expandedPermissionId = null;
-        _usage = null;
-        await LoadAsync();
-    }
 
     private static string PermissionCategory(string code) => code.Split('.', 2)[0] switch
     {

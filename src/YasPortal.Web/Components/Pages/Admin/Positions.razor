@@ -93,6 +93,20 @@
                                         </div>
     </section>
 
+    <ListFilterBar Busy="_loading" ActiveCount="@((_treeSearch.Trim().Length > 0 ? 1 : 0) + (_occupancyFilter != "" ? 1 : 0) + (_activeFilter != "" ? 1 : 0) + (_organizationFilterId is null ? 0 : 1))"
+                   CanClear="@(HasTreeFilter || _draftTreeSearch != "" || _draftOccupancy != "" || _draftActive != "" || _draftOrganizationId is not null)"
+                   OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters">
+        <div class="admin-filter"><label class="form-label">جستجو</label>
+            <input class="form-control" placeholder="نام یا کد سمت..." @bind="_draftTreeSearch" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">اشغال سمت</label>
+            <LookupSelect Options="_occupancyOptions" Value="@(_draftOccupancy == "" ? null : _draftOccupancy)" ValueChanged="k => _draftOccupancy = k ?? string.Empty" Placeholder="همه سمت‌ها" /></div>
+        <div class="admin-filter"><label class="form-label">وضعیت</label>
+            <LookupSelect Options="_activeOptions" Value="@(_draftActive == "" ? null : _draftActive)" ValueChanged="k => _draftActive = k ?? string.Empty" Placeholder="فعال و غیرفعال" /></div>
+        <div class="admin-filter"><label class="form-label">سازمان</label>
+            <ServerSearchableGuidSelect @key="_treeResetKey" Value="_draftOrganizationId" ValueChanged="id => { _draftOrganizationId = id; return Task.CompletedTask; }" SearchAsync="SearchOrganizationsAsync"
+                                        SelectedText="@_organizationFilterName" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." /></div>
+    </ListFilterBar>
+
     <div class="positions-layout">
         <section class="card position-tree-card-wrap">
             <div class="card-toolbar positions-tree-toolbar">
@@ -102,19 +116,6 @@
                         <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
                     </div>
                     <div class="toolbar-tools">
-                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                            placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" />@if(!string.IsNullOrEmpty(_treeSearch)){<button
-                                type="button" class="search-clear" @onclick="ClearTreeSearch"><i class="bx bx-x"></i></button>}</div>
-                    <div class="tree-org-filter" title="فیلتر اشغال سمت">
-                        <LookupSelect Options="_occupancyOptions" Value="@(_occupancyFilter == "" ? null : _occupancyFilter)" ValueChanged="OccupancyFilterChanged" Placeholder="همه سمت‌ها" />
-                    </div>
-                    <div class="tree-org-filter" title="فیلتر فعال/غیرفعال">
-                        <LookupSelect Options="_activeOptions" Value="@(_activeFilter == "" ? null : _activeFilter)" ValueChanged="ActiveFilterChanged" Placeholder="فعال و غیرفعال" />
-                    </div>
-                    <div class="tree-org-filter">
-                        <ServerSearchableGuidSelect Value="@_organizationFilterId" ValueChanged="OrganizationFilterChanged" SearchAsync="SearchOrganizationsAsync"
-                                                    SelectedText="@_organizationFilterName" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
-                    </div>
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
                             class="bx bx-chevrons-down"></i> باز کردن همه</button>
@@ -223,20 +224,6 @@
     private static readonly IReadOnlyList<(string Key, string Text)> _occupancyOptions = [("occupied", "دارای متصدی"), ("vacant", "خالی")];
     private static readonly IReadOnlyList<(string Key, string Text)> _activeOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
 
-    private void ActiveFilterChanged(string? key)
-    {
-        _activeFilter = key ?? "";
-        TreeSearchChanged();
-    }
-
-    private Task OrganizationFilterChanged(Guid? id)
-    {
-        _organizationFilterId = id;
-        if (id is null) _organizationFilterName = null;
-        TreeSearchChanged();
-        return Task.CompletedTask;
-    }
-
     private Task OrganizationChanged(Guid? id)
     {
         _organizationId = id;
@@ -247,15 +234,35 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchOrganizationsAsync(search, true, ct);
 
-    private void OccupancyFilterChanged(string? key)
+    // The boxes edit the draft; "جستجو" copies it into the applied filters that TreeSearchChanged reads.
+    private string _draftTreeSearch = "", _draftOccupancy = "", _draftActive = "";
+    private Guid? _draftOrganizationId;
+    private int _treeResetKey;
+    private bool HasTreeFilter => _treeSearch.Trim().Length > 0 || _occupancyFilter != "" || _activeFilter != "" || _organizationFilterId is not null;
+
+    private void SearchTreeFilters()
     {
-        _occupancyFilter = key ?? "";
+        _treeSearch = _draftTreeSearch.Trim();
+        _occupancyFilter = _draftOccupancy;
+        _activeFilter = _draftActive;
+        _organizationFilterId = _draftOrganizationId;
+        TreeSearchChanged();
+    }
+
+    private void ClearTreeFilters()
+    {
+        _treeSearch = _draftTreeSearch = "";
+        _occupancyFilter = _draftOccupancy = "";
+        _activeFilter = _draftActive = "";
+        _organizationFilterId = _draftOrganizationId = null;
+        _organizationFilterName = null;
+        _treeResetKey++;
         TreeSearchChanged();
     }
 
     private void ClearTreeSearch()
     {
-        _treeSearch = "";
+        _treeSearch = _draftTreeSearch = "";
         TreeSearchChanged();
     }
 

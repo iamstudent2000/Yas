@@ -75,6 +75,21 @@
     </section>
 
 
+                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync">
+                    <div class="admin-filter"><label class="form-label">جستجو</label>
+                        <input class="form-control" placeholder="نام یا نام کاربری..." @bind="_draft.Search" @bind:event="oninput" /></div>
+                    <div class="admin-filter"><label class="form-label">وضعیت</label>
+                        <LookupSelect Options="_statusOptions" Value="@(_draft.Status == "" ? null : _draft.Status)" ValueChanged="k => _draft.Status = k ?? string.Empty" Placeholder="همه" /></div>
+                    <div class="admin-filter"><label class="form-label">سازمان</label>
+                        <ServerSearchableGuidSelect @key="_resetKey" Value="_draft.OrganizationId" ValueChanged="id => { _draft.OrganizationId = id; return Task.CompletedTask; }"
+                                                    SearchAsync="SearchOrganizationsAsync" SelectedText="@_draft.OrganizationName"
+                                                    Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
+                    <div class="admin-filter"><label class="form-label">سمت فعلی</label>
+                        <ServerSearchableGuidSelect @key="_resetKey" Value="_draft.PositionId" ValueChanged="id => { _draft.PositionId = id; return Task.CompletedTask; }"
+                                                    SearchAsync="SearchFilterPositionsAsync" SelectedText="@_draft.PositionName"
+                                                    Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت را تایپ کنید..." /></div>
+                </ListFilterBar>
+
                 <section class="card">
                     <div class="card-toolbar">
                         <div>
@@ -82,26 +97,6 @@
                             <p class="muted">جستجو و صفحه‌بندی در SQL Server انجام می‌شود.</p>
                         </div>
                         
-                        </div>
-                        <div class="admin-filters users-filter-row">
-                            <div class="admin-filter users-filter-search"><label class="form-label">جستجو</label>
-<div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                           placeholder="نام یا نام کاربری..." @bind="_search" @bind:event="oninput"
-                                                                                           @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
-                            type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div></div>
-<div class="admin-filter"><label class="form-label">وضعیت</label>
-                                <LookupSelect Options="_statusOptions" Value="@(_statusFilter == "" ? null : _statusFilter)" ValueChanged="StatusFilterChanged" Placeholder="همه" /></div>
-                            <div class="admin-filter"><label class="form-label">سازمان</label>
-                                <ServerSearchableGuidSelect Value="@_filterOrganizationId" ValueChanged="FilterOrganizationChanged"
-                                                            SearchAsync="SearchOrganizationsAsync" SelectedText="@_filterOrganizationName"
-                                                            Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
-                            <div class="admin-filter"><label class="form-label">سمت فعلی</label>
-                                <ServerSearchableGuidSelect Value="@_filterPositionId" ValueChanged="FilterPositionChanged"
-                                                            SearchAsync="SearchFilterPositionsAsync" SelectedText="@_filterPositionName"
-                                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت را تایپ کنید..." /></div>
-                            <div class="admin-filter request-filter-clear">
-                                <button type="button" class="btn btn-secondary" disabled="@(!HasFilters)" @onclick="ClearFiltersAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
-                            </div>
                         </div>
                         <div class="data-table-wrap">
                             @if (_loading)
@@ -199,22 +194,27 @@
 @code {
     private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId, _organizationId;
-    private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "", _search = "";
+    private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "";
     private bool _isAdmin, _loading;
     private int _page = 1, _pageSize = 20, _totalCount, _activeCount, _adminCount;
     private string? _sortBy; private bool _sortDesc;
-    private string _statusFilter = "";
-    private Guid? _filterOrganizationId, _filterPositionId;
-    private string? _filterOrganizationName, _filterPositionName;
-    private bool HasFilters => _statusFilter != "" || _filterOrganizationId is not null || _filterPositionId is not null;
+    // The boxes edit the draft; "جستجو" copies it to the applied filters, which is what every load (paging, sorting) uses.
+    private sealed class UserFilter
+    {
+        public string Search = "", Status = "";
+        public Guid? OrganizationId, PositionId;
+        public string? OrganizationName, PositionName;
+        public int Count => (Search.Trim().Length > 0 ? 1 : 0) + (Status != "" ? 1 : 0) + (OrganizationId is null ? 0 : 1) + (PositionId is null ? 0 : 1);
+        public UserFilter Clone() => (UserFilter)MemberwiseClone();
+    }
+    private UserFilter _draft = new(), _applied = new();
+    private int _resetKey;
 
     private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
-    private async Task StatusFilterChanged(string? key) { _statusFilter = key ?? ""; _page = 1; await LoadAsync(); }
-    private async Task FilterOrganizationChanged(Guid? id) { _filterOrganizationId = id; if (id is null) _filterOrganizationName = null; _page = 1; await LoadAsync(); }
-    private async Task FilterPositionChanged(Guid? id) { _filterPositionId = id; if (id is null) _filterPositionName = null; _page = 1; await LoadAsync(); }
+    private async Task SearchFiltersAsync() { _applied = _draft.Clone(); _page = 1; await LoadAsync(); }
     private async Task ClearFiltersAsync()
     {
-        _statusFilter = ""; _filterOrganizationId = null; _filterOrganizationName = null; _filterPositionId = null; _filterPositionName = null;
+        _draft = new(); _applied = new(); _resetKey++;
         _page = 1; await LoadAsync();
     }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
@@ -226,7 +226,7 @@
         _loading = true; try
         {
             var result = await
-AdminQueries.GetEmployeesAsync(_page, _pageSize, _search, _sortBy, _sortDesc, default, _statusFilter == "" ? null : _statusFilter == "active", _filterOrganizationId, _filterPositionId); _employees = result.Items.ToList(); _totalCount =
+AdminQueries.GetEmployeesAsync(_page, _pageSize, _applied.Search, _sortBy, _sortDesc, default, _applied.Status == "" ? null : _applied.Status == "active", _applied.OrganizationId, _applied.PositionId); _employees = result.Items.ToList(); _totalCount =
 result.TotalCount; await
 using var db = await DbFactory.CreateDbContextAsync(); _activeCount = await
 db.Employees.CountAsync(x => x.IsActive); _adminCount = await
@@ -234,15 +234,6 @@ db.Employees.CountAsync(x => x.IsAdmin);
         }
         finally { _loading = false; }
     }
-    private async Task SearchChanged(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or "Tab" || _search.Length == 0)
-        {
-            _page = 1; await
-LoadAsync();
-        }
-    }
-    private async Task ClearSearch() { _search = ""; _page = 1; await LoadAsync(); }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
     private async Task SortByAsync(string column)

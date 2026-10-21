@@ -2,14 +2,15 @@
    - nothing is searched while you pick or type; "جستجو" (or Enter) applies the draft,
    - "پاک کردن فیلترها" resets the draft and the list in one step,
    - sorting (optional) applies at once, because it never changes which rows match,
-   - while a search runs the button shows a spinner and is disabled.
+   - while a search runs the button shows a spinner and is disabled,
+   - the whole card folds with its header (open by default) on every screen size.
    Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
 <section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
-        <i class="bx bx-filter-alt"></i> فیلترها
+        <i class="bx bx-filter-alt"></i> فیلترها@(SortOptions.Count > 0 ? " و ترتیب" : "")
         @if (ActiveCount > 0)
         {
-            <span class="badge badge-info">@ActiveCount</span>
+            <span class="badge badge-info">@ActiveCount فیلتر فعال</span>
         }
         <i class="bx @(_open ? "bx-chevron-up" : "bx-chevron-down") request-filter-toggle-chevron"></i>
     </button>
@@ -23,9 +24,16 @@
             <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
                 <i class="bx @(Busy ? "bx-loader-alt bx-spin" : "bx-search")"></i> جستجو
             </button>
-            <button type="button" class="btn btn-secondary" disabled="@(Busy || !CanClear)" @onclick="ClearAsync" @onkeydown:stopPropagation="true">
-                <i class="bx bx-eraser"></i> پاک کردن فیلترها
-            </button>
+            @if (Busy && OnCancel.HasDelegate)
+            {
+                <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="bx bx-x-circle"></i> لغو</button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-secondary" disabled="@(Busy || !CanClear)" @onclick="ClearAsync" @onkeydown:stopPropagation="true">
+                    <i class="bx bx-eraser"></i> پاک کردن فیلترها
+                </button>
+            }
         </div>
     </div>
 </section>
@@ -45,14 +53,17 @@
     [Parameter] public EventCallback OnSearch { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
 
+    /// <summary>Optional: for slow searches the page can cancel; while busy the clear button becomes "لغو".</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
     /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];
     [Parameter] public string Sort { get; set; } = "";
     [Parameter] public string DefaultSort { get; set; } = "";
     [Parameter] public EventCallback<string> SortChanged { get; set; }
 
-    // Only matters on phones, where the filters start folded so the list is the first thing on screen.
-    private bool _open;
+    // Open by default; the header folds the card away to give the list the whole screen.
+    private bool _open = true;
 
     private async Task SearchAsync()
     {

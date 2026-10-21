@@ -46,16 +46,18 @@
     </div>
     </section>
 
+                <ListFilterBar Busy="_groupLoading" ActiveCount="@(_groupSearch.Trim().Length > 0 ? 1 : 0)"
+                               CanClear="@(_groupSearch != "" || _draftGroupSearch != "")" OnSearch="SearchGroupsFilterAsync" OnClear="ClearGroupFilterAsync">
+                    <div class="admin-filter"><label class="form-label">جستجو</label>
+                        <input class="form-control" placeholder="نام گروه..." @bind="_draftGroupSearch" @bind:event="oninput" /></div>
+                </ListFilterBar>
+
                 <section class="card">
                     <div class="card-toolbar">
                         <div>
                             <h2 class="section-title">گروه‌ها</h2>
                             <p class="muted">@_groupTotal گروه</p>
                         </div>
-                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
-                                                                                           placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
-                                                                                           @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
-                            type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
                         </div>@if(_groupLoading){
                         <LoadingState />
                     }else if (_groups.Count == 0)
@@ -214,12 +216,10 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
     DbFactory.CreateDbContextAsync(); _selectedPermissionIds = await
     db.PermissionGroupPermissions.AsNoTracking().Where(x => x.GroupId == id).Select(x => x.PermissionId).ToHashSetAsync();
     }
-    private async Task GroupSearchChanged(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or
-    "Tab" || _groupSearch.Length == 0) { _groupPage = 1; await LoadGroupsAsync(); }
-    }
-    private async Task ClearGroupSearch() { _groupSearch = ""; _groupPage = 1; await LoadGroupsAsync(); }
+    // The box edits the draft; "جستجو" copies it into _groupSearch, which every load (paging) uses.
+    private string _draftGroupSearch = "";
+    private async Task SearchGroupsFilterAsync() { _groupSearch = _draftGroupSearch.Trim(); _groupPage = 1; await LoadGroupsAsync(); }
+    private async Task ClearGroupFilterAsync() { _groupSearch = _draftGroupSearch = ""; _groupPage = 1; await LoadGroupsAsync(); }
     private async Task PermissionSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
@@ -268,7 +268,7 @@ ToastLevel.Error); return;
     db.EmployeePermissionGroups.AnyAsync(x => x.GroupId == id)) { AppState.AddToast("این گروه هنوز تخصیص دارد و قابل حذف نیست.", ToastLevel.Error); return; }
         db.PermissionGroups.Remove(await db.PermissionGroups.SingleAsync(x => x.Id == id)); await
     db.SaveChangesAsync(); if (_selectedGroupId == id) { _selectedGroupId = null; _selectedPermissionIds.Clear(); }
-        _groupSearch = ""; if (_groupPage > 1 && _groups.Count == 1) _groupPage--; await
+        _groupSearch = _draftGroupSearch = ""; if (_groupPage > 1 && _groups.Count == 1) _groupPage--; await
     LoadGroupsAsync();
     }
     private async Task ToggleGroupPermission(Guid groupId, Guid permissionId, bool grant)
