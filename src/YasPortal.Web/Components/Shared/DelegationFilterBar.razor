@@ -1,0 +1,49 @@
+<div class="admin-filters">
+    <div class="admin-filter">
+        <label class="form-label">جستجوی سمت</label>
+        <input type="text" class="form-control" placeholder="نام سمت..." value="@State.Search" @oninput="OnSearchAsync" />
+    </div>
+    <div class="admin-filter">
+        <label class="form-label">وضعیت</label>
+        <select class="form-control" @onchange="OnStatusAsync">
+            <option value="" selected="@(State.Status == "")">همه وضعیت‌ها</option>
+            <option value="Active" selected="@(State.Status == "Active")">فعال</option>
+            <option value="Upcoming" selected="@(State.Status == "Upcoming")">در انتظار شروع</option>
+            <option value="Expired" selected="@(State.Status == "Expired")">منقضی</option>
+            <option value="Revoked" selected="@(State.Status == "Revoked")">لغو شده</option>
+        </select>
+    </div>
+    <SortSelect Options="SortOptions" Value="@(State.Sort)" ValueChanged="OnSortAsync" />
+</div>
+
+@code {
+    /// <summary>The choices of one delegation list; the page reads them when it queries.</summary>
+    public sealed class FilterState
+    {
+        public string Search { get; set; } = "";
+        /// <summary>Empty for all, otherwise a DelegationStatus name.</summary>
+        public string Status { get; set; } = "";
+        public string Sort { get; set; } = "created:desc";
+        /// <summary>True while a search or status choice narrows the list (sorting alone does not).</summary>
+        public bool IsActive => Search.Trim().Length > 0 || Status != "";
+    }
+
+    [Parameter, EditorRequired] public FilterState State { get; set; } = new();
+    /// <summary>Raised after any choice changed; the page resets to the first page and reloads.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> SortOptions =
+    [
+        SortSelect.Option("created:desc", "جدیدترین ثبت"),
+        SortSelect.Option("created:asc", "قدیمی‌ترین ثبت"),
+        SortSelect.Option("start:desc", "شروع (نزدیک‌ترین اول)"),
+        SortSelect.Option("start:asc", "شروع (دورترین اول)"),
+        SortSelect.Option("end:desc", "پایان (دیرترین اول)"),
+        SortSelect.Option("end:asc", "پایان (زودترین اول)"),
+        SortSelect.Option("position:asc", "نام سمت"),
+    ];
+
+    private Task OnSearchAsync(ChangeEventArgs e) { State.Search = e.Value?.ToString() ?? ""; return Changed.InvokeAsync(); }
+    private Task OnStatusAsync(ChangeEventArgs e) { State.Status = e.Value?.ToString() ?? ""; return Changed.InvokeAsync(); }
+    private Task OnSortAsync(string value) { State.Sort = value; return Changed.InvokeAsync(); }
+}

@@ -46,6 +46,12 @@
         @if (!_historyMode)
         {
             <RequestFilterBar Filter="_pendingFilter" Changed="OnPendingFilterChangedAsync" />
+    <section class="card">
+        <div class="admin-filters">
+            <SortSelect Options="_pendingSortOptions" Value="@(_pendingSort)" ValueChanged="OnPendingSortChangedAsync" />
+        </div>
+    </section>
+
             @if (_items.Count == 0)
             {
                 <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
@@ -168,6 +174,7 @@
                     </div>
                     <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_historyFrom" ValueChanged="HistoryFromChanged" Placeholder="تاریخ شروع" /></div>
                     <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_historyTo" ValueChanged="HistoryToChanged" Placeholder="تاریخ پایان" /></div>
+                    <SortSelect Options="_historySortOptions" Value="@(_historySort)" ValueChanged="OnHistorySortChangedAsync" />
                 </div>
             </section>
 
@@ -242,6 +249,37 @@
     private Guid? _expandedHistoryId;
 
     private readonly WorkflowRequestFilter _pendingFilter = new();
+    // The inbox has always listed the oldest request first, so that stays the default.
+    private string _pendingSort = "created:asc";
+    private string _historySort = "acted:desc";
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> _pendingSortOptions =
+    [
+        SortSelect.Option("created:asc", "قدیمی‌ترین اول"),
+        SortSelect.Option("created:desc", "جدیدترین اول"),
+        SortSelect.Option("type:asc", "نوع درخواست"),
+        SortSelect.Option("requester:asc", "درخواست‌کننده"),
+    ];
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> _historySortOptions =
+    [
+        SortSelect.Option("acted:desc", "جدیدترین تصمیم"),
+        SortSelect.Option("acted:asc", "قدیمی‌ترین تصمیم"),
+        SortSelect.Option("type:asc", "نوع درخواست"),
+        SortSelect.Option("outcome:asc", "نتیجه"),
+    ];
+
+    private async Task OnPendingSortChangedAsync(string value)
+    {
+        _pendingSort = value;
+        _pendingPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnHistorySortChangedAsync(string value)
+    {
+        _historySort = value;
+        _historyPage = 1;
+        await LoadHistoryAsync();
+    }
     private int _pendingPage = 1;
     private int _pendingPageSize = 20;
     private int _pendingTotalCount;
@@ -351,12 +389,12 @@
             if (_pendingPage > 1 && (_pendingPage - 1) * _pendingPageSize >= _pendingTotalCount)
                 _pendingPage = Math.Max(1, (int)Math.Ceiling(_pendingTotalCount / (double)_pendingPageSize));
 
-            var requests = await query.Include(x => x.Steps)
+            var (pendingKey, pendingDesc) = SortSelect.Split(_pendingSort);
+            var requests = await WorkflowRequestSort.Apply(query, pendingKey, pendingDesc, db).Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)
                 .Include(x => x.FieldChanges)
                 .AsSplitQuery()
-                .OrderBy(x => x.CreatedAtUtc)
                 .Skip((_pendingPage - 1) * _pendingPageSize)
                 .Take(_pendingPageSize)
                 .ToListAsync();
@@ -437,7 +475,14 @@
             if (_historyPage > 1 && (_historyPage - 1) * _historyPageSize >= _historyTotalCount)
                 _historyPage = Math.Max(1, (int)Math.Ceiling(_historyTotalCount / (double)_historyPageSize));
 
-            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc)
+            var (historyKey, historyDesc) = SortSelect.Split(_historySort);
+            var ordered = historyKey switch
+            {
+                "type" => WorkflowRequestSort.OrderByType(matchQuery, nameof(WorkflowRequest.WorkflowType), historyDesc),
+                "outcome" => historyDesc ? matchQuery.OrderByDescending(x => x.Outcome) : matchQuery.OrderBy(x => x.Outcome),
+                _ => historyDesc ? matchQuery.OrderByDescending(x => x.ActedAtUtc) : matchQuery.OrderBy(x => x.ActedAtUtc),
+            };
+            var matches = await ordered.ThenBy(x => x.DecisionId)
                 .Skip((_historyPage - 1) * _historyPageSize)
                 .Take(_historyPageSize)
                 .ToListAsync();

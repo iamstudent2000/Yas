@@ -1,0 +1,29 @@
+<div class="admin-filter">
+    <label class="form-label">@Label</label>
+    <select class="form-control" @onchange="OnChanged">
+        @foreach (var option in Options)
+        {
+            <option value="@option.Key" selected="@(option.Key == Value)">@option.Value</option>
+        }
+    </select>
+</div>
+
+@code {
+    /// <summary>Sort choices as value → label. A value is "key:asc" or "key:desc"; see <see cref="Split"/>.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<KeyValuePair<string, string>> Options { get; set; } = [];
+    [Parameter] public string Label { get; set; } = "ترتیب";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private Task OnChanged(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+
+    /// <summary>Splits "created:desc" into the sort key and whether it is descending.</summary>
+    public static (string Key, bool Descending) Split(string? value)
+    {
+        var text = value ?? "";
+        var colon = text.LastIndexOf(':');
+        return colon < 0 ? (text, false) : (text[..colon], text[(colon + 1)..] == "desc");
+    }
+
+    public static KeyValuePair<string, string> Option(string value, string label) => new(value, label);
+}

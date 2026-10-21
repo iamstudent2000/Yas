@@ -116,14 +116,20 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return await db.Notifications.AsNoTracking().CountAsync(x => x.RecipientEmployeeId == id && !x.IsRead, ct);
     }
 
-    public async Task<(List<Notification> Items, int Total)> ListAsync(Guid employeeId, bool unreadOnly, int page, int pageSize, CancellationToken ct = default)
+    public async Task<(List<Notification> Items, int Total)> ListAsync(Guid employeeId, bool unreadOnly, int page, int pageSize, NotificationKind? kind = null, bool oldestFirst = false, bool unreadFirst = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Notifications.AsNoTracking().Where(x => x.RecipientEmployeeId == employeeId);
         if (unreadOnly)
             query = query.Where(x => !x.IsRead);
+        if (kind is NotificationKind kindFilter)
+            query = query.Where(x => x.Kind == kindFilter);
         var total = await query.CountAsync(ct);
-        var items = await query.OrderByDescending(x => x.CreatedAtUtc).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        // Unread-first keeps the chosen date order inside each group; the ID makes equal timestamps page stably.
+        var ordered = unreadFirst
+            ? (oldestFirst ? query.OrderBy(x => x.IsRead).ThenBy(x => x.CreatedAtUtc) : query.OrderBy(x => x.IsRead).ThenByDescending(x => x.CreatedAtUtc))
+            : (oldestFirst ? query.OrderBy(x => x.CreatedAtUtc) : query.OrderByDescending(x => x.CreatedAtUtc));
+        var items = await ordered.ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return (items, total);
     }
 

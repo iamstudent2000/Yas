@@ -28,13 +28,29 @@
         </div>
     </div>
 
+    <section class="card">
+        <div class="admin-filters">
+            <div class="admin-filter">
+                <label class="form-label">نوع اعلان</label>
+                <select class="form-control" @onchange="OnKindChangedAsync">
+                    <option value="" selected="@(_kind is null)">همه انواع</option>
+                    @foreach (var kind in Enum.GetValues<NotificationKind>())
+                    {
+                        <option value="@kind" selected="@(_kind == kind)">@KindLabel(kind)</option>
+                    }
+                </select>
+            </div>
+            <SortSelect Options="_sortOptions" Value="@(_sort)" ValueChanged="OnSortChangedAsync" />
+        </div>
+    </section>
+
     @if (_loading)
     {
         <section class="card"><LoadingState /></section>
     }
     else if (_items.Count == 0)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-bell-off"></i><strong>@(_unreadOnly ? "اعلان خوانده‌نشده‌ای ندارید" : "هنوز اعلانی ندارید")</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="bx bx-bell-off"></i><strong>@(_unreadOnly || _kind is not null ? "اعلانی با این فیلترها پیدا نشد" : "هنوز اعلانی ندارید")</strong></div></section>
     }
     else
     {
@@ -61,6 +77,14 @@
 @code {
     private bool _loading = true;
     private bool _unreadOnly;
+    private NotificationKind? _kind;
+    private string _sort = "created:desc";
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> _sortOptions =
+    [
+        SortSelect.Option("created:desc", "جدیدترین اول"),
+        SortSelect.Option("created:asc", "قدیمی‌ترین اول"),
+        SortSelect.Option("unread:desc", "خوانده‌نشده‌ها اول"),
+    ];
     private Guid? _employeeId;
     private List<Notification> _items = [];
     private int _page = 1;
@@ -86,11 +110,14 @@
                 return;
             }
 
-            (_items, _total) = await NotificationSvc.ListAsync(employeeId, _unreadOnly, _page, _pageSize);
+            var (sortKey, sortDesc) = SortSelect.Split(_sort);
+            var oldestFirst = sortKey == "created" && !sortDesc;
+            var unreadFirst = sortKey == "unread";
+            (_items, _total) = await NotificationSvc.ListAsync(employeeId, _unreadOnly, _page, _pageSize, _kind, oldestFirst, unreadFirst);
             if (_items.Count == 0 && _page > 1)
             {
                 _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
-                (_items, _total) = await NotificationSvc.ListAsync(employeeId, _unreadOnly, _page, _pageSize);
+                (_items, _total) = await NotificationSvc.ListAsync(employeeId, _unreadOnly, _page, _pageSize, _kind, oldestFirst, unreadFirst);
             }
             _unread = await NotificationSvc.CountUnreadAsync(employeeId);
         }
@@ -103,6 +130,35 @@
         _page = 1;
         await LoadAsync();
     }
+
+    private async Task OnKindChangedAsync(ChangeEventArgs e)
+    {
+        _kind = Enum.TryParse<NotificationKind>(e.Value?.ToString(), out var kind) ? kind : null;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnSortChangedAsync(string value)
+    {
+        _sort = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private static string KindLabel(NotificationKind kind) => kind switch
+    {
+        NotificationKind.StepReached => "رسیدن درخواست به مرحله شما",
+        NotificationKind.ReturnedToStep => "بازگشت درخواست به مرحله شما",
+        NotificationKind.RequestApproved => "تایید نهایی درخواست",
+        NotificationKind.RequestRejected => "رد درخواست",
+        NotificationKind.RequestReturned => "بازگشت درخواست به شما",
+        NotificationKind.RequestForceClosed => "بسته‌شدن توسط مدیر",
+        NotificationKind.RequestReopened => "بازگشایی درخواست",
+        NotificationKind.DelegationReceived => "تفویض دریافتی",
+        NotificationKind.RequestCreatedForYou => "ثبت درخواست توسط مدیر",
+        NotificationKind.VacantPosition => "سمت خالی",
+        _ => kind.ToString(),
+    };
 
     private async Task GoToPageAsync(int page)
     {

@@ -23,7 +23,7 @@ public static class WorkflowRequestSort
         IOrderedQueryable<WorkflowRequest> ordered = sortBy switch
         {
             Id => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
-            Type => Order(query, TypeRank(), descending),
+            Type => OrderByType(query, nameof(WorkflowRequest.WorkflowType), descending),
             Requester => descending
                 ? query.OrderByDescending(x => db.Employees.Where(e => e.Id == x.RequesterEmployeeId).Select(e => e.FullName).FirstOrDefault())
                 : query.OrderBy(x => db.Employees.Where(e => e.Id == x.RequesterEmployeeId).Select(e => e.FullName).FirstOrDefault()),
@@ -41,23 +41,30 @@ public static class WorkflowRequestSort
         return ordered.ThenBy(x => x.Id);
     }
 
-    private static IOrderedQueryable<WorkflowRequest> Order(IQueryable<WorkflowRequest> query, Expression<Func<WorkflowRequest, int>> key, bool descending) =>
-        descending ? query.OrderByDescending(key) : query.OrderBy(key);
+    /// <summary>
+    /// Orders any query by a <see cref="WorkflowTypeCode"/> member (named by <paramref name="member"/>) using the
+    /// name people see rather than the enum value, so the history lists can share it with the request lists.
+    /// </summary>
+    public static IOrderedQueryable<T> OrderByType<T>(IQueryable<T> query, string member, bool descending)
+    {
+        var key = TypeRank<T>(member);
+        return descending ? query.OrderByDescending(key) : query.OrderBy(key);
+    }
 
     /// <summary>
     /// Request types are stored as an enum, but people expect them ordered by the name they see.
     /// This builds a CASE expression that maps each type to its position in the name-sorted list.
     /// </summary>
-    private static Expression<Func<WorkflowRequest, int>> TypeRank()
+    private static Expression<Func<T, int>> TypeRank<T>(string member)
     {
-        var request = Expression.Parameter(typeof(WorkflowRequest), "x");
-        var type = Expression.Property(request, nameof(WorkflowRequest.WorkflowType));
+        var row = Expression.Parameter(typeof(T), "x");
+        var type = Expression.Property(row, member);
         var names = WorkflowFieldCatalog.AllTypes
             .OrderBy(t => WorkflowFieldCatalog.GetDisplayName(t), StringComparer.Create(new System.Globalization.CultureInfo("fa-IR"), ignoreCase: false))
             .ToList();
         Expression body = Expression.Constant(names.Count);
         for (var rank = names.Count - 1; rank >= 0; rank--)
             body = Expression.Condition(Expression.Equal(type, Expression.Constant(names[rank])), Expression.Constant(rank), body);
-        return Expression.Lambda<Func<WorkflowRequest, int>>(body, request);
+        return Expression.Lambda<Func<T, int>>(body, row);
     }
 }

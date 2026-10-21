@@ -33,6 +33,12 @@
 
     <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Changed="OnFilterChangedAsync" />
 
+    <section class="card">
+        <div class="admin-filters">
+            <SortSelect Options="_sortOptions" Value="@(_sort)" ValueChanged="OnSortChangedAsync" />
+        </div>
+    </section>
+
     @if (_loading)
     {
         <section class="card"><LoadingState /></section>
@@ -138,6 +144,21 @@
     private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = new[] { WorkflowRequestStatus.PendingApproval, WorkflowRequestStatus.ReturnedToRequester, WorkflowRequestStatus.Approved, WorkflowRequestStatus.Rejected, WorkflowRequestStatus.Cancelled };
     private int _page = 1;
     private int _pageSize = 20;
+    private string _sort = "created:desc";
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> _sortOptions =
+    [
+        SortSelect.Option("created:desc", "جدیدترین ثبت"),
+        SortSelect.Option("created:asc", "قدیمی‌ترین ثبت"),
+        SortSelect.Option("type:asc", "نوع درخواست"),
+        SortSelect.Option("status:asc", "وضعیت"),
+    ];
+
+    private async Task OnSortChangedAsync(string value)
+    {
+        _sort = value;
+        _page = 1;
+        await LoadAsync();
+    }
     private int _totalCount;
     private int _unseenCount;
 
@@ -186,12 +207,12 @@
             if (_page > 1 && (_page - 1) * _pageSize >= _totalCount)
                 _page = Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
-            _requests = await query.Include(x => x.Steps)
+            var (sortKey, sortDesc) = SortSelect.Split(_sort);
+            _requests = await WorkflowRequestSort.Apply(query, sortKey, sortDesc, db).Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
                 .Include(x => x.StepDecisions)
                 .Include(x => x.FieldChanges)
                 .AsSplitQuery()
-                .OrderByDescending(x => x.CreatedAtUtc)
                 .Skip((_page - 1) * _pageSize)
                 .Take(_pageSize)
                 .ToListAsync();
