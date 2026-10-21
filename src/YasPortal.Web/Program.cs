@@ -65,6 +65,7 @@ builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>(
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<UserPreferenceService>();
 builder.Services.AddScoped<PasswordPolicyService>();
 builder.Services.AddScoped<AvatarService>();

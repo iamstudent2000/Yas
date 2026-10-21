@@ -13,6 +13,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker Permissions
 @inject WorkflowService Workflows
+@inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌ها و تاییدات زیرمجموعه - یاس پورتال</PageTitle>
@@ -58,7 +59,7 @@
 
         @if (_tab == Tab.Requests)
         {
-            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" Changed="OnFilterChangedAsync" />
+            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" OnExport="ExportRequestsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
             <section class="card table-card">
                 <div class="card-toolbar">
@@ -308,6 +309,22 @@
         _reqPage = 1;
         _openRequestId = null;
         await LoadRequestsAsync();
+    }
+
+    private bool _exporting;
+
+    /// <summary>Exports everything the last search matched among the subordinates' requests, in the order shown.</summary>
+    private async Task ExportRequestsAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            var subordinateIds = _subordinates.Select(x => x.Id).ToList();
+            await Reports.ExportRequestsAsync("team-requests", db => WorkflowRequestSort.Apply(
+                _filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), db), _sortBy, _sortDesc, db));
+        }
+        finally { _exporting = false; }
     }
 
     private async Task LoadRequestsAsync()

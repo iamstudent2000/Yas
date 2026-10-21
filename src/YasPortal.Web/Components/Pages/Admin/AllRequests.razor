@@ -8,6 +8,7 @@
 @attribute [Authorize(Policy = "Admin.Requests")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
+@inject ReportExportService Reports
 
 <PageTitle>گزارش درخواست‌ها - یاس پورتال</PageTitle>
 
@@ -24,7 +25,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" OnExport="ExportAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     <div class="admin-stack">
         <section class="card table-card">
@@ -148,6 +149,20 @@
     private int _page = 1, _pageSize = 20, _total;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private bool _exporting;
+
+    /// <summary>Exports everything the last search matched, in the order shown (not just this page).</summary>
+    private async Task ExportAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            await Reports.ExportRequestsAsync("request-report", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
+        }
+        finally { _exporting = false; }
+    }
 
     private async Task OnFilterChangedAsync() { _page = 1; _openId = null; await LoadAsync(); }
     private async Task GoToPageAsync(int page) { _page = page; _openId = null; await LoadAsync(); }

@@ -24,6 +24,12 @@
             <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
                 <i class="bx @(Busy ? "bx-loader-alt bx-spin" : "bx-search")"></i> جستجو
             </button>
+            @if (OnExport.HasDelegate)
+            {
+                <button type="button" class="btn btn-secondary" disabled="@(Busy || Exporting)" title="همه نتایج آخرین جستجو، با همین ترتیب" @onclick="OnExport" @onkeydown:stopPropagation="true">
+                    <i class="bx @(Exporting ? "bx-loader-alt bx-spin" : "bx-export")"></i> خروجی CSV
+                </button>
+            }
             @if (Busy && OnCancel.HasDelegate)
             {
                 <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="bx bx-x-circle"></i> لغو</button>
@@ -55,6 +61,10 @@
 
     /// <summary>Optional: for slow searches the page can cancel; while busy the clear button becomes "لغو".</summary>
     [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// <summary>Optional: shows "خروجی CSV", which exports everything the last search matched (not just this page).</summary>
+    [Parameter] public EventCallback OnExport { get; set; }
+    [Parameter] public bool Exporting { get; set; }
 
     /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];

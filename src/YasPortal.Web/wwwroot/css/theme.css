@@ -246,3 +246,4 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 .list-filter .admin-filter-check{align-self:end;display:flex;align-items:center;min-height:42px}
 .list-loading-note{display:flex;align-items:center;gap:8px;padding:10px 16px;color:var(--text-muted,#667085);font-size:12.5px}
 .dlg-col{display:grid;gap:14px;align-content:start;min-width:0}
+.list-filter .request-filter-clear{flex-wrap:wrap}

@@ -10,6 +10,7 @@
 @attribute [Authorize(Policy = "Requests.ForceClose")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
+@inject ReportExportService Reports
 @inject NotificationService NotificationSvc
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject AppState AppState
@@ -29,7 +30,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" OnExport="ExportAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
     {
@@ -166,6 +167,20 @@
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
         _page = 1;
         await LoadAsync();
+    }
+
+    private bool _exporting;
+
+    /// <summary>Exports everything the last search matched, in the order shown (not just this page).</summary>
+    private async Task ExportAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            await Reports.ExportRequestsAsync("active-requests", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Active(), db), _sortBy, _sortDesc, db));
+        }
+        finally { _exporting = false; }
     }
 
     private async Task LoadAsync()
