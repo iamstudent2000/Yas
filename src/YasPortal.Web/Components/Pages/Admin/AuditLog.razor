@@ -51,15 +51,9 @@
                                             SearchAsync="SearchPositionsAsync" SelectedText="@_positionSearch" Placeholder="همه سمت‌ها"
                                             SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
             </div>
-            <div class="admin-filter"><label class="form-label">موجودیت</label><select class="form-control" @bind="_entityType">
-                <option value="">همه موجودیت‌ها</option>
-                @foreach (var type in EntityTypes)
-                {
-                    <option value="@type">@GetEntityText(type)</option>
-                }
-            </select></div>
+            <div class="admin-filter"><label class="form-label">موجودیت</label><LookupSelect Options="EntityOptions" Value="@(string.IsNullOrEmpty(_entityType) ? null : _entityType)" ValueChanged="k => _entityType = k ?? string.Empty" Placeholder="همه موجودیت‌ها" /></div>
             <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
-            <div class="admin-filter"><label class="form-label">عملیات</label><select class="form-control" @bind="_action"><option value="">همه عملیات</option><option value="Created">ایجاد</option><option value="Updated">ویرایش</option><option value="Deleted">حذف</option></select></div>
+            <div class="admin-filter"><label class="form-label">عملیات</label><LookupSelect Options="_actionOptions" Value="@(string.IsNullOrEmpty(_action) ? null : _action)" ValueChanged="k => _action = k ?? string.Empty" Placeholder="همه عملیات" /></div>
             <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
             <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
         </div>
@@ -203,6 +197,8 @@
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
+    private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = [("Created", "ایجاد"), ("Updated", "ویرایش"), ("Deleted", "حذف")];
+    private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
     private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup"];
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);

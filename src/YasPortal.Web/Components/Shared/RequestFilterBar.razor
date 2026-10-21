@@ -91,6 +91,10 @@
         }
         <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.From" ValueChanged="d => _d.From = d" Placeholder="تاریخ شروع" /></div>
         <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.To" ValueChanged="d => _d.To = d" Placeholder="تاریخ پایان" /></div>
+        @if (SortOptions.Count > 0)
+        {
+            <SortSelect Options="SortOptions" Value="@(Sort)" Default="@(DefaultSort)" ValueChanged="SortChanged" />
+        }
         <div class="admin-filter request-filter-clear">
             <button type="button" class="btn btn-primary" @onclick="SearchAsync"><i class="bx bx-search"></i> جستجو</button>
             <button type="button" class="btn btn-secondary" disabled="@(Filter.IsEmpty && _d.IsEmpty)" @onclick="ClearAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
@@ -115,6 +119,15 @@
     /// tree (their subordinates). Null hides it.
     /// </summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)>? PositionOptions { get; set; }
+
+    /// <summary>
+    /// Optional sort choices ("key:asc|desc" → label) shown as one more selector in this card. Unlike the filters
+    /// it applies at once (no need to press جستجو); the ✕ goes back to <see cref="DefaultSort"/>.
+    /// </summary>
+    [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];
+    [Parameter] public string Sort { get; set; } = "";
+    [Parameter] public string DefaultSort { get; set; } = "";
+    [Parameter] public EventCallback<string> SortChanged { get; set; }
 
     /// <summary>Raised when the user presses "جستجو" (or clears), so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }

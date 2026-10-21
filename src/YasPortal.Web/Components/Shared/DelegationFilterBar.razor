@@ -5,15 +5,9 @@
     </div>
     <div class="admin-filter">
         <label class="form-label">وضعیت</label>
-        <select class="form-control" @onchange="OnStatusAsync">
-            <option value="" selected="@(State.Status == "")">همه وضعیت‌ها</option>
-            <option value="Active" selected="@(State.Status == "Active")">فعال</option>
-            <option value="Upcoming" selected="@(State.Status == "Upcoming")">در انتظار شروع</option>
-            <option value="Expired" selected="@(State.Status == "Expired")">منقضی</option>
-            <option value="Revoked" selected="@(State.Status == "Revoked")">لغو شده</option>
-        </select>
+        <LookupSelect Options="StatusOptions" Value="@(State.Status == "" ? null : State.Status)" ValueChanged="OnStatusAsync" Placeholder="همه وضعیت‌ها" />
     </div>
-    <SortSelect Options="SortOptions" Value="@(State.Sort)" ValueChanged="OnSortAsync" />
+    <SortSelect Options="SortOptions" Value="@(State.Sort)" Default="@("created:desc")" ValueChanged="OnSortAsync" />
 </div>
 
 @code {
@@ -32,7 +26,15 @@
     /// <summary>Raised after any choice changed; the page resets to the first page and reloads.</summary>
     [Parameter] public EventCallback Changed { get; set; }
 
-    private static readonly IReadOnlyList<KeyValuePair<string, string>> SortOptions =
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
+    [
+        ("Active", "فعال"),
+        ("Upcoming", "در انتظار شروع"),
+        ("Expired", "منقضی"),
+        ("Revoked", "لغو شده"),
+    ];
+
+    private static readonly IReadOnlyList<(string Key, string Text)> SortOptions =
     [
         SortSelect.Option("created:desc", "جدیدترین ثبت"),
         SortSelect.Option("created:asc", "قدیمی‌ترین ثبت"),
@@ -44,6 +46,6 @@
     ];
 
     private Task OnSearchAsync(ChangeEventArgs e) { State.Search = e.Value?.ToString() ?? ""; return Changed.InvokeAsync(); }
-    private Task OnStatusAsync(ChangeEventArgs e) { State.Status = e.Value?.ToString() ?? ""; return Changed.InvokeAsync(); }
+    private Task OnStatusAsync(string? key) { State.Status = key ?? ""; return Changed.InvokeAsync(); }
     private Task OnSortAsync(string value) { State.Sort = value; return Changed.InvokeAsync(); }
 }

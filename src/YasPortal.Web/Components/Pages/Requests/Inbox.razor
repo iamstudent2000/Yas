@@ -45,13 +45,8 @@
 
         @if (!_historyMode)
         {
-            <RequestFilterBar Filter="_pendingFilter" Changed="OnPendingFilterChangedAsync" />
-    <section class="card">
-        <div class="admin-filters">
-            <SortSelect Options="_pendingSortOptions" Value="@(_pendingSort)" ValueChanged="OnPendingSortChangedAsync" />
-        </div>
-    </section>
-
+            <RequestFilterBar Filter="_pendingFilter" Changed="OnPendingFilterChangedAsync"
+                              SortOptions="_pendingSortOptions" Sort="@(_pendingSort)" DefaultSort="created:asc" SortChanged="OnPendingSortChangedAsync" />
             @if (_items.Count == 0)
             {
                 <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
@@ -153,28 +148,15 @@
                 <div class="admin-filters">
                     <div class="admin-filter">
                         <label class="form-label">نوع درخواست</label>
-                        <select class="form-control" value="@(_historyTypeFilter?.ToString() ?? "")" @onchange="HistoryTypeChanged">
-                            <option value="">همه انواع</option>
-                            @foreach (var type in WorkflowFieldCatalog.AllTypes)
-                            {
-                                <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
-                            }
-                        </select>
+                        <LookupSelect Options="_typeOptions" Value="@(_historyTypeFilter?.ToString())" ValueChanged="HistoryTypeChanged" Placeholder="همه انواع" />
                     </div>
                     <div class="admin-filter">
                         <label class="form-label">نتیجه</label>
-                        <select class="form-control" value="@(_historyStatusFilter?.ToString() ?? "")" @onchange="HistoryStatusChanged">
-                            <option value="">همه نتایج</option>
-                            <option value="@WorkflowStepStatus.Approved">تایید شد</option>
-                            <option value="@WorkflowStepStatus.Rejected">رد شد</option>
-                            <option value="@WorkflowStepStatus.ReturnedToRequester">بازگشت به درخواست‌کننده</option>
-                            <option value="@WorkflowStepStatus.ReturnedToPreviousStep">بازگشت به مرحله قبل</option>
-                            <option value="@WorkflowStepStatus.ReturnedToSpecificStep">بازگشت به مرحله دلخواه</option>
-                        </select>
+                        <LookupSelect Options="_outcomeOptions" Value="@(_historyStatusFilter?.ToString())" ValueChanged="HistoryStatusChanged" Placeholder="همه نتایج" />
                     </div>
                     <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_historyFrom" ValueChanged="HistoryFromChanged" Placeholder="تاریخ شروع" /></div>
                     <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_historyTo" ValueChanged="HistoryToChanged" Placeholder="تاریخ پایان" /></div>
-                    <SortSelect Options="_historySortOptions" Value="@(_historySort)" ValueChanged="OnHistorySortChangedAsync" />
+                    <SortSelect Options="_historySortOptions" Value="@(_historySort)" Default="@("acted:desc")" ValueChanged="OnHistorySortChangedAsync" />
                 </div>
             </section>
 
@@ -252,14 +234,14 @@
     // The inbox has always listed the oldest request first, so that stays the default.
     private string _pendingSort = "created:asc";
     private string _historySort = "acted:desc";
-    private static readonly IReadOnlyList<KeyValuePair<string, string>> _pendingSortOptions =
+    private static readonly IReadOnlyList<(string Key, string Text)> _pendingSortOptions =
     [
         SortSelect.Option("created:asc", "قدیمی‌ترین اول"),
         SortSelect.Option("created:desc", "جدیدترین اول"),
         SortSelect.Option("type:asc", "نوع درخواست"),
         SortSelect.Option("requester:asc", "درخواست‌کننده"),
     ];
-    private static readonly IReadOnlyList<KeyValuePair<string, string>> _historySortOptions =
+    private static readonly IReadOnlyList<(string Key, string Text)> _historySortOptions =
     [
         SortSelect.Option("acted:desc", "جدیدترین تصمیم"),
         SortSelect.Option("acted:asc", "قدیمی‌ترین تصمیم"),
@@ -531,16 +513,27 @@
         finally { _historyLoading = false; }
     }
 
-    private async Task HistoryTypeChanged(ChangeEventArgs e)
+    private static readonly IReadOnlyList<(string Key, string Text)> _typeOptions =
+        WorkflowFieldCatalog.AllTypes.Select(t => (t.ToString(), WorkflowFieldCatalog.GetDisplayName(t))).ToList();
+    private static readonly IReadOnlyList<(string Key, string Text)> _outcomeOptions =
+    [
+        (nameof(WorkflowStepStatus.Approved), "تایید شد"),
+        (nameof(WorkflowStepStatus.Rejected), "رد شد"),
+        (nameof(WorkflowStepStatus.ReturnedToRequester), "بازگشت به درخواست‌کننده"),
+        (nameof(WorkflowStepStatus.ReturnedToPreviousStep), "بازگشت به مرحله قبل"),
+        (nameof(WorkflowStepStatus.ReturnedToSpecificStep), "بازگشت به مرحله دلخواه"),
+    ];
+
+    private async Task HistoryTypeChanged(string? key)
     {
-        _historyTypeFilter = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) ? type : null;
+        _historyTypeFilter = Enum.TryParse<WorkflowTypeCode>(key, out var type) ? type : null;
         _historyPage = 1;
         await LoadHistoryAsync();
     }
 
-    private async Task HistoryStatusChanged(ChangeEventArgs e)
+    private async Task HistoryStatusChanged(string? key)
     {
-        _historyStatusFilter = Enum.TryParse<WorkflowStepStatus>(e.Value?.ToString(), out var status) ? status : null;
+        _historyStatusFilter = Enum.TryParse<WorkflowStepStatus>(key, out var status) ? status : null;
         _historyPage = 1;
         await LoadHistoryAsync();
     }

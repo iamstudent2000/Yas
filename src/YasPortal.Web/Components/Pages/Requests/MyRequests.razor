@@ -31,13 +31,8 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Changed="OnFilterChangedAsync" />
-
-    <section class="card">
-        <div class="admin-filters">
-            <SortSelect Options="_sortOptions" Value="@(_sort)" ValueChanged="OnSortChangedAsync" />
-        </div>
-    </section>
+    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Changed="OnFilterChangedAsync"
+                      SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync" />
 
     @if (_loading)
     {
@@ -145,7 +140,7 @@
     private int _page = 1;
     private int _pageSize = 20;
     private string _sort = "created:desc";
-    private static readonly IReadOnlyList<KeyValuePair<string, string>> _sortOptions =
+    private static readonly IReadOnlyList<(string Key, string Text)> _sortOptions =
     [
         SortSelect.Option("created:desc", "جدیدترین ثبت"),
         SortSelect.Option("created:asc", "قدیمی‌ترین ثبت"),

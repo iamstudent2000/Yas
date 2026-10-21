@@ -76,11 +76,7 @@
                                 <div class="toolbar-tools">
                                     <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllAreas"><i class="bx bx-expand-alt"></i> باز کردن همه</button>
                                     <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllAreas"><i class="bx bx-collapse-alt"></i> بستن همه</button>
-                                    <select class="form-control compact-select" value="@_usageFilter" @onchange="UsageChanged">
-                                        <option value="">همه</option>
-                                        <option value="used">در حال استفاده</option>
-                                        <option value="unused">بدون استفاده</option>
-                                    </select>
+                                    <div class="compact-select" style="min-width:170px"><LookupSelect Options="_usageOptions" Value="@(_usageFilter == "" ? null : _usageFilter)" ValueChanged="UsageChanged" Placeholder="همه" /></div>
                                     <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                                                                                                        placeholder="جستجوی نام یا کد..." @bind="_search" @bind:event="oninput"
                                                                                                        @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
@@ -370,9 +366,11 @@
         await LoadAsync();
     }
 
-    private async Task UsageChanged(ChangeEventArgs e)
+    private static readonly IReadOnlyList<(string Key, string Text)> _usageOptions = [("used", "در حال استفاده"), ("unused", "بدون استفاده")];
+
+    private async Task UsageChanged(string? key)
     {
-        _usageFilter = e.Value?.ToString() ?? "";
+        _usageFilter = key ?? "";
         _expandedPermissionId = null;
         _usage = null;
         await LoadAsync();

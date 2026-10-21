@@ -40,11 +40,7 @@
                                                 SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها"
                                                 SearchPlaceholder="نام سمت را جستجو کنید..." />
                 </div>
-                <div class="admin-filter"><label class="form-label">وضعیت</label><select class="form-control" @bind="_status">
-                    <option value="all">همه سوابق</option>
-                    <option value="active">فقط تخصیص‌های فعال</option>
-                    <option value="ended">فقط سوابق پایان‌یافته</option>
-                </select></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label><LookupSelect Options="_statusOptions" Value="@(_status == "all" ? null : _status)" ValueChanged="OnStatusPicked" Placeholder="همه سوابق" /></div>
             </div>
             <div class="card-toolbar">
                 <div class="admin-active-filters">
@@ -138,6 +134,8 @@
     private List<HistoryRow> _rows = [];
     private Guid? _employeeId, _positionId;
     private string _employeeName = "", _positionName = "", _status = "all";
+    private void OnStatusPicked(string? key) => _status = key ?? "all";
+    private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فقط تخصیص‌های فعال"), ("ended", "فقط سوابق پایان‌یافته")];
     private int _page = 1, _pageSize = 20, _total;
     private bool _loading;
     private string _sortBy = "started"; private bool _sortDesc = true;

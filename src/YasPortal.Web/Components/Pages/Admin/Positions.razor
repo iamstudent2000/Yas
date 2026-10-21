@@ -105,16 +105,12 @@
                         <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
                             placeholder="جستجوی نام سمت..." @bind="_treeSearch" @bind:event="oninput" @onkeyup="TreeSearchChanged" />@if(!string.IsNullOrEmpty(_treeSearch)){<button
                                 type="button" class="search-clear" @onclick="ClearTreeSearch"><i class="bx bx-x"></i></button>}</div>
-                    <select class="form-control tree-occupancy-filter" value="@_occupancyFilter" @onchange="OccupancyFilterChanged" title="فیلتر اشغال سمت">
-                        <option value="">همه سمت‌ها</option>
-                        <option value="occupied">دارای متصدی</option>
-                        <option value="vacant">خالی</option>
-                    </select>
-                    <select class="form-control tree-occupancy-filter" value="@_activeFilter" @onchange="ActiveFilterChanged" title="فیلتر فعال/غیرفعال">
-                        <option value="">فعال و غیرفعال</option>
-                        <option value="active">فعال</option>
-                        <option value="inactive">غیرفعال</option>
-                    </select>
+                    <div class="tree-org-filter" title="فیلتر اشغال سمت">
+                        <LookupSelect Options="_occupancyOptions" Value="@(_occupancyFilter == "" ? null : _occupancyFilter)" ValueChanged="OccupancyFilterChanged" Placeholder="همه سمت‌ها" />
+                    </div>
+                    <div class="tree-org-filter" title="فیلتر فعال/غیرفعال">
+                        <LookupSelect Options="_activeOptions" Value="@(_activeFilter == "" ? null : _activeFilter)" ValueChanged="ActiveFilterChanged" Placeholder="فعال و غیرفعال" />
+                    </div>
                     <div class="tree-org-filter">
                         <ServerSearchableGuidSelect Value="@_organizationFilterId" ValueChanged="OrganizationFilterChanged" SearchAsync="SearchOrganizationsAsync"
                                                     SelectedText="@_organizationFilterName" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
@@ -224,9 +220,12 @@
         _visiblePositionIds = visible;
     }
 
-    private void ActiveFilterChanged(ChangeEventArgs e)
+    private static readonly IReadOnlyList<(string Key, string Text)> _occupancyOptions = [("occupied", "دارای متصدی"), ("vacant", "خالی")];
+    private static readonly IReadOnlyList<(string Key, string Text)> _activeOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
+
+    private void ActiveFilterChanged(string? key)
     {
-        _activeFilter = e.Value?.ToString() ?? "";
+        _activeFilter = key ?? "";
         TreeSearchChanged();
     }
 
@@ -248,9 +247,9 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchOrganizationsAsync(search, true, ct);
 
-    private void OccupancyFilterChanged(ChangeEventArgs e)
+    private void OccupancyFilterChanged(string? key)
     {
-        _occupancyFilter = e.Value?.ToString() ?? "";
+        _occupancyFilter = key ?? "";
         TreeSearchChanged();
     }
 

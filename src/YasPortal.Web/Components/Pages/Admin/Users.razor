@@ -90,11 +90,7 @@
                                                                                            @onkeyup="SearchChanged" />@if(!string.IsNullOrEmpty(_search)){<button
                             type="button" class="search-clear" @onclick="ClearSearch"><i class="bx bx-x"></i></button>}</div></div>
 <div class="admin-filter"><label class="form-label">وضعیت</label>
-                                <select class="form-control" value="@_statusFilter" @onchange="StatusFilterChanged">
-                                    <option value="">همه</option>
-                                    <option value="active">فعال</option>
-                                    <option value="inactive">غیرفعال</option>
-                                </select></div>
+                                <LookupSelect Options="_statusOptions" Value="@(_statusFilter == "" ? null : _statusFilter)" ValueChanged="StatusFilterChanged" Placeholder="همه" /></div>
                             <div class="admin-filter"><label class="form-label">سازمان</label>
                                 <ServerSearchableGuidSelect Value="@_filterOrganizationId" ValueChanged="FilterOrganizationChanged"
                                                             SearchAsync="SearchOrganizationsAsync" SelectedText="@_filterOrganizationName"
@@ -212,7 +208,8 @@
     private string? _filterOrganizationName, _filterPositionName;
     private bool HasFilters => _statusFilter != "" || _filterOrganizationId is not null || _filterPositionId is not null;
 
-    private async Task StatusFilterChanged(ChangeEventArgs e) { _statusFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadAsync(); }
+    private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
+    private async Task StatusFilterChanged(string? key) { _statusFilter = key ?? ""; _page = 1; await LoadAsync(); }
     private async Task FilterOrganizationChanged(Guid? id) { _filterOrganizationId = id; if (id is null) _filterOrganizationName = null; _page = 1; await LoadAsync(); }
     private async Task FilterPositionChanged(Guid? id) { _filterPositionId = id; if (id is null) _filterPositionName = null; _page = 1; await LoadAsync(); }
     private async Task ClearFiltersAsync()

@@ -32,15 +32,9 @@
         <div class="admin-filters">
             <div class="admin-filter">
                 <label class="form-label">نوع اعلان</label>
-                <select class="form-control" @onchange="OnKindChangedAsync">
-                    <option value="" selected="@(_kind is null)">همه انواع</option>
-                    @foreach (var kind in Enum.GetValues<NotificationKind>())
-                    {
-                        <option value="@kind" selected="@(_kind == kind)">@KindLabel(kind)</option>
-                    }
-                </select>
+                <LookupSelect Options="KindOptions" Value="@(_kind?.ToString())" ValueChanged="OnKindChangedAsync" Placeholder="همه انواع" />
             </div>
-            <SortSelect Options="_sortOptions" Value="@(_sort)" ValueChanged="OnSortChangedAsync" />
+            <SortSelect Options="_sortOptions" Value="@(_sort)" Default="@("created:desc")" ValueChanged="OnSortChangedAsync" />
         </div>
     </section>
 
@@ -79,7 +73,7 @@
     private bool _unreadOnly;
     private NotificationKind? _kind;
     private string _sort = "created:desc";
-    private static readonly IReadOnlyList<KeyValuePair<string, string>> _sortOptions =
+    private static readonly IReadOnlyList<(string Key, string Text)> _sortOptions =
     [
         SortSelect.Option("created:desc", "جدیدترین اول"),
         SortSelect.Option("created:asc", "قدیمی‌ترین اول"),
@@ -131,9 +125,12 @@
         await LoadAsync();
     }
 
-    private async Task OnKindChangedAsync(ChangeEventArgs e)
+    private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
+        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), KindLabel(k))).ToList();
+
+    private async Task OnKindChangedAsync(string? key)
     {
-        _kind = Enum.TryParse<NotificationKind>(e.Value?.ToString(), out var kind) ? kind : null;
+        _kind = Enum.TryParse<NotificationKind>(key, out var kind) ? kind : null;
         _page = 1;
         await LoadAsync();
     }

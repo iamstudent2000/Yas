@@ -153,24 +153,11 @@
                 <div class="admin-filters">
                     <div class="admin-filter">
                         <label class="form-label">نوع درخواست</label>
-                        <select class="form-control" value="@(_apType?.ToString() ?? "")" @onchange="ApprovalTypeChanged">
-                            <option value="">همه انواع</option>
-                            @foreach (var type in WorkflowFieldCatalog.AllTypes)
-                            {
-                                <option value="@type">@WorkflowFieldCatalog.GetDisplayName(type)</option>
-                            }
-                        </select>
+                        <LookupSelect Options="_typeOptions" Value="@(_apType?.ToString())" ValueChanged="ApprovalTypeChanged" Placeholder="همه انواع" />
                     </div>
                     <div class="admin-filter">
                         <label class="form-label">نتیجه</label>
-                        <select class="form-control" value="@(_apOutcome?.ToString() ?? "")" @onchange="ApprovalOutcomeChanged">
-                            <option value="">همه نتایج</option>
-                            <option value="@WorkflowStepStatus.Approved">تایید شد</option>
-                            <option value="@WorkflowStepStatus.Rejected">رد شد</option>
-                            <option value="@WorkflowStepStatus.ReturnedToRequester">بازگشت به درخواست‌کننده</option>
-                            <option value="@WorkflowStepStatus.ReturnedToPreviousStep">بازگشت به مرحله قبل</option>
-                            <option value="@WorkflowStepStatus.ReturnedToSpecificStep">بازگشت به مرحله دلخواه</option>
-                        </select>
+                        <LookupSelect Options="_outcomeOptions" Value="@(_apOutcome?.ToString())" ValueChanged="ApprovalOutcomeChanged" Placeholder="همه نتایج" />
                     </div>
                     <div class="admin-filter">
                         <label class="form-label">سمت تصمیم‌گیرنده</label>
@@ -360,8 +347,19 @@
 
     // ---------- Approvals tab ----------
 
-    private async Task ApprovalTypeChanged(ChangeEventArgs e) { _apType = Enum.TryParse<WorkflowTypeCode>(e.Value?.ToString(), out var type) ? type : null; await ApprovalFilterChangedAsync(); }
-    private async Task ApprovalOutcomeChanged(ChangeEventArgs e) { _apOutcome = Enum.TryParse<WorkflowStepStatus>(e.Value?.ToString(), out var outcome) ? outcome : null; await ApprovalFilterChangedAsync(); }
+    private static readonly IReadOnlyList<(string Key, string Text)> _typeOptions =
+        WorkflowFieldCatalog.AllTypes.Select(t => (t.ToString(), WorkflowFieldCatalog.GetDisplayName(t))).ToList();
+    private static readonly IReadOnlyList<(string Key, string Text)> _outcomeOptions =
+    [
+        (nameof(WorkflowStepStatus.Approved), "تایید شد"),
+        (nameof(WorkflowStepStatus.Rejected), "رد شد"),
+        (nameof(WorkflowStepStatus.ReturnedToRequester), "بازگشت به درخواست‌کننده"),
+        (nameof(WorkflowStepStatus.ReturnedToPreviousStep), "بازگشت به مرحله قبل"),
+        (nameof(WorkflowStepStatus.ReturnedToSpecificStep), "بازگشت به مرحله دلخواه"),
+    ];
+
+    private async Task ApprovalTypeChanged(string? key) { _apType = Enum.TryParse<WorkflowTypeCode>(key, out var type) ? type : null; await ApprovalFilterChangedAsync(); }
+    private async Task ApprovalOutcomeChanged(string? key) { _apOutcome = Enum.TryParse<WorkflowStepStatus>(key, out var outcome) ? outcome : null; await ApprovalFilterChangedAsync(); }
     private async Task ApprovalPositionChanged(string? key) { _apPosition = Guid.TryParse(key, out var id) ? id : null; await ApprovalFilterChangedAsync(); }
     private async Task ApprovalFromChanged(DateTime? value) { _apFrom = value; await ApprovalFilterChangedAsync(); }
     private async Task ApprovalToChanged(DateTime? value) { _apTo = value; await ApprovalFilterChangedAsync(); }
