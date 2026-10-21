@@ -29,7 +29,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
     {

@@ -31,7 +31,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Changed="OnFilterChangedAsync"
+    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync"
                       SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync" />
 
     @if (_loading)

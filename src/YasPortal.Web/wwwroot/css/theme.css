@@ -230,3 +230,14 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 
 /* Request filter bar: the search and clear buttons sit side by side */
 .request-filter-clear{display:flex;gap:8px;align-items:flex-end}
+
+/* ---- Shared list filter bar (ListFilterBar): one grid, one control height, one button row on every page ---- */
+.list-filter .admin-filters.request-filter-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:14px 16px;align-items:end}
+.list-filter .admin-filter{min-width:0;margin:0}
+.list-filter .form-label{display:block;margin:0 0 5px}
+.list-filter .form-control,.list-filter .server-lookup-trigger,.list-filter .pdp-input{height:42px;min-height:42px;box-sizing:border-box;width:100%}
+.list-filter .search-box{width:100%;min-width:0}
+.list-filter .request-filter-clear{display:flex;gap:8px;align-items:flex-end;align-self:end}
+.list-filter .request-filter-clear .btn{height:42px;white-space:nowrap}
+.list-filter .admin-filter-check{align-self:end;display:flex;align-items:center;min-height:42px}
+.list-loading-note{display:flex;align-items:center;gap:8px;padding:10px 16px;color:var(--text-muted,#667085);font-size:12.5px}

@@ -1,0 +1,70 @@
+@* The one filter/sort card every list page uses, so filtering behaves the same everywhere:
+   - nothing is searched while you pick or type; "جستجو" (or Enter) applies the draft,
+   - "پاک کردن فیلترها" resets the draft and the list in one step,
+   - sorting (optional) applies at once, because it never changes which rows match,
+   - while a search runs the button shows a spinner and is disabled.
+   Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
+<section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
+    <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
+        <i class="bx bx-filter-alt"></i> فیلترها
+        @if (ActiveCount > 0)
+        {
+            <span class="badge badge-info">@ActiveCount</span>
+        }
+        <i class="bx @(_open ? "bx-chevron-up" : "bx-chevron-down") request-filter-toggle-chevron"></i>
+    </button>
+    <div class="admin-filters request-filter-body" @onkeydown="OnKeyDownAsync">
+        @ChildContent
+        @if (SortOptions.Count > 0)
+        {
+            <SortSelect Options="SortOptions" Value="@(Sort)" Default="@(DefaultSort)" ValueChanged="SortChanged" />
+        }
+        <div class="admin-filter request-filter-clear">
+            <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
+                <i class="bx @(Busy ? "bx-loader-alt bx-spin" : "bx-search")"></i> جستجو
+            </button>
+            <button type="button" class="btn btn-secondary" disabled="@(Busy || !CanClear)" @onclick="ClearAsync" @onkeydown:stopPropagation="true">
+                <i class="bx bx-eraser"></i> پاک کردن فیلترها
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>True while the page is loading; shows the spinner and blocks a second search.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    /// <summary>How many filters are applied right now (the badge on the phone toggle).</summary>
+    [Parameter] public int ActiveCount { get; set; }
+
+    /// <summary>False when there is nothing to clear (no draft and nothing applied).</summary>
+    [Parameter] public bool CanClear { get; set; } = true;
+
+    [Parameter] public EventCallback OnSearch { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+
+    /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
+    [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];
+    [Parameter] public string Sort { get; set; } = "";
+    [Parameter] public string DefaultSort { get; set; } = "";
+    [Parameter] public EventCallback<string> SortChanged { get; set; }
+
+    // Only matters on phones, where the filters start folded so the list is the first thing on screen.
+    private bool _open;
+
+    private async Task SearchAsync()
+    {
+        if (!Busy)
+            await OnSearch.InvokeAsync();
+    }
+
+    private Task ClearAsync() => OnClear.InvokeAsync();
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SearchAsync();
+    }
+}

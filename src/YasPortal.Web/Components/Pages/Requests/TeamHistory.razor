@@ -58,7 +58,7 @@
 
         @if (_tab == Tab.Requests)
         {
-            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Changed="OnFilterChangedAsync" />
+            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" Changed="OnFilterChangedAsync" />
 
             <section class="card table-card">
                 <div class="card-toolbar">

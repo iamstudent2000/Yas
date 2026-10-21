@@ -5,7 +5,7 @@
 
 @* A fixed list of choices (enum / text) shown with the same picker look as ServerSearchableGuidSelect:
    server-lookup-trigger form-control, search box, ✕ to clear. The value is a string key. *@
-<div class="server-lookup" dir="rtl">
+<div class="server-lookup" dir="rtl" @onkeydown:stopPropagation="true">
     <div @ref="_trigger" class="server-lookup-trigger form-control">
         <button type="button" class="server-lookup-open" @onclick="ToggleAsync">
             <span class="server-lookup-value">@Label</span>

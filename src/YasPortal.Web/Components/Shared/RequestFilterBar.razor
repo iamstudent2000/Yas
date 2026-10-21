@@ -3,104 +3,87 @@
 @using YasPortal.Web.Services
 @inject AdminQueryService AdminQueries
 
-<section class="card request-filter @(_open ? "is-open" : "")" dir="rtl">
-    <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
-        <i class="bx bx-filter-alt"></i> فیلترها
-        @if (ActiveCount > 0)
-        {
-            <span class="badge badge-info">@ActiveCount</span>
-        }
-        <i class="bx @(_open ? "bx-chevron-up" : "bx-chevron-down") request-filter-toggle-chevron"></i>
-    </button>
-    <div class="admin-filters request-filter-body">
-        <div class="admin-filter">
-            <label class="form-label">شناسه درخواست</label>
-            <input @key="_resetKey" class="form-control" placeholder="مثلا a1b2c3d4" @bind="_d.IdText" @bind:event="onchange" />
-        </div>
-        <div class="admin-filter">
-            <label class="form-label">متن در فرم درخواست</label>
-            <input @key="_resetKey" class="form-control" placeholder="بخشی از هر فیلد، مثلا نام کالا" @bind="_d.Text" @bind:event="onchange" />
-        </div>
-        <div class="admin-filter">
-            <label class="form-label">نوع درخواست</label>
-            <LookupSelect @key="_resetKey" Options="_typeOptions" Value="@(_d.Type?.ToString())" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
-        </div>
-        @if (StatusOptions.Count > 0)
-        {
-            <div class="admin-filter">
-                <label class="form-label">وضعیت</label>
-                <LookupSelect @key="_resetKey" Options="_statusChoices" Value="@(_d.Status?.ToString())" ValueChanged="OnStatusChanged" Placeholder="همه وضعیت‌ها" />
-            </div>
-        }
-        @if (ShowRequester)
-        {
-            <div class="admin-filter">
-                <label class="form-label">درخواست‌کننده</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterEmployeeId" ValueChanged="SetRequester"
-                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_requesterText"
-                                            Placeholder="همه درخواست‌کننده‌ها" SearchPlaceholder="نام، کد یا نام کاربری..." />
-            </div>
-        }
-        @if (ShowStep)
-        {
-            <div class="admin-filter">
-                <label class="form-label">مرحله جاری</label>
-                <LookupSelect @key="_resetKey" Options="_stepChoices" Value="@(_d.StepName)" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
-            </div>
-        }
-        @if (PositionOptions is not null)
-        {
-            <div class="admin-filter">
-                <label class="form-label">سمت درخواست‌کننده</label>
-                <LookupSelect @key="_resetKey" Options="PositionOptions" Value="@(_d.RequesterPositionId?.ToString())" ValueChanged="k => _d.RequesterPositionId = Guid.TryParse(k, out var chosenPosition) ? chosenPosition : null" Placeholder="همه سمت‌های زیرمجموعه" />
-            </div>
-        }
-        @if (ShowAdminExtras)
-        {
-            <div class="admin-filter">
-                <label class="form-label">نحوه لغو</label>
-                <LookupSelect @key="_resetKey" Options="_cancelChoices" Value="@(_d.CancelledBy?.ToString())" ValueChanged="OnCancelKindChanged" Placeholder="همه" />
-            </div>
-            <div class="admin-filter">
-                <label class="form-label">سمت درخواست‌کننده</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterPositionId" ValueChanged="id => { _d.RequesterPositionId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
-                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
-            </div>
-            <div class="admin-filter">
-                <label class="form-label">سازمان درخواست‌کننده</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterOrganizationId" ValueChanged="id => { _d.RequesterOrganizationId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchOrganizationsAsync" SelectedText=""
-                                            Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
-            </div>
-            <div class="admin-filter">
-                <label class="form-label">منتظر تصمیم سمت</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.WaitingAtPositionId" ValueChanged="id => { _d.WaitingAtPositionId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchPositionsAsync" SelectedText=""
-                                            Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
-            </div>
-            <div class="admin-filter">
-                <label class="form-label">تصمیم‌گیرنده (تایید/رد کرده)</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_d.ActedByEmployeeId" ValueChanged="id => { _d.ActedByEmployeeId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchEmployeesAsync" SelectedText=""
-                                            Placeholder="همه" SearchPlaceholder="نام، کد یا نام کاربری..." />
-            </div>
-            <div class="admin-filter admin-filter-check">
-                <label class="check-row"><input @key="_resetKey" type="checkbox" checked="@_d.CreatedByAdminOnly" @onchange="e => _d.CreatedByAdminOnly = (bool)(e.Value ?? false)" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
-            </div>
-        }
-        <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.From" ValueChanged="d => _d.From = d" Placeholder="تاریخ شروع" /></div>
-        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.To" ValueChanged="d => _d.To = d" Placeholder="تاریخ پایان" /></div>
-        @if (SortOptions.Count > 0)
-        {
-            <SortSelect Options="SortOptions" Value="@(Sort)" Default="@(DefaultSort)" ValueChanged="SortChanged" />
-        }
-        <div class="admin-filter request-filter-clear">
-            <button type="button" class="btn btn-primary" @onclick="SearchAsync"><i class="bx bx-search"></i> جستجو</button>
-            <button type="button" class="btn btn-secondary" disabled="@(Filter.IsEmpty && _d.IsEmpty)" @onclick="ClearAsync"><i class="bx bx-eraser"></i> پاک کردن فیلترها</button>
-        </div>
+<ListFilterBar Busy="Busy" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
+               SortOptions="SortOptions" Sort="@(Sort)" DefaultSort="@(DefaultSort)" SortChanged="SortChanged">
+    <div class="admin-filter">
+        <label class="form-label">شناسه درخواست</label>
+        <input @key="_resetKey" class="form-control" placeholder="مثلا a1b2c3d4" @bind="_d.IdText" @bind:event="oninput" />
     </div>
-</section>
+    <div class="admin-filter">
+        <label class="form-label">متن در فرم درخواست</label>
+        <input @key="_resetKey" class="form-control" placeholder="بخشی از هر فیلد، مثلا نام کالا" @bind="_d.Text" @bind:event="oninput" />
+    </div>
+    <div class="admin-filter">
+        <label class="form-label">نوع درخواست</label>
+        <LookupSelect @key="_resetKey" Options="_typeOptions" Value="@(_d.Type?.ToString())" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
+    </div>
+    @if (StatusOptions.Count > 0)
+    {
+        <div class="admin-filter">
+            <label class="form-label">وضعیت</label>
+            <LookupSelect @key="_resetKey" Options="_statusChoices" Value="@(_d.Status?.ToString())" ValueChanged="OnStatusChanged" Placeholder="همه وضعیت‌ها" />
+        </div>
+    }
+    @if (ShowRequester)
+    {
+        <div class="admin-filter">
+            <label class="form-label">درخواست‌کننده</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterEmployeeId" ValueChanged="SetRequester"
+                                        SearchAsync="SearchEmployeesAsync" SelectedText="@_requesterText"
+                                        Placeholder="همه درخواست‌کننده‌ها" SearchPlaceholder="نام، کد یا نام کاربری..." />
+        </div>
+    }
+    @if (ShowStep)
+    {
+        <div class="admin-filter">
+            <label class="form-label">مرحله جاری</label>
+            <LookupSelect @key="_resetKey" Options="_stepChoices" Value="@(_d.StepName)" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
+        </div>
+    }
+    @if (PositionOptions is not null)
+    {
+        <div class="admin-filter">
+            <label class="form-label">سمت درخواست‌کننده</label>
+            <LookupSelect @key="_resetKey" Options="PositionOptions" Value="@(_d.RequesterPositionId?.ToString())" ValueChanged="k => _d.RequesterPositionId = Guid.TryParse(k, out var chosenPosition) ? chosenPosition : null" Placeholder="همه سمت‌های زیرمجموعه" />
+        </div>
+    }
+    @if (ShowAdminExtras)
+    {
+        <div class="admin-filter">
+            <label class="form-label">نحوه لغو</label>
+            <LookupSelect @key="_resetKey" Options="_cancelChoices" Value="@(_d.CancelledBy?.ToString())" ValueChanged="OnCancelKindChanged" Placeholder="همه" />
+        </div>
+        <div class="admin-filter">
+            <label class="form-label">سمت درخواست‌کننده</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterPositionId" ValueChanged="id => { _d.RequesterPositionId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
+                                        Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
+        </div>
+        <div class="admin-filter">
+            <label class="form-label">سازمان درخواست‌کننده</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_d.RequesterOrganizationId" ValueChanged="id => { _d.RequesterOrganizationId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchOrganizationsAsync" SelectedText=""
+                                        Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+        </div>
+        <div class="admin-filter">
+            <label class="form-label">منتظر تصمیم سمت</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_d.WaitingAtPositionId" ValueChanged="id => { _d.WaitingAtPositionId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchPositionsAsync" SelectedText=""
+                                        Placeholder="همه سمت‌ها" SearchPlaceholder="نام یا کد سمت..." />
+        </div>
+        <div class="admin-filter">
+            <label class="form-label">تصمیم‌گیرنده (تایید/رد کرده)</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_d.ActedByEmployeeId" ValueChanged="id => { _d.ActedByEmployeeId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchEmployeesAsync" SelectedText=""
+                                        Placeholder="همه" SearchPlaceholder="نام، کد یا نام کاربری..." />
+        </div>
+        <div class="admin-filter admin-filter-check">
+            <label class="check-row"><input @key="_resetKey" type="checkbox" checked="@_d.CreatedByAdminOnly" @onchange="e => _d.CreatedByAdminOnly = (bool)(e.Value ?? false)" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
+        </div>
+    }
+    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.From" ValueChanged="d => _d.From = d" Placeholder="تاریخ شروع" /></div>
+    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.To" ValueChanged="d => _d.To = d" Placeholder="تاریخ پایان" /></div>
+</ListFilterBar>
 
 @code {
     [Parameter, EditorRequired] public WorkflowRequestFilter Filter { get; set; } = new();
@@ -132,6 +115,9 @@
     /// <summary>Raised when the user presses "جستجو" (or clears), so the page reloads from page 1.</summary>
     [Parameter] public EventCallback Changed { get; set; }
 
+    /// <summary>The page is loading; the bar shows a spinner on the search button.</summary>
+    [Parameter] public bool Busy { get; set; }
+
     // Edits are kept in a draft and only applied to Filter when the search button is pressed — nothing searches while typing or picking.
     private readonly WorkflowRequestFilter _d = new();
     private string _requesterText = "", _positionText = "";
@@ -147,9 +133,6 @@
     ];
     private IReadOnlyList<(string Key, string Text)> _statusChoices => StatusOptions.Select(x => (x.ToString(), WorkflowDisplay.StatusLabel(x))).ToList();
     private IReadOnlyList<(string Key, string Text)> _stepChoices => _stepNames.Select(n => (n, n)).ToList();
-
-    // Only matters on phones, where the filters start folded so the list is the first thing on screen.
-    private bool _open;
 
     protected override async Task OnInitializedAsync()
     {

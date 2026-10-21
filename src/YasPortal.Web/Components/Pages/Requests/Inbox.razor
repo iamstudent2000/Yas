@@ -45,7 +45,7 @@
 
         @if (!_historyMode)
         {
-            <RequestFilterBar Filter="_pendingFilter" Changed="OnPendingFilterChangedAsync"
+            <RequestFilterBar Filter="_pendingFilter" Busy="_pendingLoading" Changed="OnPendingFilterChangedAsync"
                               SortOptions="_pendingSortOptions" Sort="@(_pendingSort)" DefaultSort="created:asc" SortChanged="OnPendingSortChangedAsync" />
             @if (_items.Count == 0)
             {

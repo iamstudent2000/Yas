@@ -4,7 +4,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl">
+<div class="server-lookup @(Disabled ? "disabled" : "")" dir="rtl" @onkeydown:stopPropagation="true">
     <div @ref="_trigger" class="server-lookup-trigger form-control">
         <button type="button" class="server-lookup-open" disabled="@Disabled" @onclick="ToggleAsync">
             <span class="server-lookup-value">@SelectedLabel</span>
