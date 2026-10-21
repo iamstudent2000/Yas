@@ -34,6 +34,18 @@
                                             SearchPlaceholder="نام سمت را جستجو کنید..." />
             </div>
             <div class="admin-filter"><label class="form-label">وضعیت</label><LookupSelect Options="_statusOptions" Value="@(_status == "all" ? null : _status)" ValueChanged="OnStatusPicked" Placeholder="همه سوابق" /></div>
+            <div class="admin-filter"><label class="form-label">سازمان کارمند</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeOrgId" ValueChanged="id => { _employeeOrgId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchOrganizationsAsync" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+            </div>
+            <div class="admin-filter"><label class="form-label">سازمان سمت</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="@_positionOrgId" ValueChanged="id => { _positionOrgId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchOrganizationsAsync" Placeholder="همه سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+            </div>
+            <div class="admin-filter"><label class="form-label">شروع تخصیص از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_startFrom" ValueChanged="d => _startFrom = d" Placeholder="تاریخ" /></div>
+            <div class="admin-filter"><label class="form-label">شروع تخصیص تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_startTo" ValueChanged="d => _startTo = d" Placeholder="تاریخ" /></div>
+            <div class="admin-filter"><label class="form-label">پایان تخصیص از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_endFrom" ValueChanged="d => _endFrom = d" Placeholder="تاریخ" /></div>
+            <div class="admin-filter"><label class="form-label">پایان تخصیص تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_endTo" ValueChanged="d => _endTo = d" Placeholder="تاریخ" /></div>
         </ListFilterBar>
 
             <section class="card" style="margin-top:14px">
@@ -118,14 +130,21 @@
     private string _employeeName = "", _positionName = "", _status = "all";
     private void OnStatusPicked(string? key) => _status = key ?? "all";
     // The boxes edit the draft fields; "جستجو" copies them here, and paging/sorting reload from this copy.
-    private sealed record HistoryFilter(Guid? EmployeeId, Guid? PositionId, string Status)
+    private sealed record HistoryFilter(Guid? EmployeeId, Guid? PositionId, string Status, Guid? EmployeeOrgId, Guid? PositionOrgId, DateTime? StartFrom, DateTime? StartTo, DateTime? EndFrom, DateTime? EndTo)
     {
-        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (Status != "all" ? 1 : 0);
+        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (Status != "all" ? 1 : 0) + (EmployeeOrgId is null ? 0 : 1) + (PositionOrgId is null ? 0 : 1)
+            + (StartFrom is null ? 0 : 1) + (StartTo is null ? 0 : 1) + (EndFrom is null ? 0 : 1) + (EndTo is null ? 0 : 1);
     }
-    private HistoryFilter _applied = new(null, null, "all");
+    private static readonly HistoryFilter NoFilter = new(null, null, "all", null, null, null, null, null, null);
+    private HistoryFilter _applied = NoFilter;
+    private Guid? _employeeOrgId, _positionOrgId;
+    private DateTime? _startFrom, _startTo, _endFrom, _endTo;
     private int _resetKey;
-    private int DraftCount => new HistoryFilter(_employeeId, _positionId, _status).Count;
-    private async Task SearchFiltersAsync() { _applied = new HistoryFilter(_employeeId, _positionId, _status); _page = 1; await LoadAsync(); }
+    private int DraftCount => Draft().Count;
+    private HistoryFilter Draft() => new(_employeeId, _positionId, _status, _employeeOrgId, _positionOrgId, _startFrom, _startTo, _endFrom, _endTo);
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+    private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
+    private async Task SearchFiltersAsync() { _applied = Draft(); _page = 1; await LoadAsync(); }
     private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فقط تخصیص‌های فعال"), ("ended", "فقط سوابق پایان‌یافته")];
     private int _page = 1, _pageSize = 20, _total;
     private bool _loading;
@@ -138,7 +157,13 @@
             await using var db = await DbFactory.CreateDbContextAsync(); var
 query = db.PositionAssignmentHistories.AsNoTracking().AsQueryable(); if (_applied.EmployeeId is Guid
 employeeId) query = query.Where(x => x.EmployeeId == employeeId); if (_applied.PositionId is Guid
-positionId) query = query.Where(x => x.PositionId == positionId); if (_applied.Status == "active") query = query.Where(x =>
+positionId) query = query.Where(x => x.PositionId == positionId); if (_applied.EmployeeOrgId is Guid employeeOrgId) query = query.Where(x => x.Employee.OrganizationId == employeeOrgId);
+            if (_applied.PositionOrgId is Guid positionOrgId) query = query.Where(x => x.Position.OrganizationId == positionOrgId);
+            if (_applied.StartFrom is DateTime startFrom) { var from = LocalDayStartUtc(startFrom); query = query.Where(x => x.StartedAt >= from); }
+            if (_applied.StartTo is DateTime startTo) { var to = LocalDayStartUtc(startTo.AddDays(1)); query = query.Where(x => x.StartedAt < to); }
+            if (_applied.EndFrom is DateTime endFrom) { var from = LocalDayStartUtc(endFrom); query = query.Where(x => x.EndedAt >= from); }
+            if (_applied.EndTo is DateTime endTo) { var to = LocalDayStartUtc(endTo.AddDays(1)); query = query.Where(x => x.EndedAt < to); }
+            if (_applied.Status == "active") query = query.Where(x =>
 x.EndedAt == null);
             else
                 if (_applied.Status == "ended") query = query.Where(x => x.EndedAt != null); _total = await query.CountAsync(); var
@@ -172,7 +197,7 @@ ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
     private async Task
 ResetFilters()
     {
-        _employeeId = null; _positionId = null; _employeeName = ""; _positionName = ""; _status = "all"; _applied = new(null, null, "all"); _resetKey++; _page = 1; await
+        _employeeId = null; _positionId = null; _employeeName = ""; _positionName = ""; _status = "all"; _employeeOrgId = null; _positionOrgId = null; _startFrom = _startTo = _endFrom = _endTo = null; _applied = NoFilter; _resetKey++; _page = 1; await
 LoadAsync();
     }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }

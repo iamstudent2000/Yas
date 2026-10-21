@@ -222,13 +222,22 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         var items = rows.Select(x => x with { ActivePositions = positionsByEmployee.TryGetValue(x.Id, out var positions) ? positions : Array.Empty<ActivePositionRow>() }).ToList();
         return new(items, total, page, pageSize);
     }
-    public async Task<PageResult<OrganizationPageRow>> GetOrganizationsAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, CancellationToken ct = default)
+    public async Task<PageResult<OrganizationPageRow>> GetOrganizationsAsync(int page, int pageSize, string? search, string? sortBy = null, bool sortDesc = false, bool? active = null, string? employees = null, Guid? employeeId = null, CancellationToken ct = default)
     {
         page = Page(page);
         pageSize = Size(pageSize);
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Organizations.AsNoTracking().Where(x => q == "" || x.Name.Contains(q) || x.Code.Contains(q));
+        if (active is bool isActive)
+            query = query.Where(x => x.IsActive == isActive);
+        // "with" = at least one employee, "without" = none.
+        if (employees == "with")
+            query = query.Where(x => x.Employees.Any());
+        else if (employees == "without")
+            query = query.Where(x => !x.Employees.Any());
+        if (employeeId is Guid memberId)
+            query = query.Where(x => x.Employees.Any(e => e.Id == memberId));
         var total = await query.CountAsync(ct);
         var ordered = (sortBy, sortDesc) switch
         {
