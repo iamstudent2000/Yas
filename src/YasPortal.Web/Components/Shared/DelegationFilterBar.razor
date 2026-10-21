@@ -1,30 +1,45 @@
-<div class="admin-filters">
+<ListFilterBar Busy="Busy" ActiveCount="State.AppliedCount" CanClear="@(State.AppliedCount > 0 || State.DraftCount > 0)" OnSearch="SearchAsync" OnClear="ClearAsync"
+               SortOptions="SortOptions" Sort="@(State.Sort)" DefaultSort="created:desc" SortChanged="OnSortAsync">
     <div class="admin-filter">
         <label class="form-label">جستجوی سمت</label>
-        <input type="text" class="form-control" placeholder="نام سمت..." value="@State.Search" @oninput="OnSearchAsync" />
+        <input @key="_resetKey" class="form-control" placeholder="نام سمت..." @bind="State.Search" @bind:event="oninput" />
     </div>
     <div class="admin-filter">
         <label class="form-label">وضعیت</label>
-        <LookupSelect Options="StatusOptions" Value="@(State.Status == "" ? null : State.Status)" ValueChanged="OnStatusAsync" Placeholder="همه وضعیت‌ها" />
+        <LookupSelect @key="_resetKey" Options="StatusOptions" Value="@(State.Status == "" ? null : State.Status)" ValueChanged="k => State.Status = k ?? string.Empty" Placeholder="همه وضعیت‌ها" />
     </div>
-    <SortSelect Options="SortOptions" Value="@(State.Sort)" Default="@("created:desc")" ValueChanged="OnSortAsync" />
-</div>
+</ListFilterBar>
 
 @code {
-    /// <summary>The choices of one delegation list; the page reads them when it queries.</summary>
+    /// <summary>
+    /// The choices of one delegation list. Search and Status are the draft the boxes edit; "جستجو" copies them to
+    /// the Applied values the page queries with. Sort needs no search button, so it is used as it is.
+    /// </summary>
     public sealed class FilterState
     {
         public string Search { get; set; } = "";
         /// <summary>Empty for all, otherwise a DelegationStatus name.</summary>
         public string Status { get; set; } = "";
         public string Sort { get; set; } = "created:desc";
+
+        public string AppliedSearch { get; private set; } = "";
+        public string AppliedStatus { get; private set; } = "";
+
+        public int AppliedCount => (AppliedSearch.Trim().Length > 0 ? 1 : 0) + (AppliedStatus != "" ? 1 : 0);
+        public int DraftCount => (Search.Trim().Length > 0 ? 1 : 0) + (Status != "" ? 1 : 0);
         /// <summary>True while a search or status choice narrows the list (sorting alone does not).</summary>
-        public bool IsActive => Search.Trim().Length > 0 || Status != "";
+        public bool IsActive => AppliedCount > 0;
+
+        public void Apply() { AppliedSearch = Search.Trim(); AppliedStatus = Status; }
+        public void Reset() { Search = ""; Status = ""; AppliedSearch = ""; AppliedStatus = ""; }
     }
 
     [Parameter, EditorRequired] public FilterState State { get; set; } = new();
-    /// <summary>Raised after any choice changed; the page resets to the first page and reloads.</summary>
+    [Parameter] public bool Busy { get; set; }
+    /// <summary>Raised after a search, clear or sort change; the page goes back to page 1 and reloads.</summary>
     [Parameter] public EventCallback Changed { get; set; }
+
+    private int _resetKey;
 
     private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
     [
@@ -45,7 +60,7 @@
         SortSelect.Option("position:asc", "نام سمت"),
     ];
 
-    private Task OnSearchAsync(ChangeEventArgs e) { State.Search = e.Value?.ToString() ?? ""; return Changed.InvokeAsync(); }
-    private Task OnStatusAsync(string? key) { State.Status = key ?? ""; return Changed.InvokeAsync(); }
+    private Task SearchAsync() { State.Apply(); return Changed.InvokeAsync(); }
+    private Task ClearAsync() { State.Reset(); _resetKey++; return Changed.InvokeAsync(); }
     private Task OnSortAsync(string value) { State.Sort = value; return Changed.InvokeAsync(); }
 }

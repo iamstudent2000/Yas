@@ -24,10 +24,29 @@
         </div>
     </div>
 
+    <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || DraftCount > 0)"
+                   OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad">
+        <div class="admin-filter"><label class="form-label">کاربر</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
+                                        SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeSearch" Placeholder="همه کاربران"
+                                        SearchPlaceholder="نام، نام کاربری یا کد کارمند را جستجو کنید..." />
+        </div>
+        <div class="admin-filter"><label class="form-label">سمت فعال</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="@_positionId" ValueChanged="PositionChanged"
+                                        SearchAsync="SearchPositionsAsync" SelectedText="@_positionSearch" Placeholder="همه سمت‌ها"
+                                        SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
+        </div>
+        <div class="admin-filter"><label class="form-label">موجودیت</label><LookupSelect Options="EntityOptions" Value="@(string.IsNullOrEmpty(_entityType) ? null : _entityType)" ValueChanged="k => _entityType = k ?? string.Empty" Placeholder="همه موجودیت‌ها" /></div>
+        <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">عملیات</label><LookupSelect Options="_actionOptions" Value="@(string.IsNullOrEmpty(_action) ? null : _action)" ValueChanged="k => _action = k ?? string.Empty" Placeholder="همه عملیات" /></div>
+        <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
+        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
+    </ListFilterBar>
+
     <section class="card">
         <div class="card-toolbar">
             <div>
-                <h2 class="section-title">فیلتر گزارش‌ها</h2>
+                <h2 class="section-title">رویدادها</h2>
                 <p class="muted">برای شروع، فیلترها را انتخاب کرده و «جستجو» را بزنید.</p>
             </div>
             @if (_hasSearched)
@@ -38,39 +57,6 @@
             {
                 <span class="badge badge-muted"><i class="bx bx-search"></i> آماده جستجو</span>
             }
-        </div>
-
-        <div class="admin-filters">
-            <div class="admin-filter"><label class="form-label">کاربر</label>
-                <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
-                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeSearch" Placeholder="همه کاربران"
-                                            SearchPlaceholder="نام، نام کاربری یا کد کارمند را جستجو کنید..." />
-            </div>
-            <div class="admin-filter"><label class="form-label">سمت فعال</label>
-                <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged"
-                                            SearchAsync="SearchPositionsAsync" SelectedText="@_positionSearch" Placeholder="همه سمت‌ها"
-                                            SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
-            </div>
-            <div class="admin-filter"><label class="form-label">موجودیت</label><LookupSelect Options="EntityOptions" Value="@(string.IsNullOrEmpty(_entityType) ? null : _entityType)" ValueChanged="k => _entityType = k ?? string.Empty" Placeholder="همه موجودیت‌ها" /></div>
-            <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
-            <div class="admin-filter"><label class="form-label">عملیات</label><LookupSelect Options="_actionOptions" Value="@(string.IsNullOrEmpty(_action) ? null : _action)" ValueChanged="k => _action = k ?? string.Empty" Placeholder="همه عملیات" /></div>
-            <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
-            <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
-        </div>
-
-        <div class="card-toolbar">
-            <div class="admin-active-filters">
-                @if(_fromDate.HasValue){<span class="badge badge-muted">از @ToPersianDate(_fromDate.Value)</span>}
-                @if(_toDate.HasValue){<span class="badge badge-muted">تا @ToPersianDate(_toDate.Value)</span>}
-                @if(!string.IsNullOrWhiteSpace(_employeeSearch)){<span class="badge badge-muted">کاربر: @_employeeSearch</span>}
-                @if(!string.IsNullOrWhiteSpace(_positionSearch)){<span class="badge badge-muted">سمت: @_positionSearch</span>}
-                @if(!string.IsNullOrWhiteSpace(_entityType)){<span class="badge badge-muted">موجودیت: @_entityType</span>}@if(!string.IsNullOrWhiteSpace(_entityId)){<span class="badge badge-muted">شناسه: @_entityId</span>}
-                @if(!string.IsNullOrWhiteSpace(_action)){<span class="badge badge-muted">عملیات: @GetActionText(_action)</span>}
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-primary" @onclick="SearchAsync" disabled="@_loading"><i class="bx bx-search"></i><span>جستجو</span></button>
-                <button class="btn @(_loading ? "btn-danger" : "btn-secondary")" @onclick="ClearOrCancelAsync"><i class="bx @(_loading ? "bx-x-circle" : "bx-eraser")"></i><span>@(_loading ? "لغو" : "پاک کردن فیلترها")</span></button>
-            </div>
         </div>
 
         @if(!_hasSearched){
@@ -150,20 +136,29 @@
     private CancellationTokenSource? _loadCts;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
-    private async Task SearchAsync(){if(_loading)return;await LoadPageAsync(1);}
+    // The boxes edit the draft fields above; "جستجو" copies them here, and paging/sorting reload from this copy.
+    private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To)
+    {
+        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1);
+    }
+    private AuditFilter _applied = new(null, null, "", "", "", null, null);
+    private int _resetKey;
+    private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate).Count;
+    private void CancelLoad() => _loadCts?.Cancel();
+    private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate);await LoadPageAsync(1);}
     private async Task LoadPageAsync(int page)
     {
         _loadCts?.Cancel();_loadCts?.Dispose();_loadCts=new CancellationTokenSource();var cts=_loadCts;var token=cts.Token;_loading=true;_hasSearched=true;_page=page;await InvokeAsync(StateHasChanged);
         try
         {
             await using var db=await DbFactory.CreateDbContextAsync(token);var query=db.AuditEntries.AsNoTracking().AsQueryable();
-            if(!string.IsNullOrWhiteSpace(_entityType))query=query.Where(x=>x.EntityType.Contains(_entityType.Trim()));
-            if(!string.IsNullOrWhiteSpace(_action))query=query.Where(x=>x.Action==_action);
-            if(!string.IsNullOrWhiteSpace(_entityId)){var idPart=_entityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
-            if(_fromDate.HasValue){var from=DateTime.SpecifyKind(_fromDate.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
-            if(_toDate.HasValue){var to=DateTime.SpecifyKind(_toDate.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
-            if(_employeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
-            if(_positionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
+            if(!string.IsNullOrWhiteSpace(_applied.EntityType))query=query.Where(x=>x.EntityType.Contains(_applied.EntityType.Trim()));
+            if(!string.IsNullOrWhiteSpace(_applied.Action))query=query.Where(x=>x.Action==_applied.Action);
+            if(!string.IsNullOrWhiteSpace(_applied.EntityId)){var idPart=_applied.EntityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
+            if(_applied.From.HasValue){var from=DateTime.SpecifyKind(_applied.From.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
+            if(_applied.To.HasValue){var to=DateTime.SpecifyKind(_applied.To.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
+            if(_applied.EmployeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
+            if(_applied.PositionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
             _totalCount=await query.CountAsync(token);if(_page>TotalPages)_page=TotalPages;
             query=(_sortBy,_sortDesc)switch{
                 ("time",false)=>query.OrderBy(x=>x.OccurredAtUtc),
@@ -193,7 +188,7 @@
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
     }
-    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null);_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}

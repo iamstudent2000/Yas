@@ -144,21 +144,21 @@
         }
         else
         {
-            <section class="card">
-                <div class="admin-filters">
-                    <div class="admin-filter">
-                        <label class="form-label">نوع درخواست</label>
-                        <LookupSelect Options="_typeOptions" Value="@(_historyTypeFilter?.ToString())" ValueChanged="HistoryTypeChanged" Placeholder="همه انواع" />
-                    </div>
-                    <div class="admin-filter">
-                        <label class="form-label">نتیجه</label>
-                        <LookupSelect Options="_outcomeOptions" Value="@(_historyStatusFilter?.ToString())" ValueChanged="HistoryStatusChanged" Placeholder="همه نتایج" />
-                    </div>
-                    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_historyFrom" ValueChanged="HistoryFromChanged" Placeholder="تاریخ شروع" /></div>
-                    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_historyTo" ValueChanged="HistoryToChanged" Placeholder="تاریخ پایان" /></div>
-                    <SortSelect Options="_historySortOptions" Value="@(_historySort)" Default="@("acted:desc")" ValueChanged="OnHistorySortChangedAsync" />
+            <ListFilterBar Busy="_historyLoading" ActiveCount="HistoryActiveCount"
+                           CanClear="@(HistoryActiveCount > 0 || _dHistoryType is not null || _dHistoryStatus is not null || _dHistoryFrom is not null || _dHistoryTo is not null)"
+                           OnSearch="SearchHistoryAsync" OnClear="ClearHistoryAsync"
+                           SortOptions="_historySortOptions" Sort="@(_historySort)" DefaultSort="acted:desc" SortChanged="OnHistorySortChangedAsync">
+                <div class="admin-filter">
+                    <label class="form-label">نوع درخواست</label>
+                    <LookupSelect @key="_historyResetKey" Options="_typeOptions" Value="@(_dHistoryType?.ToString())" ValueChanged="k => _dHistoryType = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
                 </div>
-            </section>
+                <div class="admin-filter">
+                    <label class="form-label">نتیجه</label>
+                    <LookupSelect @key="_historyResetKey" Options="_outcomeOptions" Value="@(_dHistoryStatus?.ToString())" ValueChanged="k => _dHistoryStatus = Enum.TryParse<WorkflowStepStatus>(k, out var o) ? o : null" Placeholder="همه نتایج" />
+                </div>
+                <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_historyResetKey" Value="_dHistoryFrom" ValueChanged="d => _dHistoryFrom = d" Placeholder="تاریخ شروع" /></div>
+                <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_historyResetKey" Value="_dHistoryTo" ValueChanged="d => _dHistoryTo = d" Placeholder="تاریخ پایان" /></div>
+            </ListFilterBar>
 
             @if (_historyLoading)
             {
@@ -524,30 +524,30 @@
         (nameof(WorkflowStepStatus.ReturnedToSpecificStep), "بازگشت به مرحله دلخواه"),
     ];
 
-    private async Task HistoryTypeChanged(string? key)
+    // The boxes edit the draft (_d…); "جستجو" copies it to the applied filters that LoadHistoryAsync reads.
+    private WorkflowTypeCode? _dHistoryType;
+    private WorkflowStepStatus? _dHistoryStatus;
+    private DateTime? _dHistoryFrom, _dHistoryTo;
+    private int _historyResetKey;
+    private int HistoryActiveCount => (_historyTypeFilter is null ? 0 : 1) + (_historyStatusFilter is null ? 0 : 1) + (_historyFrom is null ? 0 : 1) + (_historyTo is null ? 0 : 1);
+
+    private async Task SearchHistoryAsync()
     {
-        _historyTypeFilter = Enum.TryParse<WorkflowTypeCode>(key, out var type) ? type : null;
+        _historyTypeFilter = _dHistoryType;
+        _historyStatusFilter = _dHistoryStatus;
+        _historyFrom = _dHistoryFrom;
+        _historyTo = _dHistoryTo;
         _historyPage = 1;
         await LoadHistoryAsync();
     }
 
-    private async Task HistoryStatusChanged(string? key)
+    private async Task ClearHistoryAsync()
     {
-        _historyStatusFilter = Enum.TryParse<WorkflowStepStatus>(key, out var status) ? status : null;
-        _historyPage = 1;
-        await LoadHistoryAsync();
-    }
-
-    private async Task HistoryFromChanged(DateTime? value)
-    {
-        _historyFrom = value;
-        _historyPage = 1;
-        await LoadHistoryAsync();
-    }
-
-    private async Task HistoryToChanged(DateTime? value)
-    {
-        _historyTo = value;
+        _historyTypeFilter = _dHistoryType = null;
+        _historyStatusFilter = _dHistoryStatus = null;
+        _historyFrom = _dHistoryFrom = null;
+        _historyTo = _dHistoryTo = null;
+        _historyResetKey++;
         _historyPage = 1;
         await LoadHistoryAsync();
     }

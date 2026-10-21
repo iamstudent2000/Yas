@@ -83,9 +83,10 @@
         </section>
 
         <div class="dlg-columns">
+            <div class="dlg-col">
+            <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
-                <DelegationFilterBar State="_mineFilter" Changed="OnMineFilterChangedAsync" />
                 @if (_mine.Count == 0)
                 {
                     <div class="empty-state is-compact"><i class="bx bx-transfer"></i><strong>@(_mineFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی ثبت نشده است")</strong></div>
@@ -112,10 +113,12 @@
                 }
                 <ServerPagination Page="_minePage" PageSize="_minePageSize" TotalCount="_mineTotal" Busy="_listBusy" PageChanged="GoToMinePageAsync" PageSizeChanged="OnMinePageSizeChangedAsync" />
             </section>
+            </div>
 
+            <div class="dlg-col">
+            <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
-                <DelegationFilterBar State="_receivedFilter" Changed="OnReceivedFilterChangedAsync" />
                 @if (_received.Count == 0)
                 {
                     <div class="empty-state is-compact"><i class="bx bx-inbox"></i><strong>@(_receivedFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی به شما سپرده نشده است")</strong></div>
@@ -134,6 +137,7 @@
                 }
                 <ServerPagination Page="_receivedPage" PageSize="_receivedPageSize" TotalCount="_receivedTotal" Busy="_listBusy" PageChanged="GoToReceivedPageAsync" PageSizeChanged="OnReceivedPageSizeChangedAsync" />
             </section>
+            </div>
         </div>
     }
 </div>
@@ -157,12 +161,12 @@
     /// <summary>Applies the position-name search and the status choice in SQL; the status rules mirror <see cref="PositionDelegation.StatusOn"/>.</summary>
     private static IQueryable<PositionDelegation> ApplyFilter(IQueryable<PositionDelegation> query, ApplicationDbContext db, DelegationFilterBar.FilterState filter)
     {
-        var search = filter.Search.Trim();
+        var search = filter.AppliedSearch;
         if (search.Length > 0)
             query = query.Where(d => db.Positions.Any(p => (p.Id == d.PositionId || p.Id == d.DelegatePositionId) && p.Name.Contains(search)));
 
         var today = DateTime.Now.Date;
-        return filter.Status switch
+        return filter.AppliedStatus switch
         {
             "Revoked" => query.Where(d => d.RevokedAtUtc != null),
             "Upcoming" => query.Where(d => d.RevokedAtUtc == null && today < d.StartDate),

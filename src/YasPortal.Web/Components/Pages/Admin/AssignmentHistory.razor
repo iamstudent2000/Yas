@@ -22,38 +22,20 @@
         <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i
             class="bx bx-sitemap"></i> مدیریت سمت‌ها</a></div>
         </div>
-        <section class="card">
-            <div class="card-toolbar">
-                <div>
-                    <h2 class="section-title"><i class="bx bx-filter-alt"></i> فیلتر سوابق</h2>
-                    <p class="muted">برای دیتابیس‌های بزرگ فقط رکوردهای موردنیاز را دریافت کنید.</p>
-                </div>
+        <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" OnSearch="SearchFiltersAsync" OnClear="ResetFilters">
+            <div class="admin-filter"><label class="form-label">کارمند</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
+                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان"
+                                            SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
             </div>
-            <div class="admin-filters">
-                <div class="admin-filter"><label class="form-label">کارمند</label>
-                    <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
-                                                SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان"
-                                                SearchPlaceholder="نام یا نام کاربری را جستجو کنید..." />
-                </div>
-                <div class="admin-filter"><label class="form-label">سمت</label>
-                    <ServerSearchableGuidSelect Value="@_positionId" ValueChanged="PositionChanged"
-                                                SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها"
-                                                SearchPlaceholder="نام سمت را جستجو کنید..." />
-                </div>
-                <div class="admin-filter"><label class="form-label">وضعیت</label><LookupSelect Options="_statusOptions" Value="@(_status == "all" ? null : _status)" ValueChanged="OnStatusPicked" Placeholder="همه سوابق" /></div>
+            <div class="admin-filter"><label class="form-label">سمت</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="@_positionId" ValueChanged="PositionChanged"
+                                            SearchAsync="SearchPositionsAsync" SelectedText="@_positionName" Placeholder="همه سمت‌ها"
+                                            SearchPlaceholder="نام سمت را جستجو کنید..." />
             </div>
-            <div class="card-toolbar">
-                <div class="admin-active-filters">
-                    @if(!string.IsNullOrWhiteSpace(_employeeName)){<span class="badge badge-muted">کارمند: @_employeeName</span>}
-                    @if(!string.IsNullOrWhiteSpace(_positionName)){<span class="badge badge-muted">سمت: @_positionName</span>}
-                    @if(_status != "all"){<span class="badge badge-muted">وضعیت: @(_status == "active" ? "فقط فعال" : "فقط پایان‌یافته")</span>}
-                </div>
-                <div class="form-actions">
-                    <button class="btn btn-primary" disabled="@_loading" @onclick="LoadAsync"><i class="bx bx-search"></i><span>جستجو</span></button>
-                    <button class="btn btn-secondary" @onclick="ResetFilters"><i class="bx bx-eraser"></i><span>پاک کردن فیلترها</span></button>
-                </div>
-            </div>
-            </section>
+            <div class="admin-filter"><label class="form-label">وضعیت</label><LookupSelect Options="_statusOptions" Value="@(_status == "all" ? null : _status)" ValueChanged="OnStatusPicked" Placeholder="همه سوابق" /></div>
+        </ListFilterBar>
+
             <section class="card" style="margin-top:14px">
                 <div class="card-toolbar">
                     <div>
@@ -135,6 +117,15 @@
     private Guid? _employeeId, _positionId;
     private string _employeeName = "", _positionName = "", _status = "all";
     private void OnStatusPicked(string? key) => _status = key ?? "all";
+    // The boxes edit the draft fields; "جستجو" copies them here, and paging/sorting reload from this copy.
+    private sealed record HistoryFilter(Guid? EmployeeId, Guid? PositionId, string Status)
+    {
+        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (Status != "all" ? 1 : 0);
+    }
+    private HistoryFilter _applied = new(null, null, "all");
+    private int _resetKey;
+    private int DraftCount => new HistoryFilter(_employeeId, _positionId, _status).Count;
+    private async Task SearchFiltersAsync() { _applied = new HistoryFilter(_employeeId, _positionId, _status); _page = 1; await LoadAsync(); }
     private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فقط تخصیص‌های فعال"), ("ended", "فقط سوابق پایان‌یافته")];
     private int _page = 1, _pageSize = 20, _total;
     private bool _loading;
@@ -145,12 +136,12 @@
         _loading = true; try
         {
             await using var db = await DbFactory.CreateDbContextAsync(); var
-query = db.PositionAssignmentHistories.AsNoTracking().AsQueryable(); if (_employeeId is Guid
-employeeId) query = query.Where(x => x.EmployeeId == employeeId); if (_positionId is Guid
-positionId) query = query.Where(x => x.PositionId == positionId); if (_status == "active") query = query.Where(x =>
+query = db.PositionAssignmentHistories.AsNoTracking().AsQueryable(); if (_applied.EmployeeId is Guid
+employeeId) query = query.Where(x => x.EmployeeId == employeeId); if (_applied.PositionId is Guid
+positionId) query = query.Where(x => x.PositionId == positionId); if (_applied.Status == "active") query = query.Where(x =>
 x.EndedAt == null);
             else
-                if (_status == "ended") query = query.Where(x => x.EndedAt != null); _total = await query.CountAsync(); var
+                if (_applied.Status == "ended") query = query.Where(x => x.EndedAt != null); _total = await query.CountAsync(); var
                 totalPages = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize)); if (_page > totalPages) _page = totalPages;
             _rows = await
                             OrderHistory(query).Skip((_page - 1) * _pageSize).Take(_pageSize).Select(x => new
@@ -181,7 +172,7 @@ ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
     private async Task
 ResetFilters()
     {
-        _employeeId = null; _positionId = null; _employeeName = ""; _positionName = ""; _status = "all"; _page = 1; await
+        _employeeId = null; _positionId = null; _employeeName = ""; _positionName = ""; _status = "all"; _applied = new(null, null, "all"); _resetKey++; _page = 1; await
 LoadAsync();
     }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }

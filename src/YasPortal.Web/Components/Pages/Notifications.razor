@@ -21,22 +21,22 @@
             <p class="page-subtitle">رویدادهای مربوط به درخواست‌های شما و مراحلی که به شما رسیده است.</p>
         </div>
         <div class="form-actions">
-            <button class="btn btn-secondary" @onclick="() => SetFilterAsync(!_unreadOnly)">
-                <i class="bx bx-filter-alt"></i> @(_unreadOnly ? "نمایش همه" : "فقط خوانده‌نشده")
-            </button>
             <button class="btn btn-secondary" disabled="@(_unread == 0)" @onclick="MarkAllReadAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
         </div>
     </div>
 
-    <section class="card">
-        <div class="admin-filters">
-            <div class="admin-filter">
-                <label class="form-label">نوع اعلان</label>
-                <LookupSelect Options="KindOptions" Value="@(_kind?.ToString())" ValueChanged="OnKindChangedAsync" Placeholder="همه انواع" />
-            </div>
-            <SortSelect Options="_sortOptions" Value="@(_sort)" Default="@("created:desc")" ValueChanged="OnSortChangedAsync" />
+    <ListFilterBar Busy="_loading" ActiveCount="@((_unreadOnly ? 1 : 0) + (_kind is null ? 0 : 1))"
+                   CanClear="@(_unreadOnly || _kind is not null || _dUnread || _dKind is not null)" OnSearch="SearchAsync" OnClear="ClearAsync"
+                   SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync">
+        <div class="admin-filter">
+            <label class="form-label">نوع اعلان</label>
+            <LookupSelect @key="_resetKey" Options="KindOptions" Value="@(_dKind?.ToString())" ValueChanged="k => _dKind = Enum.TryParse<NotificationKind>(k, out var kind) ? kind : null" Placeholder="همه انواع" />
         </div>
-    </section>
+        <div class="admin-filter">
+            <label class="form-label">وضعیت خواندن</label>
+            <LookupSelect @key="_resetKey" Options="_readOptions" Value="@(_dUnread ? "unread" : null)" ValueChanged="k => _dUnread = k is not null" Placeholder="همه" />
+        </div>
+    </ListFilterBar>
 
     @if (_loading)
     {
@@ -117,45 +117,6 @@
         }
         finally { _loading = false; }
     }
-
-    private async Task SetFilterAsync(bool unreadOnly)
-    {
-        _unreadOnly = unreadOnly;
-        _page = 1;
-        await LoadAsync();
-    }
-
-    private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
-        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), KindLabel(k))).ToList();
-
-    private async Task OnKindChangedAsync(string? key)
-    {
-        _kind = Enum.TryParse<NotificationKind>(key, out var kind) ? kind : null;
-        _page = 1;
-        await LoadAsync();
-    }
-
-    private async Task OnSortChangedAsync(string value)
-    {
-        _sort = value;
-        _page = 1;
-        await LoadAsync();
-    }
-
-    private static string KindLabel(NotificationKind kind) => kind switch
-    {
-        NotificationKind.StepReached => "رسیدن درخواست به مرحله شما",
-        NotificationKind.ReturnedToStep => "بازگشت درخواست به مرحله شما",
-        NotificationKind.RequestApproved => "تایید نهایی درخواست",
-        NotificationKind.RequestRejected => "رد درخواست",
-        NotificationKind.RequestReturned => "بازگشت درخواست به شما",
-        NotificationKind.RequestForceClosed => "بسته‌شدن توسط مدیر",
-        NotificationKind.RequestReopened => "بازگشایی درخواست",
-        NotificationKind.DelegationReceived => "تفویض دریافتی",
-        NotificationKind.RequestCreatedForYou => "ثبت درخواست توسط مدیر",
-        NotificationKind.VacantPosition => "سمت خالی",
-        _ => kind.ToString(),
-    };
 
     private async Task GoToPageAsync(int page)
     {

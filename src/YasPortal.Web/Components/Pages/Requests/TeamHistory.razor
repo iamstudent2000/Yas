@@ -149,24 +149,25 @@
         }
         else
         {
-            <section class="card">
-                <div class="admin-filters">
-                    <div class="admin-filter">
-                        <label class="form-label">نوع درخواست</label>
-                        <LookupSelect Options="_typeOptions" Value="@(_apType?.ToString())" ValueChanged="ApprovalTypeChanged" Placeholder="همه انواع" />
-                    </div>
-                    <div class="admin-filter">
-                        <label class="form-label">نتیجه</label>
-                        <LookupSelect Options="_outcomeOptions" Value="@(_apOutcome?.ToString())" ValueChanged="ApprovalOutcomeChanged" Placeholder="همه نتایج" />
-                    </div>
-                    <div class="admin-filter">
-                        <label class="form-label">سمت تصمیم‌گیرنده</label>
-                        <LookupSelect Options="_positionOptions" Value="@(_apPosition?.ToString())" ValueChanged="ApprovalPositionChanged" Placeholder="همه سمت‌های زیرمجموعه" />
-                    </div>
-                    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_apFrom" ValueChanged="ApprovalFromChanged" Placeholder="تاریخ شروع" /></div>
-                    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_apTo" ValueChanged="ApprovalToChanged" Placeholder="تاریخ پایان" /></div>
+            <ListFilterBar Busy="_apLoading" ActiveCount="ApprovalActiveCount"
+                           CanClear="@(ApprovalActiveCount > 0 || _dApType is not null || _dApOutcome is not null || _dApPosition is not null || _dApFrom is not null || _dApTo is not null)"
+                           OnSearch="SearchApprovalsAsync" OnClear="ClearApprovalsAsync"
+                           SortOptions="_apSortOptions" Sort="@(_apSort)" DefaultSort="acted:desc" SortChanged="OnApprovalSortChangedAsync">
+                <div class="admin-filter">
+                    <label class="form-label">نوع درخواست</label>
+                    <LookupSelect @key="_apResetKey" Options="_typeOptions" Value="@(_dApType?.ToString())" ValueChanged="k => _dApType = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
                 </div>
-            </section>
+                <div class="admin-filter">
+                    <label class="form-label">نتیجه</label>
+                    <LookupSelect @key="_apResetKey" Options="_outcomeOptions" Value="@(_dApOutcome?.ToString())" ValueChanged="k => _dApOutcome = Enum.TryParse<WorkflowStepStatus>(k, out var o) ? o : null" Placeholder="همه نتایج" />
+                </div>
+                <div class="admin-filter">
+                    <label class="form-label">سمت تصمیم‌گیرنده</label>
+                    <LookupSelect @key="_apResetKey" Options="_positionOptions" Value="@(_dApPosition?.ToString())" ValueChanged="k => _dApPosition = Guid.TryParse(k, out var p) ? p : null" Placeholder="همه سمت‌های زیرمجموعه" />
+                </div>
+                <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_apResetKey" Value="_dApFrom" ValueChanged="d => _dApFrom = d" Placeholder="تاریخ شروع" /></div>
+                <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_apResetKey" Value="_dApTo" ValueChanged="d => _dApTo = d" Placeholder="تاریخ پایان" /></div>
+            </ListFilterBar>
 
             @if (_apLoading)
             {
@@ -358,11 +359,36 @@
         (nameof(WorkflowStepStatus.ReturnedToSpecificStep), "بازگشت به مرحله دلخواه"),
     ];
 
-    private async Task ApprovalTypeChanged(string? key) { _apType = Enum.TryParse<WorkflowTypeCode>(key, out var type) ? type : null; await ApprovalFilterChangedAsync(); }
-    private async Task ApprovalOutcomeChanged(string? key) { _apOutcome = Enum.TryParse<WorkflowStepStatus>(key, out var outcome) ? outcome : null; await ApprovalFilterChangedAsync(); }
-    private async Task ApprovalPositionChanged(string? key) { _apPosition = Guid.TryParse(key, out var id) ? id : null; await ApprovalFilterChangedAsync(); }
-    private async Task ApprovalFromChanged(DateTime? value) { _apFrom = value; await ApprovalFilterChangedAsync(); }
-    private async Task ApprovalToChanged(DateTime? value) { _apTo = value; await ApprovalFilterChangedAsync(); }
+    // The boxes edit the draft (_dAp…); "جستجو" copies it to the applied filters (_ap…) that LoadApprovalsAsync reads.
+    private WorkflowTypeCode? _dApType;
+    private WorkflowStepStatus? _dApOutcome;
+    private Guid? _dApPosition;
+    private DateTime? _dApFrom, _dApTo;
+    private int _apResetKey;
+    private string _apSort = "acted:desc";
+    private static readonly IReadOnlyList<(string Key, string Text)> _apSortOptions =
+    [
+        SortSelect.Option("acted:desc", "جدیدترین تصمیم"),
+        SortSelect.Option("acted:asc", "قدیمی‌ترین تصمیم"),
+        SortSelect.Option("type:asc", "نوع درخواست"),
+        SortSelect.Option("outcome:asc", "نتیجه"),
+    ];
+    private int ApprovalActiveCount => (_apType is null ? 0 : 1) + (_apOutcome is null ? 0 : 1) + (_apPosition is null ? 0 : 1) + (_apFrom is null ? 0 : 1) + (_apTo is null ? 0 : 1);
+
+    private async Task SearchApprovalsAsync()
+    {
+        _apType = _dApType; _apOutcome = _dApOutcome; _apPosition = _dApPosition; _apFrom = _dApFrom; _apTo = _dApTo;
+        await ApprovalFilterChangedAsync();
+    }
+
+    private async Task ClearApprovalsAsync()
+    {
+        _apType = _dApType = null; _apOutcome = _dApOutcome = null; _apPosition = _dApPosition = null; _apFrom = _dApFrom = null; _apTo = _dApTo = null;
+        _apResetKey++;
+        await ApprovalFilterChangedAsync();
+    }
+
+    private async Task OnApprovalSortChangedAsync(string value) { _apSort = value; await ApprovalFilterChangedAsync(); }
     private async Task ApprovalFilterChangedAsync() { _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
     private async Task GoToApprovalPageAsync(int page) { _apPage = page; _expandedDecisionId = null; await LoadApprovalsAsync(); }
     private async Task OnApprovalPageSizeChangedAsync(int size) { _apPageSize = Math.Clamp(size, 1, 100); _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
@@ -408,7 +434,14 @@
             if (_apPage > 1 && (_apPage - 1) * _apPageSize >= _apTotal)
                 _apPage = Math.Max(1, (int)Math.Ceiling(_apTotal / (double)_apPageSize));
 
-            var matches = await matchQuery.OrderByDescending(x => x.ActedAtUtc)
+            var (apKey, apDesc) = SortSelect.Split(_apSort);
+            var apOrdered = apKey switch
+            {
+                "type" => WorkflowRequestSort.OrderByType(matchQuery, nameof(WorkflowRequest.WorkflowType), apDesc),
+                "outcome" => apDesc ? matchQuery.OrderByDescending(x => x.Outcome) : matchQuery.OrderBy(x => x.Outcome),
+                _ => apDesc ? matchQuery.OrderByDescending(x => x.ActedAtUtc) : matchQuery.OrderBy(x => x.ActedAtUtc),
+            };
+            var matches = await apOrdered.ThenBy(x => x.DecisionId)
                 .Skip((_apPage - 1) * _apPageSize)
                 .Take(_apPageSize)
                 .ToListAsync();
