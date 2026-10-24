@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" Busy="_loading" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" Busy="_loading" ExportPermission="@(ReportPermissions.RejectedRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
     {
@@ -183,7 +183,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestStepsAsync("rejected-requests-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestStepsAsync(ReportPermissions.RejectedRequests, "rejected-requests-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }
@@ -197,7 +197,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestsAsync("rejected-requests", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestsAsync(ReportPermissions.RejectedRequests, "rejected-requests", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }

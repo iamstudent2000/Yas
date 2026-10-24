@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" ExportPermission="@(ReportPermissions.AllRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     <div class="admin-stack">
         <section class="card table-card">
@@ -157,7 +157,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestStepsAsync("request-report-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestStepsAsync(ReportPermissions.AllRequests, "request-report-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }
@@ -171,7 +171,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestsAsync("request-report", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestsAsync(ReportPermissions.AllRequests, "request-report", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }

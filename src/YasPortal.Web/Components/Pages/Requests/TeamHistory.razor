@@ -59,7 +59,7 @@
 
         @if (_tab == Tab.Requests)
         {
-            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" OnExport="ExportRequestsAsync" OnExportSteps="ExportRequestStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+            <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" ExportPermission="@(ReportPermissions.TeamRequests)" OnExport="ExportRequestsAsync" OnExportSteps="ExportRequestStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
             <section class="card table-card">
                 <div class="card-toolbar">
@@ -319,7 +319,7 @@
         try
         {
             var subordinateIds = _subordinates.Select(x => x.Id).ToList();
-            await Reports.ExportRequestStepsAsync("team-requests-steps", db => WorkflowRequestSort.Apply(
+            await Reports.ExportRequestStepsAsync(ReportPermissions.TeamRequests, "team-requests-steps", db => WorkflowRequestSort.Apply(
                 _filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
@@ -335,7 +335,7 @@
         try
         {
             var subordinateIds = _subordinates.Select(x => x.Id).ToList();
-            await Reports.ExportRequestsAsync("team-requests", db => WorkflowRequestSort.Apply(
+            await Reports.ExportRequestsAsync(ReportPermissions.TeamRequests, "team-requests", db => WorkflowRequestSort.Apply(
                 _filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }

@@ -76,7 +76,7 @@
     </section>
 
 
-                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" OnExport="ExportAsync" Exporting="_exporting">
+                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
                     <div class="admin-filter"><label class="form-label">جستجو</label>
                         <input class="form-control" placeholder="نام یا نام کاربری..." @bind="_draft.Search" @bind:event="oninput" /></div>
                     <div class="admin-filter"><label class="form-label">وضعیت</label>
@@ -242,7 +242,7 @@ db.Employees.CountAsync(x => x.IsAdmin);
         _exporting = true;
         try
         {
-            await Reports.ExportPagedAsync("users",
+            await Reports.ExportPagedAsync(ReportPermissions.Users, "users",
                 ["کد", "نام کاربری", "نام و نام خانوادگی", "سازمان", "وضعیت", "نوع", "سمت‌های فعال"],
                 (page, size) => AdminQueries.GetEmployeesAsync(page, size, _applied.Search, _sortBy, _sortDesc, default, _applied.Status == "" ? null : _applied.Status == "active", _applied.OrganizationId, _applied.PositionId),
                 x => [x.Code, x.Username, x.FullName, x.OrganizationName ?? "", x.IsActive ? "فعال" : "غیرفعال", x.IsAdmin ? "مدیر سامانه" : "کاربر", string.Join(" / ", (x.ActivePositions ?? []).Select(pos => pos.Name))]);

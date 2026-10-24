@@ -37,7 +37,7 @@
             }
             @if (OnExport.HasDelegate || OnExportSteps.HasDelegate)
             {
-                <AuthorizeView Policy="Reports.Export">
+                <AuthorizeView Policy="@ExportPermission">
                 <div class="list-more">
                     <button type="button" class="btn btn-secondary list-more-btn" disabled="@(Busy || Exporting)" aria-haspopup="menu" aria-expanded="@(_menu ? "true" : "false")" title="گزارش و خروجی"
                             @onclick="() => _menu = !_menu" @onkeydown:stopPropagation="true">
@@ -88,6 +88,9 @@
 
     /// <summary>Optional: shows "خروجی CSV", which exports everything the last search matched (not just this page).</summary>
     [Parameter] public EventCallback OnExport { get; set; }
+
+    /// <summary>The report permission that shows the ⋯ menu (see ReportPermissions); every list that exports names its own.</summary>
+    [Parameter] public string ExportPermission { get; set; } = "";
     [Parameter] public bool Exporting { get; set; }
 
     /// <summary>Optional: shows "گزارش مراحل (CSV)", the detailed one-row-per-step report of the last search.</summary>

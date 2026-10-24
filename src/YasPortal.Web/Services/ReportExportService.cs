@@ -22,8 +22,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     /// Exports the requests returned by <paramref name="build"/> (which must already be filtered and ordered),
     /// one row per request, and hands the file to the browser.
     /// </summary>
-    public Task ExportRequestsAsync(string fileBaseName, Func<ApplicationDbContext, IQueryable<WorkflowRequest>> build, CancellationToken ct = default) =>
-        ExportBatchedAsync(fileBaseName, build,
+    public Task ExportRequestsAsync(string permission, string fileBaseName, Func<ApplicationDbContext, IQueryable<WorkflowRequest>> build, CancellationToken ct = default) =>
+        ExportBatchedAsync(permission, fileBaseName, build,
             ["شناسه", "نوع", "درخواست‌کننده", "سمت درخواست‌کننده", "ثبت‌شده توسط مدیر", "وضعیت", "مرحله جاری", "نزد", "تاریخ ثبت"],
             async (db, chunk, ct2) =>
             {
@@ -44,8 +44,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     /// permanent decision log) plus one row for each step still waiting, with who decided, on whose behalf,
     /// when, the comment, and how long the step waited.
     /// </summary>
-    public Task ExportRequestStepsAsync(string fileBaseName, Func<ApplicationDbContext, IQueryable<WorkflowRequest>> build, CancellationToken ct = default) =>
-        ExportBatchedAsync(fileBaseName, build,
+    public Task ExportRequestStepsAsync(string permission, string fileBaseName, Func<ApplicationDbContext, IQueryable<WorkflowRequest>> build, CancellationToken ct = default) =>
+        ExportBatchedAsync(permission, fileBaseName, build,
             ["شناسه درخواست", "نوع", "درخواست‌کننده", "وضعیت درخواست", "دور", "ترتیب مرحله", "نام مرحله", "سمت تاییدکننده", "نتیجه مرحله", "تصمیم‌گیرنده / دارنده سمت", "به نیابت از", "زمان تصمیم", "مدت انتظار", "توضیح"],
             async (db, chunk, ct2) =>
             {
@@ -72,13 +72,14 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
 
     /// <summary>Reads the query in batches, turns each batch into rows, and downloads the CSV.</summary>
     private async Task ExportBatchedAsync(
+        string permission,
         string fileBaseName,
         Func<ApplicationDbContext, IQueryable<WorkflowRequest>> build,
         IReadOnlyList<string> headers,
         Func<ApplicationDbContext, List<WorkflowRequest>, CancellationToken, Task<List<IReadOnlyList<string>>>> rowsFor,
         CancellationToken ct)
     {
-        if (!await AllowedAsync())
+        if (!await AllowedAsync(permission))
             return;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = build(db);
@@ -115,13 +116,14 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     /// (looking up names as needed). The query must have a stable order (end it with the Id) so batches never overlap.
     /// </summary>
     public async Task ExportTableAsync<T>(
+        string permission,
         string fileBaseName,
         IReadOnlyList<string> headers,
         Func<ApplicationDbContext, IQueryable<T>> build,
         Func<ApplicationDbContext, List<T>, CancellationToken, Task<IReadOnlyList<IReadOnlyList<string>>>> rowsFor,
         CancellationToken ct = default)
     {
-        if (!await AllowedAsync())
+        if (!await AllowedAsync(permission))
             return;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = build(db);
@@ -147,12 +149,13 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
 
     /// <summary>For lists that are only reachable through a paged service call: reads page after page and maps each item to a row.</summary>
     public async Task ExportPagedAsync<T>(
+        string permission,
         string fileBaseName,
         IReadOnlyList<string> headers,
         Func<int, int, Task<AdminQueryService.PageResult<T>>> loadPage,
         Func<T, IReadOnlyList<string>> toRow)
     {
-        if (!await AllowedAsync())
+        if (!await AllowedAsync(permission))
             return;
         const int pageSize = 100;
         var rows = new List<IReadOnlyList<string>>();
@@ -180,9 +183,9 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     }
 
     /// <summary>Exports rows the page already holds in memory (the positions tree, say).</summary>
-    public async Task ExportRowsAsync(string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
+    public async Task ExportRowsAsync(string permission, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {
-        if (!await AllowedAsync())
+        if (!await AllowedAsync(permission))
             return;
         if (rows.Count == 0)
         {
@@ -304,9 +307,9 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     private static string Name(Dictionary<Guid, string> names, Guid id) => names.GetValueOrDefault(id, "—");
 
     /// <summary>The menu is hidden without the permission, but the check is repeated here so a stale page cannot export.</summary>
-    private async Task<bool> AllowedAsync()
+    private async Task<bool> AllowedAsync(string permission)
     {
-        if (await permissions.HasPermissionAsync("Reports.Export"))
+        if (await permissions.HasPermissionAsync(permission))
             return true;
         appState.AddToast("اجازه دریافت خروجی را ندارید.", ToastLevel.Error);
         return false;

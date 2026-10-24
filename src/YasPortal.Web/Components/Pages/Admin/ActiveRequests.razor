@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" ExportPermission="@(ReportPermissions.ActiveRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
     {
@@ -176,7 +176,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestStepsAsync("active-requests-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Active(), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestStepsAsync(ReportPermissions.ActiveRequests, "active-requests-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Active(), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }
@@ -190,7 +190,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportRequestsAsync("active-requests", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Active(), db), _sortBy, _sortDesc, db));
+            await Reports.ExportRequestsAsync(ReportPermissions.ActiveRequests, "active-requests", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Active(), db), _sortBy, _sortDesc, db));
         }
         finally { _exporting = false; }
     }

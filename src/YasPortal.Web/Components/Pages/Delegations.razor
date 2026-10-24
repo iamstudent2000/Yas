@@ -85,7 +85,7 @@
 
         <div class="dlg-columns">
             <div class="dlg-col">
-            <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" OnExport="ExportMineAsync" Exporting="_exporting" />
+            <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportMineAsync" Exporting="_exporting" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
                 @if (_mine.Count == 0)
@@ -117,7 +117,7 @@
             </div>
 
             <div class="dlg-col">
-            <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" OnExport="ExportReceivedAsync" Exporting="_exporting" />
+            <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportReceivedAsync" Exporting="_exporting" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
                 @if (_received.Count == 0)
@@ -280,7 +280,7 @@
         _exporting = true;
         try
         {
-            await Reports.ExportTableAsync(fileName,
+            await Reports.ExportTableAsync(ReportPermissions.Delegations, fileName,
                 ["سمت تفویض‌کننده", "سمت دریافت‌کننده", "تفویض‌کننده", "شروع", "پایان", "وضعیت", "تعیین‌شده توسط مدیر", "تاریخ ثبت"],
                 build,
                 async (db, chunk, _) => (await MapAsync(db, chunk)).Select(x => (IReadOnlyList<string>)

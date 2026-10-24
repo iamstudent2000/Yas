@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using YasPortal.Application.Authorization;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
@@ -105,9 +106,11 @@ public static class DevelopmentDataSeeder
             ["Admin.RequestForOthers"] = new Permission("Admin.RequestForOthers", "ثبت درخواست برای دیگران"),
             ["Admin.Requests"] = new Permission("Admin.Requests", "گزارش و جستجوی درخواست‌ها"),
             ["Requests.ViewSubordinateRequests"] = new Permission("Requests.ViewSubordinateRequests", "مشاهده درخواست‌های زیرمجموعه"),
-            ["Requests.ViewSubordinateApprovals"] = new Permission("Requests.ViewSubordinateApprovals", "مشاهده تصمیمات تایید زیرمجموعه"),
-            ["Reports.Export"] = new Permission("Reports.Export", "دریافت خروجی و گزارش (CSV) از لیست‌ها")
+            ["Requests.ViewSubordinateApprovals"] = new Permission("Requests.ViewSubordinateApprovals", "مشاهده تصمیمات تایید زیرمجموعه")
         };
+
+        foreach (var (code, name) in ReportPermissions.All)
+            permissions[code] = new Permission(code, name);
 
         // Renamed permissions: rename the existing rows so every grant of them is kept, instead of dropping and re-creating them.
         (string OldCode, string NewCode, string NewName)[] renamed =
@@ -187,9 +190,9 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
-        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View" }, ct);
+        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", ReportPermissions.MyRequests }, ct);
         await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Requests.Delegation" }, ct);
-        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", "Reports.Export" }, ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", ReportPermissions.TeamRequests, ReportPermissions.MyRequests }, ct);
         await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }, ct);
         await db.SaveChangesAsync(ct);
 

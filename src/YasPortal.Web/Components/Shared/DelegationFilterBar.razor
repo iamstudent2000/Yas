@@ -1,5 +1,5 @@
 <ListFilterBar Busy="Busy" ActiveCount="State.AppliedCount" CanClear="@(State.AppliedCount > 0 || State.DraftCount > 0)" OnSearch="SearchAsync" OnClear="ClearAsync"
-               OnExport="OnExport" Exporting="Exporting" SortOptions="SortOptions" Sort="@(State.Sort)" DefaultSort="created:desc" SortChanged="OnSortAsync">
+               ExportPermission="@(ExportPermission)" OnExport="OnExport" Exporting="Exporting" SortOptions="SortOptions" Sort="@(State.Sort)" DefaultSort="created:desc" SortChanged="OnSortAsync">
     <div class="admin-filter">
         <label class="form-label">جستجوی سمت</label>
         <input @key="_resetKey" class="form-control" placeholder="نام سمت..." @bind="State.Search" @bind:event="oninput" />
@@ -39,6 +39,7 @@
     /// <summary>Optional: puts "خروجی CSV" in the ⋯ menu; it exports everything the last search matched.</summary>
     [Parameter] public EventCallback OnExport { get; set; }
     [Parameter] public bool Exporting { get; set; }
+    [Parameter] public string ExportPermission { get; set; } = "";
     /// <summary>Raised after a search, clear or sort change; the page goes back to page 1 and reloads.</summary>
     [Parameter] public EventCallback Changed { get; set; }
 

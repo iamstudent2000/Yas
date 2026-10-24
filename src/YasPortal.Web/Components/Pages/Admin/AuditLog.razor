@@ -28,7 +28,7 @@
     </div>
 
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || DraftCount > 0)"
-                   OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad" OnExport="ExportAsync" Exporting="_exporting">
+                   OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad" ExportPermission="@(ReportPermissions.AuditLog)" OnExport="ExportAsync" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">کاربر</label>
             <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
                                         SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeSearch" Placeholder="همه کاربران"
@@ -233,7 +233,7 @@
         _exporting=true;
         try
         {
-            await Reports.ExportTableAsync("audit-log",
+            await Reports.ExportTableAsync(ReportPermissions.AuditLog, "audit-log",
                 ["زمان","کاربر","سمت فعال","عملیات","موجودیت","شناسه موجودیت","تغییرات","قبل از تغییر","بعد از تغییر"],
                 db=>ApplySort(db,ApplyFilter(db)).ThenBy(x=>x.Id),
                 async(db,chunk,ct)=>

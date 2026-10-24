@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting"
+    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync" ExportPermission="@(ReportPermissions.MyRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting"
                       SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync" />
 
     @if (_loading)
@@ -162,7 +162,7 @@
     {
         if (_exporting || _employeeId is not Guid me) return;
         _exporting = true;
-        try { await Reports.ExportRequestsAsync("my-requests", db => OwnRequests(db, me)); }
+        try { await Reports.ExportRequestsAsync(ReportPermissions.MyRequests, "my-requests", db => OwnRequests(db, me)); }
         finally { _exporting = false; }
     }
 
@@ -170,7 +170,7 @@
     {
         if (_exporting || _employeeId is not Guid me) return;
         _exporting = true;
-        try { await Reports.ExportRequestStepsAsync("my-requests-steps", db => OwnRequests(db, me)); }
+        try { await Reports.ExportRequestStepsAsync(ReportPermissions.MyRequests, "my-requests-steps", db => OwnRequests(db, me)); }
         finally { _exporting = false; }
     }
 

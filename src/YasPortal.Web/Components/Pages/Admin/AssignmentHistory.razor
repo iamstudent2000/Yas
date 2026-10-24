@@ -23,7 +23,7 @@
         <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i
             class="bx bx-sitemap"></i> مدیریت سمت‌ها</a></div>
         </div>
-        <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters">
+        <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" ExportPermission="@(ReportPermissions.AssignmentHistory)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters">
             <div class="admin-filter"><label class="form-label">کارمند</label>
                 <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
                                             SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان"
@@ -189,7 +189,7 @@ x.EndedAt == null);
         _exporting = true;
         try
         {
-            await Reports.ExportTableAsync("assignment-history",
+            await Reports.ExportTableAsync(ReportPermissions.AssignmentHistory, "assignment-history",
                 ["کارمند", "نام کاربری", "سمت", "شروع تخصیص", "پایان تخصیص", "وضعیت"],
                 db => OrderHistory(BuildQuery(db)).ThenBy(x => x.Id)
                     .Select(x => new HistoryRow(x.Id, x.Employee.FullName, x.Employee.Username, x.Position.Name, x.StartedAt, x.EndedAt)),

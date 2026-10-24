@@ -96,7 +96,7 @@
 
     <ListFilterBar Busy="_loading" ActiveCount="@((_treeSearch.Trim().Length > 0 ? 1 : 0) + (_occupancyFilter != "" ? 1 : 0) + (_activeFilter != "" ? 1 : 0) + (_organizationFilterId is null ? 0 : 1))"
                    CanClear="@(HasTreeFilter || _draftTreeSearch != "" || _draftOccupancy != "" || _draftActive != "" || _draftOrganizationId is not null)"
-                   OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters" OnExport="ExportAsync">
+                   OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters" ExportPermission="@(ReportPermissions.Positions)" OnExport="ExportAsync">
         <div class="admin-filter"><label class="form-label">جستجو</label>
             <input class="form-control" placeholder="نام یا کد سمت..." @bind="_draftTreeSearch" @bind:event="oninput" /></div>
         <div class="admin-filter"><label class="form-label">اشغال سمت</label>
@@ -247,7 +247,7 @@
 
         foreach (var root in roots)
             Walk(root, "", 1);
-        await Reports.ExportRowsAsync("positions", ["کد", "نام سمت", "سمت والد", "مسیر", "سطح", "سازمان", "متصدی فعلی", "وضعیت"], rows);
+        await Reports.ExportRowsAsync(ReportPermissions.Positions, "positions", ["کد", "نام سمت", "سمت والد", "مسیر", "سطح", "سازمان", "متصدی فعلی", "وضعیت"], rows);
     }
 
     private bool PositionMatchesFilter(PositionRow x)

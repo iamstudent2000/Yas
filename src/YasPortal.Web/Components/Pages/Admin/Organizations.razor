@@ -59,7 +59,7 @@
 
             <ListFilterBar Busy="_organizationLoading" ActiveCount="OrganizationFilterCount"
                            CanClear="@(OrganizationFilterCount > 0 || _draftOrganizationSearch != "" || _dOrgStatus != "" || _dOrgEmployees != "" || _dOrgEmployeeId is not null)"
-                           OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync" OnExport="ExportOrganizationsAsync" Exporting="_orgExporting">
+                           OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync" ExportPermission="@(ReportPermissions.Organizations)" OnExport="ExportOrganizationsAsync" Exporting="_orgExporting">
                 <div class="admin-filter"><label class="form-label">نام یا کد سازمان</label>
                     <input class="form-control" placeholder="نام یا کد سازمان..." @bind="_draftOrganizationSearch" @bind:event="oninput" /></div>
                 <div class="admin-filter"><label class="form-label">وضعیت</label>
@@ -256,7 +256,7 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
         _orgExporting = true;
         try
         {
-            await Reports.ExportPagedAsync("organizations",
+            await Reports.ExportPagedAsync(ReportPermissions.Organizations, "organizations",
                 ["کد", "نام سازمان", "وضعیت", "تعداد کارکنان"],
                 (page, size) => AdminQueries.GetOrganizationsAsync(page, size, _organizationSearch, _orgSortBy, _orgSortDesc, _orgStatus == "" ? null : _orgStatus == "active", _orgEmployees == "" ? null : _orgEmployees, _orgEmployeeId),
                 x => [x.Code, x.Name, x.IsActive ? "فعال" : "غیرفعال", WorkflowDisplay.ToPersianDigits(x.EmployeeCount.ToString())]);

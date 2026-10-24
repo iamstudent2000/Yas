@@ -3,7 +3,7 @@
 @using YasPortal.Web.Services
 @inject AdminQueryService AdminQueries
 
-<ListFilterBar Busy="Busy" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
+<ListFilterBar Busy="Busy" ExportPermission="@(ExportPermission)" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
                SortOptions="SortOptions" Sort="@(Sort)" DefaultSort="@(DefaultSort)" SortChanged="SortChanged">
     <div class="admin-filter">
         <label class="form-label">شناسه درخواست</label>
@@ -121,6 +121,7 @@
     /// <summary>Optional export of the last search ("خروجی CSV"); see <see cref="ListFilterBar.OnExport"/>.</summary>
     [Parameter] public EventCallback OnExport { get; set; }
     [Parameter] public bool Exporting { get; set; }
+    [Parameter] public string ExportPermission { get; set; } = "";
 
     /// <summary>Optional detailed step report of the last search ("گزارش مراحل").</summary>
     [Parameter] public EventCallback OnExportSteps { get; set; }
