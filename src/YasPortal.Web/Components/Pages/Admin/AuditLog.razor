@@ -201,6 +201,30 @@
             };
     }
     private bool _exporting;
+    private static Dictionary<string,string>? ReadJson(string? json)
+    {
+        if(string.IsNullOrWhiteSpace(json))return null;
+        try
+        {
+            using var doc=JsonDocument.Parse(json);
+            if(doc.RootElement.ValueKind!=JsonValueKind.Object)return new(){["مقدار"]=ExportValue(doc.RootElement)};
+            var result=new Dictionary<string,string>();
+            foreach(var prop in doc.RootElement.EnumerateObject())result[GetPropertyText(prop.Name)]=ExportValue(prop.Value);
+            return result;
+        }
+        catch(JsonException){return new(){["مقدار"]=json};}
+    }
+    private static string ExportValue(JsonElement v)=>v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",JsonValueKind.String=>v.GetString()??"-",_=>v.ToString()};
+    /// <summary>All fields of one snapshot as "label: value · label: value".</summary>
+    private static string DescribeJson(string? json){var d=ReadJson(json);return d is null?"":string.Join(" · ",d.Select(p=>$"{p.Key}: {p.Value}"));}
+    /// <summary>Only the fields that differ, as "label: before ← after"; a created or deleted entity has nothing to compare.</summary>
+    private static string DescribeChanges(string? before,string? after)
+    {
+        var b=ReadJson(before);var a=ReadJson(after);
+        if(b is null||a is null)return "";
+        var keys=b.Keys.Union(a.Keys);
+        return string.Join(" · ",keys.Where(k=>b.GetValueOrDefault(k,"-")!=a.GetValueOrDefault(k,"-")).Select(k=>$"{k}: {b.GetValueOrDefault(k,"-")} ← {a.GetValueOrDefault(k,"-")}"));
+    }
     /// <summary>Exports every event the last search matched, in the table's current order.</summary>
     private async Task ExportAsync()
     {
@@ -210,7 +234,7 @@
         try
         {
             await Reports.ExportTableAsync("audit-log",
-                ["زمان","کاربر","سمت فعال","عملیات","موجودیت","شناسه موجودیت"],
+                ["زمان","کاربر","سمت فعال","عملیات","موجودیت","شناسه موجودیت","تغییرات","قبل از تغییر","بعد از تغییر"],
                 db=>ApplySort(db,ApplyFilter(db)).ThenBy(x=>x.Id),
                 async(db,chunk,ct)=>
                 {
@@ -224,7 +248,10 @@
                         x.ActivePositionId is Guid pi?positions.GetValueOrDefault(pi,"—"):"",
                         GetActionText(x.Action),
                         GetEntityText(x.EntityType),
-                        x.EntityId??""]).ToList();
+                        x.EntityId??"",
+                        DescribeChanges(x.BeforeJson,x.AfterJson),
+                        DescribeJson(x.BeforeJson),
+                        DescribeJson(x.AfterJson)]).ToList();
                 });
         }
         finally{_exporting=false;}

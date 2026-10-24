@@ -11,6 +11,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
+@inject ReportExportService Reports
 
 <PageTitle>سمت‌ها - یاس پورتال</PageTitle>
 
@@ -95,7 +96,7 @@
 
     <ListFilterBar Busy="_loading" ActiveCount="@((_treeSearch.Trim().Length > 0 ? 1 : 0) + (_occupancyFilter != "" ? 1 : 0) + (_activeFilter != "" ? 1 : 0) + (_organizationFilterId is null ? 0 : 1))"
                    CanClear="@(HasTreeFilter || _draftTreeSearch != "" || _draftOccupancy != "" || _draftActive != "" || _draftOrganizationId is not null)"
-                   OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters">
+                   OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters" OnExport="ExportAsync">
         <div class="admin-filter"><label class="form-label">جستجو</label>
             <input class="form-control" placeholder="نام یا کد سمت..." @bind="_draftTreeSearch" @bind:event="oninput" /></div>
         <div class="admin-filter"><label class="form-label">اشغال سمت</label>
@@ -219,6 +220,43 @@
                 current = byId[parentId];
         }
         _visiblePositionIds = visible;
+    }
+
+    /// <summary>
+    /// Exports the positions the last search matched (everything when nothing is filtered), in tree order,
+    /// with the full path so the hierarchy survives in a flat file.
+    /// </summary>
+    private async Task ExportAsync()
+    {
+        var byId = _positions.ToDictionary(x => x.Id);
+        var children = _positions.Where(x => x.ParentPositionId is Guid p && byId.ContainsKey(p)).GroupBy(x => x.ParentPositionId!.Value).ToDictionary(g => g.Key, g => g.OrderBy(x => x.Name).ToList());
+        var roots = _positions.Where(x => x.ParentPositionId is not Guid p || !byId.ContainsKey(p)).OrderBy(x => x.Name).ToList();
+        var matches = _positions.Where(PositionMatchesFilter).Select(x => x.Id).ToHashSet();
+        var rows = new List<IReadOnlyList<string>>();
+
+        void Walk(PositionRow node, string path, int level)
+        {
+            var here = path.Length == 0 ? node.Name : path + " / " + node.Name;
+            if (matches.Contains(node.Id))
+                rows.Add([node.Code, node.Name, node.ParentPositionId is Guid pid && byId.TryGetValue(pid, out var parent) ? parent.Name : "", here, WorkflowDisplay.ToPersianDigits(level.ToString()),
+                    node.OrganizationName ?? "", node.EmployeeName ?? "خالی", node.IsActive ? "فعال" : "غیرفعال"]);
+            if (children.TryGetValue(node.Id, out var kids))
+                foreach (var kid in kids)
+                    Walk(kid, here, level + 1);
+        }
+
+        foreach (var root in roots)
+            Walk(root, "", 1);
+        await Reports.ExportRowsAsync("positions", ["کد", "نام سمت", "سمت والد", "مسیر", "سطح", "سازمان", "متصدی فعلی", "وضعیت"], rows);
+    }
+
+    private bool PositionMatchesFilter(PositionRow x)
+    {
+        var q = _treeSearch.Trim();
+        return (q.Length == 0 || x.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
+            && (_occupancyFilter == "" || (_occupancyFilter == "vacant" ? !x.IsOccupied : x.IsOccupied))
+            && (_activeFilter == "" || (_activeFilter == "inactive" ? !x.IsActive : x.IsActive))
+            && (_organizationFilterId is null || x.OrganizationId == _organizationFilterId);
     }
 
     private static readonly IReadOnlyList<(string Key, string Text)> _occupancyOptions = [("occupied", "دارای متصدی"), ("vacant", "خالی")];

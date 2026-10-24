@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
+using YasPortal.Application.Authorization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
@@ -11,7 +12,7 @@ namespace YasPortal.Web.Services;
 /// visible page), read in batches so a large report never loads at once. The file opens in Excel
 /// (UTF-8 with a byte-order mark keeps the Persian text intact).
 /// </summary>
-public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState)
+public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState, IPermissionChecker permissions)
 {
     /// <summary>Upper limit of one export; a bigger result is cut off and the user is told.</summary>
     public const int MaxRows = 20000;
@@ -77,6 +78,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         Func<ApplicationDbContext, List<WorkflowRequest>, CancellationToken, Task<List<IReadOnlyList<string>>>> rowsFor,
         CancellationToken ct)
     {
+        if (!await AllowedAsync())
+            return;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = build(db);
         var total = await query.CountAsync(ct);
@@ -118,6 +121,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         Func<ApplicationDbContext, List<T>, CancellationToken, Task<IReadOnlyList<IReadOnlyList<string>>>> rowsFor,
         CancellationToken ct = default)
     {
+        if (!await AllowedAsync())
+            return;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = build(db);
         var total = await query.CountAsync(ct);
@@ -147,6 +152,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         Func<int, int, Task<AdminQueryService.PageResult<T>>> loadPage,
         Func<T, IReadOnlyList<string>> toRow)
     {
+        if (!await AllowedAsync())
+            return;
         const int pageSize = 100;
         var rows = new List<IReadOnlyList<string>>();
         var total = 0;
@@ -170,6 +177,19 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         await DownloadAsync(fileBaseName, headers, rows);
         if (total > rows.Count)
             appState.AddToast($"فقط {rows.Count:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
+    }
+
+    /// <summary>Exports rows the page already holds in memory (the positions tree, say).</summary>
+    public async Task ExportRowsAsync(string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
+    {
+        if (!await AllowedAsync())
+            return;
+        if (rows.Count == 0)
+        {
+            appState.AddToast("موردی برای خروجی وجود ندارد.", ToastLevel.Info);
+            return;
+        }
+        await DownloadAsync(fileBaseName, headers, rows);
     }
 
     /// <summary>A UTC time as a Persian date and local time in Persian digits, or an empty cell.</summary>
@@ -282,6 +302,15 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     }
 
     private static string Name(Dictionary<Guid, string> names, Guid id) => names.GetValueOrDefault(id, "—");
+
+    /// <summary>The menu is hidden without the permission, but the check is repeated here so a stale page cannot export.</summary>
+    private async Task<bool> AllowedAsync()
+    {
+        if (await permissions.HasPermissionAsync("Reports.Export"))
+            return true;
+        appState.AddToast("اجازه دریافت خروجی را ندارید.", ToastLevel.Error);
+        return false;
+    }
 
     private async Task DownloadAsync(string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {

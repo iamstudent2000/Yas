@@ -14,6 +14,7 @@
 @inject WorkflowService Workflows
 @inject NotificationService NotificationSvc
 @inject AppState AppState
+@inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
@@ -31,7 +32,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync"
+    <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting"
                       SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync" />
 
     @if (_loading)
@@ -147,6 +148,31 @@
         SortSelect.Option("type:asc", "نوع درخواست"),
         SortSelect.Option("status:asc", "وضعیت"),
     ];
+
+    private bool _exporting;
+
+    /// <summary>The signed-in employee's own requests that the last search matched, in the order shown.</summary>
+    private IQueryable<WorkflowRequest> OwnRequests(ApplicationDbContext db, Guid employeeId)
+    {
+        var (sortKey, sortDesc) = SortSelect.Split(_sort);
+        return WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == employeeId), db), sortKey, sortDesc, db);
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_exporting || _employeeId is not Guid me) return;
+        _exporting = true;
+        try { await Reports.ExportRequestsAsync("my-requests", db => OwnRequests(db, me)); }
+        finally { _exporting = false; }
+    }
+
+    private async Task ExportStepsAsync()
+    {
+        if (_exporting || _employeeId is not Guid me) return;
+        _exporting = true;
+        try { await Reports.ExportRequestStepsAsync("my-requests-steps", db => OwnRequests(db, me)); }
+        finally { _exporting = false; }
+    }
 
     private async Task OnSortChangedAsync(string value)
     {
