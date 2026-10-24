@@ -260,3 +260,7 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 section.card.list-filter,section.card.request-filter.list-filter{overflow:visible !important}
 .list-filter .admin-filters.request-filter-body,.list-filter .request-filter-clear{overflow:visible}
 .list-more-menu{inset-inline-end:auto}
+
+/* The new-request form card uses the whole page width; fields flow into as many columns as fit. */
+.request-form-card{max-width:none;width:100%}
+.request-form-card .form-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));max-width:none}
