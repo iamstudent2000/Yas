@@ -1,0 +1,28 @@
+/* Printing: lists print as they are on screen (without the app chrome), a single request prints from #yas-print-root. */
+@page { size: A4; margin: 12mm; }
+
+@media print {
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; }
+    .application-shell, .application-body, .shell-main, .content, .page, main {
+        display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important;
+        overflow: visible !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; position: static !important;
+    }
+    .sidebar, .topbar, .app-toast-container, .reconnect-modal, #blazor-error-ui,
+    .request-filter, .list-filter, .server-pagination, .no-print,
+    .admin-page-actions, .form-actions, .card-toolbar .btn, .icon-button { display: none !important; }
+    .card, .request-card { box-shadow: none !important; break-inside: auto; border-color: #bbb !important; background: #fff !important; }
+    table { width: 100% !important; border-collapse: collapse; }
+    thead { display: table-header-group; }
+    tr, .field-summary-item, .approval-step { break-inside: avoid; }
+    .badge { border: 1px solid #888 !important; background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    a { color: inherit !important; text-decoration: none !important; }
+    .print-only { display: block !important; }
+
+    /* One request: everything except the cloned card disappears. */
+    body.yas-printing > *:not(#yas-print-root) { display: none !important; }
+    #yas-print-root { display: block !important; }
+    #yas-print-root .no-print { display: none !important; }
+    #yas-print-root .rs-print-head { display: block !important; }
+}
+
+.print-only, .rs-print-head { display: none; }

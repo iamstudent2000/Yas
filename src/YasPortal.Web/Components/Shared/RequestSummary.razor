@@ -2,6 +2,25 @@
 @using YasPortal.Domain.Workflows
 @using System.Linq
 @using YasPortal.Web.Services
+@using Microsoft.JSInterop
+@inject IJSRuntime Js
+
+<div class="rs-root" @ref="_root">
+    <div class="rs-toolbar no-print">
+        <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="PrintAsync" title="چاپ برگه این درخواست، شامل همه دورها">
+            <i class="bx @(_printing ? "bx-loader-alt bx-spin" : "bx-printer")"></i> چاپ
+        </button>
+    </div>
+    <div class="rs-print-head">
+        <h2>@WorkflowFieldCatalog.GetDisplayName(Request.WorkflowType) — برگه درخواست</h2>
+        <p>
+            شناسه: <span dir="ltr">#@(Request.Id.ToString("N")[..8])</span> ·
+            درخواست‌کننده: @(EmployeeNames.TryGetValue(Request.RequesterEmployeeId, out var headRequester) ? headRequester : "—") ·
+            وضعیت: @WorkflowDisplay.StatusLabel(Request.Status) ·
+            تاریخ ثبت: @WorkflowDisplay.ToPersianDate(Request.CreatedAtUtc) ·
+            تاریخ چاپ: @WorkflowDisplay.ToPersianDateTime(DateTime.UtcNow)
+        </p>
+    </div>
 
 @{
     var currentSteps = Request.Steps.Where(x => x.Round == Request.CurrentRound).ToList();
@@ -149,7 +168,7 @@
     }
     else
     {
-        var expanded = _expandedRounds.Contains(roundKey);
+        var expanded = _printing || _expandedRounds.Contains(roundKey);
         <div class="round-history">
             <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(roundKey)">
                 <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
@@ -166,6 +185,8 @@
     }
 }
 
+</div>
+
 @code {
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
     [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
@@ -177,6 +198,24 @@
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
     private readonly HashSet<int> _expandedRounds = [];
+    private ElementReference _root;
+    private bool _printing;
+
+    /// <summary>Prints this request only. Earlier rounds are folded on screen, so they are opened for the printout and folded again after.</summary>
+    private async Task PrintAsync()
+    {
+        _printing = true;
+        StateHasChanged();
+        await Task.Delay(150);   // let the folded rounds render before the card is copied
+        try
+        {
+            await Js.InvokeVoidAsync("yasPrintElement", _root, $"درخواست {Request.Id.ToString("N")[..8]}");
+        }
+        finally
+        {
+            _printing = false;
+        }
+    }
 
     private void ToggleRound(int round)
     {
