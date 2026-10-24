@@ -30,6 +30,12 @@
                     <i class="bx @(Exporting ? "bx-loader-alt bx-spin" : "bx-export")"></i> خروجی CSV
                 </button>
             }
+            @if (OnExportSteps.HasDelegate)
+            {
+                <button type="button" class="btn btn-secondary" disabled="@(Busy || Exporting)" title="هر مرحله یک ردیف: تصمیم‌گیرنده، زمان، توضیح و مدت انتظار" @onclick="OnExportSteps" @onkeydown:stopPropagation="true">
+                    <i class="bx bx-spreadsheet"></i> گزارش مراحل (CSV)
+                </button>
+            }
             @if (Busy && OnCancel.HasDelegate)
             {
                 <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="bx bx-x-circle"></i> لغو</button>
@@ -65,6 +71,9 @@
     /// <summary>Optional: shows "خروجی CSV", which exports everything the last search matched (not just this page).</summary>
     [Parameter] public EventCallback OnExport { get; set; }
     [Parameter] public bool Exporting { get; set; }
+
+    /// <summary>Optional: shows "گزارش مراحل (CSV)", the detailed one-row-per-step report of the last search.</summary>
+    [Parameter] public EventCallback OnExportSteps { get; set; }
 
     /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];

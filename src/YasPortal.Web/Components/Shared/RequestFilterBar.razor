@@ -3,7 +3,7 @@
 @using YasPortal.Web.Services
 @inject AdminQueryService AdminQueries
 
-<ListFilterBar Busy="Busy" OnExport="OnExport" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
+<ListFilterBar Busy="Busy" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
                SortOptions="SortOptions" Sort="@(Sort)" DefaultSort="@(DefaultSort)" SortChanged="SortChanged">
     <div class="admin-filter">
         <label class="form-label">شناسه درخواست</label>
@@ -121,6 +121,9 @@
     /// <summary>Optional export of the last search ("خروجی CSV"); see <see cref="ListFilterBar.OnExport"/>.</summary>
     [Parameter] public EventCallback OnExport { get; set; }
     [Parameter] public bool Exporting { get; set; }
+
+    /// <summary>Optional detailed step report of the last search ("گزارش مراحل").</summary>
+    [Parameter] public EventCallback OnExportSteps { get; set; }
 
     // Edits are kept in a draft and only applied to Filter when the search button is pressed — nothing searches while typing or picking.
     private readonly WorkflowRequestFilter _d = new();

@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" Busy="_loading" OnExport="ExportAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" Busy="_loading" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
     {
@@ -174,6 +174,18 @@
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
         _page = 1;
         await LoadAsync();
+    }
+
+    /// <summary>The detailed step report (one row per step) for everything the last search matched.</summary>
+    private async Task ExportStepsAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            await Reports.ExportRequestStepsAsync("rejected-requests-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking().Where(x => x.Status == WorkflowRequestStatus.Rejected), db), _sortBy, _sortDesc, db));
+        }
+        finally { _exporting = false; }
     }
 
     private bool _exporting;

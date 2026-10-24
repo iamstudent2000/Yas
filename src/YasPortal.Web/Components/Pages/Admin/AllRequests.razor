@@ -25,7 +25,7 @@
         </div>
     </div>
 
-    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" OnExport="ExportAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
+    <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     <div class="admin-stack">
         <section class="card table-card">
@@ -149,6 +149,18 @@
     private int _page = 1, _pageSize = 20, _total;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>The detailed step report (one row per step) for everything the last search matched.</summary>
+    private async Task ExportStepsAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            await Reports.ExportRequestStepsAsync("request-report-steps", db => WorkflowRequestSort.Apply(_filter.Apply(db.WorkflowRequests.AsNoTracking(), db), _sortBy, _sortDesc, db));
+        }
+        finally { _exporting = false; }
+    }
 
     private bool _exporting;
 
