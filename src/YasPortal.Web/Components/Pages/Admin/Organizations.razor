@@ -10,6 +10,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
+@inject ReportExportService Reports
 
 <PageTitle>سازمان‌ها - یاس پورتال</PageTitle>
 
@@ -58,7 +59,7 @@
 
             <ListFilterBar Busy="_organizationLoading" ActiveCount="OrganizationFilterCount"
                            CanClear="@(OrganizationFilterCount > 0 || _draftOrganizationSearch != "" || _dOrgStatus != "" || _dOrgEmployees != "" || _dOrgEmployeeId is not null)"
-                           OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync">
+                           OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync" OnExport="ExportOrganizationsAsync" Exporting="_orgExporting">
                 <div class="admin-filter"><label class="form-label">نام یا کد سازمان</label>
                     <input class="form-control" placeholder="نام یا کد سازمان..." @bind="_draftOrganizationSearch" @bind:event="oninput" /></div>
                 <div class="admin-filter"><label class="form-label">وضعیت</label>
@@ -246,6 +247,21 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
             }
         }
         finally { _organizationLoading = false; }
+    }
+    private bool _orgExporting;
+    /// <summary>Exports every organization the last search matched, in the table's current order.</summary>
+    private async Task ExportOrganizationsAsync()
+    {
+        if (_orgExporting) return;
+        _orgExporting = true;
+        try
+        {
+            await Reports.ExportPagedAsync("organizations",
+                ["کد", "نام سازمان", "وضعیت", "تعداد کارکنان"],
+                (page, size) => AdminQueries.GetOrganizationsAsync(page, size, _organizationSearch, _orgSortBy, _orgSortDesc, _orgStatus == "" ? null : _orgStatus == "active", _orgEmployees == "" ? null : _orgEmployees, _orgEmployeeId),
+                x => [x.Code, x.Name, x.IsActive ? "فعال" : "غیرفعال", WorkflowDisplay.ToPersianDigits(x.EmployeeCount.ToString())]);
+        }
+        finally { _orgExporting = false; }
     }
     private async Task SortOrganizationsByAsync(string column)
     {

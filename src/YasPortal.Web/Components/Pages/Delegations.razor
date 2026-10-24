@@ -15,6 +15,7 @@
 @inject NotificationService NotificationSvc
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
+@inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>تفویض اختیار - یاس پورتال</PageTitle>
@@ -84,7 +85,7 @@
 
         <div class="dlg-columns">
             <div class="dlg-col">
-            <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" />
+            <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" OnExport="ExportMineAsync" Exporting="_exporting" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
                 @if (_mine.Count == 0)
@@ -116,7 +117,7 @@
             </div>
 
             <div class="dlg-col">
-            <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" />
+            <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" OnExport="ExportReceivedAsync" Exporting="_exporting" />
             <section class="card">
                 <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
                 @if (_received.Count == 0)
@@ -255,6 +256,42 @@
             _received = await MapAsync(db, rows);
         }
         finally { _listBusy = false; }
+    }
+
+    private bool _exporting;
+
+    private Task ExportMineAsync()
+    {
+        var me = _employeeId;
+        var canManage = _canManage;
+        return ExportAsync("delegations", db => ApplySort(ApplyFilter(db.PositionDelegations.AsNoTracking().Where(d => canManage || d.DelegatorEmployeeId == me), db, _mineFilter), db, _mineFilter.Sort));
+    }
+
+    private Task ExportReceivedAsync()
+    {
+        var ids = _myPositionIds;
+        return ExportAsync("received-delegations", db => ApplySort(ApplyFilter(db.PositionDelegations.AsNoTracking().Where(d => ids.Contains(d.DelegatePositionId)), db, _receivedFilter), db, _receivedFilter.Sort));
+    }
+
+    /// <summary>Exports every delegation the list's last search matched, in its current order.</summary>
+    private async Task ExportAsync(string fileName, Func<ApplicationDbContext, IQueryable<PositionDelegation>> build)
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            await Reports.ExportTableAsync(fileName,
+                ["سمت تفویض‌کننده", "سمت دریافت‌کننده", "تفویض‌کننده", "شروع", "پایان", "وضعیت", "تعیین‌شده توسط مدیر", "تاریخ ثبت"],
+                build,
+                async (db, chunk, _) => (await MapAsync(db, chunk)).Select(x => (IReadOnlyList<string>)
+                [
+                    x.PositionName, x.DelegatePositionName, x.DelegatorName ?? "",
+                    WorkflowDisplay.ToPersianDate(x.Delegation.StartDate), WorkflowDisplay.ToPersianDate(x.Delegation.EndDate),
+                    StatusLabel(x.Status), x.Delegation.ArrangedByAdmin ? "بله" : "خیر",
+                    ReportExportService.Time(x.Delegation.CreatedAtUtc),
+                ]).ToList());
+        }
+        finally { _exporting = false; }
     }
 
     /// <summary>Keeps the page number valid after the list shrinks (a delegation cancelled on the last page, say).</summary>

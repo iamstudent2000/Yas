@@ -107,6 +107,74 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             appState.AddToast($"فقط {MaxRows:N0} درخواست اول از {total:N0} درخواست در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
+    /// <summary>
+    /// Exports any ordered query in batches: <paramref name="rowsFor"/> turns each batch of entities into CSV rows
+    /// (looking up names as needed). The query must have a stable order (end it with the Id) so batches never overlap.
+    /// </summary>
+    public async Task ExportTableAsync<T>(
+        string fileBaseName,
+        IReadOnlyList<string> headers,
+        Func<ApplicationDbContext, IQueryable<T>> build,
+        Func<ApplicationDbContext, List<T>, CancellationToken, Task<IReadOnlyList<IReadOnlyList<string>>>> rowsFor,
+        CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var query = build(db);
+        var total = await query.CountAsync(ct);
+        if (total == 0)
+        {
+            appState.AddToast("موردی برای خروجی وجود ندارد.", ToastLevel.Info);
+            return;
+        }
+
+        var take = Math.Min(total, MaxRows);
+        var rows = new List<IReadOnlyList<string>>();
+        for (var skip = 0; skip < take; skip += BatchSize)
+        {
+            var chunk = await query.Skip(skip).Take(Math.Min(BatchSize, take - skip)).ToListAsync(ct);
+            rows.AddRange(await rowsFor(db, chunk, ct));
+        }
+
+        await DownloadAsync(fileBaseName, headers, rows);
+        if (total > MaxRows)
+            appState.AddToast($"فقط {MaxRows:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
+    }
+
+    /// <summary>For lists that are only reachable through a paged service call: reads page after page and maps each item to a row.</summary>
+    public async Task ExportPagedAsync<T>(
+        string fileBaseName,
+        IReadOnlyList<string> headers,
+        Func<int, int, Task<AdminQueryService.PageResult<T>>> loadPage,
+        Func<T, IReadOnlyList<string>> toRow)
+    {
+        const int pageSize = 100;
+        var rows = new List<IReadOnlyList<string>>();
+        var total = 0;
+        for (var page = 1; rows.Count < MaxRows; page++)
+        {
+            var result = await loadPage(page, pageSize);
+            total = result.TotalCount;
+            if (result.Items.Count == 0)
+                break;
+            rows.AddRange(result.Items.Select(toRow));
+            if (rows.Count >= total)
+                break;
+        }
+
+        if (rows.Count == 0)
+        {
+            appState.AddToast("موردی برای خروجی وجود ندارد.", ToastLevel.Info);
+            return;
+        }
+
+        await DownloadAsync(fileBaseName, headers, rows);
+        if (total > rows.Count)
+            appState.AddToast($"فقط {rows.Count:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
+    }
+
+    /// <summary>A UTC time as a Persian date and local time in Persian digits, or an empty cell.</summary>
+    public static string Time(DateTime? utc) => utc is DateTime value ? WorkflowDisplay.ToPersianDateTime(value) : "";
+
     private static async Task<Dictionary<Guid, string>> EmployeeNamesAsync(ApplicationDbContext db, IEnumerable<Guid> ids, CancellationToken ct)
     {
         var distinct = ids.Distinct().ToList();

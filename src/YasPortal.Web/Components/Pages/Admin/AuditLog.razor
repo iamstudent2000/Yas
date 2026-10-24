@@ -8,6 +8,8 @@
 @attribute [Authorize(Policy = "Admin.AuditLog")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
+@inject ReportExportService Reports
+@inject AppState AppState
 
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
 
@@ -25,7 +27,7 @@
     </div>
 
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || DraftCount > 0)"
-                   OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad">
+                   OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad" OnExport="ExportAsync" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">کاربر</label>
             <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
                                         SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeSearch" Placeholder="همه کاربران"
@@ -151,27 +153,9 @@
         _loadCts?.Cancel();_loadCts?.Dispose();_loadCts=new CancellationTokenSource();var cts=_loadCts;var token=cts.Token;_loading=true;_hasSearched=true;_page=page;await InvokeAsync(StateHasChanged);
         try
         {
-            await using var db=await DbFactory.CreateDbContextAsync(token);var query=db.AuditEntries.AsNoTracking().AsQueryable();
-            if(!string.IsNullOrWhiteSpace(_applied.EntityType))query=query.Where(x=>x.EntityType.Contains(_applied.EntityType.Trim()));
-            if(!string.IsNullOrWhiteSpace(_applied.Action))query=query.Where(x=>x.Action==_applied.Action);
-            if(!string.IsNullOrWhiteSpace(_applied.EntityId)){var idPart=_applied.EntityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
-            if(_applied.From.HasValue){var from=DateTime.SpecifyKind(_applied.From.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
-            if(_applied.To.HasValue){var to=DateTime.SpecifyKind(_applied.To.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
-            if(_applied.EmployeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
-            if(_applied.PositionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
+            await using var db=await DbFactory.CreateDbContextAsync(token);var query=ApplyFilter(db);
             _totalCount=await query.CountAsync(token);if(_page>TotalPages)_page=TotalPages;
-            query=(_sortBy,_sortDesc)switch{
-                ("time",false)=>query.OrderBy(x=>x.OccurredAtUtc),
-                ("actor",false)=>query.OrderBy(x=>x.EmployeeId.HasValue?db.Employees.Where(e=>e.Id==x.EmployeeId).Select(e=>e.FullName).FirstOrDefault():null),
-                ("actor",true)=>query.OrderByDescending(x=>x.EmployeeId.HasValue?db.Employees.Where(e=>e.Id==x.EmployeeId).Select(e=>e.FullName).FirstOrDefault():null),
-                ("position",false)=>query.OrderBy(x=>x.ActivePositionId.HasValue?db.Positions.Where(p=>p.Id==x.ActivePositionId).Select(p=>p.Name).FirstOrDefault():null),
-                ("position",true)=>query.OrderByDescending(x=>x.ActivePositionId.HasValue?db.Positions.Where(p=>p.Id==x.ActivePositionId).Select(p=>p.Name).FirstOrDefault():null),
-                ("action",false)=>query.OrderBy(x=>x.Action),
-                ("action",true)=>query.OrderByDescending(x=>x.Action),
-                ("entity",false)=>query.OrderBy(x=>x.EntityType),
-                ("entity",true)=>query.OrderByDescending(x=>x.EntityType),
-                _=>query.OrderByDescending(x=>x.OccurredAtUtc),
-            };
+            query=ApplySort(db,query);
             var entries=await query.Skip((_page-1)*_pageSize).Take(_pageSize).ToListAsync(token);
             var eids=entries.Where(x=>x.EmployeeId.HasValue).Select(x=>x.EmployeeId!.Value).Distinct().ToList();var pids=entries.Where(x=>x.ActivePositionId.HasValue).Select(x=>x.ActivePositionId!.Value).Distinct().ToList();
             var employees=await db.Employees.AsNoTracking().Where(x=>eids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.FullName,token);var positions=await db.Positions.AsNoTracking().Where(x=>pids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,token);
@@ -187,6 +171,62 @@
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
+    }
+    private IQueryable<AuditEntry> ApplyFilter(ApplicationDbContext db)
+    {
+        var query=db.AuditEntries.AsNoTracking().AsQueryable();
+            if(!string.IsNullOrWhiteSpace(_applied.EntityType))query=query.Where(x=>x.EntityType.Contains(_applied.EntityType.Trim()));
+            if(!string.IsNullOrWhiteSpace(_applied.Action))query=query.Where(x=>x.Action==_applied.Action);
+            if(!string.IsNullOrWhiteSpace(_applied.EntityId)){var idPart=_applied.EntityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
+            if(_applied.From.HasValue){var from=DateTime.SpecifyKind(_applied.From.Value.Date,DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc>=from);}
+            if(_applied.To.HasValue){var to=DateTime.SpecifyKind(_applied.To.Value.Date.AddDays(1),DateTimeKind.Local).ToUniversalTime();query=query.Where(x=>x.OccurredAtUtc<to);}
+            if(_applied.EmployeeId is Guid eidFilter)query=query.Where(x=>x.EmployeeId==eidFilter);
+            if(_applied.PositionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
+        return query;
+    }
+    private IOrderedQueryable<AuditEntry> ApplySort(ApplicationDbContext db,IQueryable<AuditEntry> query)
+    {
+        return (_sortBy,_sortDesc)switch{
+                ("time",false)=>query.OrderBy(x=>x.OccurredAtUtc),
+                ("actor",false)=>query.OrderBy(x=>x.EmployeeId.HasValue?db.Employees.Where(e=>e.Id==x.EmployeeId).Select(e=>e.FullName).FirstOrDefault():null),
+                ("actor",true)=>query.OrderByDescending(x=>x.EmployeeId.HasValue?db.Employees.Where(e=>e.Id==x.EmployeeId).Select(e=>e.FullName).FirstOrDefault():null),
+                ("position",false)=>query.OrderBy(x=>x.ActivePositionId.HasValue?db.Positions.Where(p=>p.Id==x.ActivePositionId).Select(p=>p.Name).FirstOrDefault():null),
+                ("position",true)=>query.OrderByDescending(x=>x.ActivePositionId.HasValue?db.Positions.Where(p=>p.Id==x.ActivePositionId).Select(p=>p.Name).FirstOrDefault():null),
+                ("action",false)=>query.OrderBy(x=>x.Action),
+                ("action",true)=>query.OrderByDescending(x=>x.Action),
+                ("entity",false)=>query.OrderBy(x=>x.EntityType),
+                ("entity",true)=>query.OrderByDescending(x=>x.EntityType),
+                _=>query.OrderByDescending(x=>x.OccurredAtUtc),
+            };
+    }
+    private bool _exporting;
+    /// <summary>Exports every event the last search matched, in the table's current order.</summary>
+    private async Task ExportAsync()
+    {
+        if(_exporting)return;
+        if(!_hasSearched){AppState.AddToast("ابتدا جستجو کنید.",ToastLevel.Info);return;}
+        _exporting=true;
+        try
+        {
+            await Reports.ExportTableAsync("audit-log",
+                ["زمان","کاربر","سمت فعال","عملیات","موجودیت","شناسه موجودیت"],
+                db=>ApplySort(db,ApplyFilter(db)).ThenBy(x=>x.Id),
+                async(db,chunk,ct)=>
+                {
+                    var eids=chunk.Where(x=>x.EmployeeId.HasValue).Select(x=>x.EmployeeId!.Value).Distinct().ToList();
+                    var pids=chunk.Where(x=>x.ActivePositionId.HasValue).Select(x=>x.ActivePositionId!.Value).Distinct().ToList();
+                    var employees=await db.Employees.AsNoTracking().Where(x=>eids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.FullName,ct);
+                    var positions=await db.Positions.AsNoTracking().Where(x=>pids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Name,ct);
+                    return chunk.Select(x=>(IReadOnlyList<string>)[
+                        ReportExportService.Time(x.OccurredAtUtc),
+                        x.EmployeeId is Guid ei?employees.GetValueOrDefault(ei,"—"):"سیستم",
+                        x.ActivePositionId is Guid pi?positions.GetValueOrDefault(pi,"—"):"",
+                        GetActionText(x.Action),
+                        GetEntityText(x.EntityType),
+                        x.EntityId??""]).ToList();
+                });
+        }
+        finally{_exporting=false;}
     }
     private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null);_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}

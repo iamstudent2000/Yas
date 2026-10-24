@@ -24,18 +24,6 @@
             <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
                 <i class="bx @(Busy ? "bx-loader-alt bx-spin" : "bx-search")"></i> جستجو
             </button>
-            @if (OnExport.HasDelegate)
-            {
-                <button type="button" class="btn btn-secondary" disabled="@(Busy || Exporting)" title="همه نتایج آخرین جستجو، با همین ترتیب" @onclick="OnExport" @onkeydown:stopPropagation="true">
-                    <i class="bx @(Exporting ? "bx-loader-alt bx-spin" : "bx-export")"></i> خروجی CSV
-                </button>
-            }
-            @if (OnExportSteps.HasDelegate)
-            {
-                <button type="button" class="btn btn-secondary" disabled="@(Busy || Exporting)" title="هر مرحله یک ردیف: تصمیم‌گیرنده، زمان، توضیح و مدت انتظار" @onclick="OnExportSteps" @onkeydown:stopPropagation="true">
-                    <i class="bx bx-spreadsheet"></i> گزارش مراحل (CSV)
-                </button>
-            }
             @if (Busy && OnCancel.HasDelegate)
             {
                 <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="bx bx-x-circle"></i> لغو</button>
@@ -45,6 +33,33 @@
                 <button type="button" class="btn btn-secondary" disabled="@(Busy || !CanClear)" @onclick="ClearAsync" @onkeydown:stopPropagation="true">
                     <i class="bx bx-eraser"></i> پاک کردن فیلترها
                 </button>
+            }
+            @if (OnExport.HasDelegate || OnExportSteps.HasDelegate)
+            {
+                <div class="list-more">
+                    <button type="button" class="btn btn-secondary list-more-btn" disabled="@(Busy || Exporting)" aria-haspopup="menu" aria-expanded="@(_menu ? "true" : "false")" title="گزارش و خروجی"
+                            @onclick="() => _menu = !_menu" @onkeydown:stopPropagation="true">
+                        <i class="bx @(Exporting ? "bx-loader-alt bx-spin" : "bx-dots-horizontal-rounded")"></i>
+                    </button>
+                    @if (_menu)
+                    {
+                        <div class="list-more-backdrop" @onclick="() => _menu = false"></div>
+                        <div class="list-more-menu" role="menu">
+                            @if (OnExport.HasDelegate)
+                            {
+                                <button type="button" role="menuitem" title="همه نتایج آخرین جستجو، با همین ترتیب" @onclick="() => RunAsync(OnExport)" @onkeydown:stopPropagation="true">
+                                    <i class="bx bx-export"></i> خروجی CSV
+                                </button>
+                            }
+                            @if (OnExportSteps.HasDelegate)
+                            {
+                                <button type="button" role="menuitem" title="هر مرحله یک ردیف: تصمیم‌گیرنده، زمان، توضیح و مدت انتظار" @onclick="() => RunAsync(OnExportSteps)" @onkeydown:stopPropagation="true">
+                                    <i class="bx bx-spreadsheet"></i> گزارش مراحل (CSV)
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
             }
         </div>
     </div>
@@ -83,6 +98,13 @@
 
     // Open by default; the header folds the card away to give the list the whole screen.
     private bool _open = true;
+    private bool _menu;
+
+    private async Task RunAsync(EventCallback callback)
+    {
+        _menu = false;
+        await callback.InvokeAsync();
+    }
 
     private async Task SearchAsync()
     {

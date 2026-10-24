@@ -247,3 +247,12 @@ html[data-scheme="dark"] .field-summary-item strong{color:var(--text)}
 .list-loading-note{display:flex;align-items:center;gap:8px;padding:10px 16px;color:var(--text-muted,#667085);font-size:12.5px}
 .dlg-col{display:grid;gap:14px;align-content:start;min-width:0}
 .list-filter .request-filter-clear{flex-wrap:wrap}
+
+/* ⋯ report menu next to "پاک کردن فیلترها" */
+.list-more{position:relative;display:inline-flex}
+.list-filter .list-more-btn{padding:0 12px;font-size:1.25rem;line-height:1}
+.list-more-backdrop{position:fixed;inset:0;z-index:40;background:transparent}
+.list-more-menu{position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:41;min-width:210px;display:flex;flex-direction:column;padding:6px;
+  background:var(--surface,#fff);border:1px solid var(--border,#d9dee7);border-radius:12px;box-shadow:0 10px 28px rgba(15,23,42,.16)}
+.list-more-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer;white-space:nowrap}
+.list-more-menu button:hover,.list-more-menu button:focus-visible{background:var(--surface-2,rgba(100,116,139,.12))}
