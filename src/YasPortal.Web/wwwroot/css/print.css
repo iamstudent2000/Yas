@@ -1,4 +1,4 @@
-/* Printing: lists print as they are on screen (without the app chrome), a single request prints from #yas-print-root. */
+/* Printing: lists print as they are on screen, without the app chrome. A single request is a server-side PDF (RequestPdfService). */
 @page { size: A4; margin: 12mm; }
 
 @media print {
@@ -17,12 +17,6 @@
     .badge { border: 1px solid #888 !important; background: #fff !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     a { color: inherit !important; text-decoration: none !important; }
     .print-only { display: block !important; }
-
-    /* One request: everything except the cloned card disappears. */
-    body.yas-printing > *:not(#yas-print-root) { display: none !important; }
-    #yas-print-root { display: block !important; }
-    #yas-print-root .no-print { display: none !important; }
-    #yas-print-root .rs-print-head { display: block !important; }
 }
 
-.print-only, .rs-print-head { display: none; }
+.print-only { display: none; }

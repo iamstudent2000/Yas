@@ -4,22 +4,15 @@
 @using YasPortal.Web.Services
 @using Microsoft.JSInterop
 @inject IJSRuntime Js
+@inject RequestPdfService Pdf
+@inject AppState AppState
+@inject ILogger<RequestSummary> Logger
 
-<div class="rs-root" @ref="_root">
+<div class="rs-root">
     <div class="rs-toolbar no-print">
-        <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="PrintAsync" title="چاپ برگه این درخواست، شامل همه دورها">
-            <i class="bx @(_printing ? "bx-loader-alt bx-spin" : "bx-printer")"></i> چاپ
+        <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="DownloadPdfAsync" title="برگه PDF این درخواست با شماره صفحه، لوگو و محل امضا">
+            <i class="bx @(_printing ? "bx-loader-alt bx-spin" : "bx-file")"></i> PDF
         </button>
-    </div>
-    <div class="rs-print-head">
-        <h2>@WorkflowFieldCatalog.GetDisplayName(Request.WorkflowType) — برگه درخواست</h2>
-        <p>
-            شناسه: <span dir="ltr">#@(Request.Id.ToString("N")[..8])</span> ·
-            درخواست‌کننده: @(EmployeeNames.TryGetValue(Request.RequesterEmployeeId, out var headRequester) ? headRequester : "—") ·
-            وضعیت: @WorkflowDisplay.StatusLabel(Request.Status) ·
-            تاریخ ثبت: @WorkflowDisplay.ToPersianDate(Request.CreatedAtUtc) ·
-            تاریخ چاپ: @WorkflowDisplay.ToPersianDateTime(DateTime.UtcNow)
-        </p>
     </div>
 
 @{
@@ -168,7 +161,7 @@
     }
     else
     {
-        var expanded = _printing || _expandedRounds.Contains(roundKey);
+        var expanded = _expandedRounds.Contains(roundKey);
         <div class="round-history">
             <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(roundKey)">
                 <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
@@ -198,23 +191,24 @@
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
     private readonly HashSet<int> _expandedRounds = [];
-    private ElementReference _root;
     private bool _printing;
 
-    /// <summary>Prints this request only. Earlier rounds are folded on screen, so they are opened for the printout and folded again after.</summary>
-    private async Task PrintAsync()
+    /// <summary>Builds the request's PDF on the server and hands it to the browser as a download.</summary>
+    private async Task DownloadPdfAsync()
     {
+        if (_printing) return;
         _printing = true;
-        StateHasChanged();
-        await Task.Delay(150);   // let the folded rounds render before the card is copied
         try
         {
-            await Js.InvokeVoidAsync("yasPrintElement", _root, $"درخواست {Request.Id.ToString("N")[..8]}");
+            var bytes = await Pdf.BuildAsync(Request, EmployeeNames, HolderNames);
+            await Js.InvokeVoidAsync("yasDownloadFile", $"request-{Request.Id.ToString("N")[..8]}.pdf", "application/pdf", bytes);
         }
-        finally
+        catch (Exception ex)
         {
-            _printing = false;
+            Logger.LogError(ex, "Building the PDF of request {RequestId} failed", Request.Id);
+            AppState.AddToast("ساخت فایل PDF انجام نشد.", ToastLevel.Error);
         }
+        finally { _printing = false; }
     }
 
     private void ToggleRound(int round)

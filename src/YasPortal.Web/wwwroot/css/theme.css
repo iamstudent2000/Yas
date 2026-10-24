@@ -265,7 +265,5 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .request-form-card{max-width:none;width:100%}
 .request-form-card .form-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));max-width:none}
 
-/* Print button on a request's detail */
+/* PDF button on a request's detail */
 .rs-toolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
-.rs-print-head h2{margin:0 0 4px;font-size:16px}
-.rs-print-head p{margin:0 0 12px;font-size:12px}
