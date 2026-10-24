@@ -36,7 +36,14 @@ public static class WorkflowDisplay
         return ToPersianDigits(text);
     }
 
-    private static string ToPersianDigits(string value)
+    /// <summary>Persian date plus the local time, all in Persian digits (۱۴۰۵/۰۷/۲۷ ۱۴:۳۲).</summary>
+    public static string ToPersianDateTime(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return ToPersianDate(local) + " " + ToPersianDigits(local.ToString("HH:mm", CultureInfo.InvariantCulture));
+    }
+
+    public static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";
         var chars = value.Select(c => c is >= '0' and <= '9' ? digits[c - '0'] : c).ToArray();

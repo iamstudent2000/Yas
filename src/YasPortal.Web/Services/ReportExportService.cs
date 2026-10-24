@@ -141,13 +141,13 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             yield return
             [
                 requestId, type, requester, status,
-                d.Round.ToString(), d.Order.ToString(),
+                WorkflowDisplay.ToPersianDigits(d.Round.ToString()), WorkflowDisplay.ToPersianDigits(d.Order.ToString()),
                 stepNames.GetValueOrDefault(d.StepId, "—"),
                 positionNames.GetValueOrDefault(d.ApproverPositionId, "—"),
                 WorkflowDisplay.StepLabel(d.Outcome, isCurrent: false),
                 Name(names, d.ActedByEmployeeId),
                 d.OnBehalfOfEmployeeId is Guid onBehalf ? Name(names, onBehalf) : "",
-                WorkflowDisplay.ToPersianDate(d.ActedAtUtc) + " " + d.ActedAtUtc.ToLocalTime().ToString("HH:mm"),
+                WorkflowDisplay.ToPersianDateTime(d.ActedAtUtc),
                 since is DateTime from ? Duration(d.ActedAtUtc - from) : "",
                 d.Comment ?? "",
             ];
@@ -159,7 +159,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             yield return
             [
                 requestId, type, requester, status,
-                step.Round.ToString(), step.Order.ToString(),
+                WorkflowDisplay.ToPersianDigits(step.Round.ToString()), WorkflowDisplay.ToPersianDigits(step.Order.ToString()),
                 step.Name,
                 positionNames.GetValueOrDefault(step.ApproverPositionId, "—"),
                 "در انتظار تصمیم",
@@ -175,11 +175,10 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     {
         if (span < TimeSpan.Zero)
             span = TimeSpan.Zero;
-        if (span.TotalDays >= 1)
-            return $"{(int)span.TotalDays} روز و {span.Hours} ساعت";
-        if (span.TotalHours >= 1)
-            return $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه";
-        return $"{(int)span.TotalMinutes} دقیقه";
+        var text = span.TotalDays >= 1 ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
+            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه"
+            : $"{(int)span.TotalMinutes} دقیقه";
+        return WorkflowDisplay.ToPersianDigits(text);
     }
 
     private static IReadOnlyList<string> RequestRow(WorkflowRequest request, Dictionary<Guid, string> names, Dictionary<Guid, string> positionNames, Dictionary<Guid, string> holders)
