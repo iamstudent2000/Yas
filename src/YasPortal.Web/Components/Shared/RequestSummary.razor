@@ -2,6 +2,7 @@
 @using YasPortal.Domain.Workflows
 @using System.Linq
 @using YasPortal.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @inject IJSRuntime Js
 @inject RequestPdfService Pdf
@@ -15,9 +16,11 @@
         </button>
         @if (Request.Status == WorkflowRequestStatus.Approved && Pdf.HasForm(Request.WorkflowType))
         {
-            <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
-                <i class="bx bx-printer"></i> فرم چاپی
-            </button>
+            <AuthorizeView Policy="@FormPermissions.For(Request.WorkflowType)">
+                <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
+                    <i class="bx bx-printer"></i> فرم چاپی
+                </button>
+            </AuthorizeView>
         }
     </div>
 

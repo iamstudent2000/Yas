@@ -1,4 +1,5 @@
 using QuestPDF.Drawing;
+using YasPortal.Application.Authorization;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -11,7 +12,7 @@ namespace YasPortal.Web.Services;
 /// name, the summary, the sections, the history table, the signature boxes, and a footer with page numbers.
 /// Rendered on the server, so the result is the same in every browser and can be archived or e-mailed.
 /// </summary>
-public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<IRequestFormDesign> forms)
+public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<IRequestFormDesign> forms, IPermissionChecker permissions)
 {
     private static readonly object InitLock = new();
     private static bool _initialized;
@@ -31,7 +32,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
     public async Task<(byte[] Bytes, string FileName)?> BuildFormAsync(WorkflowRequest request, IReadOnlyDictionary<Guid, string> employeeNames, IReadOnlyDictionary<Guid, string> holderNames, CancellationToken ct = default)
     {
         var design = forms.FirstOrDefault(f => f.Type == request.WorkflowType);
-        if (design is null)
+        if (design is null || !await permissions.HasPermissionAsync(FormPermissions.For(request.WorkflowType), ct))
             return null;
         var model = await builder.BuildAsync(request, employeeNames, holderNames, ct);
         model.Title = design.Title;
