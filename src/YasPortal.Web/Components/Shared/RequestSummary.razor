@@ -13,6 +13,12 @@
         <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="DownloadPdfAsync" title="برگه PDF این درخواست با شماره صفحه، لوگو و محل امضا">
             <i class="bx @(_printing ? "bx-loader-alt bx-spin" : "bx-file")"></i> PDF
         </button>
+        @if (Request.Status == WorkflowRequestStatus.Approved && Pdf.HasForm(Request.WorkflowType))
+        {
+            <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
+                <i class="bx bx-printer"></i> فرم چاپی
+            </button>
+        }
     </div>
 
 @{
@@ -192,6 +198,25 @@
 
     private readonly HashSet<int> _expandedRounds = [];
     private bool _printing;
+
+    /// <summary>The official printable form of an approved request (only types that have a form design).</summary>
+    private async Task DownloadFormAsync()
+    {
+        if (_printing) return;
+        _printing = true;
+        try
+        {
+            var form = await Pdf.BuildFormAsync(Request, EmployeeNames, HolderNames);
+            if (form is not null)
+                await Js.InvokeVoidAsync("yasDownloadFile", form.Value.FileName, "application/pdf", form.Value.Bytes);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Building the form of request {RequestId} failed", Request.Id);
+            AppState.AddToast("ساخت فرم چاپی انجام نشد.", ToastLevel.Error);
+        }
+        finally { _printing = false; }
+    }
 
     /// <summary>Builds the request's PDF on the server and hands it to the browser as a download.</summary>
     private async Task DownloadPdfAsync()

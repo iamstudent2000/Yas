@@ -266,4 +266,4 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .request-form-card .form-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));max-width:none}
 
 /* PDF button on a request's detail */
-.rs-toolbar{display:flex;justify-content:flex-end;margin-bottom:8px}
+.rs-toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px}

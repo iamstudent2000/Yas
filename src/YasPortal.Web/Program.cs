@@ -72,6 +72,8 @@ builder.Services.AddScoped<RequestReportBuilder>();
 builder.Services.AddScoped<RequestPdfService>();
 // Report customizers run in this order and may change the model of every request PDF (see IRequestReportCustomizer).
 builder.Services.AddScoped<IRequestReportCustomizer, DefaultRequestReportCustomizer>();
+// One printable form per request type; a type without a design has no «فرم چاپی» button.
+builder.Services.AddScoped<IRequestFormDesign, VehicleRequestFormDesign>();
 builder.Services.AddScoped<UserPreferenceService>();
 builder.Services.AddScoped<PasswordPolicyService>();
 builder.Services.AddScoped<AvatarService>();

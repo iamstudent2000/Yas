@@ -11,7 +11,7 @@ namespace YasPortal.Web.Services;
 /// name, the summary, the sections, the history table, the signature boxes, and a footer with page numbers.
 /// Rendered on the server, so the result is the same in every browser and can be archived or e-mailed.
 /// </summary>
-public sealed class RequestPdfService(RequestReportBuilder builder)
+public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<IRequestFormDesign> forms)
 {
     private static readonly object InitLock = new();
     private static bool _initialized;
@@ -24,11 +24,25 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
     public async Task<byte[]> BuildAsync(WorkflowRequest request, IReadOnlyDictionary<Guid, string> employeeNames, IReadOnlyDictionary<Guid, string> holderNames, CancellationToken ct = default) =>
         Render(await builder.BuildAsync(request, employeeNames, holderNames, ct));
 
-    /// <summary>Renders any model: build one with <see cref="RequestReportBuilder"/> and change it, or fill one from scratch.</summary>
-    public static byte[] Render(RequestReportModel model)
+    /// <summary>True when the request type has a printable form (see <see cref="IRequestFormDesign"/>).</summary>
+    public bool HasForm(WorkflowTypeCode type) => forms.Any(f => f.Type == type);
+
+    /// <summary>The official form of the request's type, rendered; null when the type has no form design.</summary>
+    public async Task<(byte[] Bytes, string FileName)?> BuildFormAsync(WorkflowRequest request, IReadOnlyDictionary<Guid, string> employeeNames, IReadOnlyDictionary<Guid, string> holderNames, CancellationToken ct = default)
+    {
+        var design = forms.FirstOrDefault(f => f.Type == request.WorkflowType);
+        if (design is null)
+            return null;
+        var model = await builder.BuildAsync(request, employeeNames, holderNames, ct);
+        model.Title = design.Title;
+        return (Render(model, design), "form-" + model.RequestNumber + ".pdf");
+    }
+
+    /// <summary>Renders any model: build one with <see cref="RequestReportBuilder"/> and change it, or fill one from scratch. With a design, the form replaces the default content.</summary>
+    public static byte[] Render(RequestReportModel model, IRequestFormDesign? design = null)
     {
         EnsureInitialized();
-        return Document.Create(document => Compose(document, model)).GeneratePdf();
+        return Document.Create(document => Compose(document, model, design)).GeneratePdf();
     }
 
     /// <summary>Registers the license and the Persian fonts once per process.</summary>
@@ -51,7 +65,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
         }
     }
 
-    private static void Compose(IDocumentContainer document, RequestReportModel model)
+    private static void Compose(IDocumentContainer document, RequestReportModel model, IRequestFormDesign? design)
     {
         document.Page(page =>
         {
@@ -80,6 +94,9 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
                 column.Item().PaddingTop(6).LineHorizontal(1).LineColor(Colors.Grey.Darken1);
             });
 
+            if (design is not null)
+                page.Content().PaddingVertical(4).Element(c => design.Compose(c, model));
+            else
             page.Content().PaddingVertical(4).Column(column =>
             {
                 column.Spacing(10);
@@ -178,7 +195,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
         });
     }
 
-    private static void RenderSignatures(IContainer container, RequestReportModel model)
+    internal static void RenderSignatures(IContainer container, RequestReportModel model)
     {
         container.Column(section =>
         {
@@ -209,7 +226,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
         });
     }
 
-    private static void SectionTitle(IContainer container, string title) =>
+    internal static void SectionTitle(IContainer container, string title) =>
         container.Background(HeaderFill).PaddingVertical(3).PaddingHorizontal(6).Text(title).Bold().FontSize(10);
 
     private static IContainer HeadCell(IContainer container) =>
@@ -218,15 +235,15 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
     private static IContainer Cell(IContainer container) =>
         container.Border(0.5f).BorderColor(Border).Padding(3);
 
-    /// <summary>Label/value pairs as boxes, two per row.</summary>
-    private static void KeyValueGrid(IContainer container, IReadOnlyList<ReportField> fields)
+    /// <summary>Label/value pairs as boxes, <paramref name="columns"/> per row.</summary>
+    internal static void KeyValueGrid(IContainer container, IReadOnlyList<ReportField> fields, int columns = 2)
     {
         container.Table(table =>
         {
             table.ColumnsDefinition(c =>
             {
-                c.RelativeColumn();
-                c.RelativeColumn();
+                for (var i = 0; i < columns; i++)
+                    c.RelativeColumn();
             });
             foreach (var field in fields)
                 table.Cell().Border(0.5f).BorderColor(Border).Padding(4).Column(cell =>
@@ -234,7 +251,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder)
                     cell.Item().Text(field.Label).FontSize(8).FontColor(Colors.Grey.Darken2);
                     cell.Item().Text(string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value).Bold();
                 });
-            if (fields.Count % 2 == 1)
+            for (var i = fields.Count % columns; i is > 0 && i < columns; i++)
                 table.Cell().Text("");
         });
     }

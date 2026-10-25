@@ -74,11 +74,13 @@ public sealed class RequestReportBuilder(
             HeaderLine2 = "شناسه: #" + request.Id.ToString("N")[..8],
             PrintedBy = state.User.Identity?.Name ?? "—",
             FileName = "request-" + request.Id.ToString("N")[..8],
+            RequestNumber = request.Id.ToString("N")[..8],
         };
         ReadLogo(model);
 
         FillSummary(model, data, positions.GetValueOrDefault(request.RequesterPositionId), requesterOrganization);
         FillFormSections(model, data);
+        FillPartFillers(model, data);
         FillHistory(model, data);
         FillAppendix(model, data);
         FillSigners(model, data, positions.GetValueOrDefault(request.RequesterPositionId));
@@ -144,11 +146,36 @@ public sealed class RequestReportBuilder(
                 .ToList();
             if (fields.Count == 0 && !multi)
                 continue;
+            foreach (var field in fields)
+                model.Values[WorkflowFieldCatalog.GetFields(request.WorkflowType, part.Part).First(f => f.Label == field.Label).Key] = field.Value;
             var section = new ReportSection(multi ? $"اطلاعات درخواست — بخش {WorkflowDisplay.ToPersianDigits(part.Part.ToString())}: {part.Title}" : "اطلاعات درخواست");
             section.Fields.AddRange(fields);
             if (fields.Count == 0)
                 section.Lines.Add("هنوز تکمیل نشده است.");
             model.Sections.Add(section);
+        }
+    }
+
+    /// <summary>For each later part of a multi-part form, the approver who filled it: the decision on the step that carries the part.</summary>
+    private static void FillPartFillers(RequestReportModel model, Data data)
+    {
+        var request = data.Request;
+        var last = request.StepDecisions.Where(d => d.Outcome == WorkflowStepStatus.Approved).OrderByDescending(d => d.ActedAtUtc).FirstOrDefault();
+        if (request.Status == WorkflowRequestStatus.Approved && last is not null)
+            model.FinalDate = WorkflowDisplay.ToPersianDateTime(last.ActedAtUtc);
+
+        foreach (var part in WorkflowFieldCatalog.GetParts(request.WorkflowType).Where(p => p.Part > 1))
+        {
+            var step = request.Steps.FirstOrDefault(s => s.Round == request.CurrentRound && s.FillsPart == part.Part);
+            if (step is null)
+                continue;
+            var decision = request.StepDecisions.Where(d => d.StepId == step.Id && d.Round == request.CurrentRound && d.Outcome == WorkflowStepStatus.Approved).OrderByDescending(d => d.ActedAtUtc).FirstOrDefault();
+            if (decision is null)
+                continue;
+            var who = Name(data, decision.ActedByEmployeeId);
+            if (decision.OnBehalfOfEmployeeId is Guid onBehalf)
+                who += $" (به نیابت از {Name(data, onBehalf)})";
+            model.PartFillers[part.Part] = new ReportSigner(step.Name, who, data.Positions.GetValueOrDefault(step.ApproverPositionId, "—"), "", WorkflowDisplay.ToPersianDateTime(decision.ActedAtUtc));
         }
     }
 

@@ -54,4 +54,13 @@ public sealed class RequestReportModel
     /// <summary>The signature boxes; the builder adds the requester and every approver of the current round.</summary>
     public List<ReportSigner> Signers { get; } = [];
     public string SignaturesTitle { get; set; } = "امضاها";
+
+    /// <summary>The form values by field key, already formatted for print (Persian dates and digits). Used by the per-type forms.</summary>
+    public Dictionary<string, string> Values { get; } = [];
+    /// <summary>For a multi-part request: who filled each part after the first (step name, person, position, date). Missing = not filled.</summary>
+    public Dictionary<int, ReportSigner> PartFillers { get; } = [];
+    /// <summary>The request's number as printed (the first eight characters of its id).</summary>
+    public string RequestNumber { get; set; } = "";
+    /// <summary>When the request got its final decision, formatted; empty while it is still open.</summary>
+    public string FinalDate { get; set; } = "";
 }
