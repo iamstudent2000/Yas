@@ -3,10 +3,16 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
 @attribute [Authorize(Policy = "Dashboard.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DashboardService Dashboard
+@inject WorkflowService Workflows
+@inject IPermissionChecker Permissions
 
 <PageTitle>داشبورد - یاس پورتال</PageTitle>
 
@@ -98,12 +104,169 @@
                     }
                 </section>
             </div>
+
+            <section class="dash-insights" aria-live="polite">
+                <div class="dash-insights-head">
+                    <h2 class="section-title"><i class="bx bx-bar-chart-alt-2"></i> آمار و گزارش‌ها</h2>
+                    <div class="dash-range" role="group" aria-label="بازه زمانی">
+                        @foreach (var (key, text) in RangeOptions)
+                        {
+                            <button type="button" class="btn @(_range == key ? "btn-primary" : "btn-secondary") btn-sm" disabled="@_loading" @onclick="() => SetRangeAsync(key)">@text</button>
+                        }
+                    </div>
+                </div>
+
+                @if (_loading && _mine is null && _team is null && _system is null)
+                {
+                    <LoadingState />
+                }
+
+                @if (_mine is not null)
+                {
+                    <h3 class="dash-group-title">درخواست‌های من</h3>
+                    <div class="dash-kpis">
+                        <div class="dash-kpi"><span>درخواست‌های ثبت‌شده</span><strong>@Fa(_mine.Total)</strong></div>
+                        <div class="dash-kpi"><span>در کارتابل من</span><strong>@Fa(_inboxCount)</strong><small>منتظر تصمیم شما</small></div>
+                        <div class="dash-kpi"><span>به‌روزرسانی‌های ندیده</span><strong>@Fa(_unseenCount)</strong></div>
+                        <div class="dash-kpi"><span>تفویض‌های فعال به من</span><strong>@Fa(_delegationCount)</strong></div>
+                    </div>
+                    <div class="dash-grid">
+                        <section class="card dash-card"><h3>وضعیت درخواست‌های من</h3><DashStatusBar Items="_mine.ByStatus" /></section>
+                        <section class="card dash-card"><h3>نوع درخواست‌های من</h3><DashBarList Items="_mine.ByType" EmptyText="در این بازه درخواستی ثبت نشده است." /></section>
+                    </div>
+                }
+
+                @if (_team is not null)
+                {
+                    <h3 class="dash-group-title">درخواست‌های زیرمجموعه</h3>
+                    <div class="dash-kpis">
+                        <div class="dash-kpi"><span>درخواست‌های زیرمجموعه</span><strong>@Fa(_team.Total)</strong></div>
+                        @if (_team.AverageHoursToApproval is double teamHours)
+                        {
+                            <div class="dash-kpi"><span>میانگین زمان تا تایید نهایی</span><strong>@DashboardService.Duration(teamHours)</strong><small>از @Fa(_team.ApprovedSampleSize) درخواست تاییدشده</small></div>
+                        }
+                    </div>
+                    <div class="dash-grid">
+                        <section class="card dash-card"><h3>وضعیت درخواست‌ها</h3><DashStatusBar Items="_team.ByStatus" /></section>
+                        <section class="card dash-card"><h3>نوع درخواست‌ها</h3><DashBarList Items="_team.ByType" EmptyText="در این بازه درخواستی ثبت نشده است." /></section>
+                    </div>
+                }
+
+                @if (_system is not null && _insights is not null)
+                {
+                    <h3 class="dash-group-title">کل سامانه</h3>
+                    <div class="dash-kpis">
+                        <div class="dash-kpi"><span>کل درخواست‌ها</span><strong>@Fa(_system.Total)</strong></div>
+                        <div class="dash-kpi"><span>میانگین زمان تا تایید نهایی</span><strong>@(_system.AverageHoursToApproval is double hours ? DashboardService.Duration(hours) : "—")</strong><small>از @Fa(_system.ApprovedSampleSize) درخواست تاییدشده</small></div>
+                        <div class="dash-kpi"><span>کاربران فعال</span><strong>@Fa(_insights.ActiveEmployees)</strong></div>
+                        <div class="dash-kpi"><span>سازمان‌های فعال</span><strong>@Fa(_insights.ActiveOrganizations)</strong></div>
+                        <div class="dash-kpi"><span>سمت‌های خالی</span><strong>@Fa(_insights.VacantPositions)</strong><small>از @Fa(_insights.ActivePositions) سمت فعال</small></div>
+                    </div>
+                    <div class="dash-grid">
+                        <section class="card dash-card"><h3>وضعیت درخواست‌ها</h3><DashStatusBar Items="_system.ByStatus" /></section>
+                        <section class="card dash-card"><h3>نوع درخواست‌ها</h3><DashBarList Items="_system.ByType" EmptyText="در این بازه درخواستی ثبت نشده است." /></section>
+                    </div>
+                    <section class="card dash-card"><h3>درخواست‌های ثبت‌شده در ۱۲ ماه گذشته</h3><DashMonths Items="_system.ByMonth" /></section>
+                    <div class="dash-grid">
+                        <section class="card dash-card">
+                            <h3>کندترین سمت‌ها در تایید</h3>
+                            <p class="muted">میانگین زمانی که درخواست پیش از تایید آن سمت منتظر مانده است.</p>
+                            @if (_insights.SlowestPositions.Count == 0)
+                            {
+                                <p class="muted dash-empty">هنوز تاییدی در این بازه ثبت نشده است.</p>
+                            }
+                            else
+                            {
+                                <table class="dash-table">
+                                    <thead><tr><th>سمت</th><th>تعداد تایید</th><th>میانگین انتظار</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var row in _insights.SlowestPositions)
+                                        {
+                                            <tr><td>@row.Position</td><td>@Fa(row.Decisions)</td><td>@DashboardService.Duration(row.AverageHours)</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </section>
+                        <section class="card dash-card">
+                            <h3>طولانی‌ترین انتظار در حال حاضر</h3>
+                            <p class="muted">درخواست‌های بازی که بیشترین زمان را روی مرحله فعلی مانده‌اند.</p>
+                            @if (_insights.LongestWaiting.Count == 0)
+                            {
+                                <p class="muted dash-empty">درخواست بازی وجود ندارد.</p>
+                            }
+                            else
+                            {
+                                <table class="dash-table">
+                                    <thead><tr><th>درخواست</th><th>مرحله</th><th>نزد</th><th>مدت</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var row in _insights.LongestWaiting)
+                                        {
+                                            <tr><td><span dir="ltr">@row.Number</span><br /><small class="muted">@row.Type · @row.Requester</small></td><td>@row.Stage</td><td>@row.Holder</td><td>@DashboardService.Duration(row.WaitHours)</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        </section>
+                    </div>
+                    <div class="dash-grid">
+                        <section class="card dash-card"><h3>درخواست‌ها به تفکیک سازمان</h3><DashBarList Items="_insights.ByOrganization" /></section>
+                        <section class="card dash-card"><h3>پرکارترین درخواست‌کنندگان</h3><DashBarList Items="_insights.TopRequesters" /></section>
+                    </div>
+                }
+            </section>
         </div>
     </Authorized>
 </AuthorizeView>
 
 @code {
     private string? _activePositionName;
+
+    private static readonly (string Key, string Text)[] RangeOptions = [("30", "۳۰ روز اخیر"), ("90", "۹۰ روز اخیر"), ("365", "یک سال اخیر"), ("all", "همه")];
+    private string _range = "90";
+    private bool _loading;
+    private Guid? _employeeId, _positionId;
+    private bool _isAdmin, _canViewTeam, _canViewSystem;
+    private RequestOverview? _mine, _team, _system;
+    private AdminInsights? _insights;
+    private int _inboxCount, _unseenCount, _delegationCount;
+
+    private static string Fa(int n) => WorkflowDisplay.ToPersianDigits(n.ToString("N0", System.Globalization.CultureInfo.InvariantCulture));
+
+    private async Task SetRangeAsync(string key)
+    {
+        if (_loading || key == _range) return;
+        _range = key;
+        await LoadInsightsAsync();
+    }
+
+    /// <summary>Loads only the blocks the user may see: personal figures for anyone with a position, the team for those who can view subordinates, the whole system for request administrators.</summary>
+    private async Task LoadInsightsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = DashboardService.RangeStartUtc(_range);
+            if (!_isAdmin && _employeeId is Guid me)
+            {
+                _mine = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == me), from);
+                _inboxCount = await Workflows.CountInboxAsync(me, _positionId, DateTime.Now);
+                _unseenCount = await Workflows.CountUnseenForRequesterAsync(me);
+                _delegationCount = (await Workflows.GetActiveDelegationsAsync(me, DateTime.Now)).Count;
+            }
+            if (_canViewTeam && _positionId is Guid position)
+            {
+                var subordinateIds = (await Workflows.GetSubordinatePositionsAsync(position)).Select(x => x.Id).ToList();
+                _team = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), from);
+            }
+            if (_canViewSystem)
+            {
+                _system = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking(), from);
+                _insights = await Dashboard.GetAdminInsightsAsync(from);
+            }
+        }
+        finally { _loading = false; }
+    }
 
     /// <summary>
     /// The name of the position the user is acting as. The sign-in only carries the position's id, so the name is looked up;
@@ -123,6 +286,13 @@
             .Select(x => new { x.PositionId, x.Position.Name })
             .ToListAsync();
         _activePositionName = (mine.FirstOrDefault(x => x.PositionId == activeId) ?? mine.FirstOrDefault())?.Name;
+
+        _employeeId = employeeId;
+        _positionId = (mine.FirstOrDefault(x => x.PositionId == activeId) ?? mine.FirstOrDefault())?.PositionId;
+        _isAdmin = user.HasClaim("yas_is_admin", "True");
+        _canViewTeam = await Permissions.HasPermissionAsync("Requests.ViewSubordinateRequests");
+        _canViewSystem = await Permissions.HasPermissionAsync("Admin.Requests");
+        await LoadInsightsAsync();
     }
 
     private static string GetGreeting() => DateTime.Now.Hour switch

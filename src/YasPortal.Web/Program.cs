@@ -68,6 +68,7 @@ builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<ReportExportService>();
+builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<RequestReportBuilder>();
 builder.Services.AddScoped<RequestPdfService>();
 // Report customizers run in this order and may change the model of every request PDF (see IRequestReportCustomizer).
