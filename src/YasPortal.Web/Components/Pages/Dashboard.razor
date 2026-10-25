@@ -226,7 +226,7 @@
     private string _range = "90";
     private bool _loading;
     private Guid? _employeeId, _positionId;
-    private bool _isAdmin, _canViewTeam, _canViewSystem;
+    private bool _isAdmin, _canViewMine, _canViewTeam, _canViewSystem;
     private RequestOverview? _mine, _team, _system;
     private AdminInsights? _insights;
     private int _inboxCount, _unseenCount, _delegationCount;
@@ -240,14 +240,14 @@
         await LoadInsightsAsync();
     }
 
-    /// <summary>Loads only the blocks the user may see: personal figures for anyone with a position, the team for those who can view subordinates, the whole system for request administrators.</summary>
+    /// <summary>Loads only the blocks the user may see: Dashboard.Mine (personal), Dashboard.Team (subordinates), Dashboard.System (everything).</summary>
     private async Task LoadInsightsAsync()
     {
         _loading = true;
         try
         {
             var from = DashboardService.RangeStartUtc(_range);
-            if (!_isAdmin && _employeeId is Guid me)
+            if (_canViewMine && _employeeId is Guid me)
             {
                 _mine = await Stats.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == me), from);
                 _inboxCount = await Workflows.CountInboxAsync(me, _positionId, DateTime.Now);
@@ -290,8 +290,9 @@
         _employeeId = employeeId;
         _positionId = (mine.FirstOrDefault(x => x.PositionId == activeId) ?? mine.FirstOrDefault())?.PositionId;
         _isAdmin = user.HasClaim("yas_is_admin", "True");
-        _canViewTeam = await Permissions.HasPermissionAsync("Requests.ViewSubordinateRequests");
-        _canViewSystem = await Permissions.HasPermissionAsync("Admin.Requests");
+        _canViewMine = !_isAdmin && await Permissions.HasPermissionAsync(DashboardPermissions.Mine);
+        _canViewTeam = await Permissions.HasPermissionAsync(DashboardPermissions.Team);
+        _canViewSystem = await Permissions.HasPermissionAsync(DashboardPermissions.System);
         await LoadInsightsAsync();
     }
 

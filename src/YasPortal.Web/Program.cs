@@ -42,7 +42,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization(options => {
     foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", "Requests.Delegation", "Admin.Delegation", "Admin.RequestForOthers", "Admin.Requests", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
-    foreach (var (permission, _) in ReportPermissions.All.Concat(FormPermissions.All))
+    foreach (var (permission, _) in ReportPermissions.All.Concat(FormPermissions.All).Concat(DashboardPermissions.All))
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
     // Administrator accounts have no organizational position, so the personal request pages (new / mine / inbox) are not for them.
     // The "team" page is open to anyone holding at least one of the two subordinate-history permissions (the page itself shows only the tabs they hold).
