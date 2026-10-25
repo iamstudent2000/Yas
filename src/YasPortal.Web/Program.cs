@@ -74,6 +74,12 @@ builder.Services.AddScoped<RequestPdfService>();
 builder.Services.AddScoped<IRequestReportCustomizer, DefaultRequestReportCustomizer>();
 // One printable form per request type; a type without a design has no «فرم چاپی» button.
 builder.Services.AddScoped<IRequestFormDesign, VehicleRequestFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, LeaveFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, PurchaseFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, AccessFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, LoanFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, HelpdeskFormDesign>();
+builder.Services.AddScoped<IRequestFormDesign, WorkReportFormDesign>();
 builder.Services.AddScoped<UserPreferenceService>();
 builder.Services.AddScoped<PasswordPolicyService>();
 builder.Services.AddScoped<AvatarService>();

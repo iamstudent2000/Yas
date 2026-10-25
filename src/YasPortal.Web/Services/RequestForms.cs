@@ -121,3 +121,93 @@ public sealed class VehicleRequestFormDesign : IRequestFormDesign
         });
     }
 }
+
+/// <summary>One block of a simple form: its title, how many short fields per row, the short fields and the long (free-text) ones.</summary>
+public sealed record FormSection(string Title, int Columns, string[] Keys, string[]? LongKeys = null);
+
+/// <summary>
+/// For single-part request types: the form is the stamp, the requester box, the sections you list (labels come from the
+/// field catalog by key), and the signatures. A new type is a few lines: set <see cref="Type"/>, <see cref="Title"/> and <see cref="Sections"/>.
+/// For anything more custom, implement <see cref="IRequestFormDesign"/> directly (see <see cref="VehicleRequestFormDesign"/>).
+/// </summary>
+public abstract class SimpleRequestFormDesign : IRequestFormDesign
+{
+    public abstract WorkflowTypeCode Type { get; }
+    public abstract string Title { get; }
+    protected abstract IReadOnlyList<FormSection> Sections { get; }
+
+    public void Compose(IContainer container, RequestReportModel model)
+    {
+        var labels = WorkflowFieldCatalog.GetFields(Type).ToDictionary(f => f.Key, f => f.Label);
+        string Label(string key) => labels.GetValueOrDefault(key, key);
+        string Value(string key) => model.Values.GetValueOrDefault(key, "—");
+
+        container.Column(column =>
+        {
+            column.Spacing(10);
+            column.Item().Element(c => FormParts.Stamp(c, model));
+            column.Item().Element(c => FormParts.Box(c, "مشخصات درخواست‌کننده", box =>
+                box.Item().Element(g => RequestPdfService.KeyValueGrid(g, model.Summary.Take(3).ToList(), columns: 3))));
+
+            foreach (var section in Sections)
+                column.Item().Element(c => FormParts.Box(c, section.Title, box =>
+                {
+                    if (section.Keys.Length > 0)
+                        box.Item().Element(g => RequestPdfService.KeyValueGrid(g,
+                            section.Keys.Select(k => new ReportField(Label(k), Value(k))).ToList(), section.Columns));
+                    foreach (var key in section.LongKeys ?? [])
+                        box.Item().PaddingTop(4).Element(t => FormParts.TextBlock(t, Label(key), Value(key), 50));
+                }));
+
+            column.Item().Element(c => RequestPdfService.RenderSignatures(c, model));
+        });
+    }
+}
+
+public sealed class LeaveFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.Leave;
+    public override string Title => "فرم درخواست مرخصی";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات مرخصی", 3, ["leaveType", "startDate", "endDate"], ["reason"])];
+}
+
+public sealed class PurchaseFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.Purchase;
+    public override string Title => "فرم درخواست خرید";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات خرید", 3, ["itemName", "quantity", "estimatedCost"], ["justification"])];
+}
+
+public sealed class AccessFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.Access;
+    public override string Title => "فرم درخواست دسترسی";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات دسترسی", 2, ["systemName", "accessLevel"], ["reason"])];
+}
+
+public sealed class LoanFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.Loan;
+    public override string Title => "فرم درخواست وام";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات وام", 2, ["amount", "installments"], ["reason"])];
+}
+
+public sealed class HelpdeskFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.Helpdesk;
+    public override string Title => "فرم درخواست پشتیبانی";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات درخواست پشتیبانی", 2, ["subject", "priority"], ["description"])];
+}
+
+public sealed class WorkReportFormDesign : SimpleRequestFormDesign
+{
+    public override WorkflowTypeCode Type => WorkflowTypeCode.WorkReport;
+    public override string Title => "فرم گزارش کار";
+    protected override IReadOnlyList<FormSection> Sections { get; } =
+        [new("اطلاعات گزارش کار", 2, ["reportDate", "hoursSpent"], ["summary"])];
+}
