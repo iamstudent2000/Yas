@@ -10,7 +10,7 @@
 @attribute [Authorize(Policy = "Dashboard.View")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject DashboardService Dashboard
+@inject DashboardService Stats
 @inject WorkflowService Workflows
 @inject IPermissionChecker Permissions
 
@@ -249,7 +249,7 @@
             var from = DashboardService.RangeStartUtc(_range);
             if (!_isAdmin && _employeeId is Guid me)
             {
-                _mine = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == me), from);
+                _mine = await Stats.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => x.RequesterEmployeeId == me), from);
                 _inboxCount = await Workflows.CountInboxAsync(me, _positionId, DateTime.Now);
                 _unseenCount = await Workflows.CountUnseenForRequesterAsync(me);
                 _delegationCount = (await Workflows.GetActiveDelegationsAsync(me, DateTime.Now)).Count;
@@ -257,12 +257,12 @@
             if (_canViewTeam && _positionId is Guid position)
             {
                 var subordinateIds = (await Workflows.GetSubordinatePositionsAsync(position)).Select(x => x.Id).ToList();
-                _team = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), from);
+                _team = await Stats.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking().Where(x => subordinateIds.Contains(x.RequesterPositionId)), from);
             }
             if (_canViewSystem)
             {
-                _system = await Dashboard.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking(), from);
-                _insights = await Dashboard.GetAdminInsightsAsync(from);
+                _system = await Stats.GetOverviewAsync(db => db.WorkflowRequests.AsNoTracking(), from);
+                _insights = await Stats.GetAdminInsightsAsync(from);
             }
         }
         finally { _loading = false; }
