@@ -1,0 +1,34 @@
+@using System.Globalization
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+@* A stacked bar of request statuses with a legend. Pure CSS; the colours are the dash-st-* classes in theme.css. *@
+@{
+    var total = Items.Sum(x => x.Count);
+    var shown = Items.Where(x => x.Count > 0).OrderBy(x => x.Status).ToList();
+}
+@if (total == 0)
+{
+    <p class="muted dash-empty">در این بازه درخواستی ثبت نشده است.</p>
+}
+else
+{
+    <div class="dash-stack" role="img" aria-label="سهم هر وضعیت از درخواست‌ها">
+        @foreach (var item in shown)
+        {
+            <span class="dash-stack-seg dash-st-@item.Status" style="width:@Percent(item.Count, total)%" title="@WorkflowDisplay.StatusLabel(item.Status): @Fa(item.Count)"></span>
+        }
+    </div>
+    <ul class="dash-legend">
+        @foreach (var item in shown)
+        {
+            <li><i class="dash-dot dash-st-@item.Status"></i><span>@WorkflowDisplay.StatusLabel(item.Status)</span><strong>@Fa(item.Count)</strong></li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<StatusCount> Items { get; set; } = [];
+
+    private static string Percent(int part, int total) => (part * 100.0 / total).ToString("0.##", CultureInfo.InvariantCulture);
+    private static string Fa(int n) => WorkflowDisplay.ToPersianDigits(n.ToString("N0", CultureInfo.InvariantCulture));
+}

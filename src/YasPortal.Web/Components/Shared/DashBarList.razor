@@ -1,0 +1,25 @@
+@using System.Globalization
+@using YasPortal.Web.Services
+@* Horizontal bars, one per item, scaled to the largest value. *@
+@if (Items.Count == 0)
+{
+    <p class="muted dash-empty">@EmptyText</p>
+}
+else
+{
+    var max = Math.Max(1, Items.Max(x => x.Count));
+    <ul class="dash-bars">
+        @foreach (var item in Items)
+        {
+            <li>
+                <div class="dash-bar-head"><span>@item.Label</span><strong>@WorkflowDisplay.ToPersianDigits(item.Count.ToString("N0", CultureInfo.InvariantCulture))</strong></div>
+                <div class="dash-bar-track"><span class="dash-bar-fill" style="width:@((item.Count * 100.0 / max).ToString("0.##", CultureInfo.InvariantCulture))%"></span></div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<LabeledCount> Items { get; set; } = [];
+    [Parameter] public string EmptyText { get; set; } = "داده‌ای برای نمایش نیست.";
+}

@@ -1,0 +1,20 @@
+@using System.Globalization
+@using YasPortal.Web.Services
+@* A column chart of requests per month. *@
+@{
+    var max = Math.Max(1, Items.Count == 0 ? 1 : Items.Max(x => x.Count));
+}
+<div class="dash-months" role="img" aria-label="تعداد درخواست‌ها در هر ماه">
+    @foreach (var item in Items)
+    {
+        <div class="dash-month" title="@item.Label @item.Sub: @WorkflowDisplay.ToPersianDigits(item.Count.ToString())">
+            <span class="dash-month-value">@WorkflowDisplay.ToPersianDigits(item.Count.ToString())</span>
+            <span class="dash-month-col"><span class="dash-month-fill" style="height:@((item.Count * 100.0 / max).ToString("0.##", CultureInfo.InvariantCulture))%"></span></span>
+            <span class="dash-month-label">@item.Label</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<LabeledCount> Items { get; set; } = [];
+}

@@ -109,7 +109,7 @@ public static class DevelopmentDataSeeder
             ["Requests.ViewSubordinateApprovals"] = new Permission("Requests.ViewSubordinateApprovals", "مشاهده تصمیمات تایید زیرمجموعه")
         };
 
-        foreach (var (code, name) in ReportPermissions.All.Concat(FormPermissions.All))
+        foreach (var (code, name) in ReportPermissions.All.Concat(FormPermissions.All).Concat(DashboardPermissions.All))
             permissions[code] = new Permission(code, name);
 
         // Renamed permissions: rename the existing rows so every grant of them is kept, instead of dropping and re-creating them.
@@ -190,10 +190,10 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
-        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).ToArray(), ct);
-        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Requests.Delegation" }.Concat(FormPermissions.Codes).ToArray(), ct);
-        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", ReportPermissions.TeamRequests, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).ToArray(), ct);
-        await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }.Concat(FormPermissions.Codes).ToArray(), ct);
+        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
+        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Requests.Delegation" }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", ReportPermissions.TeamRequests, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).Append(DashboardPermissions.Team).ToArray(), ct);
+        await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
         await db.SaveChangesAsync(ct);
 
         // Default approval paths — seeded once as a sensible starting point; an admin
