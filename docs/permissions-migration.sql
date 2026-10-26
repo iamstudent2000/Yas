@@ -162,9 +162,9 @@ IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Delegations.Own.Manage')
 ELSE
     UPDATE Permissions SET Name = N'تفویض اختیار سمت خود به دیگری' WHERE Code = N'Delegations.Own.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Requests.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Requests.View', N'گزارش و جستجوی همه درخواست‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Requests.View', N'مشاهده گزارش همه درخواست‌ها');
 ELSE
-    UPDATE Permissions SET Name = N'گزارش و جستجوی همه درخواست‌ها' WHERE Code = N'Admin.Requests.View';
+    UPDATE Permissions SET Name = N'مشاهده گزارش همه درخواست‌ها' WHERE Code = N'Admin.Requests.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Requests.CreateForOthers')
     INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Requests.CreateForOthers', N'ثبت درخواست برای دیگران');
 ELSE
@@ -178,61 +178,61 @@ IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Requests.Reopen')
 ELSE
     UPDATE Permissions SET Name = N'بازگشایی درخواست‌های ردشده' WHERE Code = N'Admin.Requests.Reopen';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Users.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Users.View', N'مشاهده کاربران');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Users.View', N'مشاهده کاربران (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده کاربران' WHERE Code = N'Admin.Users.View';
+    UPDATE Permissions SET Name = N'مشاهده کاربران (فقط خواندنی)' WHERE Code = N'Admin.Users.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Users.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Users.Manage', N'مدیریت کاربران');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Users.Manage', N'مدیریت کاربران (ایجاد، ویرایش، فعال/غیرفعال)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت کاربران' WHERE Code = N'Admin.Users.Manage';
+    UPDATE Permissions SET Name = N'مدیریت کاربران (ایجاد، ویرایش، فعال/غیرفعال)' WHERE Code = N'Admin.Users.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Organizations.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Organizations.View', N'مشاهده سازمان‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Organizations.View', N'مشاهده سازمان‌ها (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده سازمان‌ها' WHERE Code = N'Admin.Organizations.View';
+    UPDATE Permissions SET Name = N'مشاهده سازمان‌ها (فقط خواندنی)' WHERE Code = N'Admin.Organizations.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Organizations.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Organizations.Manage', N'مدیریت سازمان‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Organizations.Manage', N'مدیریت سازمان‌ها (ایجاد، ویرایش، تخصیص کارکنان)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت سازمان‌ها' WHERE Code = N'Admin.Organizations.Manage';
+    UPDATE Permissions SET Name = N'مدیریت سازمان‌ها (ایجاد، ویرایش، تخصیص کارکنان)' WHERE Code = N'Admin.Organizations.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Positions.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Positions.View', N'مشاهده سمت‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Positions.View', N'مشاهده سمت‌ها (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده سمت‌ها' WHERE Code = N'Admin.Positions.View';
+    UPDATE Permissions SET Name = N'مشاهده سمت‌ها (فقط خواندنی)' WHERE Code = N'Admin.Positions.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Positions.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Positions.Manage', N'مدیریت سمت‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Positions.Manage', N'مدیریت سمت‌ها (ایجاد، ویرایش، تخصیص، حذف)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت سمت‌ها' WHERE Code = N'Admin.Positions.Manage';
+    UPDATE Permissions SET Name = N'مدیریت سمت‌ها (ایجاد، ویرایش، تخصیص، حذف)' WHERE Code = N'Admin.Positions.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Workflows.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Workflows.View', N'مشاهده مراحل گردش‌کار');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Workflows.View', N'مشاهده مراحل گردش‌کار (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده مراحل گردش‌کار' WHERE Code = N'Admin.Workflows.View';
+    UPDATE Permissions SET Name = N'مشاهده مراحل گردش‌کار (فقط خواندنی)' WHERE Code = N'Admin.Workflows.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Workflows.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Workflows.Manage', N'مدیریت مراحل گردش‌کار');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Workflows.Manage', N'مدیریت مراحل گردش‌کار (افزودن، ویرایش، ترتیب، حذف)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت مراحل گردش‌کار' WHERE Code = N'Admin.Workflows.Manage';
+    UPDATE Permissions SET Name = N'مدیریت مراحل گردش‌کار (افزودن، ویرایش، ترتیب، حذف)' WHERE Code = N'Admin.Workflows.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Delegations.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Delegations.View', N'مشاهده تفویض‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Delegations.View', N'مشاهده همه تفویض‌ها (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده تفویض‌ها' WHERE Code = N'Admin.Delegations.View';
+    UPDATE Permissions SET Name = N'مشاهده همه تفویض‌ها (فقط خواندنی)' WHERE Code = N'Admin.Delegations.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Delegations.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Delegations.Manage', N'مدیریت تفویض‌ها و تعیین جانشین موقت');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Delegations.Manage', N'مدیریت همه تفویض‌ها و تعیین جانشین موقت');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت تفویض‌ها و تعیین جانشین موقت' WHERE Code = N'Admin.Delegations.Manage';
+    UPDATE Permissions SET Name = N'مدیریت همه تفویض‌ها و تعیین جانشین موقت' WHERE Code = N'Admin.Delegations.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Access.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Access.View', N'مشاهده دسترسی‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Access.View', N'مشاهده دسترسی‌ها (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده دسترسی‌ها' WHERE Code = N'Admin.Access.View';
+    UPDATE Permissions SET Name = N'مشاهده دسترسی‌ها (فقط خواندنی)' WHERE Code = N'Admin.Access.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Access.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Access.Manage', N'مدیریت دسترسی‌ها');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Access.Manage', N'مدیریت دسترسی‌ها (تخصیص مجوز و گروه)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت دسترسی‌ها' WHERE Code = N'Admin.Access.Manage';
+    UPDATE Permissions SET Name = N'مدیریت دسترسی‌ها (تخصیص مجوز و گروه)' WHERE Code = N'Admin.Access.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Permissions.View')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Permissions.View', N'مشاهده مجوزها و گروه‌های مجوز');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Permissions.View', N'مشاهده مجوزها و گروه‌ها (فقط خواندنی)');
 ELSE
-    UPDATE Permissions SET Name = N'مشاهده مجوزها و گروه‌های مجوز' WHERE Code = N'Admin.Permissions.View';
+    UPDATE Permissions SET Name = N'مشاهده مجوزها و گروه‌ها (فقط خواندنی)' WHERE Code = N'Admin.Permissions.View';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.Permissions.Manage')
-    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Permissions.Manage', N'مدیریت مجوزها و گروه‌های مجوز');
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.Permissions.Manage', N'مدیریت مجوزها و گروه‌ها (ویرایش نام، ساخت گروه)');
 ELSE
-    UPDATE Permissions SET Name = N'مدیریت مجوزها و گروه‌های مجوز' WHERE Code = N'Admin.Permissions.Manage';
+    UPDATE Permissions SET Name = N'مدیریت مجوزها و گروه‌ها (ویرایش نام، ساخت گروه)' WHERE Code = N'Admin.Permissions.Manage';
 IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Admin.AssignmentHistory.View')
     INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Admin.AssignmentHistory.View', N'مشاهده سوابق تخصیص سمت‌ها');
 ELSE
