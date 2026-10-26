@@ -21,15 +21,15 @@
             <p class="page-subtitle">گروه را یک‌بار تعریف کنید و بعد آن را به مدیر یا ترکیب دقیق «کارمند + سمت» اختصاص
                 دهید.</p>
             </div>
-            <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/permissions"><i class="bx bx-key"></i>
-                مجوزها</a><a class="btn btn-primary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت
+            <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/permissions"><i class="ti @Icons.Permission"></i>
+                مجوزها</a><a class="btn btn-primary" href="/admin/access"><i class="ti @Icons.AccessManagement"></i> مدیریت
                 دسترسی</a></div>
             </div>
             <div class="admin-stack">
 @if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
-        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
+        <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
         <p class="muted">نام گروه برای مدیران واضح باشد.</p>
     </div>
     <div class="admin-row-grid">
@@ -38,7 +38,7 @@
         <div class="form-field is-grow"><label class="form-label">توضیح</label><input class="form-control" @bind="_description" maxlength="500" /></div>
         <div class="form-field admin-row-submit">
             <div class="form-actions">
-                <button class="btn btn-primary" @onclick="SaveGroup"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد گروه" : "ذخیره")</button>
+                <button class="btn btn-primary" @onclick="SaveGroup"><i class="ti @Icons.Save"></i> @(_editingId is null ? "ایجاد گروه" : "ذخیره")</button>
                 @if (_editingId is not null)
                 {
                     <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
@@ -78,20 +78,20 @@
                             <div class="admin-list-row @(selected ? "admin-list-row-selected" : "")"
                                  @onclick="() => SelectGroup(group.Id)">
                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
-                                    class="bx bx-layer"></i></span><span
+                                    class="ti @Icons.PermissionGroup"></i></span><span
                                     class="admin-list-text"><strong title="@group.Name">@group.Name</strong><span class="badge badge-muted">@group.Code</span>@if(!string.IsNullOrWhiteSpace(group.Description)){
                                     <span>@group.Description</span>
                                 }
                             </span>
                         </div>
-                        <div class="admin-list-meta"><span class="admin-pill"><i class="bx bx-key"></i>
-                            @group.PermissionCount مجوز</span><span class="admin-pill"><i class="bx bx-link"></i>
+                        <div class="admin-list-meta"><span class="admin-pill"><i class="ti @Icons.Permission"></i>
+                            @group.PermissionCount مجوز</span><span class="admin-pill"><i class="ti @Icons.Assignments"></i>
                             @group.AssignmentCount تخصیص</span></div>
                             <div class="admin-list-actions">@if (_canManage) {<button type="button" class="btn btn-secondary btn-sm"
                                                                     @onclick:stopPropagation="true" @onclick="() => EditGroup(group)"><i
-                                class="bx bx-edit-alt"></i> ویرایش</button>}@if(group.AssignmentCount==0){
+                                class="ti @Icons.Edit"></i> ویرایش</button>}@if(group.AssignmentCount==0){
                                 @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
-                                        @onclick="() => DeleteGroup(group.Id)"><i class="bx bx-trash"></i> حذف</button>}
+                                        @onclick="() => DeleteGroup(group.Id)"><i class="ti @Icons.Delete"></i> حذف</button>}
                             }
                         </div>
                     </div>
@@ -108,23 +108,23 @@
         <div class="panel-heading">
             <div>
                 <div class="panel-step">گروه انتخاب‌شده</div>
-                <h2><i class="bx bx-lock-open-alt"></i> @SelectedGroupName</h2>
+                <h2><i class="ti @Icons.Permission"></i> @SelectedGroupName</h2>
                 <p>@_selectedPermissionIds.Count مجوز انتخاب شده از @_permissionTotal مجوز.</p>
             </div>
             <div class="panel-heading-tools">
-                <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i>
-                    @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i>
+                <div class="admin-filter-chips"><span class="badge badge-muted"><i class="ti @Icons.List"></i>
+                    @_permissionTotal مجوز</span><span class="badge badge-success"><i class="ti @Icons.Confirm"></i>
                     @_selectedPermissionIds.Count انتخاب شده</span></div>
-                <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                <div class="search-box"><i class="ti @Icons.Search"></i><input class="form-control"
                                                                                    placeholder="نام مجوز..." @bind="_permissionSearch" @bind:event="oninput"
                                                                                    @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
-                    type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
+                    type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="ti @Icons.Close"></i></button>}</div>
                 <label class="only-selected"><input type="checkbox"
                                                                                                    checked="@_onlySelected" @onchange="OnlySelectedChanged" /> فقط انتخاب‌شده‌ها</label>
                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
-                                 @onclick="() => SetVisiblePermissions(gid, true)"><i class="bx bx-check-double"></i> انتخاب نتایج</button><button
+                                 @onclick="() => SetVisiblePermissions(gid, true)"><i class="ti @Icons.ConfirmAll"></i> انتخاب نتایج</button><button
                     class="btn btn-secondary btn-sm" disabled="@_saving"
-                    @onclick="() => SetVisiblePermissions(gid, false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
+                    @onclick="() => SetVisiblePermissions(gid, false)"><i class="ti @Icons.Close"></i> حذف نتایج</button></div>
             </div>
         </div>@if(_permissionLoading){
             <LoadingState Text="در حال بارگذاری مجوزها..." />
@@ -142,14 +142,14 @@
                         var collapsed = _collapsedAreas.Contains(area.Key);
                         <section class="permission-section @(collapsed ? "collapsed" : "")">
                             <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
-                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span><i class="bx bx-chevron-down chevron"></i>
+                                <div><i class="ti @Icons.Folder"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span><i class="ti @Icons.ChevronDown chevron"></i>
                             </div>
                             <div class="permission-grid">@foreach(var permission in area){var
                                 granted = _selectedPermissionIds.Contains(permission.Id);
                                 <label class="permission-choice @(granted ? "selected" : "")"><input type="checkbox"
                                                                                                          checked="@granted" disabled="@_saving"
                                                                                                          @onchange="e => ToggleGroupPermission(gid, permission.Id, e.Value is bool v && v)" /><span
-                                    class="choice-box"><i class="bx bx-check"></i></span><span
+                                    class="choice-box"><i class="ti @Icons.Confirm"></i></span><span
                                     class="choice-text"><strong>@permission.Name</strong><PermissionReachBadge Code="@(permission.Code)" /></span></label>
                                 }
                             </div>
@@ -162,7 +162,7 @@
 else
     {
 
-        <section class="card editor-placeholder"><i class="bx bx-layer-plus"></i><strong>یک گروه را انتخاب
+        <section class="card editor-placeholder"><i class="ti @Icons.PermissionGroup"></i><strong>یک گروه را انتخاب
             کنید</strong><span>سپس مجوزهای آن را جستجو و مدیریت کنید.</span></section>
         }
     </div>

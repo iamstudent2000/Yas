@@ -23,11 +23,11 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-plus-circle"></i> درخواست جدید</h1>
+            <h1 class="page-title"><i class="ti @Icons.NewRequest"></i> درخواست جدید</h1>
             <p class="page-subtitle">نوع درخواست را انتخاب کنید و فرم مربوطه را تکمیل نمایید.</p>
         </div>
         <div class="form-actions">
-            <a class="btn btn-secondary" href="/requests/mine"><i class="bx bx-list-check"></i> درخواست‌های من</a>
+            <a class="btn btn-secondary" href="/requests/mine"><i class="ti @Icons.MyRequests"></i> درخواست‌های من</a>
         </div>
     </div>
 
@@ -38,7 +38,7 @@
     else if (_requesterPositionId is null)
     {
         <section class="card">
-            <div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong><span>برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.</span></div>
+            <div class="empty-state"><i class="ti @Icons.Alert"></i><strong>سمت فعالی برای شما یافت نشد</strong><span>برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.</span></div>
         </section>
     }
     else
@@ -49,7 +49,7 @@
                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
                 {
                     <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
-                        <span class="request-type-card-icon"><i class="bx @WorkflowDisplay.IconFor(type)"></i></span>
+                        <span class="request-type-card-icon"><i class="ti @WorkflowDisplay.IconFor(type)"></i></span>
                         <span>@WorkflowFieldCatalog.GetDisplayName(type)</span>
                     </div>
                 }
@@ -65,12 +65,12 @@
                 <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
                     @if (_submitting)
                     {
-                        <i class="bx bx-loader-alt bx-spin"></i>
+                        <i class="ti @Icons.Spinner"></i>
                         <span>در حال ثبت...</span>
                     }
                     else
                     {
-                        <i class="bx bx-send"></i>
+                        <i class="ti @Icons.Send"></i>
                         <span>ثبت درخواست</span>
                     }
                 </button>

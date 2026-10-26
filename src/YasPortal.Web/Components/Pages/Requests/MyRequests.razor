@@ -23,12 +23,12 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-list-check"></i> درخواست‌های من</h1>
+            <h1 class="page-title"><i class="ti @Icons.MyRequests"></i> درخواست‌های من</h1>
             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
         </div>
         <div class="form-actions">
-            <button class="btn btn-secondary" disabled="@(_unseenCount == 0)" @onclick="MarkAllSeenAsync"><i class="bx bx-check-double"></i> خواندن همه@(_unseenCount > 0 ? $" ({ToPersianDigits(_unseenCount.ToString())})" : "")</button>
-            <a class="btn btn-primary" href="/requests/new"><i class="bx bx-plus-circle"></i> درخواست جدید</a>
+            <button class="btn btn-secondary" disabled="@(_unseenCount == 0)" @onclick="MarkAllSeenAsync"><i class="ti @Icons.ConfirmAll"></i> خواندن همه@(_unseenCount > 0 ? $" ({ToPersianDigits(_unseenCount.ToString())})" : "")</button>
+            <a class="btn btn-primary" href="/requests/new"><i class="ti @Icons.NewRequest"></i> درخواست جدید</a>
         </div>
     </div>
 
@@ -43,9 +43,9 @@
     {
         <section class="card">
             <div class="empty-state">
-                <i class="bx bx-inbox"></i><strong>هنوز درخواستی ثبت نکرده‌اید</strong>
+                <i class="ti @Icons.RequestsEmpty"></i><strong>هنوز درخواستی ثبت نکرده‌اید</strong>
                 <span>هر وقت آماده بودید، اولین درخواست خود را ثبت کنید.</span>
-                <a class="btn btn-primary" href="/requests/new" style="margin-top:14px"><i class="bx bx-plus-circle"></i> ثبت درخواست جدید</a>
+                <a class="btn btn-primary" href="/requests/new" style="margin-top:14px"><i class="ti @Icons.NewRequest"></i> ثبت درخواست جدید</a>
             </div>
         </section>
     }
@@ -56,13 +56,13 @@
             var expanded = _expandedId == request.Id;
             <div class="request-card @(expanded ? "is-expanded" : "")">
                 <div class="request-card-header is-clickable" @onclick="() => Toggle(request.Id)">
-                    <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(request.WorkflowType)"></i></span>
+                    <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(request.WorkflowType)"></i></span>
                     <span class="request-card-title">
                         <strong>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</strong>
                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                         @if (request.CreatedByEmployeeId is Guid createdBy)
                         {
-                            <span class="badge badge-muted"><i class="bx bx-user-plus"></i> ثبت‌شده توسط مدیر: @(_employeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")</span>
+                            <span class="badge badge-muted"><i class="ti @Icons.NewRequestForOthers"></i> ثبت‌شده توسط مدیر: @(_employeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")</span>
                         }
                         <RequestNowLine Request="request" />
                     </span>
@@ -71,7 +71,7 @@
                         <span class="badge badge-info">جدید</span>
                     }
                     <span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span>
-                    <i class="bx bx-chevron-down request-card-chevron"></i>
+                    <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                 </div>
 
                 @if (expanded)
@@ -88,12 +88,12 @@
                                     <button class="btn btn-primary" disabled="@(_resubmittingId == request.Id)" @onclick="() => ResubmitAsync(request.Id)">
                                         @if (_resubmittingId == request.Id)
                                         {
-                                            <i class="bx bx-loader-alt bx-spin"></i>
+                                            <i class="ti @Icons.Spinner"></i>
                                             <span>در حال ارسال...</span>
                                         }
                                         else
                                         {
-                                            <i class="bx bx-send"></i>
+                                            <i class="ti @Icons.Send"></i>
                                             <span>ارسال مجدد</span>
                                         }
                                     </button>
@@ -107,12 +107,12 @@
                                 <button class="btn btn-danger" disabled="@(_cancellingId == request.Id)" @onclick="() => CancelAsync(request.Id)">
                                     @if (_cancellingId == request.Id)
                                     {
-                                        <i class="bx bx-loader-alt bx-spin"></i>
+                                        <i class="ti @Icons.Spinner"></i>
                                         <span>در حال لغو...</span>
                                     }
                                     else
                                     {
-                                        <i class="bx bx-x-circle"></i>
+                                        <i class="ti @Icons.Withdraw"></i>
                                         <span>لغو درخواست</span>
                                     }
                                 </button>

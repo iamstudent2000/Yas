@@ -24,7 +24,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-transfer"></i> تفویض اختیار</h1>
+            <h1 class="page-title"><i class="ti @Icons.Delegation"></i> تفویض اختیار</h1>
             <p class="page-subtitle">اختیار تایید یک سمت را برای بازه‌ای مشخص به همکار دیگری بسپارید. هر تصمیم به نام نماینده و با ذکر تفویض‌کننده ثبت می‌شود.</p>
         </div>
     </div>
@@ -35,7 +35,7 @@
     }
     else if (!_canCreate && !_canViewAll)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-lock-alt"></i><strong>مجوز تفویض اختیار ندارید</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Restricted"></i><strong>مجوز تفویض اختیار ندارید</strong></div></section>
     }
     else
     {
@@ -43,7 +43,7 @@
         {
         <section class="card dlg-create">
             <div class="dlg-section-head">
-                <h2 class="card-title"><i class="bx bx-plus-circle"></i> تفویض جدید</h2>
+                <h2 class="card-title"><i class="ti @Icons.Add"></i> تفویض جدید</h2>
                 <p class="muted">اختیار به یک سمت داده می‌شود؛ هر کسی که در بازه‌ی تفویض آن سمت را دارد می‌تواند به نیابت تصمیم بگیرد.</p>
             </div>
 
@@ -56,11 +56,11 @@
                     }
                     else if (_ownPositionName is null)
                     {
-                        <div class="readonly-field is-warning"><i class="bx bx-error-circle"></i> سمت فعال معتبری ندارید؛ تفویض ممکن نیست.</div>
+                        <div class="readonly-field is-warning"><i class="ti @Icons.Alert"></i> سمت فعال معتبری ندارید؛ تفویض ممکن نیست.</div>
                     }
                     else
                     {
-                        <div class="readonly-field"><i class="bx bx-briefcase-alt-2"></i> <strong>@_ownPositionName</strong></div>
+                        <div class="readonly-field"><i class="ti @Icons.Position"></i> <strong>@_ownPositionName</strong></div>
                     }
                 </div>
 
@@ -80,7 +80,7 @@
                 </div>
 
                 <div class="form-field dlg-submit">
-                    <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="bx bx-check"></i> ثبت تفویض</button>
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync"><i class="ti @Icons.Confirm"></i> ثبت تفویض</button>
                 </div>
             </div>
         </section>
@@ -90,16 +90,16 @@
             <div class="dlg-col">
             <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportMineAsync" Exporting="_exporting" />
             <section class="card">
-                <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canViewAll ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
+                <h2 class="card-title"><i class="ti @Icons.DelegationGiven"></i> @(_canViewAll ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
                 @if (_mine.Count == 0)
                 {
-                    <div class="empty-state is-compact"><i class="bx bx-transfer"></i><strong>@(_mineFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی ثبت نشده است")</strong></div>
+                    <div class="empty-state is-compact"><i class="ti @Icons.DelegationGiven"></i><strong>@(_mineFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی ثبت نشده است")</strong></div>
                 }
                 @foreach (var row in _mine)
                 {
                     <div class="dlg-row">
                         <div class="dlg-row-main">
-                            <strong>@row.PositionName <i class="bx bx-left-arrow-alt"></i> @row.DelegatePositionName</strong>
+                            <strong>@row.PositionName <i class="ti @Icons.ArrowGo"></i> @row.DelegatePositionName</strong>
                             <span>@WorkflowDisplay.ToPersianDate(row.Delegation.StartDate) تا @WorkflowDisplay.ToPersianDate(row.Delegation.EndDate)@(row.DelegatorName is null ? "" : " · تفویض‌کننده: " + row.DelegatorName)</span>
                         </div>
                         <div class="dlg-row-side">
@@ -110,7 +110,7 @@
                             <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
                             @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming && (_canManage || row.Delegation.DelegatorEmployeeId == _employeeId))
                             {
-                                <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="bx bx-x"></i> لغو</button>
+                                <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="ti @Icons.Close"></i> لغو</button>
                             }
                         </div>
                     </div>
@@ -122,10 +122,10 @@
             <div class="dlg-col">
             <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportReceivedAsync" Exporting="_exporting" />
             <section class="card">
-                <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
+                <h2 class="card-title"><i class="ti @Icons.DelegationReceived"></i> تفویض‌های دریافتی</h2>
                 @if (_received.Count == 0)
                 {
-                    <div class="empty-state is-compact"><i class="bx bx-inbox"></i><strong>@(_receivedFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی به شما سپرده نشده است")</strong></div>
+                    <div class="empty-state is-compact"><i class="ti @Icons.DelegationReceived"></i><strong>@(_receivedFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی به شما سپرده نشده است")</strong></div>
                 }
                 @foreach (var row in _received)
                 {

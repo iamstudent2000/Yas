@@ -16,12 +16,12 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-search-alt"></i> گزارش درخواست‌ها</h1>
+            <h1 class="page-title"><i class="ti @Icons.RequestsReport"></i> گزارش درخواست‌ها</h1>
             <p class="page-subtitle">جستجو و فیلتر همه درخواست‌های سامانه با هر وضعیتی، صرف‌نظر از ثبت‌کننده. برای دیدن مسیر و سابقه، «جزئیات» را باز کنید.</p>
         </div>
         <div class="form-actions">
-            <a class="btn btn-secondary" href="/admin/active-requests"><i class="bx bx-error-circle"></i> درخواست‌های فعال</a>
-            <a class="btn btn-secondary" href="/admin/rejected-requests"><i class="bx bx-x-circle"></i> ردشده‌ها</a>
+            <a class="btn btn-secondary" href="/admin/active-requests"><i class="ti @Icons.ActiveRequests"></i> درخواست‌های فعال</a>
+            <a class="btn btn-secondary" href="/admin/rejected-requests"><i class="ti @Icons.RejectedRequests"></i> ردشده‌ها</a>
         </div>
     </div>
 
@@ -41,7 +41,7 @@
             }
             else if (_requests.Count == 0)
             {
-                <div class="empty-state"><i class="bx bx-search"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
+                <div class="empty-state"><i class="ti @Icons.SearchEmpty"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
             }
             else
             {
@@ -74,7 +74,7 @@
                                         @(_names.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")
                                         @if (request.CreatedByEmployeeId is Guid by)
                                         {
-                                            <span class="badge badge-muted" title="ثبت‌شده توسط مدیر"><i class="bx bx-user-plus"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
+                                            <span class="badge badge-muted" title="ثبت‌شده توسط مدیر"><i class="ti @Icons.NewRequestForOthers"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
                                         }
                                     </td>
                                     <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
@@ -107,7 +107,7 @@
                                     <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
                                     <td>
                                         <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openId = open ? null : request.Id">
-                                            <i class="bx @(open ? "bx-chevron-up" : "bx-show")"></i> @(open ? "بستن" : "جزئیات")
+                                            <i class="ti @(open ? Icons.ChevronUp : Icons.Details)"></i> @(open ? "بستن" : "جزئیات")
                                         </button>
                                     </td>
                                 </tr>

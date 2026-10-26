@@ -7,9 +7,9 @@
         <span class="rq-now-stage">مرحله @ToPersianDigits(_headline.StageNumber.ToString()) از @ToPersianDigits(_headline.StageCount.ToString())</span>
         @if (ShowWaitingFor)
         {
-            <span class="rq-now-who"><i class="bx bx-time-five"></i> در انتظار @string.Join("، ", _headline.WaitingNames.Select(n => "«" + n + "»"))</span>
+            <span class="rq-now-who"><i class="ti @Icons.Awaiting"></i> در انتظار @string.Join("، ", _headline.WaitingNames.Select(n => "«" + n + "»"))</span>
         }
-        <span class="rq-now-age"><i class="bx bx-hourglass"></i> @AgeText()</span>
+        <span class="rq-now-age"><i class="ti @Icons.Age"></i> @AgeText()</span>
     </span>
 }
 

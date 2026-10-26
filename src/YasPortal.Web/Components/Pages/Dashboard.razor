@@ -30,7 +30,7 @@
                     <h1 class="page-title">داشبورد</h1>
                     <p class="page-subtitle">@(isAdmin ? "مدیریت و نظارت بر سامانه" : "نمای کلی حساب و دسترسی‌های شما")</p>
                 </div>
-                <span class="badge badge-success"><i class="bx bx-check-circle"></i> حساب فعال</span>
+                <span class="badge badge-success"><i class="ti @Icons.Success"></i> حساب فعال</span>
             </div>
 
             <section class="dash-hero">
@@ -47,7 +47,7 @@
                     <div class="dash-hero-position">
                         <span>سطح دسترسی</span>
                         <strong>مدیریت سامانه</strong>
-                        <a href="/admin/organizations">مدیریت سازمان‌ها <i class="bx bx-left-arrow-alt"></i></a>
+                        <a href="/admin/organizations">مدیریت سازمان‌ها <i class="ti @Icons.ArrowGo"></i></a>
                     </div>
                 }
                 else
@@ -55,7 +55,7 @@
                     <div class="dash-hero-position">
                         <span>سمت فعال</span>
                         <strong>@(activePosition ?? "انتخاب نشده")</strong>
-                        <a href="/my-positions">تغییر سمت <i class="bx bx-left-arrow-alt"></i></a>
+                        <a href="/my-positions">تغییر سمت <i class="ti @Icons.ArrowGo"></i></a>
                     </div>
                 }
             </section>
@@ -63,17 +63,17 @@
             <div class="dash-columns">
                 <section class="dash-facts">
                     <div class="dash-fact">
-                        <i class="bx bx-user"></i>
+                        <i class="ti @Icons.Profile"></i>
                         <div><span>حساب کاربری</span><strong>@name</strong></div>
                     </div>
                     <div class="dash-fact">
-                        <i class="bx bx-shield-check"></i>
+                        <i class="ti @Icons.AccessLevel"></i>
                         <div><span>سطح دسترسی</span><strong>@(isAdmin ? "مدیریت سامانه" : "کاربر سامانه")</strong></div>
                     </div>
                     @if (!isAdmin)
                     {
                         <div class="dash-fact">
-                            <i class="bx bx-id-card"></i>
+                            <i class="ti @Icons.Position"></i>
                             <div><span>سمت فعال</span><strong>@(activePosition ?? "انتخاب نشده")</strong></div>
                         </div>
                     }
@@ -82,24 +82,24 @@
                 <section class="dash-links">
                     <h2 class="section-title">دسترسی سریع</h2>
                     <a class="dash-link" href="/my-profile">
-                        <span class="dash-link-icon"><i class="bx bx-user-circle"></i></span>
+                        <span class="dash-link-icon"><i class="ti @Icons.Profile"></i></span>
                         <span class="dash-link-text"><strong>پروفایل من</strong><small>مشاهده اطلاعات حساب و سازمان</small></span>
-                        <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                        <i class="ti @Icons.ArrowGo dash-link-arrow"></i>
                     </a>
                     @if (!isAdmin)
                     {
                         <a class="dash-link" href="/my-positions">
-                            <span class="dash-link-icon"><i class="bx bx-id-card"></i></span>
+                            <span class="dash-link-icon"><i class="ti @Icons.Position"></i></span>
                             <span class="dash-link-text"><strong>سمت‌های من</strong><small>انتخاب سمت فعال</small></span>
-                            <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                            <i class="ti @Icons.ArrowGo dash-link-arrow"></i>
                         </a>
                     }
                     @if (isAdmin)
                     {
                         <a class="dash-link" href="/admin/organizations">
-                            <span class="dash-link-icon"><i class="bx bx-buildings"></i></span>
+                            <span class="dash-link-icon"><i class="ti @Icons.Organization"></i></span>
                             <span class="dash-link-text"><strong>سازمان‌ها</strong><small>مدیریت ساختار سازمانی</small></span>
-                            <i class="bx bx-left-arrow-alt dash-link-arrow"></i>
+                            <i class="ti @Icons.ArrowGo dash-link-arrow"></i>
                         </a>
                     }
                 </section>
@@ -107,7 +107,7 @@
 
             <section class="dash-insights" aria-live="polite">
                 <div class="dash-insights-head">
-                    <h2 class="section-title"><i class="bx bx-bar-chart-alt-2"></i> آمار و گزارش‌ها</h2>
+                    <h2 class="section-title"><i class="ti @Icons.Reports"></i> آمار و گزارش‌ها</h2>
                     <div class="dash-range" role="group" aria-label="بازه زمانی">
                         @foreach (var (key, text) in RangeOptions)
                         {

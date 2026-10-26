@@ -11,7 +11,7 @@
                         <option value="@size">@ToPersianDigits(size.ToString())</option>
                     }
                 </select>
-                <i class="bx bx-chevron-down server-pagination-size-icon"></i>
+                <i class="ti @Icons.ChevronDown server-pagination-size-icon"></i>
             </div>
             <span>مورد</span>
         </div>
@@ -22,7 +22,7 @@
             {
                 <div class="server-pagination-buttons">
                     <button type="button" class="server-pagination-nav" disabled="@(Page <= 1 || Busy)"
-                            @onclick="() => GoAsync(Page - 1)" aria-label="صفحه قبلی"><i class="bx bx-chevron-right"></i></button>
+                            @onclick="() => GoAsync(Page - 1)" aria-label="صفحه قبلی"><i class="ti @Icons.PagePrev"></i></button>
                     @if (Pages.First() > 1)
                     {
                         <button type="button" class="server-pagination-page" disabled="@Busy"
@@ -48,7 +48,7 @@
                                 @onclick="() => GoAsync(TotalPages)">@ToPersianDigits(TotalPages.ToString())</button>
                     }
                     <button type="button" class="server-pagination-nav" disabled="@(Page >= TotalPages || Busy)"
-                            @onclick="() => GoAsync(Page + 1)" aria-label="صفحه بعدی"><i class="bx bx-chevron-left"></i></button>
+                            @onclick="() => GoAsync(Page + 1)" aria-label="صفحه بعدی"><i class="ti @Icons.PageNext"></i></button>
                 </div>
             }
         </div>

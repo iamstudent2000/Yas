@@ -24,13 +24,13 @@
             <h1 class="page-title">پروفایل من</h1>
             <p class="page-subtitle">اطلاعات حساب، سازمان و وضعیت دسترسی شما</p>
         </div>
-        <a class="btn btn-secondary" href="/my-positions"><i class="bx bx-id-card"></i> سمت‌های من</a>
+        <a class="btn btn-secondary" href="/my-positions"><i class="ti @Icons.Position"></i> سمت‌های من</a>
     </div>
 
     <section class="profile-identity">
         @if (AvatarCatalog.Find(_avatarKey) is { } picked)
         {
-            <div class="profile-avatar profile-avatar--picked" style="background:@picked.Color" aria-hidden="true"><i class="bx @picked.Icon"></i></div>
+            <div class="profile-avatar profile-avatar--picked" style="background:@picked.Color" aria-hidden="true"><i class="ti @picked.Icon"></i></div>
         }
         else
         {
@@ -42,7 +42,7 @@
                 <span class="profile-chip" dir="ltr">@EmployeeCode</span>
                 <span class="profile-chip" dir="ltr">@@@Username</span>
                 <span class="badge @(AccountType == "مدیر سیستم" ? "badge-primary" : "badge-muted")">
-                    <i class="bx bx-shield"></i> @AccountType
+                    <i class="ti @Icons.AccountType"></i> @AccountType
                 </span>
             </div>
         </div>
@@ -55,10 +55,10 @@
         <section class="profile-card">
             <h2 class="section-title">اطلاعات حساب</h2>
             <dl class="profile-facts">
-                <div class="profile-fact"><dt><i class="bx bx-id-card"></i> کد کارمند</dt><dd dir="ltr">@EmployeeCode</dd></div>
-                <div class="profile-fact"><dt><i class="bx bx-at"></i> نام کاربری</dt><dd dir="ltr">@Username</dd></div>
-                <div class="profile-fact"><dt><i class="bx bx-buildings"></i> سازمان</dt><dd>@OrganizationName</dd></div>
-                <div class="profile-fact"><dt><i class="bx bx-shield"></i> نوع حساب</dt><dd>@AccountType</dd></div>
+                <div class="profile-fact"><dt><i class="ti @Icons.Identity"></i> کد کارمند</dt><dd dir="ltr">@EmployeeCode</dd></div>
+                <div class="profile-fact"><dt><i class="ti @Icons.Username"></i> نام کاربری</dt><dd dir="ltr">@Username</dd></div>
+                <div class="profile-fact"><dt><i class="ti @Icons.Organization"></i> سازمان</dt><dd>@OrganizationName</dd></div>
+                <div class="profile-fact"><dt><i class="ti @Icons.AccountType"></i> نوع حساب</dt><dd>@AccountType</dd></div>
             </dl>
         </section>
 
@@ -66,17 +66,17 @@
             <h2 class="section-title">وضعیت سازمان</h2>
             <div class="profile-org-status">
                 <span class="badge @(OrganizationStatus == "فعال" ? "badge-success" : "badge-muted")">
-                    <i class="bx @(OrganizationStatus == "فعال" ? "bx-check-circle" : "bx-minus-circle")"></i>
+                    <i class="ti @(OrganizationStatus == "فعال" ? Icons.Success : Icons.Inactive)"></i>
                     سازمان @OrganizationStatus
                 </span>
             </div>
             <p>دسترسی‌های سامانه بر اساس سمت فعال شما اعمال می‌شود؛ برای تغییر سمت فعال به صفحه سمت‌های من مراجعه
                 کنید.</p>
-            <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="bx bx-left-arrow-alt"></i></a>
+            <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="ti @Icons.ArrowGo"></i></a>
         </section>
     </div>
     <section class="profile-card">
-        <h2 class="section-title"><i class="bx bx-image-alt"></i> تصویر پروفایل</h2>
+        <h2 class="section-title"><i class="ti @Icons.Avatar"></i> تصویر پروفایل</h2>
         <p class="muted">یکی از تصویرهای آماده را انتخاب کنید؛ در نوار بالای صفحه هم نمایش داده می‌شود.</p>
         <div class="avatar-grid" role="radiogroup" aria-label="تصویر پروفایل">
             <button type="button" class="avatar-choice avatar-choice--default @(_avatarKey is null ? "is-selected" : "")" title="پیش‌فرض (حرف اول نام)"
@@ -84,13 +84,13 @@
             @foreach (var option in AvatarCatalog.All)
             {
                 <button type="button" class="avatar-choice @(_avatarKey == option.Key ? "is-selected" : "")" style="background:@option.Color" title="@option.Label"
-                        role="radio" aria-checked="@(_avatarKey == option.Key)" @onclick="() => PickAvatarAsync(option.Key)"><i class="bx @option.Icon"></i></button>
+                        role="radio" aria-checked="@(_avatarKey == option.Key)" @onclick="() => PickAvatarAsync(option.Key)"><i class="ti @option.Icon"></i></button>
             }
         </div>
     </section>
 
     <section class="profile-card">
-        <h2 class="section-title"><i class="bx bx-lock-alt"></i> تغییر رمز عبور</h2>
+        <h2 class="section-title"><i class="ti @Icons.ChangePassword"></i> تغییر رمز عبور</h2>
         <div class="profile-security-grid">
             <div class="form-field"><label class="form-label">رمز عبور فعلی</label>
                 <input class="form-control" type="password" autocomplete="current-password" @bind="_currentPassword" /></div>
@@ -99,19 +99,19 @@
             <div class="form-field"><label class="form-label">تکرار رمز عبور جدید</label>
                 <input class="form-control" type="password" autocomplete="new-password" @bind="_confirmPassword" /></div>
             <div class="form-field admin-row-submit">
-                <button class="btn btn-primary" disabled="@_changing" @onclick="ChangePasswordAsync"><i class="bx bx-save"></i> تغییر رمز عبور</button>
+                <button class="btn btn-primary" disabled="@_changing" @onclick="ChangePasswordAsync"><i class="ti @Icons.Save"></i> تغییر رمز عبور</button>
             </div>
         </div>
         @if (_errors.Count > 0)
         {
             <ul class="pw-rules" role="alert" style="color:var(--danger,#b42318)">
-                @foreach (var e in _errors) { <li><i class="bx bx-error-circle"></i>@e</li> }
+                @foreach (var e in _errors) { <li><i class="ti @Icons.Alert"></i>@e</li> }
             </ul>
         }
         else
         {
             <ul class="pw-rules">
-                @foreach (var line in _policy.Describe()) { <li><i class="bx bx-check"></i>@line</li> }
+                @foreach (var line in _policy.Describe()) { <li><i class="ti @Icons.Confirm"></i>@line</li> }
             </ul>
         }
     </section>

@@ -6,11 +6,11 @@
 
 @if (AvatarCatalog.Find(_key) is { } avatar)
 {
-    <span class="user-avatar user-avatar--picked" style="background:@avatar.Color" title="@avatar.Label"><i class="bx @avatar.Icon"></i></span>
+    <span class="user-avatar user-avatar--picked" style="background:@avatar.Color" title="@avatar.Label"><i class="ti @avatar.Icon"></i></span>
 }
 else
 {
-    <span class="user-avatar"><i class="bx bx-user"></i></span>
+    <span class="user-avatar"><i class="ti @Icons.User"></i></span>
 }
 
 @code {

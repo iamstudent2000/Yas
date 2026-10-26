@@ -18,12 +18,12 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / گزارش‌ها</div>
-            <h1 class="page-title"><i class="bx bx-history"></i> گزارش رویدادها</h1>
+            <h1 class="page-title"><i class="ti @Icons.AuditLog"></i> گزارش رویدادها</h1>
             <p class="page-subtitle">ثبت و بررسی تغییرات انجام‌شده در سامانه</p>
         </div>
         <div class="form-actions">
-            <span class="badge badge-muted"><i class="bx bx-time-five"></i> امروز: @ToPersianDate(DateTime.Today)</span>
-            <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+            <span class="badge badge-muted"><i class="ti @Icons.Clock"></i> امروز: @ToPersianDate(DateTime.Today)</span>
+            <a class="btn btn-secondary" href="/dashboard"><i class="ti @Icons.Back"></i> داشبورد</a>
         </div>
     </div>
 
@@ -54,22 +54,22 @@
             </div>
             @if (_hasSearched)
             {
-                <span class="badge badge-muted"><i class="bx bx-data"></i> @ToPersianDigits(_totalCount.ToString("N0")) رویداد</span>
+                <span class="badge badge-muted"><i class="ti @Icons.EventCount"></i> @ToPersianDigits(_totalCount.ToString("N0")) رویداد</span>
             }
             else
             {
-                <span class="badge badge-muted"><i class="bx bx-search"></i> آماده جستجو</span>
+                <span class="badge badge-muted"><i class="ti @Icons.Search"></i> آماده جستجو</span>
             }
         </div>
 
         @if(!_hasSearched){
-            <div class="empty-state"><i class="bx bx-search-alt"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است.</span></div>
+            <div class="empty-state"><i class="ti @Icons.Search"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است.</span></div>
         }
         else if(_loading){
-            <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><strong>در حال بارگذاری گزارش‌ها...</strong><span>می‌توانید هر زمان درخواست را لغو کنید.</span></div>
+            <div class="empty-state"><i class="ti @Icons.Spinner"></i><strong>در حال بارگذاری گزارش‌ها...</strong><span>می‌توانید هر زمان درخواست را لغو کنید.</span></div>
         }
         else if(_rows.Count==0){
-            <div class="empty-state"><i class="bx bx-search-alt"></i><strong>رویدادی پیدا نشد</strong><span>فیلترها را تغییر دهید و دوباره جستجو کنید.</span></div>
+            <div class="empty-state"><i class="ti @Icons.SearchEmpty"></i><strong>رویدادی پیدا نشد</strong><span>فیلترها را تغییر دهید و دوباره جستجو کنید.</span></div>
         }
         else{
             <div class="data-table-wrap" data-no-auto-paginate>
@@ -87,11 +87,11 @@
                         var local=row.OccurredAtUtc.ToLocalTime();
                         <tr @key="row.Id">
                             <td class="date-cell"><strong>@ToPersianDate(local)</strong><small class="muted">@ToPersianDigits(local.ToString("HH:mm:ss"))</small></td>
-                            <td><div class="admin-actor"><span class="admin-avatar"><i class="bx bx-user"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
+                            <td><div class="admin-actor"><span class="admin-avatar"><i class="ti @Icons.User"></i></span><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))">@(row.EmployeeName ?? (row.EmployeeId is null ? "سیستم" : row.EmployeeId.ToString()))</span></div></td>
                             <td><span class="admin-truncate" lang="en" data-persian-digits="off" title="@(row.PositionName ?? "-")">@(row.PositionName ?? (row.ActivePositionId is null ? "-" : row.ActivePositionId.ToString()))</span></td>
-                            <td><span class="admin-action @GetActionClass(row.Action)"><i class="bx @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
+                            <td><span class="admin-action @GetActionClass(row.Action)"><i class="ti @GetActionIcon(row.Action)"></i>@GetActionText(row.Action)</span></td>
                             <td><div><strong>@GetEntityText(row.EntityType)</strong>@if(!string.IsNullOrEmpty(row.EntityName)){<small lang="en" data-persian-digits="off">@row.EntityName <span class="entity-id">(@row.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@row.EntityId</small>}</div></td>
-                            <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="bx bx-show-alt"></i> جزئیات</button></td>
+                            <td class="action-cell"><button type="button" class="btn btn-secondary btn-sm" @onclick="() => ShowDetailsAsync(row)"><i class="ti @Icons.Details"></i> جزئیات</button></td>
                         </tr>
                     }
                     </tbody>
@@ -105,14 +105,14 @@
         <div class="admin-modal-overlay" @onclick="CloseDetails">
             <section class="admin-modal" dir="rtl" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
                 <header class="admin-modal-header">
-                    <div><div class="muted">جزئیات رویداد</div><h2>@GetActionText(_selected.Action) · @GetEntityText(_selected.EntityType)</h2><div class="muted"><i class="bx bx-time-five"></i> @ToPersianDate(_selected.OccurredAtUtc.ToLocalTime()) @ToPersianDigits(_selected.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss"))</div></div>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="bx bx-x"></i></button>
+                    <div><div class="muted">جزئیات رویداد</div><h2>@GetActionText(_selected.Action) · @GetEntityText(_selected.EntityType)</h2><div class="muted"><i class="ti @Icons.Clock"></i> @ToPersianDate(_selected.OccurredAtUtc.ToLocalTime()) @ToPersianDigits(_selected.OccurredAtUtc.ToLocalTime().ToString("HH:mm:ss"))</div></div>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseDetails" aria-label="بستن"><i class="ti @Icons.Close"></i></button>
                 </header>
                 <div class="admin-modal__body">
                     <div class="admin-meta-grid"><div class="admin-meta-card"><span>کاربر</span><strong lang="en" data-persian-digits="off" title="@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))">@(_selected.EmployeeName ?? (_selected.EmployeeId is null ? "سیستم" : _selected.EmployeeId.ToString()))</strong></div><div class="admin-meta-card"><span>سمت فعال</span><strong lang="en" data-persian-digits="off" title="@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))">@(_selected.PositionName ?? (_selected.ActivePositionId is null ? "-" : _selected.ActivePositionId.ToString()))</strong></div><div class="admin-meta-card admin-meta-card-wide"><span>موجودیت</span><strong>@GetEntityText(_selected.EntityType)</strong>@if(!string.IsNullOrEmpty(_selected.EntityName)){<small lang="en" data-persian-digits="off">@_selected.EntityName <span class="entity-id">(@_selected.EntityId)</span></small>}else{<small class="entity-id" lang="en" data-persian-digits="off">@FormatEntityId(_selected.EntityType,_selected.EntityId)</small>}</div><div class="admin-meta-card"><span>عملیات</span><strong><span class="admin-action @GetActionClass(_selected.Action)">@GetActionText(_selected.Action)</span></strong></div></div>
-                    <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-history"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="bx bx-left-arrow-alt"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="bx bx-check-circle"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
+                    <div class="admin-changes"><div class="admin-change-panel"><div class="admin-change-header"><i class="ti @Icons.History"></i> قبل از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.BeforeJson)</div></div><div class="admin-change-arrow"><i class="ti @Icons.ArrowGo"></i></div><div class="admin-change-panel"><div class="admin-change-header"><i class="ti @Icons.Success"></i> بعد از تغییر</div><div class="admin-change-properties">@RenderJson(_selected.AfterJson)</div></div></div>
                 </div>
-                <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="bx bx-x"></i> بستن</button></footer>
+                <footer class="admin-modal-footer"><span dir="ltr" lang="en" data-persian-digits="off">@_selected.Id</span><button type="button" class="btn btn-secondary" @onclick="CloseDetails"><i class="ti @Icons.Close"></i> بستن</button></footer>
             </section>
         </div>
     }
@@ -350,11 +350,11 @@
     }
     private static string GetActionText(string a)=>a switch{"Created"=>"ایجاد","Updated"=>"ویرایش","Deleted"=>"حذف",_=>a};
     private static string GetActionClass(string a)=>a switch{"Created"=>"admin-action--success","Deleted"=>"admin-action--danger","Updated"=>"admin-action--warning",_=>"admin-action--neutral"};
-    private static string GetActionIcon(string a)=>a switch{"Created"=>"bx-plus","Deleted"=>"bx-trash",_=>"bx-edit-alt"};
+    private static string GetActionIcon(string a)=>a switch{"Created"=>Icons.Add,"Deleted"=>Icons.Delete,_=>Icons.Edit};
     private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",_=>e};
     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
-    private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='bx bx-minus-circle'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Name,p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
+    private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='ti " + Icons.Inactive + "'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Name,p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
     private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","PermissionId"=>"مجوز","GroupId"=>"گروه مجوز","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",_=>n};
     private string FormatJsonValue(string propertyName,JsonElement v)
     {

@@ -22,7 +22,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-revision"></i> درخواست‌های ردشده</h1>
+            <h1 class="page-title"><i class="ti @Icons.Rejected"></i> درخواست‌های ردشده</h1>
             <p class="page-subtitle">
                 بازگشایی یک درخواست ردشده را به مرحله‌ای برمی‌گرداند که آن را رد کرده است. تاییدهای مراحل قبلی حفظ می‌شود و
                 فقط همان مرحله و مراحل بعد از آن دوباره تصمیم‌گیری می‌کنند. رد قبلی و دلیل بازگشایی برای همیشه در سوابق می‌ماند.
@@ -81,7 +81,7 @@
                             <td>@(rejection is null ? "—" : WorkflowDisplay.ToPersianDate(rejection.ActedAtUtc))</td>
                             <td>
                                 <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleDetails(request.Id)">
-                                    <i class="bx bx-show"></i> جزئیات
+                                    <i class="ti @Icons.Details"></i> جزئیات
                                 </button>
                                 @if (_openReasonFor == request.Id)
                                 {
@@ -93,7 +93,7 @@
                                                     @onclick="() => ReopenAsync(request.Id)">
                                                 @if (_busyId == request.Id)
                                                 {
-                                                    <span><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                                                    <span><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
                                                 }
                                                 else
                                                 {
@@ -107,7 +107,7 @@
                                 else
                                 {
                                     <button type="button" class="btn btn-primary btn-sm" @onclick="() => _openReasonFor = request.Id">
-                                        <i class="bx bx-revision"></i> بازگشایی
+                                        <i class="ti @Icons.Reopen"></i> بازگشایی
                                     </button>
                                 }
                             </td>

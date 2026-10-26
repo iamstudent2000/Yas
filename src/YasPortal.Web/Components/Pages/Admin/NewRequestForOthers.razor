@@ -23,17 +23,17 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت</div>
-            <h1 class="page-title"><i class="bx bx-user-plus"></i> ثبت درخواست برای دیگران</h1>
+            <h1 class="page-title"><i class="ti @Icons.NewRequestForOthers"></i> ثبت درخواست برای دیگران</h1>
             <p class="page-subtitle">درخواست به نام کارمند انتخاب‌شده و از سمت او ثبت می‌شود و مسیر تأیید بر اساس همان سمت تعیین می‌شود. ثبت‌کننده (شما) در سابقه درخواست دیده می‌شود.</p>
         </div>
         <div class="form-actions">
-            <a class="btn btn-secondary" href="/admin/active-requests"><i class="bx bx-list-check"></i> درخواست‌های فعال</a>
+            <a class="btn btn-secondary" href="/admin/active-requests"><i class="ti @Icons.ActiveRequests"></i> درخواست‌های فعال</a>
         </div>
     </div>
 
     <section class="card admin-form-row">
         <div class="admin-form-row-head">
-            <h2 class="section-title"><i class="bx bx-user-check"></i> درخواست‌دهنده</h2>
+            <h2 class="section-title"><i class="ti @Icons.Requester"></i> درخواست‌دهنده</h2>
             <p class="muted">فقط کارمندان فعال دارای سمت فعال فهرست می‌شوند. مدیران سامانه سمت ندارند و انتخاب نمی‌شوند.</p>
         </div>
         <div class="admin-row-grid">
@@ -64,7 +64,7 @@
                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
                 {
                     <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
-                        <span class="request-type-card-icon"><i class="bx @WorkflowDisplay.IconFor(type)"></i></span>
+                        <span class="request-type-card-icon"><i class="ti @WorkflowDisplay.IconFor(type)"></i></span>
                         <span>@WorkflowFieldCatalog.GetDisplayName(type)</span>
                     </div>
                 }
@@ -80,12 +80,12 @@
                 <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
                     @if (_submitting)
                     {
-                        <i class="bx bx-loader-alt bx-spin"></i>
+                        <i class="ti @Icons.Spinner"></i>
                         <span>در حال ثبت...</span>
                     }
                     else
                     {
-                        <i class="bx bx-send"></i>
+                        <i class="ti @Icons.Send"></i>
                         <span>ثبت درخواست برای @_employeeName</span>
                     }
                 </button>

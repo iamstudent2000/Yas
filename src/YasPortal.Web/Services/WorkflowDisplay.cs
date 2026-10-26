@@ -8,14 +8,14 @@ public static class WorkflowDisplay
 {
     public static string IconFor(WorkflowTypeCode type) => type switch
     {
-        WorkflowTypeCode.Leave => "bx-calendar-x",
-        WorkflowTypeCode.Purchase => "bx-cart",
-        WorkflowTypeCode.Access => "bx-key",
-        WorkflowTypeCode.Loan => "bx-money",
-        WorkflowTypeCode.Helpdesk => "bx-support",
-        WorkflowTypeCode.WorkReport => "bx-file-blank",
-        WorkflowTypeCode.VehicleRequest => "bx-car",
-        _ => "bx-file",
+        WorkflowTypeCode.Leave => Icons.TypeLeave,
+        WorkflowTypeCode.Purchase => Icons.TypePurchase,
+        WorkflowTypeCode.Access => Icons.TypeAccess,
+        WorkflowTypeCode.Loan => Icons.TypeLoan,
+        WorkflowTypeCode.Helpdesk => Icons.TypeHelpdesk,
+        WorkflowTypeCode.WorkReport => Icons.TypeWorkReport,
+        WorkflowTypeCode.VehicleRequest => Icons.TypeVehicle,
+        _ => Icons.Request,
     };
 
     /// <summary>Formats a submitted field value for display, converting Date fields to the Persian calendar.</summary>
@@ -139,13 +139,13 @@ public static class WorkflowDisplay
 
     public static string StepIcon(WorkflowStepStatus status, bool isCurrent) => status switch
     {
-        WorkflowStepStatus.Pending when isCurrent => "bx-time-five",
-        WorkflowStepStatus.Pending => "bx-time",
-        WorkflowStepStatus.Approved => "bx-check",
-        WorkflowStepStatus.Rejected => "bx-x",
-        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => "bx-undo",
-        WorkflowStepStatus.Superseded => "bx-minus-circle",
-        _ => "bx-circle",
+        WorkflowStepStatus.Pending when isCurrent => Icons.Awaiting,
+        WorkflowStepStatus.Pending => Icons.Clock,
+        WorkflowStepStatus.Approved => Icons.Confirm,
+        WorkflowStepStatus.Rejected => Icons.Close,
+        WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep => Icons.Returned,
+        WorkflowStepStatus.Superseded => Icons.Superseded,
+        _ => Icons.Circle,
     };
 
     /// <summary>Badge color class for a completed step's own outcome (history views, not the live timeline).</summary>
@@ -183,11 +183,11 @@ public static class WorkflowDisplay
 
     public static string StageStateIcon(WorkflowStageState state) => state switch
     {
-        WorkflowStageState.Awaiting => "bx-time-five",
-        WorkflowStageState.Approved => "bx-check",
-        WorkflowStageState.Rejected => "bx-x",
-        WorkflowStageState.Returned => "bx-undo",
-        WorkflowStageState.Skipped => "bx-minus",
-        _ => "bx-time",
+        WorkflowStageState.Awaiting => Icons.Awaiting,
+        WorkflowStageState.Approved => Icons.Confirm,
+        WorkflowStageState.Rejected => Icons.Close,
+        WorkflowStageState.Returned => Icons.Returned,
+        WorkflowStageState.Skipped => Icons.Skipped,
+        _ => Icons.Clock,
     };
 }
