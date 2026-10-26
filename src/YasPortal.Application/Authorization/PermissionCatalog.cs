@@ -57,8 +57,46 @@ public static class Perm
         viewCode.EndsWith(".View", StringComparison.OrdinalIgnoreCase) ? viewCode[..^".View".Length] + ".Manage" : null;
 }
 
+/// <summary>Whose data a permission lets the holder reach.</summary>
+public enum PermissionReach
+{
+    /// <summary>Only the holder's own data.</summary>
+    Own,
+    /// <summary>Requests routed to the holder as an approver (the holder acts on other people's requests, but only those assigned).</summary>
+    Assigned,
+    /// <summary>Requests and statistics of the holder's subordinates.</summary>
+    Team,
+    /// <summary>Data of everyone in the system.</summary>
+    All,
+}
+
 public static class PermissionCatalog
 {
+    private static readonly HashSet<string> ExportAll = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ReportPermissions.AllRequests, ReportPermissions.ActiveRequests, ReportPermissions.RejectedRequests, ReportPermissions.Users,
+        ReportPermissions.Organizations, ReportPermissions.Positions, ReportPermissions.AssignmentHistory, ReportPermissions.AuditLog,
+        ReportPermissions.Delegations,
+    };
+
+    /// <summary>Whose data the permission exposes. Shown as a badge wherever permissions are listed or granted.</summary>
+    public static PermissionReach ReachOf(string code)
+    {
+        if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
+            return PermissionReach.All;
+        if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
+            return PermissionReach.Assigned;
+        if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
+            return PermissionReach.Team;
+        return PermissionReach.Own;
+    }
+
+    /// <summary>True when the permission lets the holder change or decide on data that is not theirs (not just read it).</summary>
+    public static bool ActsOnOthers(string code) =>
+        code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
+        || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
+        || code is Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
+
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
 
     public static IEnumerable<string> Codes => All.Select(x => x.Code);
@@ -86,25 +124,25 @@ public static class PermissionCatalog
 
             new(Perm.DelegationsOwnManage, "تفویض اختیار سمت خود به دیگری", "Requests.Delegation", "Delegations.Create"),
 
-            new(Perm.AdminRequestsView, "گزارش و جستجوی همه درخواست‌ها", "Admin.Requests"),
+            new(Perm.AdminRequestsView, "مشاهده گزارش همه درخواست‌ها", "Admin.Requests"),
             new(Perm.AdminRequestsCreateForOthers, "ثبت درخواست برای دیگران", "Admin.RequestForOthers"),
             new(Perm.AdminRequestsForceClose, "بستن اجباری درخواست‌های گیر کرده", "Requests.ForceClose"),
             new(Perm.AdminRequestsReopen, "بازگشایی درخواست‌های ردشده", "Requests.Reopen"),
 
-            new(Perm.AdminUsersView, "مشاهده کاربران"),
-            new(Perm.AdminUsersManage, "مدیریت کاربران", "Admin.Users"),
-            new(Perm.AdminOrganizationsView, "مشاهده سازمان‌ها"),
-            new(Perm.AdminOrganizationsManage, "مدیریت سازمان‌ها", "Admin.Organizations"),
-            new(Perm.AdminPositionsView, "مشاهده سمت‌ها"),
-            new(Perm.AdminPositionsManage, "مدیریت سمت‌ها", "Admin.Positions"),
-            new(Perm.AdminWorkflowsView, "مشاهده مراحل گردش‌کار"),
-            new(Perm.AdminWorkflowsManage, "مدیریت مراحل گردش‌کار", "Admin.Workflows"),
-            new(Perm.AdminDelegationsView, "مشاهده تفویض‌ها"),
-            new(Perm.AdminDelegationsManage, "مدیریت تفویض‌ها و تعیین جانشین موقت", "Admin.Delegation", "Delegations.Manage"),
-            new(Perm.AdminAccessView, "مشاهده دسترسی‌ها"),
-            new(Perm.AdminAccessManage, "مدیریت دسترسی‌ها", "Admin.Access"),
-            new(Perm.AdminPermissionsView, "مشاهده مجوزها و گروه‌های مجوز"),
-            new(Perm.AdminPermissionsManage, "مدیریت مجوزها و گروه‌های مجوز", "Admin.Permissions"),
+            new(Perm.AdminUsersView, "مشاهده کاربران (فقط خواندنی)"),
+            new(Perm.AdminUsersManage, "مدیریت کاربران (ایجاد، ویرایش، فعال/غیرفعال)", "Admin.Users"),
+            new(Perm.AdminOrganizationsView, "مشاهده سازمان‌ها (فقط خواندنی)"),
+            new(Perm.AdminOrganizationsManage, "مدیریت سازمان‌ها (ایجاد، ویرایش، تخصیص کارکنان)", "Admin.Organizations"),
+            new(Perm.AdminPositionsView, "مشاهده سمت‌ها (فقط خواندنی)"),
+            new(Perm.AdminPositionsManage, "مدیریت سمت‌ها (ایجاد، ویرایش، تخصیص، حذف)", "Admin.Positions"),
+            new(Perm.AdminWorkflowsView, "مشاهده مراحل گردش‌کار (فقط خواندنی)"),
+            new(Perm.AdminWorkflowsManage, "مدیریت مراحل گردش‌کار (افزودن، ویرایش، ترتیب، حذف)", "Admin.Workflows"),
+            new(Perm.AdminDelegationsView, "مشاهده همه تفویض‌ها (فقط خواندنی)"),
+            new(Perm.AdminDelegationsManage, "مدیریت همه تفویض‌ها و تعیین جانشین موقت", "Admin.Delegation", "Delegations.Manage"),
+            new(Perm.AdminAccessView, "مشاهده دسترسی‌ها (فقط خواندنی)"),
+            new(Perm.AdminAccessManage, "مدیریت دسترسی‌ها (تخصیص مجوز و گروه)", "Admin.Access"),
+            new(Perm.AdminPermissionsView, "مشاهده مجوزها و گروه‌ها (فقط خواندنی)"),
+            new(Perm.AdminPermissionsManage, "مدیریت مجوزها و گروه‌ها (ویرایش نام، ساخت گروه)", "Admin.Permissions"),
             new(Perm.AdminAssignmentHistoryView, "مشاهده سوابق تخصیص سمت‌ها", "Admin.AssignmentHistory"),
             new(Perm.AdminAuditLogView, "مشاهده گزارش رویدادها", "Admin.AuditLog"),
         };

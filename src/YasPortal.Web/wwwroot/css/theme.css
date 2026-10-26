@@ -309,3 +309,10 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .dash-table th{font-size:11px;color:var(--text-muted,#667085);font-weight:700}
 @media(max-width:600px){.dash-grid{grid-template-columns:1fr}.dash-months{gap:3px}.dash-month-label{font-size:8.5px}}
 .dash-group-title{margin:8px 0 0;font-size:14px;color:var(--text-muted,#667085)}
+
+.reach-badge{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700;white-space:nowrap;vertical-align:middle;border:1px solid transparent}
+.reach-own{background:#eef2f6;color:#475467;border-color:#d8dee6}
+.reach-assigned{background:#eaf1ff;color:#1d4ed8;border-color:#c7d8fb}
+.reach-team{background:#fff4e0;color:#b45309;border-color:#f6d9a6}
+.reach-all{background:#fde8e8;color:#b42318;border-color:#f5c2c0}
+.reach-all-act{background:#b42318;color:#fff}
