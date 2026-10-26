@@ -206,12 +206,12 @@
 
     private static string IconFor(NotificationKind kind) => kind switch
     {
-        NotificationKind.StepReached => "bx-inbox",
+        NotificationKind.StepReached => "bx-archive-in",
         NotificationKind.ReturnedToStep => "bx-undo",
         NotificationKind.RequestApproved => "bx-check-circle",
         NotificationKind.RequestRejected => "bx-x-circle",
         NotificationKind.RequestReturned => "bx-undo",
-        NotificationKind.RequestForceClosed => "bx-error-circle",
+        NotificationKind.RequestForceClosed => "bx-block",
         NotificationKind.RequestCreatedForYou => "bx-user-plus",
         NotificationKind.VacantPosition => "bx-user-x",
         _ => "bx-bell",
