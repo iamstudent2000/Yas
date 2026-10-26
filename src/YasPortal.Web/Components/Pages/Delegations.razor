@@ -33,12 +33,14 @@
     {
         <section class="card"><LoadingState /></section>
     }
-    else if (!_canCreate && !_canManage)
+    else if (!_canCreate && !_canViewAll)
     {
         <section class="card"><div class="empty-state"><i class="bx bx-lock-alt"></i><strong>مجوز تفویض اختیار ندارید</strong></div></section>
     }
     else
     {
+        @if (_canCreate || _canManage)
+        {
         <section class="card dlg-create">
             <div class="dlg-section-head">
                 <h2 class="card-title"><i class="bx bx-plus-circle"></i> تفویض جدید</h2>
@@ -82,12 +84,13 @@
                 </div>
             </div>
         </section>
+        }
 
         <div class="dlg-columns">
             <div class="dlg-col">
             <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportMineAsync" Exporting="_exporting" />
             <section class="card">
-                <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canManage ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
+                <h2 class="card-title"><i class="bx bx-transfer"></i> @(_canViewAll ? "همه تفویض‌ها" : "تفویض‌های من")</h2>
                 @if (_mine.Count == 0)
                 {
                     <div class="empty-state is-compact"><i class="bx bx-transfer"></i><strong>@(_mineFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی ثبت نشده است")</strong></div>
@@ -105,7 +108,7 @@
                                 <span class="badge badge-info">جانشین تعیین‌شده توسط مدیر</span>
                             }
                             <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
-                            @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming)
+                            @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming && (_canManage || row.Delegation.DelegatorEmployeeId == _employeeId))
                             {
                                 <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="bx bx-x"></i> لغو</button>
                             }
@@ -146,7 +149,7 @@
 @code {
     private sealed record Row(PositionDelegation Delegation, string PositionName, string DelegatePositionName, string? DelegatorName, DelegationStatus Status);
 
-    private bool _ready, _busy, _canCreate, _canManage;
+    private bool _ready, _busy, _canCreate, _canManage, _canViewAll;
     private Guid? _employeeId, _ownPositionId, _positionId, _delegatePositionId;
     private string? _ownPositionName;
     private DateTime? _from, _to;
@@ -203,8 +206,9 @@
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
         var claimed = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
-        _canCreate = await Permissions.HasPermissionAsync("Requests.Delegation");
-        _canManage = await Permissions.HasPermissionAsync("Admin.Delegation");
+        _canCreate = await Permissions.HasPermissionAsync(Perm.DelegationsOwnManage);
+        _canManage = await Permissions.HasPermissionAsync(Perm.AdminDelegationsManage);
+        _canViewAll = await Permissions.HasPermissionAsync(Perm.AdminDelegationsView);
         if (_employeeId is Guid emp && await Workflows.HoldsActivePositionAsync(emp, claimed))
             _ownPositionId = claimed;
         await LoadAsync();
@@ -233,7 +237,7 @@
         {
             await using var db = await DbFactory.CreateDbContextAsync();
             var me = _employeeId;
-            var query = ApplyFilter(db.PositionDelegations.AsNoTracking().Where(d => _canManage || d.DelegatorEmployeeId == me), db, _mineFilter);
+            var query = ApplyFilter(db.PositionDelegations.AsNoTracking().Where(d => _canViewAll || d.DelegatorEmployeeId == me), db, _mineFilter);
             _mineTotal = await query.CountAsync();
             _minePage = ClampPage(_minePage, _minePageSize, _mineTotal);
             var rows = await ApplySort(query, db, _mineFilter.Sort).Skip((_minePage - 1) * _minePageSize).Take(_minePageSize).ToListAsync();
@@ -263,7 +267,7 @@
     private Task ExportMineAsync()
     {
         var me = _employeeId;
-        var canManage = _canManage;
+        var canManage = _canViewAll;
         return ExportAsync("delegations", db => ApplySort(ApplyFilter(db.PositionDelegations.AsNoTracking().Where(d => canManage || d.DelegatorEmployeeId == me), db, _mineFilter), db, _mineFilter.Sort));
     }
 

@@ -6,7 +6,8 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize(Policy = "Admin.Permissions")]
+@attribute [Authorize(Policy = Perm.AdminPermissionsView)]
+@inject IPermissionChecker PermissionChecker
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
@@ -48,7 +49,8 @@
         <div class="admin-stack">
 @if (_editingId is not null)
         {
-        <section class="card admin-form-row">
+        @if (_canManage) {
+<section class="card admin-form-row">
             <div class="admin-form-row-head">
                 <h2 class="section-title"><i class="bx bx-edit-alt"></i> ویرایش نام مجوز</h2>
                 <p class="muted">مجوزها در برنامه ثابت هستند؛ فقط نام نمایشی قابل ویرایش است و کد فنی تغییر نمی‌کند.</p>
@@ -64,6 +66,7 @@
                 </div>
             </div>
         </section>
+}
         }
 
 
@@ -130,8 +133,8 @@
                                                         <button class="btn btn-primary btn-sm" @onclick="() => ToggleUsage(x.Id)">
                                                             <i class="bx @(isExpanded ? "bx-chevron-up" : "bx-show")"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")
                                                         </button>
-                                                        <button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i>
-                                                            ویرایش</button>
+                                                        @if (_canManage) {<button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i>
+                                                            ویرایش</button>}
                                                             </div>
                                                         </div>
 
@@ -278,6 +281,7 @@
                                                                 </div>
 
 @code {
+    private bool _canManage;
     private List<AdminQueryService.PermissionPageRow> _permissions = [];
     private AdminQueryService.PermissionUsageDetails? _usage;
     private Guid? _expandedPermissionId, _editingId, _expandedUsageGroupId;
@@ -287,7 +291,7 @@
     private HashSet<string> _collapsedAreas = [];
     private const int UsagePageSize = 6;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPermissionsManage); await LoadAsync(); }
 
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     private async Task ExpandAllAreas()
@@ -390,11 +394,11 @@
         _ => code.Split('.', 2)[0]
     };
 
-    private void Edit(AdminQueryService.PermissionPageRow x) { _editingId = x.Id; _code = x.Code; _name = x.Name; }
+    private void Edit(AdminQueryService.PermissionPageRow x) { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; }
     private void Cancel() { _editingId = null; _code = _name = ""; }
 
     private async Task Save()
-    {
+    { if (!_canManage) return;
         var name = _name.Trim();
         if (_editingId is not Guid id || string.IsNullOrWhiteSpace(name))
         {

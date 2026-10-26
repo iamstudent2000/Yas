@@ -6,7 +6,8 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize(Policy = "Admin.Organizations")]
+@attribute [Authorize(Policy = Perm.AdminOrganizationsView)]
+@inject IPermissionChecker PermissionChecker
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
@@ -37,6 +38,7 @@
         </div>
     </div>
     <div class="admin-stack">
+@if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
@@ -56,6 +58,7 @@
         </div>
     </div>
     </section>
+}
 
             <ListFilterBar Busy="_organizationLoading" ActiveCount="OrganizationFilterCount"
                            CanClear="@(OrganizationFilterCount > 0 || _draftOrganizationSearch != "" || _dOrgStatus != "" || _dOrgEmployees != "" || _dOrgEmployeeId is not null)"
@@ -112,18 +115,18 @@
                                             class="badge @(organization.IsActive ? "badge-success" : "badge-muted")">@(organization.IsActive
                                                                                 ? "فعال" : "غیرفعال")</span>
                                         </td>
-                                        <td class="action-cell"><button class="btn btn-secondary btn-sm"
+                                        <td class="action-cell">@if (_canManage) {<button class="btn btn-secondary btn-sm"
                                                                         @onclick="() => BeginEdit(organization)"><i class="bx bx-edit-alt"></i>
-                                            ویرایش</button>@if(organization.IsActive&&organization.EmployeeCount>0){
+                                            ویرایش</button>}@if(organization.IsActive&&organization.EmployeeCount>0){
                                             <button class="btn btn-disabled btn-sm" disabled><i class="bx bx-lock-alt"></i>
                                                 غیرفعال</button>
                                             }else
                                             {
 
-                                                <button class="btn @(organization.IsActive ? "btn-danger" : "btn-primary") btn-sm"
+                                                @if (_canManage) {<button class="btn @(organization.IsActive ? "btn-danger" : "btn-primary") btn-sm"
                                                         @onclick="() => ToggleOrganization(organization.Id)"><i
                                                     class="bx @(organization.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i>
-                                                    @(organization.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>
+                                                    @(organization.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>}
                                                 }
                                             </td>
                                         </tr>
@@ -137,7 +140,8 @@
                                       PageSizeChanged="OrganizationPageSizeChanged" />
                 </section>
             </div>
-            <section class="card organization-assignment">
+            @if (_canManage) {
+<section class="card organization-assignment">
                 <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0;">تخصیص سازمان به کارکنان</h2>
@@ -210,9 +214,11 @@
                     }
                 }
             </section>
+}
         </div>
 
 @code {
+    private bool _canManage;
     private List<AdminQueryService.OrganizationPageRow> _organizations = [];
     private Guid? _editingId;
     private string _code = string.Empty, _name = string.Empty, _organizationSearch = "", _employeeSearch = "";
@@ -229,7 +235,7 @@ _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOr
         _allEmployees.Where(x => _orgAssignVisibleIds is null || _orgAssignVisibleIds.Contains(x.Id))
             .GroupBy(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!)
             .OrderBy(g => g.Key);
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminOrganizationsManage); await LoadAsync(); }
     private async Task LoadAsync() { await LoadOrganizationsAsync(); await LoadEmployeesAsync(); await LoadStatsAsync(); }
     private async Task LoadOrganizationsAsync()
     {
@@ -346,10 +352,10 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         _organizationPageSize = size; _organizationPage = 1; await
 LoadOrganizationsAsync();
     }
-    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { _editingId = x.Id; _code = x.Code; _name = x.Name; }
+    private void BeginEdit(AdminQueryService.OrganizationPageRow x) { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; }
     private void CancelEdit() { _editingId = null; _code = string.Empty; _name = string.Empty; }
     private async Task SaveOrganization()
-    {
+    { if (!_canManage) return;
         var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
         {
             AppState.AddToast("کد سازمان الزامی است.", ToastLevel.Error); return;
@@ -373,7 +379,7 @@ db.Organizations.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Emp
         await db.SaveChangesAsync(); CancelEdit(); await LoadAsync();
     }
     private async Task ToggleOrganization(Guid id)
-    {
+    { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); var x = await
 db.Organizations.Include(o => o.Employees).SingleAsync(x => x.Id == id); if (x.IsActive && x.Employees.Any())
         {
@@ -385,7 +391,7 @@ db.Organizations.Include(o => o.Employees).SingleAsync(x => x.Id == id); if (x.I
 ToastLevel.Success); await LoadAsync();
     }
     private async Task ChangeEmployeeOrganization(Guid employeeId, Guid? organizationId)
-    {
+    { if (!_canManage) return;
         if (organizationId is not Guid
 oid) return; await using var db = await DbFactory.CreateDbContextAsync(); var organization = await
 db.Organizations.SingleOrDefaultAsync(x => x.Id == oid && x.IsActive); if (organization is null)

@@ -81,58 +81,37 @@ public static class DevelopmentDataSeeder
         positions["کارشناس مالی"] = await EnsurePosition(db, "POS-004", "کارشناس مالی", positions["مدیر واحد"].Id, ct);
         positions["کارمند"] = await EnsurePosition(db, "POS-005", "کارمند", positions["مدیر واحد"].Id, ct);
 
-        var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase) {
-            ["Dashboard.View"] = new Permission("Dashboard.View", "مشاهده داشبورد"),
-            ["Profile.View"] = new Permission("Profile.View", "مشاهده پروفایل"),
-            ["Requests.Create"] = new Permission("Requests.Create", "ایجاد درخواست"),
-            ["Requests.View"] = new Permission("Requests.View", "مشاهده درخواست‌ها"),
-            ["Requests.Approve"] = new Permission("Requests.Approve", "تأیید درخواست‌ها"),
-            ["Requests.Reject"] = new Permission("Requests.Reject", "رد درخواست‌ها"),
-            ["Requests.ReturnToRequester"] = new Permission("Requests.ReturnToRequester", "بازگرداندن درخواست به درخواست‌کننده"),
-            ["Requests.ReturnToPreviousStep"] = new Permission("Requests.ReturnToPreviousStep", "بازگرداندن درخواست به مرحله قبل"),
-            ["Admin.Users"] = new Permission("Admin.Users", "مدیریت کاربران"),
-            ["Admin.Positions"] = new Permission("Admin.Positions", "مدیریت سمت‌ها"),
-            ["Admin.Permissions"] = new Permission("Admin.Permissions", "مدیریت مجوزها"),
-            ["Admin.Organizations"] = new Permission("Admin.Organizations", "مدیریت سازمان‌ها"),
-            ["Admin.Access"] = new Permission("Admin.Access", "مدیریت دسترسی‌ها"),
-            ["Admin.AssignmentHistory"] = new Permission("Admin.AssignmentHistory", "مشاهده سوابق تخصیص سمت‌ها"),
-            ["Admin.AuditLog"] = new Permission("Admin.AuditLog", "مشاهده گزارش رویدادها"),
-            ["Admin.Workflows"] = new Permission("Admin.Workflows", "مدیریت مراحل گردش‌کار"),
-            ["Requests.ForceClose"] = new Permission("Requests.ForceClose", "بستن اجباری درخواست‌های گیر کرده"),
-            ["Requests.Reopen"] = new Permission("Requests.Reopen", "بازگشایی درخواست‌های ردشده"),
-            ["Requests.ReturnToSpecificStep"] = new Permission("Requests.ReturnToSpecificStep", "بازگشت به مرحله دلخواه"),
-            ["Requests.Delegation"] = new Permission("Requests.Delegation", "تفویض اختیار سمت خود به دیگری"),
-            ["Admin.Delegation"] = new Permission("Admin.Delegation", "مدیریت تفویض‌ها و تعیین جانشین موقت"),
-            ["Admin.RequestForOthers"] = new Permission("Admin.RequestForOthers", "ثبت درخواست برای دیگران"),
-            ["Admin.Requests"] = new Permission("Admin.Requests", "گزارش و جستجوی درخواست‌ها"),
-            ["Requests.ViewSubordinateRequests"] = new Permission("Requests.ViewSubordinateRequests", "مشاهده درخواست‌های زیرمجموعه"),
-            ["Requests.ViewSubordinateApprovals"] = new Permission("Requests.ViewSubordinateApprovals", "مشاهده تصمیمات تایید زیرمجموعه")
-        };
-
-        foreach (var (code, name) in ReportPermissions.All.Concat(FormPermissions.All).Concat(DashboardPermissions.All))
-            permissions[code] = new Permission(code, name);
-
-        // Renamed permissions: rename the existing rows so every grant of them is kept, instead of dropping and re-creating them.
-        (string OldCode, string NewCode, string NewName)[] renamed =
-        [
-            ("Delegations.Create", "Requests.Delegation", "تفویض اختیار سمت خود به دیگری"),
-            ("Delegations.Manage", "Admin.Delegation", "مدیریت تفویض‌ها و تعیین جانشین موقت"),
-        ];
-        foreach (var (oldCode, newCode, newName) in renamed)
+        // Every permission comes from PermissionCatalog. A row still carrying an old code is renamed in place
+        // (so every grant to persons, positions and groups is kept); missing rows are created; names are refreshed.
+        var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in PermissionCatalog.All)
         {
-            var oldRow = await db.Permissions.SingleOrDefaultAsync(x => x.Code == oldCode, ct);
-            if (oldRow is not null && !await db.Permissions.AnyAsync(x => x.Code == newCode, ct))
-                oldRow.Rename(newCode, newName);
-        }
-        await db.SaveChangesAsync(ct);
-
-        foreach (var permission in permissions.Values.ToList())
-        {
-            var existing = await db.Permissions.SingleOrDefaultAsync(x => x.Code == permission.Code, ct);
-            if (existing is not null)
-                permissions[permission.Code] = existing;
-            else
-                db.Permissions.Add(permission);
+            var row = await db.Permissions.SingleOrDefaultAsync(x => x.Code == definition.Code, ct);
+            if (row is null)
+            {
+                foreach (var oldCode in definition.OldCodes)
+                {
+                    row = await db.Permissions.SingleOrDefaultAsync(x => x.Code == oldCode, ct);
+                    if (row is not null)
+                    {
+                        row.Rename(definition.Code, definition.Name);
+                        await db.SaveChangesAsync(ct);
+                        break;
+                    }
+                }
+            }
+            if (row is null)
+            {
+                row = new Permission(definition.Code, definition.Name);
+                db.Permissions.Add(row);
+                await db.SaveChangesAsync(ct);
+            }
+            else if (row.Name != definition.Name)
+            {
+                row.Rename(definition.Code, definition.Name);
+                await db.SaveChangesAsync(ct);
+            }
+            permissions[definition.Code] = row;
         }
 
         // Permissions that were once seeded but nothing ever checked; removed so they stop showing up in the access screens.
@@ -190,10 +169,10 @@ public static class DevelopmentDataSeeder
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
-        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
-        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToSpecificStep", "Requests.Delegation" }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
-        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.Delegation", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", ReportPermissions.TeamRequests, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).Append(DashboardPermissions.Team).ToArray(), ct);
-        await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { "Dashboard.View", "Profile.View", "Requests.View", "Requests.Approve", "Requests.Reject" }.Concat(FormPermissions.Codes).Append(DashboardPermissions.Mine).ToArray(), ct);
+        await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnCreate, Perm.RequestsOwnView, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).ToArray(), ct);
+        await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnView, Perm.RequestsDecisionApprove, Perm.RequestsDecisionReject, Perm.RequestsDecisionReturnToRequester, Perm.RequestsDecisionReturnToSpecificStep, Perm.DelegationsOwnManage }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).ToArray(), ct);
+        await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnView, Perm.RequestsDecisionApprove, Perm.RequestsDecisionReject, Perm.RequestsDecisionReturnToRequester, Perm.RequestsDecisionReturnToPreviousStep, Perm.RequestsDecisionReturnToSpecificStep, Perm.DelegationsOwnManage, Perm.RequestsTeamView, Perm.RequestsTeamApprovalsView, ReportPermissions.TeamRequests, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).Append(Perm.DashboardTeamView).ToArray(), ct);
+        await Grant(db, employees["finance"], positions["کارشناس مالی"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnView, Perm.RequestsDecisionApprove, Perm.RequestsDecisionReject }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).ToArray(), ct);
         await db.SaveChangesAsync(ct);
 
         // Default approval paths — seeded once as a sensible starting point; an admin

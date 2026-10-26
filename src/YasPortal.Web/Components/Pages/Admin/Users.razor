@@ -7,7 +7,8 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize(Policy = "Admin.Users")]
+@attribute [Authorize(Policy = Perm.AdminUsersView)]
+@inject IPermissionChecker PermissionChecker
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPasswordHasher<Employee> PasswordHasher
 @inject AdminQueryService AdminQueries
@@ -47,6 +48,7 @@
             </div>
 
             <div class="admin-stack">
+@if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-user-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
@@ -74,6 +76,7 @@
         </div>
     </div>
     </section>
+}
 
 
                 <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
@@ -153,13 +156,13 @@
                                                     <td><span class="badge @(x.IsActive ? "badge-success" : "badge-muted")">@(x.IsActive ?
                                                                                             "فعال" : "غیرفعال")</span>
                                                     </td>
-                                                    <td class="action-cell"><button class="btn btn-secondary btn-sm"
+                                                    <td class="action-cell">@if (_canManage) {<button class="btn btn-secondary btn-sm"
                                                                                     @onclick="() => BeginEdit(x)" title="ویرایش"><i
-                                                        class="bx bx-edit-alt"></i></button><button
+                                                        class="bx bx-edit-alt"></i></button>}@if (_canManage) {<button
                                                         class="btn @(x.IsActive ? "btn-danger" : "btn-primary") btn-sm"
                                                         @onclick="() => ToggleEmployee(x.Id)"
                                                         title="@(x.IsActive ? "غیرفعال کردن" : "فعال کردن")"><i
-                                                        class="bx @(x.IsActive ? "bx-user-x" : "bx-user-check")"></i></button>@if(!x.IsAdmin){
+                                                        class="bx @(x.IsActive ? "bx-user-x" : "bx-user-check")"></i></button>}@if(!x.IsAdmin){
                                                         <a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i
                                                             class="bx bx-sitemap"></i> سمت‌ها</a>
                                                         }
@@ -193,6 +196,7 @@
                         </div>
 
 @code {
+    private bool _canManage;
     private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId, _organizationId;
     private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "";
@@ -220,7 +224,7 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
-    protected override async Task OnInitializedAsync() { _policy = await PolicyService.GetAsync(); await LoadAsync(); }
+    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersManage);  _policy = await PolicyService.GetAsync(); await LoadAsync(); }
     private async Task LoadAsync()
     {
         _loading = true; try
@@ -262,7 +266,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
     private Task OrganizationChanged(Guid? id) { _organizationId = id; return Task.CompletedTask; }
     private void BeginEdit(AdminQueryService.EmployeePageRow
 x)
-    {
+    { if (!_canManage) return;
         _editingId = x.Id; _code = x.Code; _username = x.Username; _fullName = x.FullName; _organizationId = null; _organizationName =
 x.OrganizationName ?? ""; _isAdmin = x.IsAdmin; _password = ""; _
 = LoadOrganizationIdAsync(x.Id);
@@ -287,7 +291,7 @@ false;
     private YasPortal.Domain.Security.PasswordPolicy _policy = YasPortal.Domain.Security.PasswordPolicy.CreateDefault();
     private async Task
 SaveEmployee()
-    {
+    { if (!_canManage) return;
         if (string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_fullName) || _organizationId is
 null) { AppState.AddToast("کد، نام کاربری، نام و سازمان الزامی است.", ToastLevel.Error); return; }
         var code = _code.Trim();
@@ -332,7 +336,7 @@ db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "کاربر جدی
 ToastLevel.Success); CancelEdit(); await LoadAsync();
     }
     private async Task ToggleEmployee(Guid id)
-    {
+    { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); var employee = await
 db.Employees.SingleAsync(x => x.Id == id); if (employee.IsActive)
         {

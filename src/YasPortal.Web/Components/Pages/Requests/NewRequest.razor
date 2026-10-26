@@ -8,7 +8,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Requests.Create")]
+@attribute [Authorize(Policy = Perm.RequestsOwnCreate)]
 @attribute [Authorize(Policy = "NonAdmin")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows

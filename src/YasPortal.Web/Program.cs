@@ -40,14 +40,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
 });
 builder.Services.AddAuthorization(options => {
-    foreach (var permission in new[] { "Dashboard.View", "Profile.View", "Requests.Create", "Requests.View", "Requests.Approve", "Requests.Reject", "Requests.ReturnToRequester", "Requests.ReturnToPreviousStep", "Requests.ReturnToSpecificStep", "Requests.ForceClose", "Requests.Reopen", "Requests.ViewSubordinateRequests", "Requests.ViewSubordinateApprovals", "Requests.Delegation", "Admin.Delegation", "Admin.RequestForOthers", "Admin.Requests", "Admin.Users", "Admin.Positions", "Admin.Permissions", "Admin.Organizations", "Admin.Access", "Admin.AssignmentHistory", "Admin.AuditLog", "Admin.Workflows" })
-        options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
-    foreach (var (permission, _) in ReportPermissions.All.Concat(FormPermissions.All).Concat(DashboardPermissions.All))
+    foreach (var permission in PermissionCatalog.Codes)
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
     // Administrator accounts have no organizational position, so the personal request pages (new / mine / inbox) are not for them.
     // The "team" page is open to anyone holding at least one of the two subordinate-history permissions (the page itself shows only the tabs they hold).
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
-        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is "Requests.ViewSubordinateRequests" or "Requests.ViewSubordinateApprovals")));
+        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

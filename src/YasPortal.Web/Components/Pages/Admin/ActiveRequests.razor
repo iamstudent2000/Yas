@@ -7,7 +7,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Requests.ForceClose")]
+@attribute [Authorize(Policy = Perm.AdminRequestsForceClose)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
 @inject ReportExportService Reports

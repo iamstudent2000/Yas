@@ -65,6 +65,20 @@ public sealed class PermissionCheckerTests
     }
 
     [Fact]
+    public async Task Manage_implies_view_but_not_the_other_way_round()
+    {
+        await using var fixture = new PermissionFixture();
+        var manager = fixture.PrincipalWith("Admin.Users.Manage");
+        var viewer = fixture.PrincipalWith("Admin.Users.View");
+
+        Assert.True(await fixture.Checker.HasPermissionAsync(manager, "Admin.Users.View"));
+        Assert.True(await fixture.Checker.HasPermissionAsync(manager, "Admin.Users.Manage"));
+        Assert.True(await fixture.Checker.HasPermissionAsync(viewer, "Admin.Users.View"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(viewer, "Admin.Users.Manage"));
+        Assert.False(await fixture.Checker.HasPermissionAsync(manager, "Admin.Positions.View"));
+    }
+
+    [Fact]
     public async Task Snapshots_for_different_positions_do_not_leak_into_each_other()
     {
         await using var fixture = new PermissionFixture();

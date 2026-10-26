@@ -8,7 +8,7 @@
 @using YasPortal.Domain.Organization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Profile.View")]
+@attribute [Authorize(Policy = Perm.ProfileOwnView)]
 @inject ApplicationDbContext Db
 @inject IPasswordHasher<Employee> Hasher
 @inject PasswordPolicyService PolicyService
