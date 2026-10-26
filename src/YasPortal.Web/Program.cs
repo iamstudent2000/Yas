@@ -47,6 +47,8 @@ builder.Services.AddAuthorization(options => {
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
+    // Administrators' own notifications (vacant-position alerts) live on /admin/notifications; /notifications is for everyone else.
+    options.AddPolicy("AdminOnly", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => ctx.User.HasClaim("yas_is_admin", "True")));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
