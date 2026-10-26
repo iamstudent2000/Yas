@@ -7,7 +7,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Dashboard.View")]
+@attribute [Authorize(Policy = Perm.DashboardPageView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject DashboardService Stats
@@ -290,9 +290,9 @@
         _employeeId = employeeId;
         _positionId = (mine.FirstOrDefault(x => x.PositionId == activeId) ?? mine.FirstOrDefault())?.PositionId;
         _isAdmin = user.HasClaim("yas_is_admin", "True");
-        _canViewMine = !_isAdmin && await Permissions.HasPermissionAsync(DashboardPermissions.Mine);
-        _canViewTeam = await Permissions.HasPermissionAsync(DashboardPermissions.Team);
-        _canViewSystem = await Permissions.HasPermissionAsync(DashboardPermissions.System);
+        _canViewMine = !_isAdmin && await Permissions.HasPermissionAsync(Perm.DashboardMineView);
+        _canViewTeam = await Permissions.HasPermissionAsync(Perm.DashboardTeamView);
+        _canViewSystem = await Permissions.HasPermissionAsync(Perm.DashboardSystemView);
         await LoadInsightsAsync();
     }
 

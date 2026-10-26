@@ -8,7 +8,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Requests.View")]
+@attribute [Authorize(Policy = Perm.RequestsOwnView)]
 @attribute [Authorize(Policy = "NonAdmin")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker Permissions
@@ -93,18 +93,18 @@
 
                             <div class="inbox-actions">
                                 <div class="inbox-actions-primary">
-                                <AuthorizeView Policy="Requests.Approve">
+                                <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
                                     <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
                                 </AuthorizeView>
-                                <AuthorizeView Policy="Requests.Reject">
+                                <AuthorizeView Policy="@Perm.RequestsDecisionReject">
                                     <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
                                 </AuthorizeView>
                                 </div>
                                 <div class="inbox-actions-secondary">
-                                <AuthorizeView Policy="Requests.ReturnToRequester">
+                                <AuthorizeView Policy="@Perm.RequestsDecisionReturnToRequester">
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
                                 </AuthorizeView>
-                                <AuthorizeView Policy="Requests.ReturnToPreviousStep">
+                                <AuthorizeView Policy="@Perm.RequestsDecisionReturnToPreviousStep">
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
                                 </AuthorizeView>
                                 @{
@@ -119,7 +119,7 @@
                                    choice is only worth offering when there are at least two steps to pick from. *@
                                 @if (earlierSteps.Count >= 2)
                                 {
-                                    <AuthorizeView Policy="Requests.ReturnToSpecificStep">
+                                    <AuthorizeView Policy="@Perm.RequestsDecisionReturnToSpecificStep">
                                         <select class="form-control inbox-return-target" disabled="@busy" value="@GetReturnTarget(item.Request.Id)" @onchange="e => SetReturnTarget(item.Request.Id, e)">
                                             <option value="0">بازگشت به مرحله‌ی...</option>
                                             @foreach (var earlier in earlierSteps)
@@ -561,11 +561,11 @@
 
     private static string PermissionFor(WorkflowAction action) => action switch
     {
-        WorkflowAction.Approve => "Requests.Approve",
-        WorkflowAction.Reject => "Requests.Reject",
-        WorkflowAction.ReturnToRequester => "Requests.ReturnToRequester",
-        WorkflowAction.ReturnToPreviousStep => "Requests.ReturnToPreviousStep",
-        WorkflowAction.ReturnToSpecificStep => "Requests.ReturnToSpecificStep",
+        WorkflowAction.Approve => Perm.RequestsDecisionApprove,
+        WorkflowAction.Reject => Perm.RequestsDecisionReject,
+        WorkflowAction.ReturnToRequester => Perm.RequestsDecisionReturnToRequester,
+        WorkflowAction.ReturnToPreviousStep => Perm.RequestsDecisionReturnToPreviousStep,
+        WorkflowAction.ReturnToSpecificStep => Perm.RequestsDecisionReturnToSpecificStep,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null),
     };
 

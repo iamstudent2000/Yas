@@ -7,7 +7,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Requests.Reopen")]
+@attribute [Authorize(Policy = Perm.AdminRequestsReopen)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
 @inject ReportExportService Reports
@@ -257,7 +257,7 @@
             // The page is gated by the policy, but the handler re-checks the permission itself
             // (spec §26.1/§26.4) instead of relying on the route alone.
             var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
-            if (!(await AuthorizationService.AuthorizeAsync(user, resource: null, policyName: "Requests.Reopen")).Succeeded)
+            if (!(await AuthorizationService.AuthorizeAsync(user, resource: null, policyName: Perm.AdminRequestsReopen)).Succeeded)
             {
                 AppState.AddToast("شما مجوز بازگشایی درخواست را ندارید.", ToastLevel.Error);
                 return;

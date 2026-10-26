@@ -6,7 +6,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Admin.AuditLog")]
+@attribute [Authorize(Policy = Perm.AdminAuditLogView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject ReportExportService Reports

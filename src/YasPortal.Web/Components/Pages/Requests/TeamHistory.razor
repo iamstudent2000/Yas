@@ -250,8 +250,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _canRequests = await Permissions.HasPermissionAsync("Requests.ViewSubordinateRequests");
-        _canApprovals = await Permissions.HasPermissionAsync("Requests.ViewSubordinateApprovals");
+        _canRequests = await Permissions.HasPermissionAsync(Perm.RequestsTeamView);
+        _canApprovals = await Permissions.HasPermissionAsync(Perm.RequestsTeamApprovalsView);
         _tab = _canRequests ? Tab.Requests : Tab.Approvals;
 
         if (await RefreshScopeAsync() && (_canRequests || _canApprovals) && _subordinates.Count > 0)

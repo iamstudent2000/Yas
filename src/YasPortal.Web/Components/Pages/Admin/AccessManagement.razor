@@ -6,9 +6,10 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize(Policy = "Admin.Access")]
+@attribute [Authorize(Policy = Perm.AdminAccessView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
+@inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
@@ -79,9 +80,9 @@
                                                                                            placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput"
                                                                                            @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
                                 type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
-                                <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@(_saving || !_canManage)"
                                                                        @onclick="() => SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب
-                                    نتایج</button><button class="btn btn-secondary btn-sm" disabled="@_saving"
+                                    نتایج</button><button class="btn btn-secondary btn-sm" disabled="@(_saving || !_canManage)"
                                                           @onclick="() => SetDirectResultsAsync(false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
                                 </div>
                             </div>
@@ -107,7 +108,7 @@
                                             <div class="permission-grid">@foreach(var p in area){var
                                                 selected = _directPermissionIds.Contains(p.Id);
                                                 <label class="permission-choice @(selected ? "selected" : "")"><input
-                                                    type="checkbox" checked="@selected"
+                                                    type="checkbox" disabled="@(!_canManage)" checked="@selected"
                                                     @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span
                                                     class="choice-text"><strong>@p.Name</strong></span></label>
@@ -145,7 +146,7 @@
 
                                             <div class="group-list">@foreach(var group in _groups){var
                                                 selected = _assignedGroupIds.Contains(group.Id);
-                                                <label class="group-choice @(selected ? "selected" : "")"><input type="checkbox" checked="@selected"
+                                                <label class="group-choice @(selected ? "selected" : "")"><input type="checkbox" disabled="@(!_canManage)" checked="@selected"
                                                                                                                      @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span
                                                     class="choice-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز ·
@@ -211,7 +212,8 @@ _effectiveViaGroupIds = [];
 [];
     private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
 "";
-    private bool _permissionLoading, _groupLoading, _saving;
+    private bool _permissionLoading, _groupLoading, _saving, _canManage;
+    protected override async Task OnInitializedAsync() => _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminAccessManage);
     private HashSet<string> _collapsedAreas = [];
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
@@ -314,14 +316,14 @@ LoadGroupListAsync();
     private async Task ClearGroupSearch() { _groupSearch = ""; await LoadGroupListAsync(); }
     private void ClearEffectiveSearch() => _effectiveSearch = "";
     private async Task ToggleDirectAsync(Guid id, bool selected)
-    {
+    { if (!_canManage) return;
         if (_saving) return;
         if (selected) _directPermissionIds.Add(id);
         else
             _directPermissionIds.Remove(id); await PersistDirectAsync();
     }
     private async Task SetDirectResultsAsync(bool selected)
-    {
+    { if (!_canManage) return;
         foreach (var p in
 _permissions) { if (selected) _directPermissionIds.Add(p.Id); else _directPermissionIds.Remove(p.Id); }
         await
@@ -354,7 +356,7 @@ RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخی
         finally { _saving = false; }
     }
     private async Task ToggleGroupAsync(Guid id, bool selected)
-    {
+    { if (!_canManage) return;
         if (_saving) return;
         if (selected) _assignedGroupIds.Add(id);
         else

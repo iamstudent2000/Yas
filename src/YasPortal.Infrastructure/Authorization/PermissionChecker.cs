@@ -28,8 +28,11 @@ public sealed class PermissionChecker(
         // authenticated or changed the active position. The snapshot is stored
         // as repeated claims, so a normal user can never inherit permissions
         // from another position merely because they are assigned to that user.
+        // "Manage" implies "View": holding Area.Resource.Manage also satisfies Area.Resource.View.
+        var manageCode = Perm.ManageFor(permissionCode);
         var hasPermission = user.FindAll(AuthClaimNames.Permission)
-            .Any(claim => string.Equals(claim.Value, permissionCode, StringComparison.OrdinalIgnoreCase));
+            .Any(claim => string.Equals(claim.Value, permissionCode, StringComparison.OrdinalIgnoreCase)
+                || (manageCode is not null && string.Equals(claim.Value, manageCode, StringComparison.OrdinalIgnoreCase)));
 
         return Task.FromResult(hasPermission);
     }

@@ -31,11 +31,11 @@
                             @onclick="ToggleAccountGroup"><i class="bx bx-user-circle"></i><span class="group-title">حساب
                         کاربری</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_accountExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="Dashboard.View">
+                        <AuthorizeView Policy="@Perm.DashboardPageView">
                             <NavLink href="/dashboard" Match="NavLinkMatch.All"><i
                                 class="bx bx-grid-alt"></i><span>داشبورد</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Profile.View">
+                        <AuthorizeView Policy="@Perm.ProfileOwnView">
                             <NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink>
                         </AuthorizeView>
                         <NavLink href="/settings/appearance"><i class="bx bx-palette"></i><span>ظاهر برنامه</span></NavLink>
@@ -58,20 +58,20 @@
                             @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و
                         دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_accessExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="Admin.Users">
+                        <AuthorizeView Policy="@Perm.AdminUsersView">
                             <NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Access">
+                        <AuthorizeView Policy="@Perm.AdminAccessView">
                             <NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span>
                             </NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Users">
+                        <AuthorizeView Policy="@Perm.AdminUsersView">
                             <NavLink href="/admin/password-policy"><i class="bx bx-lock-open-alt"></i><span>سیاست رمز عبور</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Permissions">
+                        <AuthorizeView Policy="@Perm.AdminPermissionsView">
                             <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Permissions">
+                        <AuthorizeView Policy="@Perm.AdminPermissionsView">
                             <NavLink href="/admin/permission-groups"><i class="bx bx-layer"></i><span>گروه‌های مجوز</span>
                             </NavLink>
                         </AuthorizeView>
@@ -86,13 +86,13 @@
                             @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار
                         سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_structureExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="Admin.Positions">
+                        <AuthorizeView Policy="@Perm.AdminPositionsView">
                             <NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Organizations">
+                        <AuthorizeView Policy="@Perm.AdminOrganizationsView">
                             <NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.AssignmentHistory">
+                        <AuthorizeView Policy="@Perm.AdminAssignmentHistoryView">
                             <NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص
                                 سمت‌ها</span></NavLink>
                         </AuthorizeView>
@@ -103,7 +103,7 @@
                     </div>
                 </div>
             }
-            <AuthorizeView Policy="Admin.AuditLog">
+            <AuthorizeView Policy="@Perm.AdminAuditLogView">
                 <NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink>
             </AuthorizeView>
             @if (_requestsGroupVisible)
@@ -114,18 +114,18 @@
                             @onclick="ToggleRequestsGroup"><i class="bx bx-git-branch"></i><span class="group-title">درخواست‌ها و
                         گردش‌کار</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_requestsExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="Requests.Create">
+                        <AuthorizeView Policy="@Perm.RequestsOwnCreate">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/new"><i class="bx bx-plus-circle"></i><span>درخواست جدید</span></NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Requests">
+                        <AuthorizeView Policy="@Perm.AdminRequestsView">
                             <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="bx bx-search-alt"></i><span>گزارش درخواست‌ها</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.RequestForOthers">
+                        <AuthorizeView Policy="@Perm.AdminRequestsCreateForOthers">
                             <NavLink href="/admin/requests/new"><i class="bx bx-user-plus"></i><span>ثبت درخواست برای دیگران</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Requests.View">
+                        <AuthorizeView Policy="@Perm.RequestsOwnView">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/mine"><i class="bx bx-list-check"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
                                 {
@@ -133,7 +133,7 @@
                                 }</NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Requests.View">
+                        <AuthorizeView Policy="@Perm.RequestsOwnView">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
                                 {
@@ -146,19 +146,19 @@
                             <NavLink href="/requests/team"><i class="bx bx-sitemap"></i><span>درخواست‌های زیرمجموعه</span></NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Requests.View">
+                        <AuthorizeView Policy="@Perm.RequestsOwnView">
                             <NavLink href="/notifications"><i class="bx bx-bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
                                 {
                                     <span class="nav-badge">@_notificationBadge</span>
                                 }</NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Admin.Workflows">
+                        <AuthorizeView Policy="@Perm.AdminWorkflowsView">
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Requests.Reopen">
+                        <AuthorizeView Policy="@Perm.AdminRequestsReopen">
                             <NavLink href="/admin/rejected-requests"><i class="bx bx-revision"></i><span>درخواست‌های ردشده</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="Requests.ForceClose">
+                        <AuthorizeView Policy="@Perm.AdminRequestsForceClose">
                             <NavLink href="/admin/active-requests"><i class="bx bx-error-circle"></i><span>درخواست‌های فعال</span></NavLink>
                         </AuthorizeView>
                     </div>
@@ -216,15 +216,15 @@
 
         async Task<bool> Can(string policy) => (await AuthorizationService.AuthorizeAsync(user, resource: null, policyName: policy)).Succeeded;
 
-        _accountGroupVisible = await Can("Dashboard.View")
-            || await Can("Profile.View")
+        _accountGroupVisible = await Can(Perm.DashboardPageView)
+            || await Can(Perm.ProfileOwnView)
             || !user.HasClaim("yas_is_admin", "True");
-        _accessGroupVisible = await Can("Admin.Users") || await Can("Admin.Access") || await Can("Admin.Permissions");
-        _structureGroupVisible = await Can("Admin.Positions") || await Can("Admin.Organizations") || await Can("Admin.AssignmentHistory")
-            || await Can("Requests.Delegation") || await Can("Admin.Delegation");
-        _requestsGroupVisible = await Can("Requests.Create") || await Can("Admin.RequestForOthers") || await Can("Admin.Requests") || await Can("Requests.View")
-            || await Can("Admin.Workflows") || await Can("Requests.ForceClose") || await Can("Requests.Reopen") || await Can("Requests.ViewSubordinates");
-        _delegationsVisible = await Can("Requests.Delegation") || await Can("Admin.Delegation");
+        _accessGroupVisible = await Can(Perm.AdminUsersView) || await Can(Perm.AdminAccessView) || await Can(Perm.AdminPermissionsView);
+        _structureGroupVisible = await Can(Perm.AdminPositionsView) || await Can(Perm.AdminOrganizationsView) || await Can(Perm.AdminAssignmentHistoryView)
+            || await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
+        _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.RequestsOwnView)
+            || await Can(Perm.AdminWorkflowsView) || await Can(Perm.AdminRequestsForceClose) || await Can(Perm.AdminRequestsReopen) || await Can(Perm.RequestsTeamView) || await Can(Perm.RequestsTeamApprovalsView);
+        _delegationsVisible = await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

@@ -2,7 +2,7 @@
 @page "/admin/employees/assignment-history"
 @using Microsoft.AspNetCore.Authorization
 @inject NavigationManager Navigation
-@attribute [Authorize(Policy = "Admin.Positions")]
+@attribute [Authorize(Policy = Perm.AdminPositionsView)]
 
 <div dir="rtl" class="empty-state">
     <i class="bx bx-loader-alt bx-spin"></i>

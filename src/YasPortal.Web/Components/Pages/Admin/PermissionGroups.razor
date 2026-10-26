@@ -6,7 +6,8 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize(Policy = "Admin.Permissions")]
+@attribute [Authorize(Policy = Perm.AdminPermissionsView)]
+@inject IPermissionChecker PermissionChecker
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
@@ -25,6 +26,7 @@
                 دسترسی</a></div>
             </div>
             <div class="admin-stack">
+@if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
@@ -45,6 +47,7 @@
         </div>
     </div>
     </section>
+}
 
                 <ListFilterBar Busy="_groupLoading" ActiveCount="@(_groupSearch.Trim().Length > 0 ? 1 : 0)"
                                CanClear="@(_groupSearch != "" || _draftGroupSearch != "")" OnSearch="SearchGroupsFilterAsync" OnClear="ClearGroupFilterAsync">
@@ -84,11 +87,11 @@
                         <div class="admin-list-meta"><span class="admin-pill"><i class="bx bx-key"></i>
                             @group.PermissionCount مجوز</span><span class="admin-pill"><i class="bx bx-link"></i>
                             @group.AssignmentCount تخصیص</span></div>
-                            <div class="admin-list-actions"><button type="button" class="btn btn-secondary btn-sm"
+                            <div class="admin-list-actions">@if (_canManage) {<button type="button" class="btn btn-secondary btn-sm"
                                                                     @onclick:stopPropagation="true" @onclick="() => EditGroup(group)"><i
-                                class="bx bx-edit-alt"></i> ویرایش</button>@if(group.AssignmentCount==0){
-                                <button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
-                                        @onclick="() => DeleteGroup(group.Id)"><i class="bx bx-trash"></i> حذف</button>
+                                class="bx bx-edit-alt"></i> ویرایش</button>}@if(group.AssignmentCount==0){
+                                @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
+                                        @onclick="() => DeleteGroup(group.Id)"><i class="bx bx-trash"></i> حذف</button>}
                             }
                         </div>
                     </div>
@@ -164,6 +167,7 @@ else
         }
     </div>
 @code {
+    private bool _canManage;
     private List<AdminQueryService.PermissionGroupPageRow> _groups = []; private List<AdminQueryService.PermissionPageRow>
     _permissions = []; private Guid? _editingId, _selectedGroupId; private string
     _name = "", _description = "", _groupSearch = "", _permissionSearch = "", _code = ""; private int
@@ -173,7 +177,7 @@ string
     SelectedGroupName => _groups.FirstOrDefault(x => x.Id == _selectedGroupId)?.Name ?? "گروه";
     private HashSet<string> _collapsedAreas = [];
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
-    protected override async Task OnInitializedAsync() => await LoadGroupsAsync();
+    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPermissionsManage); await LoadGroupsAsync(); }
     private async Task LoadGroupsAsync()
     {
         _groupLoading = true; try
@@ -233,12 +237,12 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
     }
     private void EditGroup(AdminQueryService.PermissionGroupPageRow
     x)
-    { _editingId = x.Id; _code = x.Code; _name = x.Name; _description = x.Description ?? ""; }
+    { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; _description = x.Description ?? ""; }
     private void
     CancelEdit()
     { _editingId = null; _code = _name = _description = ""; }
     private async Task SaveGroup()
-    {
+    { if (!_canManage) return;
         var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
         {
             AppState.AddToast("کد گروه الزامی است.", ToastLevel.Error); return;
@@ -262,7 +266,7 @@ ToastLevel.Error); return;
     PermissionGroup(code, name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
     }
     private async Task DeleteGroup(Guid id)
-    {
+    { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); if (await
     db.UserPositionPermissionGroups.AnyAsync(x => x.GroupId == id) || await
     db.EmployeePermissionGroups.AnyAsync(x => x.GroupId == id)) { AppState.AddToast("این گروه هنوز تخصیص دارد و قابل حذف نیست.", ToastLevel.Error); return; }
@@ -272,7 +276,7 @@ ToastLevel.Error); return;
     LoadGroupsAsync();
     }
     private async Task ToggleGroupPermission(Guid groupId, Guid permissionId, bool grant)
-    {
+    { if (!_canManage) return;
         _saving = true; try
         {
             await using var
@@ -298,7 +302,7 @@ ToastLevel.Error); return;
         finally { _saving = false; }
     }
     private async Task SetVisiblePermissions(Guid groupId, bool grant)
-    {
+    { if (!_canManage) return;
         var
     ids = _permissions.Select(x => x.Id).ToList(); if (ids.Count == 0) return; _saving = true; try
         {

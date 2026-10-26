@@ -5,7 +5,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = "Admin.Requests")]
+@attribute [Authorize(Policy = Perm.AdminRequestsView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
 @inject ReportExportService Reports

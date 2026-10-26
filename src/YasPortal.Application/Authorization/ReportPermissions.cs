@@ -6,30 +6,30 @@ namespace YasPortal.Application.Authorization;
 /// </summary>
 public static class ReportPermissions
 {
-    public const string AllRequests = "Reports.AllRequests";
-    public const string ActiveRequests = "Reports.ActiveRequests";
-    public const string RejectedRequests = "Reports.RejectedRequests";
-    public const string TeamRequests = "Reports.TeamRequests";
-    public const string MyRequests = "Reports.MyRequests";
-    public const string Users = "Reports.Users";
-    public const string Organizations = "Reports.Organizations";
-    public const string Positions = "Reports.Positions";
-    public const string AssignmentHistory = "Reports.AssignmentHistory";
-    public const string AuditLog = "Reports.AuditLog";
-    public const string Delegations = "Reports.Delegations";
+    public const string AllRequests = "Reports.AllRequests.Export";
+    public const string ActiveRequests = "Reports.ActiveRequests.Export";
+    public const string RejectedRequests = "Reports.RejectedRequests.Export";
+    public const string TeamRequests = "Reports.TeamRequests.Export";
+    public const string MyRequests = "Reports.MyRequests.Export";
+    public const string Users = "Reports.Users.Export";
+    public const string Organizations = "Reports.Organizations.Export";
+    public const string Positions = "Reports.Positions.Export";
+    public const string AssignmentHistory = "Reports.AssignmentHistory.Export";
+    public const string AuditLog = "Reports.AuditLog.Export";
+    public const string Delegations = "Reports.Delegations.Export";
 
-    public static readonly IReadOnlyList<(string Code, string Name)> All =
+    public static readonly IReadOnlyList<(string Code, string Name, string OldCode)> All =
     [
-        (AllRequests, "خروجی گزارش درخواست‌ها (مدیریت)"),
-        (ActiveRequests, "خروجی درخواست‌های در جریان (مدیریت)"),
-        (RejectedRequests, "خروجی درخواست‌های ردشده (مدیریت)"),
-        (TeamRequests, "خروجی درخواست‌های زیرمجموعه"),
-        (MyRequests, "خروجی درخواست‌های من"),
-        (Users, "خروجی فهرست کاربران"),
-        (Organizations, "خروجی فهرست سازمان‌ها"),
-        (Positions, "خروجی فهرست سمت‌ها"),
-        (AssignmentHistory, "خروجی سوابق تخصیص سمت‌ها"),
-        (AuditLog, "خروجی گزارش رویدادها"),
-        (Delegations, "خروجی فهرست تفویض‌ها"),
+        (AllRequests, "خروجی گزارش درخواست‌ها (مدیریت)", "Reports.AllRequests"),
+        (ActiveRequests, "خروجی درخواست‌های در جریان (مدیریت)", "Reports.ActiveRequests"),
+        (RejectedRequests, "خروجی درخواست‌های ردشده (مدیریت)", "Reports.RejectedRequests"),
+        (TeamRequests, "خروجی درخواست‌های زیرمجموعه", "Reports.TeamRequests"),
+        (MyRequests, "خروجی درخواست‌های من", "Reports.MyRequests"),
+        (Users, "خروجی فهرست کاربران", "Reports.Users"),
+        (Organizations, "خروجی فهرست سازمان‌ها", "Reports.Organizations"),
+        (Positions, "خروجی فهرست سمت‌ها", "Reports.Positions"),
+        (AssignmentHistory, "خروجی سوابق تخصیص سمت‌ها", "Reports.AssignmentHistory"),
+        (AuditLog, "خروجی گزارش رویدادها", "Reports.AuditLog"),
+        (Delegations, "خروجی فهرست تفویض‌ها", "Reports.Delegations"),
     ];
 }
