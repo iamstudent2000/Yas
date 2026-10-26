@@ -1,0 +1,17 @@
+@* Shows whose data a permission reaches: own / assigned / team / everyone, and whether it can change it. *@
+@{
+    var reach = PermissionCatalog.ReachOf(Code);
+    var acts = PermissionCatalog.ActsOnOthers(Code);
+    var (text, css) = reach switch
+    {
+        PermissionReach.All => (acts ? "همه کاربران · تغییر" : "همه کاربران · مشاهده", acts ? "reach-all-act" : "reach-all"),
+        PermissionReach.Team => ("زیرمجموعه", "reach-team"),
+        PermissionReach.Assigned => ("درخواست‌های ارجاع‌شده · تصمیم", "reach-assigned"),
+        _ => ("فقط داده‌های خود", "reach-own"),
+    };
+}
+<span class="reach-badge @css" title="@(reach == PermissionReach.Own ? "فقط به داده‌های خود فرد دسترسی می‌دهد" : "به داده‌های دیگران دسترسی می‌دهد")">@text</span>
+
+@code {
+    [Parameter, EditorRequired] public string Code { get; set; } = "";
+}

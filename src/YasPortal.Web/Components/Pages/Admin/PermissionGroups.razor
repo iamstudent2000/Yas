@@ -150,7 +150,7 @@
                                                                                                          checked="@granted" disabled="@_saving"
                                                                                                          @onchange="e => ToggleGroupPermission(gid, permission.Id, e.Value is bool v && v)" /><span
                                     class="choice-box"><i class="bx bx-check"></i></span><span
-                                    class="choice-text"><strong>@permission.Name</strong></span></label>
+                                    class="choice-text"><strong>@permission.Name</strong><PermissionReachBadge Code="@(permission.Code)" /></span></label>
                                 }
                             </div>
                         </section>

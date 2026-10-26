@@ -111,7 +111,7 @@
                                                     type="checkbox" disabled="@(!_canManage)" checked="@selected"
                                                     @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
                                                     class="choice-box"><i class="bx bx-check"></i></span><span
-                                                    class="choice-text"><strong>@p.Name</strong></span></label>
+                                                    class="choice-text"><strong>@p.Name</strong><PermissionReachBadge Code="@(p.Code)" /></span></label>
                                                 }
                                             </div>
                                         </section>

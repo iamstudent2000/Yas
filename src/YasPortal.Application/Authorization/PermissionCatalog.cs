@@ -57,8 +57,46 @@ public static class Perm
         viewCode.EndsWith(".View", StringComparison.OrdinalIgnoreCase) ? viewCode[..^".View".Length] + ".Manage" : null;
 }
 
+/// <summary>Whose data a permission lets the holder reach.</summary>
+public enum PermissionReach
+{
+    /// <summary>Only the holder's own data.</summary>
+    Own,
+    /// <summary>Requests routed to the holder as an approver (the holder acts on other people's requests, but only those assigned).</summary>
+    Assigned,
+    /// <summary>Requests and statistics of the holder's subordinates.</summary>
+    Team,
+    /// <summary>Data of everyone in the system.</summary>
+    All,
+}
+
 public static class PermissionCatalog
 {
+    private static readonly HashSet<string> ExportAll = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ReportPermissions.AllRequests, ReportPermissions.ActiveRequests, ReportPermissions.RejectedRequests, ReportPermissions.Users,
+        ReportPermissions.Organizations, ReportPermissions.Positions, ReportPermissions.AssignmentHistory, ReportPermissions.AuditLog,
+        ReportPermissions.Delegations,
+    };
+
+    /// <summary>Whose data the permission exposes. Shown as a badge wherever permissions are listed or granted.</summary>
+    public static PermissionReach ReachOf(string code)
+    {
+        if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
+            return PermissionReach.All;
+        if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
+            return PermissionReach.Assigned;
+        if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
+            return PermissionReach.Team;
+        return PermissionReach.Own;
+    }
+
+    /// <summary>True when the permission lets the holder change or decide on data that is not theirs (not just read it).</summary>
+    public static bool ActsOnOthers(string code) =>
+        code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
+        || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
+        || code is Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
+
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
 
     public static IEnumerable<string> Codes => All.Select(x => x.Code);
