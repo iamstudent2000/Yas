@@ -21,19 +21,19 @@
             <div class="page-kicker">مدیریت سامانه / سازمان‌ها</div>
             <h1 class="page-title">مدیریت سازمان‌ها</h1>
             <p class="page-subtitle">ایجاد سازمان، تغییر وضعیت و تعیین سازمان هر کارمند</p>
-        </div><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+        </div><a class="btn btn-secondary" href="/dashboard"><i class="ti @Icons.Back"></i> داشبورد</a>
     </div>
     <div class="stat-grid">
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-buildings"></i></div><span class="stat-label">کل
+            <div class="stat-icon"><i class="ti @Icons.Organization"></i></div><span class="stat-label">کل
             سازمان‌ها</span><strong class="stat-value">@_organizationTotal</strong>
         </div>
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">سازمان‌های
+            <div class="stat-icon"><i class="ti @Icons.Success"></i></div><span class="stat-label">سازمان‌های
             فعال</span><strong class="stat-value">@_activeOrganizationCount</strong>
         </div>
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کارکنان</span><strong
+            <div class="stat-icon"><i class="ti @Icons.Users"></i></div><span class="stat-label">کل کارکنان</span><strong
             class="stat-value">@_allEmployees.Count</strong>
         </div>
     </div>
@@ -41,7 +41,7 @@
 @if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
-        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
+        <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
         <p class="muted">کد و نام سازمان را وارد کنید.</p>
     </div>
     <div class="admin-row-grid">
@@ -49,7 +49,7 @@
         <div class="form-field is-grow"><label class="form-label">نام سازمان</label><input class="form-control" @bind="_name" maxlength="200" placeholder="مثلاً معاونت منابع انسانی" /></div>
         <div class="form-field admin-row-submit">
             <div class="form-actions">
-                <button class="btn btn-primary" @onclick="SaveOrganization"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>
+                <button class="btn btn-primary" @onclick="SaveOrganization"><i class="ti @Icons.Save"></i> @(_editingId is null ? "ایجاد سازمان" : "ذخیره")</button>
                 @if (_editingId is not null)
                 {
                     <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
@@ -89,7 +89,7 @@
                     {
 
                         <div class="empty-state">
-                            <div class="empty-icon"><i class="bx bx-buildings"></i></div><strong>سازمانی پیدا نشد</strong>
+                            <div class="empty-icon"><i class="ti @Icons.Organization"></i></div><strong>سازمانی پیدا نشد</strong>
                         </div>
                     }
                     else
@@ -116,16 +116,16 @@
                                                                                 ? "فعال" : "غیرفعال")</span>
                                         </td>
                                         <td class="action-cell">@if (_canManage) {<button class="btn btn-secondary btn-sm"
-                                                                        @onclick="() => BeginEdit(organization)"><i class="bx bx-edit-alt"></i>
+                                                                        @onclick="() => BeginEdit(organization)"><i class="ti @Icons.Edit"></i>
                                             ویرایش</button>}@if(organization.IsActive&&organization.EmployeeCount>0){
-                                            <button class="btn btn-disabled btn-sm" disabled><i class="bx bx-lock-alt"></i>
+                                            <button class="btn btn-disabled btn-sm" disabled><i class="ti @Icons.Restricted"></i>
                                                 غیرفعال</button>
                                             }else
                                             {
 
                                                 @if (_canManage) {<button class="btn @(organization.IsActive ? "btn-danger" : "btn-primary") btn-sm"
                                                         @onclick="() => ToggleOrganization(organization.Id)"><i
-                                                    class="bx @(organization.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i>
+                                                    class="ti @(organization.IsActive ? Icons.Deactivate : Icons.Activate)"></i>
                                                     @(organization.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>}
                                                 }
                                             </td>
@@ -148,14 +148,14 @@
                         <p class="page-subtitle">کارکنان بر اساس سازمان فعلی گروه‌بندی شده‌اند. برای جابه‌جایی، سازمان جدید را انتخاب کنید.</p>
                     </div>
                     <div class="toolbar-tools">
-                        <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                        <div class="search-box"><i class="ti @Icons.Search"></i><input class="form-control"
                             placeholder="جستجوی نام کارمند یا سازمان..." @bind="_employeeSearch" @bind:event="oninput"
                             @onkeyup="EmployeeSearchChanged" />@if(!string.IsNullOrEmpty(_employeeSearch)){<button
-                                type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="bx bx-x"></i></button>}</div>
+                                type="button" class="search-clear" @onclick="ClearEmployeeSearch"><i class="ti @Icons.Close"></i></button>}</div>
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllOrgGroups"><i
-                            class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                            class="ti @Icons.ExpandAll"></i> باز کردن همه</button>
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllOrgGroups"><i
-                            class="bx bx-chevrons-up"></i> بستن همه</button>
+                            class="ti @Icons.CollapseAll"></i> بستن همه</button>
                     </div>
                 </div>
                 @if (_employeeLoading)
@@ -167,17 +167,17 @@
                     <div class="tree-summary">
                         @if (_orgAssignVisibleIds is not null)
                         {
-                            <span><i class="bx bx-search"></i> @_orgAssignMatchCount نتیجه از @_allEmployees.Count کارمند</span>
+                            <span><i class="ti @Icons.Search"></i> @_orgAssignMatchCount نتیجه از @_allEmployees.Count کارمند</span>
                         }
                         else
                         {
-                            <span><i class="bx bx-group"></i> @_allEmployees.Count کارمند</span>
-                            <span><i class="bx bx-buildings"></i> @_employeeGroups.Count() سازمان</span>
+                            <span><i class="ti @Icons.Users"></i> @_allEmployees.Count کارمند</span>
+                            <span><i class="ti @Icons.Organization"></i> @_employeeGroups.Count() سازمان</span>
                         }
                     </div>
                     @if (_orgAssignVisibleIds is not null && _orgAssignVisibleIds.Count == 0)
                     {
-                        <div class="empty-state"><i class="bx bx-search-alt empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام دیگری را جستجو کنید.</span></div>
+                        <div class="empty-state"><i class="ti @Icons.SearchEmpty empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام دیگری را جستجو کنید.</span></div>
                     }
                     else
                     {
@@ -187,8 +187,8 @@
                                 var collapsed = _collapsedOrgGroups.Contains(group.Key);
                                 <section class="permission-section @(collapsed ? "collapsed" : "")">
                                     <div class="permission-section-heading" @onclick="() => ToggleOrgGroup(group.Key)">
-                                        <div><i class="bx bx-buildings"></i><strong>@group.Key</strong></div><span
-                                            class="badge badge-muted">@group.Count() نفر</span><i class="bx bx-chevron-down chevron"></i>
+                                        <div><i class="ti @Icons.Organization"></i><strong>@group.Key</strong></div><span
+                                            class="badge badge-muted">@group.Count() نفر</span><i class="ti @Icons.ChevronDown chevron"></i>
                                     </div>
                                     <div class="org-assign-rows">
                                         @foreach (var employee in group)

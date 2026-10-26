@@ -11,22 +11,22 @@ public static class AvatarCatalog
 {
     public static readonly IReadOnlyList<AvatarOption> All =
     [
-        new("user", "bx-user", "#2563eb", "کاربر"),
-        new("smile", "bx-smile", "#f59e0b", "لبخند"),
-        new("star", "bx-star", "#d97706", "ستاره"),
-        new("heart", "bx-heart", "#e11d48", "قلب"),
-        new("rocket", "bx-rocket", "#7c3aed", "موشک"),
-        new("leaf", "bx-leaf", "#16a34a", "برگ"),
-        new("sun", "bx-sun", "#ea580c", "خورشید"),
-        new("moon", "bx-moon", "#4f46e5", "ماه"),
-        new("bulb", "bx-bulb", "#ca8a04", "ایده"),
-        new("crown", "bx-crown", "#b45309", "تاج"),
-        new("ghost", "bx-ghost", "#64748b", "روح"),
-        new("planet", "bx-planet", "#0891b2", "سیاره"),
-        new("bot", "bx-bot", "#0d9488", "ربات"),
-        new("diamond", "bx-diamond", "#db2777", "الماس"),
-        new("coffee", "bx-coffee", "#92400e", "قهوه"),
-        new("music", "bx-music", "#9333ea", "موسیقی"),
+        new("user", "ti-user", "#2563eb", "کاربر"),
+        new("smile", "ti-mood-smile", "#f59e0b", "لبخند"),
+        new("star", "ti-star", "#d97706", "ستاره"),
+        new("heart", "ti-heart", "#e11d48", "قلب"),
+        new("rocket", "ti-rocket", "#7c3aed", "موشک"),
+        new("leaf", "ti-leaf", "#16a34a", "برگ"),
+        new("sun", "ti-sun", "#ea580c", "خورشید"),
+        new("moon", "ti-moon", "#4f46e5", "ماه"),
+        new("bulb", "ti-bulb", "#ca8a04", "ایده"),
+        new("crown", "ti-crown", "#b45309", "تاج"),
+        new("ghost", "ti-ghost", "#64748b", "روح"),
+        new("planet", "ti-planet", "#0891b2", "سیاره"),
+        new("bot", "ti-robot", "#0d9488", "ربات"),
+        new("diamond", "ti-diamond", "#db2777", "الماس"),
+        new("coffee", "ti-coffee", "#92400e", "قهوه"),
+        new("music", "ti-music", "#9333ea", "موسیقی"),
     ];
 
     public static AvatarOption? Find(string? key) =>

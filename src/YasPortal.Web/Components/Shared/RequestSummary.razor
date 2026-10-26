@@ -12,13 +12,13 @@
 <div class="rs-root">
     <div class="rs-toolbar no-print">
         <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="DownloadPdfAsync" title="برگه PDF این درخواست با شماره صفحه، لوگو و محل امضا">
-            <i class="bx @(_printing ? "bx-loader-alt bx-spin" : "bx-file")"></i> PDF
+            <i class="ti @(_printing ? Icons.Spinner : Icons.Pdf)"></i> PDF
         </button>
         @if (Request.Status == WorkflowRequestStatus.Approved && Pdf.HasForm(Request.WorkflowType))
         {
             <AuthorizeView Policy="@FormPermissions.For(Request.WorkflowType)">
                 <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
-                    <i class="bx bx-printer"></i> فرم چاپی
+                    <i class="ti @Icons.Print"></i> فرم چاپی
                 </button>
             </AuthorizeView>
         }
@@ -50,7 +50,7 @@
                 <span class="rt-progress-dot @stateClass" role="listitem" title="@tip">
                     @if (view.Summary.State is WorkflowStageState.Approved or WorkflowStageState.Rejected or WorkflowStageState.Returned)
                     {
-                        <i class="bx @WorkflowDisplay.StageStateIcon(view.Summary.State)"></i>
+                        <i class="ti @WorkflowDisplay.StageStateIcon(view.Summary.State)"></i>
                     }
                     else
                     {
@@ -63,7 +63,7 @@
                 }
             }
         </div>
-        <p class="rt-now @now.Class"><i class="bx @now.Icon"></i><span>@now.Text</span></p>
+        <p class="rt-now @now.Class"><i class="ti @now.Icon"></i><span>@now.Text</span></p>
     </div>
 }
 
@@ -173,7 +173,7 @@
         var expanded = _expandedRounds.Contains(roundKey);
         <div class="round-history">
             <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(roundKey)">
-                <i class="bx @(expanded ? "bx-chevron-up" : "bx-chevron-down")"></i>
+                <i class="ti @(expanded ? Icons.ChevronUp : Icons.ChevronDown)"></i>
                 <span>دور @ToPersianDigits(roundKey.ToString()) (پیشین — بازگشت به درخواست‌کننده)</span>
             </button>
             @if (expanded)
@@ -267,7 +267,7 @@
                 var live = stages.FirstOrDefault(s => s.Order == Request.CurrentStepOrder);
                 var waiting = live?.Members.Where(m => m.Status == WorkflowStepStatus.Pending).ToList() ?? [];
                 if (waiting.Count == 0)
-                    return ("bx-time", "is-queued", "درخواست در حال بررسی است.");
+                    return (Icons.Clock, "is-queued", "درخواست در حال بررسی است.");
 
                 string Who(WorkflowRequestStep step) => ShowHolderForCurrentStep
                     ? $"«{step.Name}» — {(HolderNames.TryGetValue(step.ApproverPositionId, out var holder) ? holder : "سمت خالی")}"
@@ -277,33 +277,33 @@
                 if (yours)
                 {
                     var others = waiting.Where(m => m.Id != YourStepId).ToList();
-                    return ("bx-time-five", "is-awaiting",
+                    return (Icons.Awaiting, "is-awaiting",
                         others.Count == 0
                             ? "نوبت شماست."
                             : "نوبت شماست؛ هم‌زمان در انتظار: " + string.Join("، ", others.Select(Who)) + ".");
                 }
 
-                return ("bx-time-five", "is-awaiting",
+                return (Icons.Awaiting, "is-awaiting",
                     waiting.Count == 1
                         ? "در انتظار تصمیم " + Who(waiting[0]) + "."
                         : $"در انتظار {ToPersianDigits(waiting.Count.ToString())} تاییدکننده هم‌زمان: " + string.Join("، ", waiting.Select(Who)) + ".");
             }
 
             case WorkflowRequestStatus.Approved:
-                return ("bx-check-circle", "is-approved", "درخواست تایید نهایی شد.");
+                return (Icons.Approved, "is-approved", "درخواست تایید نهایی شد.");
 
             case WorkflowRequestStatus.Rejected:
             {
                 var rejecting = stages.SelectMany(s => s.Members).Where(m => m.Status == WorkflowStepStatus.Rejected).OrderByDescending(m => m.ActedAtUtc).FirstOrDefault();
                 var by = rejecting?.ActedByEmployeeId is Guid actor && EmployeeNames.TryGetValue(actor, out var actorName) ? " توسط " + actorName : "";
-                return ("bx-x-circle", "is-rejected", rejecting is null ? "درخواست رد شد." : $"درخواست در «{rejecting.Name}» رد شد{by}.");
+                return (Icons.Rejected, "is-rejected", rejecting is null ? "درخواست رد شد." : $"درخواست در «{rejecting.Name}» رد شد{by}.");
             }
 
             case WorkflowRequestStatus.ReturnedToRequester:
-                return ("bx-undo", "is-returned", "درخواست به درخواست‌کننده بازگردانده شد؛ پس از اصلاح باید دوباره ارسال شود.");
+                return (Icons.Returned, "is-returned", "درخواست به درخواست‌کننده بازگردانده شد؛ پس از اصلاح باید دوباره ارسال شود.");
 
             default:
-                return ("bx-x-circle", "is-skipped", Request.ForceClosedByEmployeeId is not null ? "درخواست توسط مدیر سامانه بسته شد." : "درخواست لغو شد.");
+                return (Icons.ForceClose, "is-skipped", Request.ForceClosedByEmployeeId is not null ? "درخواست توسط مدیر سامانه بسته شد." : "درخواست لغو شد.");
         }
     }
 

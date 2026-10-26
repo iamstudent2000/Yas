@@ -19,7 +19,7 @@
             <div class="page-kicker">حساب من</div>
             <h1 class="page-title">سمت‌های من</h1>
             <p class="page-subtitle">یک سمت را به عنوان سمت فعال انتخاب کنید؛ مجوزهای سامانه بر اساس آن اعمال می‌شوند.</p>
-        </div><span class="badge badge-muted"><i class="bx bx-info-circle"></i> انتخاب یک سمت</span>
+        </div><span class="badge badge-muted"><i class="ti @Icons.Info"></i> انتخاب یک سمت</span>
     </div>
 
     @if (_positions is null)
@@ -32,7 +32,7 @@
     {
         <section class="card">
             <div class="empty-state">
-                <div class="empty-icon"><i class="bx bx-id-card"></i></div>
+                <div class="empty-icon"><i class="ti @Icons.Position"></i></div>
                 @if (_isAdmin)
                 {
                     <strong>حساب‌های مدیر سامانه سمتی ندارند</strong><span>دسترسی شما بر اساس نقش مدیریت سامانه اعمال
@@ -56,12 +56,12 @@
                 <svg class="position-active-bloom" viewBox="0 0 100 100" aria-hidden="true">
                     <use href="#jasmine-bloom-outline" />
                 </svg>
-                <div class="position-active-icon"><i class="bx bx-briefcase-alt-2"></i></div>
+                <div class="position-active-icon"><i class="ti @Icons.Position"></i></div>
                 <div class="position-active-text">
                     <span>سمت فعال فعلی</span>
                     <h2>@active.Name</h2>
                 </div>
-                <span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>
+                <span class="badge badge-success"><i class="ti @Icons.Success"></i> فعال</span>
             </section>
         }
 
@@ -73,11 +73,11 @@
                     @foreach (var position in others)
                     {
                         <div class="position-row">
-                            <span class="position-row-icon"><i class="bx bx-briefcase"></i></span>
+                            <span class="position-row-icon"><i class="ti @Icons.Position"></i></span>
                             <span class="position-row-name">@position.Name</span>
                             <form method="post" action="/account/position">
                                 <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" />
-                                <button class="btn btn-secondary" type="submit"><i class="bx bx-transfer-alt"></i> انتخاب
+                                <button class="btn btn-secondary" type="submit"><i class="ti @Icons.SwitchPosition"></i> انتخاب
                                     به‌عنوان سمت فعال</button>
                             </form>
                         </div>

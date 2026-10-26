@@ -19,7 +19,7 @@
             <div class="page-kicker">مدیریت سامانه / دسترسی</div>
             <h1 class="page-title">مدیریت دسترسی</h1>
             <p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p>
-        </div><a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
+        </div><a class="btn btn-secondary" href="/admin/users"><i class="ti @Icons.Users"></i> کاربران</a>
     </div>
     <section class="card access-selector">
         <div class="selector-title">
@@ -55,7 +55,7 @@
         {
             <section class="card subject-card">
                 <div class="subject-main">
-                    <div class="subject-icon"><i class="bx @(_selectedEmployee.IsAdmin ? "bx-shield-quarter" : "bx-user")"></i>
+                    <div class="subject-icon"><i class="ti @(_selectedEmployee.IsAdmin ? Icons.Admin : Icons.User)"></i>
                     </div>
                     <div><strong>@_selectedEmployee.FullName</strong><span>@(_selectedEmployee.IsAdmin ? "مدیر سامانه · حساب‌محور" : $"کارمند · {_positionName}")</span></div>
                 </div>
@@ -69,21 +69,21 @@
                 <div class="panel-heading">
                     <div>
                         <div class="panel-step">۲ · مجوز مستقیم</div>
-                        <h2><i class="bx bx-key"></i> مجوزهای مستقیم</h2>
+                        <h2><i class="ti @Icons.Permission"></i> مجوزهای مستقیم</h2>
                         <p>مجوزهای اختصاصی این کاربر یا سمت.</p>
                     </div>
                     <div class="panel-heading-tools">
-                        <div class="admin-filter-chips"><span class="badge badge-muted"><i class="bx bx-list-ul"></i>
-                            @_permissionTotal مجوز</span><span class="badge badge-success"><i class="bx bx-check"></i>
+                        <div class="admin-filter-chips"><span class="badge badge-muted"><i class="ti @Icons.List"></i>
+                            @_permissionTotal مجوز</span><span class="badge badge-success"><i class="ti @Icons.Confirm"></i>
                             @_directPermissionIds.Count انتخاب شده</span></div>
-                            <div class="search-box"><i class="bx bx-search"></i><input class="form-control"
+                            <div class="search-box"><i class="ti @Icons.Search"></i><input class="form-control"
                                                                                            placeholder="جستجوی مجوز..." @bind="_permissionSearch" @bind:event="oninput"
                                                                                            @onkeyup="PermissionSearchChanged" />@if(!string.IsNullOrEmpty(_permissionSearch)){<button
-                                type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="bx bx-x"></i></button>}</div>
+                                type="button" class="search-clear" @onclick="ClearPermissionSearch"><i class="ti @Icons.Close"></i></button>}</div>
                                 <div class="selection-actions"><button class="btn btn-secondary btn-sm" disabled="@(_saving || !_canManage)"
-                                                                       @onclick="() => SetDirectResultsAsync(true)"><i class="bx bx-check-double"></i> انتخاب
+                                                                       @onclick="() => SetDirectResultsAsync(true)"><i class="ti @Icons.ConfirmAll"></i> انتخاب
                                     نتایج</button><button class="btn btn-secondary btn-sm" disabled="@(_saving || !_canManage)"
-                                                          @onclick="() => SetDirectResultsAsync(false)"><i class="bx bx-x"></i> حذف نتایج</button></div>
+                                                          @onclick="() => SetDirectResultsAsync(false)"><i class="ti @Icons.Close"></i> حذف نتایج</button></div>
                                 </div>
                             </div>
                             @if (_permissionLoading)
@@ -102,15 +102,15 @@
                                         var collapsed = _collapsedAreas.Contains(area.Key);
                                         <section class="permission-section @(collapsed ? "collapsed" : "")">
                                             <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
-                                                <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div><span
-                                                class="badge badge-muted">@area.Count() مجوز</span><i class="bx bx-chevron-down chevron"></i>
+                                                <div><i class="ti @Icons.Folder"></i><strong>@area.Key</strong></div><span
+                                                class="badge badge-muted">@area.Count() مجوز</span><i class="ti @Icons.ChevronDown chevron"></i>
                                             </div>
                                             <div class="permission-grid">@foreach(var p in area){var
                                                 selected = _directPermissionIds.Contains(p.Id);
                                                 <label class="permission-choice @(selected ? "selected" : "")"><input
                                                     type="checkbox" disabled="@(!_canManage)" checked="@selected"
                                                     @onchange="e => ToggleDirectAsync(p.Id, e.Value is bool v && v)" /><span
-                                                    class="choice-box"><i class="bx bx-check"></i></span><span
+                                                    class="choice-box"><i class="ti @Icons.Confirm"></i></span><span
                                                     class="choice-text"><strong>@p.Name</strong><PermissionReachBadge Code="@(p.Code)" /></span></label>
                                                 }
                                             </div>
@@ -124,13 +124,13 @@
                                 <div class="panel-heading">
                                     <div>
                                         <div class="panel-step">۳ · گروه مجوز</div>
-                                        <h2><i class="bx bx-layer"></i> گروه‌های مجوز</h2>
+                                        <h2><i class="ti @Icons.PermissionGroup"></i> گروه‌های مجوز</h2>
                                         <p>همه گروه‌ها بدون صفحه‌بندی نمایش داده می‌شوند.</p>
                                     </div>
-                                    <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+                                    <div class="search-box small-search"><i class="ti @Icons.Search"></i><input class="form-control"
                                                                                                                 placeholder="جستجوی گروه..." @bind="_groupSearch" @bind:event="oninput"
                                                                                                                 @onkeyup="GroupSearchChanged" />@if(!string.IsNullOrEmpty(_groupSearch)){<button
-                                        type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="bx bx-x"></i></button>}</div>
+                                        type="button" class="search-clear" @onclick="ClearGroupSearch"><i class="ti @Icons.Close"></i></button>}</div>
                                     </div>
                                     <div class="selection-toolbar"><span><strong>@_assignedGroupIds.Count</strong> گروه انتخاب شده</span><span
                                         class="lookup-note">@_groupTotal گروه</span></div>@if(_groupLoading){
@@ -148,7 +148,7 @@
                                                 selected = _assignedGroupIds.Contains(group.Id);
                                                 <label class="group-choice @(selected ? "selected" : "")"><input type="checkbox" disabled="@(!_canManage)" checked="@selected"
                                                                                                                      @onchange="e => ToggleGroupAsync(group.Id, e.Value is bool v && v)" /><span
-                                                    class="choice-box"><i class="bx bx-check"></i></span><span
+                                                    class="choice-box"><i class="ti @Icons.Confirm"></i></span><span
                                                     class="choice-text"><strong>@group.Name</strong><small>@group.PermissionCount مجوز ·
                                                     @group.AssignmentCount تخصیص</small></span></label>
                                                 }
@@ -159,12 +159,12 @@
                                         <div class="panel-heading">
                                             <div>
                                                 <div class="panel-step">۴ · نتیجه</div>
-                                                <h2><i class="bx bx-shield-quarter"></i> مجوزهای نهایی</h2>
+                                                <h2><i class="ti @Icons.AccessFinal"></i> مجوزهای نهایی</h2>
                                                 <p>اجتماع مجوزهای مستقیم و تمام گروه‌های انتخاب‌شده.</p>
                                             </div>
-                                            <div class="search-box small-search"><i class="bx bx-search"></i><input class="form-control"
+                                            <div class="search-box small-search"><i class="ti @Icons.Search"></i><input class="form-control"
                                                                                                                         placeholder="جستجوی نتیجه..." @bind="_effectiveSearch" @bind:event="oninput" />@if(!string.IsNullOrEmpty(_effectiveSearch)){<button
-                                                type="button" class="search-clear" @onclick="ClearEffectiveSearch"><i class="bx bx-x"></i></button>}</div>
+                                                type="button" class="search-clear" @onclick="ClearEffectiveSearch"><i class="ti @Icons.Close"></i></button>}</div>
                                             </div>
                                             <div class="effective-summary"><span>مستقیم: @_directPermissionIds.Count</span><span>از گروه:
                                                 @_effectiveViaGroupIds.Count</span><span>نهایی: @_effectivePermissionIds.Count</span></div>
@@ -179,7 +179,7 @@
                                                         _effectivePermissions.Where(x => string.IsNullOrWhiteSpace(_effectiveSearch) ||
                 x.Name.Contains(_effectiveSearch, StringComparison.OrdinalIgnoreCase))){
                                                             <div class="effective-row">
-                                                                <div><i class="bx bx-check-circle"></i><strong>@p.Name</strong></div>
+                                                                <div><i class="ti @Icons.Success"></i><strong>@p.Name</strong></div>
                                                                 <div class="source-badges">@if(_directPermissionIds.Contains(p.Id)){
                                                                     <span class="source-badge direct">مستقیم</span>
                                                                 }
@@ -198,7 +198,7 @@
     else
                                 {
 
-                                    <section class="card empty-state access-empty"><i class="bx bx-shield-quarter"></i><strong>ابتدا کاربر را
+                                    <section class="card empty-state access-empty"><i class="ti @Icons.AccessManagement"></i><strong>ابتدا کاربر را
                                         انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>
                                     }
                                 </div>

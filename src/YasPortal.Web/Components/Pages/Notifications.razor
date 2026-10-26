@@ -17,11 +17,11 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-bell"></i> اعلان‌ها</h1>
+            <h1 class="page-title"><i class="ti @Icons.Bell"></i> اعلان‌ها</h1>
             <p class="page-subtitle">رویدادهای مربوط به درخواست‌های شما و مراحلی که به شما رسیده است.</p>
         </div>
         <div class="form-actions">
-            <button class="btn btn-secondary" disabled="@(_unread == 0)" @onclick="MarkAllReadAsync"><i class="bx bx-check-double"></i> خواندن همه</button>
+            <button class="btn btn-secondary" disabled="@(_unread == 0)" @onclick="MarkAllReadAsync"><i class="ti @Icons.ConfirmAll"></i> خواندن همه</button>
         </div>
     </div>
 
@@ -44,7 +44,7 @@
     }
     else if (_items.Count == 0)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-bell-off"></i><strong>@(_unreadOnly || _kind is not null ? "اعلانی با این فیلترها پیدا نشد" : "هنوز اعلانی ندارید")</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.NoNotifications"></i><strong>@(_unreadOnly || _kind is not null ? "اعلانی با این فیلترها پیدا نشد" : "هنوز اعلانی ندارید")</strong></div></section>
     }
     else
     {
@@ -52,7 +52,7 @@
         {
             <div class="request-card notification-card @(item.IsRead ? "is-read" : "is-unread")">
                 <div class="request-card-header is-clickable" role="link" tabindex="0" @onclick="() => OpenAsync(item)" @onkeydown="e => OnKeyAsync(e, item)">
-                    <span class="request-card-icon"><i class="bx @IconFor(item.Kind)"></i></span>
+                    <span class="request-card-icon"><i class="ti @IconFor(item.Kind)"></i></span>
                     <span class="request-card-title">
                         <strong>@item.Message</strong>
                         <span>@item.RequestType · @item.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
@@ -206,14 +206,14 @@
 
     private static string IconFor(NotificationKind kind) => kind switch
     {
-        NotificationKind.StepReached => "bx-archive-in",
-        NotificationKind.ReturnedToStep => "bx-undo",
-        NotificationKind.RequestApproved => "bx-check-circle",
-        NotificationKind.RequestRejected => "bx-x-circle",
-        NotificationKind.RequestReturned => "bx-undo",
-        NotificationKind.RequestForceClosed => "bx-block",
-        NotificationKind.RequestCreatedForYou => "bx-user-plus",
-        NotificationKind.VacantPosition => "bx-user-x",
-        _ => "bx-bell",
+        NotificationKind.StepReached => Icons.Inbox,
+        NotificationKind.ReturnedToStep => Icons.Returned,
+        NotificationKind.RequestApproved => Icons.Approved,
+        NotificationKind.RequestRejected => Icons.Rejected,
+        NotificationKind.RequestReturned => Icons.Returned,
+        NotificationKind.RequestForceClosed => Icons.ForceClose,
+        NotificationKind.RequestCreatedForYou => Icons.NewRequestForOthers,
+        NotificationKind.VacantPosition => Icons.PositionVacant,
+        _ => Icons.Bell,
     };
 }

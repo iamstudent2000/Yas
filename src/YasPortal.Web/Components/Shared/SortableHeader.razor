@@ -1,7 +1,7 @@
 <th class="sortable-th" @onclick="HandleClick">
     <span class="sortable-th-inner">
         @Text
-        <i class="bx @IconClass"></i>
+        <i class="ti @IconClass"></i>
     </span>
 </th>
 
@@ -18,7 +18,7 @@
     [Parameter] public EventCallback<string> OnSort { get; set; }
 
     private bool IsActive => CurrentSort == Column;
-    private string IconClass => IsActive ? (CurrentDescending ? "bx-sort-down" : "bx-sort-up") : "bx-sort-alt-2";
+    private string IconClass => IsActive ? (CurrentDescending ? Icons.SortDescending : Icons.SortAscending) : Icons.SortNone;
 
     private Task HandleClick() => OnSort.InvokeAsync(Column);
 }

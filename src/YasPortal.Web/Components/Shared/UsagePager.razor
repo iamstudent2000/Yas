@@ -2,11 +2,11 @@
 {
     <div class="usage-pager">
         <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)">
-            <i class="bx bx-chevron-right"></i>
+            <i class="ti @Icons.PagePrev"></i>
         </button>
         <span>صفحه @Page از @TotalPages</span>
         <button type="button" class="btn btn-secondary btn-sm" disabled="@(Page >= TotalPages)" @onclick="() => Go(Page + 1)">
-            <i class="bx bx-chevron-left"></i>
+            <i class="ti @Icons.PageNext"></i>
         </button>
     </div>
 }

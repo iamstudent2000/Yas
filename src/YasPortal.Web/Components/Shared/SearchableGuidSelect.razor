@@ -11,7 +11,7 @@
             @if (FilteredOptions.Count == 0)
             {
                 <div class="ys-search-empty">
-                    <i class="bx bx-search-alt"></i>
+                    <i class="ti @Icons.Search"></i>
                     <span>موردی پیدا نشد</span>
                 </div>
             }
@@ -22,7 +22,7 @@
                     <button type="button" class="ys-search-option @(option.Value == Value ? "selected" : "")"
                             @onmousedown="PreventBlur" @onclick="() => SelectAsync(option.Value)">
                         <span class="ys-search-check">
-                            <i class="bx @(option.Value == Value ? "bx-check" : "bx-chevron-left")"></i>
+                            <i class="ti @(option.Value == Value ? Icons.Confirm : Icons.PageNext)"></i>
                         </span>
                         <span class="ys-search-option-text">@option.Text</span>
                     </button>

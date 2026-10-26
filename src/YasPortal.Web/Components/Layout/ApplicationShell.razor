@@ -33,10 +33,10 @@
                             <YasPortal.Web.Components.Shared.ActivePositionSelector />
                             <YasPortal.Web.Components.Shared.UserAvatar />
                             <div><strong>@auth.User.Identity?.Name</strong><small>حساب کاربری</small></div>
-                            <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
+                            <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="ti @Icons.LogOut"></i></button></form>
                         </div>
                     </Authorized>
-                    <NotAuthorized><a class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</a></NotAuthorized>
+                    <NotAuthorized><a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a></NotAuthorized>
                 </AuthorizeView>
             </header>
 

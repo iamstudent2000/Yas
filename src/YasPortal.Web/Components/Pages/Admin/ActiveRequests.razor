@@ -21,7 +21,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-pulse"></i> درخواست‌های فعال</h1>
+            <h1 class="page-title"><i class="ti @Icons.ActiveRequests"></i> درخواست‌های فعال</h1>
             <p class="page-subtitle">
                 هر درخواستی که هنوز در جریان است، صرف‌نظر از این‌که چه کسی آن را ثبت کرده یا در چه مرحله‌ای گیر کرده است.
                 بستن اجباری یک اقدام برگشت‌ناپذیر SuperAdmin است — درخواست بدون نیاز به تایید هیچ‌یک از تاییدکنندگان بسته می‌شود
@@ -92,7 +92,7 @@
                                                     @onclick="() => ForceCloseAsync(request.Id)">
                                                 @if (_busyId == request.Id)
                                                 {
-                                                    <span><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                                                    <span><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
                                                 }
                                                 else
                                                 {
@@ -106,7 +106,7 @@
                                 else
                                 {
                                     <button type="button" class="btn btn-danger btn-sm" @onclick="() => _openReasonFor = request.Id">
-                                        <i class="bx bx-block"></i> بستن اجباری
+                                        <i class="ti @Icons.ForceClose"></i> بستن اجباری
                                     </button>
                                 }
                             </td>

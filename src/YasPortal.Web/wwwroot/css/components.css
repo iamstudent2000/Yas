@@ -39,3 +39,9 @@
 .admin-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text-muted,#667085)}
 .admin-empty>i{font-size:30px;color:var(--text-muted,#98a2b3)}
 .admin-empty strong{font-size:13px;color:var(--text,#344054)}
+
+/* Icons: Tabler webfont (see Icons.cs). .ti is an inline element by default; spin needs inline-block. */
+.ti{display:inline-block}
+.icon-spin{animation:icon-spin 1s linear infinite}
+@keyframes icon-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.icon-spin{animation-duration:2.4s}}

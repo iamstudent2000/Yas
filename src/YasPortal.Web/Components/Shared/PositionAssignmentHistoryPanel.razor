@@ -6,7 +6,7 @@
     <div class="history-panel-head">
         <div>
             <div class="eyebrow">تاریخچه سمت</div>
-            <h3><i class="bx bx-history"></i> سوابق تخصیص «@PositionName»</h3>
+            <h3><i class="ti @Icons.History"></i> سوابق تخصیص «@PositionName»</h3>
             <p>تمام کارکنانی که در طول زمان به این سمت تخصیص داشته‌اند نمایش داده می‌شوند.</p>
         </div>
         <div class="history-count">@_total سابقه</div>
@@ -14,12 +14,12 @@
 
     @if (_loading)
     {
-        <div class="history-loading"><i class="bx bx-loader-alt bx-spin"></i> در حال بارگذاری سوابق...</div>
+        <div class="history-loading"><i class="ti @Icons.Spinner"></i> در حال بارگذاری سوابق...</div>
     }
     else if (_rows.Count == 0)
     {
         <div class="history-empty">
-            <i class="bx bx-history"></i>
+            <i class="ti @Icons.History"></i>
             <div>
                 <strong>هنوز سابقه‌ای برای این سمت ثبت نشده است.</strong>
                 <span>پس از تخصیص و آزادسازی، سوابق این سمت اینجا باقی می‌ماند.</span>
@@ -33,7 +33,7 @@
             {
                 <div class="history-row">
                     <div class="history-person">
-                        <span class="history-avatar"><i class="bx bx-user"></i></span>
+                        <span class="history-avatar"><i class="ti @Icons.User"></i></span>
                         <div>
                             <strong>@row.EmployeeName</strong>
                             <small>@row.Username</small>
@@ -49,11 +49,11 @@
                     </div>
                     @if (row.EndedAt is null)
                     {
-                        <span class="history-status active"><i class="bx bx-check-circle"></i> فعال</span>
+                        <span class="history-status active"><i class="ti @Icons.Success"></i> فعال</span>
                     }
                     else
                     {
-                        <span class="history-status ended"><i class="bx bx-history"></i> پایان‌یافته</span>
+                        <span class="history-status ended"><i class="ti @Icons.History"></i> پایان‌یافته</span>
                     }
                 </div>
             }

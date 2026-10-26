@@ -4,7 +4,7 @@
 
 <div class="application-shell" dir="rtl">
     <header class="topbar">
-        <a class="brand" href="/dashboard"><span class="brand-mark"><i class="bx bx-layer"></i></span><span>یاس پورتال</span></a>
+        <a class="brand" href="/dashboard"><span class="brand-mark"><i class="ti @Icons.Brand"></i></span><span>یاس پورتال</span></a>
         <AuthorizeView>
             <Authorized Context="auth">
                 <div class="topbar-user">
@@ -12,10 +12,10 @@
                     <YasPortal.Web.Components.Shared.ActivePositionSelector />
                     <YasPortal.Web.Components.Shared.UserAvatar />
                     <div><strong>@auth.User.Identity?.Name</strong><small>حساب کاربری</small></div>
-                    <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="bx bx-log-out"></i></button></form>
+                    <form method="post" action="/account/logout"><AntiforgeryToken /><button type="submit" class="icon-button" title="خروج"><i class="ti @Icons.LogOut"></i></button></form>
                 </div>
             </Authorized>
-            <NotAuthorized><a class="btn btn-primary" href="/login"><i class="bx bx-log-in"></i> ورود</a></NotAuthorized>
+            <NotAuthorized><a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a></NotAuthorized>
         </AuthorizeView>
     </header>
     <div class="application-body">
@@ -24,21 +24,21 @@
                 <aside class="sidebar">
                     <div class="sidebar-section-title">منوی اصلی</div>
                     <nav class="sidebar-nav">
-                        <AuthorizeView Policy="@Perm.DashboardPageView" Context="dashboardAuth"><NavLink href="/dashboard" Match="NavLinkMatch.All"><i class="bx bx-grid-alt"></i><span>داشبورد</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.ProfileOwnView" Context="profileAuth"><NavLink href="/my-profile"><i class="bx bx-user-circle"></i><span>پروفایل من</span></NavLink></AuthorizeView>
-                        <NavLink href="/my-positions"><i class="bx bx-id-card"></i><span>سمت‌های من</span></NavLink>
+                        <AuthorizeView Policy="@Perm.DashboardPageView" Context="dashboardAuth"><NavLink href="/dashboard" Match="NavLinkMatch.All"><i class="ti @Icons.Dashboard"></i><span>داشبورد</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.ProfileOwnView" Context="profileAuth"><NavLink href="/my-profile"><i class="ti @Icons.Profile"></i><span>پروفایل من</span></NavLink></AuthorizeView>
+                        <NavLink href="/my-positions"><i class="ti @Icons.Position"></i><span>سمت‌های من</span></NavLink>
                     </nav>
                     <div class="sidebar-section-title admin-title">مدیریت سامانه</div>
                     <nav class="sidebar-nav">
-                        <AuthorizeView Policy="@Perm.AdminUsersView" Context="usersAuth"><NavLink href="/admin/users"><i class="bx bx-group"></i><span>کاربران</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminAccessView" Context="accessAuth"><NavLink href="/admin/access"><i class="bx bx-shield-quarter"></i><span>مدیریت دسترسی</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminPositionsView" Context="positionsAuth"><NavLink href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i><span>سمت‌ها</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminAssignmentHistoryView" Context="assignmentHistoryAuth"><NavLink href="/admin/assignment-history"><i class="bx bx-history"></i><span>سوابق تخصیص سمت‌ها</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminPermissionsView" Context="permissionsAuth"><NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink><NavLink href="/admin/permission-groups"><i class="bx bx-layer"></i><span>گروه‌های مجوز</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminOrganizationsView" Context="organizationsAuth"><NavLink href="/admin/organizations"><i class="bx bx-buildings"></i><span>سازمان‌ها</span></NavLink></AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminAccessView" Context="auditAuth"><NavLink href="/admin/audit-log"><i class="bx bx-file-find"></i><span>گزارش رویدادها</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminUsersView" Context="usersAuth"><NavLink href="/admin/users"><i class="ti @Icons.Users"></i><span>کاربران</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminAccessView" Context="accessAuth"><NavLink href="/admin/access"><i class="ti @Icons.AccessManagement"></i><span>مدیریت دسترسی</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminPositionsView" Context="positionsAuth"><NavLink href="/admin/positions"><i class="ti @Icons.Position"></i><span>سمت‌ها</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminAssignmentHistoryView" Context="assignmentHistoryAuth"><NavLink href="/admin/assignment-history"><i class="ti @Icons.History"></i><span>سوابق تخصیص سمت‌ها</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminPermissionsView" Context="permissionsAuth"><NavLink href="/admin/permissions"><i class="ti @Icons.Permission"></i><span>مجوزها</span></NavLink><NavLink href="/admin/permission-groups"><i class="ti @Icons.PermissionGroup"></i><span>گروه‌های مجوز</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminOrganizationsView" Context="organizationsAuth"><NavLink href="/admin/organizations"><i class="ti @Icons.Organization"></i><span>سازمان‌ها</span></NavLink></AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminAccessView" Context="auditAuth"><NavLink href="/admin/audit-log"><i class="ti @Icons.AuditLog"></i><span>گزارش رویدادها</span></NavLink></AuthorizeView>
                     </nav>
-                    <div class="sidebar-footer"><i class="bx bx-shield-quarter"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
+                    <div class="sidebar-footer"><i class="ti @Icons.Secure"></i><div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div></div>
                 </aside>
             </Authorized>
         </AuthorizeView>

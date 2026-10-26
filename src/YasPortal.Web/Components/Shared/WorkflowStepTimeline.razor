@@ -14,11 +14,11 @@
     var stateClass = WorkflowDisplay.StageStateClass(summary.State);
     <div class="stage-card rt-stage @stateClass @(parallel ? "is-parallel" : "")">
         <div class="stage-card-head">
-            <span class="rt-stage-icon @stateClass"><i class="bx @WorkflowDisplay.StageStateIcon(summary.State)"></i></span>
+            <span class="rt-stage-icon @stateClass"><i class="ti @WorkflowDisplay.StageStateIcon(summary.State)"></i></span>
             <strong>مرحله @ToPersianDigits(stage.Key.ToString())</strong>
             @if (parallel)
             {
-                <span class="badge badge-info"><i class="bx bx-git-compare"></i> موازی</span>
+                <span class="badge badge-info"><i class="ti @Icons.Parallel"></i> موازی</span>
                 <span class="badge badge-muted">@(members[0].ApprovalMode == ParallelApprovalMode.Any ? "تایید یکی کافی است" : "تایید همه لازم است")</span>
                 <span class="badge badge-muted">@(members[0].RejectPolicy == ParallelRejectPolicy.WaitForAll ? "رد پس از پاسخ همه" : "رد فوری")</span>
                 @if (members[0].ApprovalMode == ParallelApprovalMode.All)
@@ -37,7 +37,7 @@
                 // itself only shows its current pass; every pass it ever went through is in Decisions.
                 var earlierPasses = Decisions.Where(d => d.StepId == step.Id).OrderBy(d => d.ActedAtUtc).SkipLast(step.ActedAtUtc is null ? 0 : 1).ToList();
                 <div class="rt-member @(isCurrent ? "is-current" : "")">
-                    <span class="approval-step-icon rt-member-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="bx @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
+                    <span class="approval-step-icon rt-member-icon @WorkflowDisplay.StepIconClass(step.Status, isCurrent)"><i class="ti @WorkflowDisplay.StepIcon(step.Status, isCurrent)"></i></span>
                     <div class="rt-member-body">
                         <div class="rt-member-title">
                             <strong>@step.Name</strong>
@@ -110,7 +110,7 @@
     </div>
     @if (stage.Key != stages[^1].Key)
     {
-        <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+        <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
     }
 }
 

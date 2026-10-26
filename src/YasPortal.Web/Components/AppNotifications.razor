@@ -17,7 +17,7 @@
             </div>
 
             <button type="button" class="app-toast-close" aria-label="بستن" @onclick="() => AppState.RemoveToast(toast)">
-                <i class="bx bx-x"></i>
+                <i class="ti @Icons.Close"></i>
             </button>
         </div>
     }
@@ -44,11 +44,11 @@
 
     private static string GetIcon(ToastLevel level) => level switch
     {
-        ToastLevel.Success => "bx bx-check-circle",
-        ToastLevel.Info => "bx bx-info-circle",
-        ToastLevel.Warning => "bx bx-error",
-        ToastLevel.Error => "bx bx-x-circle",
-        _ => "bx bx-info-circle"
+        ToastLevel.Success => ("ti " + Icons.Success),
+        ToastLevel.Info => ("ti " + Icons.Info),
+        ToastLevel.Warning => ("ti " + Icons.Warning),
+        ToastLevel.Error => ("ti " + Icons.Failure),
+        _ => ("ti " + Icons.Info)
     };
 
     private static string GetTitle(ToastLevel level) => level switch

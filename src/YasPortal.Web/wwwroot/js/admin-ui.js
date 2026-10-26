@@ -52,7 +52,7 @@
     input.autocomplete = 'off';
     input.placeholder = 'جستجو و انتخاب...';
     const icon = document.createElement('i');
-    icon.className = 'bx bx-search ys-search-select-icon';
+    icon.className = 'ti ti-search ys-search-select-icon';
     const menu = document.createElement('div');
     menu.className = 'ys-search-select-menu';
     box.append(input, icon, menu);

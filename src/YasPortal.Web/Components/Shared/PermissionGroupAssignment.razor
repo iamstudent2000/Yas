@@ -8,7 +8,7 @@
 <section class="permission-group-assignment">
     <div class="group-assignment-header">
         <div>
-            <h3 class="sub-title" style="margin:0"><i class="bx bx-layer"></i> گروه‌های مجوز</h3>
+            <h3 class="sub-title" style="margin:0"><i class="ti @Icons.PermissionGroup"></i> گروه‌های مجوز</h3>
             @if (IsAdmin)
             {
                 <p class="help-text">این گروه‌ها مستقیماً به مدیر سامانه اختصاص داده می‌شوند و به هیچ سمت سازمانی وابسته
@@ -32,7 +32,7 @@
 
             @if (CanAssign)
             {
-                <div class="group-search"><i class="bx bx-search"></i><input class="form-control" placeholder="جستجوی گروه..."
+                <div class="group-search"><i class="ti @Icons.Search"></i><input class="form-control" placeholder="جستجوی گروه..."
                                                                                  @bind="_search" @bind:event="oninput" /></div>
                     <div class="group-assignment-grid">
                         @foreach (var group in FilteredGroups)
@@ -41,7 +41,7 @@
                             <label class="group-tile @(assigned ? "selected" : "")">
                                 <input type="checkbox" checked="@assigned" disabled="@_saving"
                                        @onchange="e => ToggleGroup(group.Id, e.Value is bool value && value)" />
-                                <span class="tile-check"><i class="bx bx-check"></i></span>
+                                <span class="tile-check"><i class="ti @Icons.Confirm"></i></span>
                                 <span class="group-text">
                                     <strong>@group.Name</strong>
                                     <small>@group.PermissionCount مجوز @(!string.IsNullOrWhiteSpace(group.Description) ? $" —         {group.Description}" : "")</small>

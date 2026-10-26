@@ -22,7 +22,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-sitemap"></i> درخواست‌ها و تاییدات زیرمجموعه</h1>
+            <h1 class="page-title"><i class="ti @Icons.Subordinates"></i> درخواست‌ها و تاییدات زیرمجموعه</h1>
             <p class="page-subtitle">سابقه‌ی درخواست‌ها و تصمیم‌های تاییدیِ همه‌ی سمت‌هایی که در درخت سازمانی زیر سمت فعال شما قرار دارند. فقط مشاهده است.</p>
         </div>
     </div>
@@ -33,26 +33,26 @@
     }
     else if (_positionId is null)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Alert"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
     }
     else if (!_canRequests && !_canApprovals)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-lock-alt"></i><strong>سمت فعال شما مجوز مشاهده‌ی زیرمجموعه را ندارد</strong><span>این مجوز به سمت فعال شما داده می‌شود؛ با تغییر سمت فعال، دسترسی هم تغییر می‌کند.</span></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Restricted"></i><strong>سمت فعال شما مجوز مشاهده‌ی زیرمجموعه را ندارد</strong><span>این مجوز به سمت فعال شما داده می‌شود؛ با تغییر سمت فعال، دسترسی هم تغییر می‌کند.</span></div></section>
     }
     else if (_subordinates.Count == 0)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-sitemap"></i><strong>سمت فعال شما زیرمجموعه‌ای ندارد</strong><span>در درخت سازمانی هیچ سمتی زیر سمت شما نیست.</span></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Subordinates"></i><strong>سمت فعال شما زیرمجموعه‌ای ندارد</strong><span>در درخت سازمانی هیچ سمتی زیر سمت شما نیست.</span></div></section>
     }
     else
     {
         <div class="inbox-tabs">
             @if (_canRequests)
             {
-                <button type="button" class="inbox-tab @(_tab == Tab.Requests ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Requests)"><i class="bx bx-list-check"></i> درخواست‌های زیرمجموعه</button>
+                <button type="button" class="inbox-tab @(_tab == Tab.Requests ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Requests)"><i class="ti @Icons.MyRequests"></i> درخواست‌های زیرمجموعه</button>
             }
             @if (_canApprovals)
             {
-                <button type="button" class="inbox-tab @(_tab == Tab.Approvals ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Approvals)"><i class="bx bx-history"></i> تصمیم‌های تاییدی زیرمجموعه</button>
+                <button type="button" class="inbox-tab @(_tab == Tab.Approvals ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Approvals)"><i class="ti @Icons.History"></i> تصمیم‌های تاییدی زیرمجموعه</button>
             }
         </div>
         <p class="muted">شامل @_subordinates.Count سمت زیر سمت فعال شما (همه‌ی سطح‌ها). درخواست‌ها بر اساس سمتی که درخواست‌کننده هنگام ثبت از آن ثبت کرده، و تصمیم‌ها بر اساس سمتِ مرحله‌ی تایید شناسایی می‌شوند.</p>
@@ -73,7 +73,7 @@
                 }
                 else if (_requests.Count == 0)
                 {
-                    <div class="empty-state"><i class="bx bx-search"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی از زیرمجموعه‌ی شما ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
+                    <div class="empty-state"><i class="ti @Icons.SearchEmpty"></i><strong>@(_filter.IsEmpty ? "هنوز درخواستی از زیرمجموعه‌ی شما ثبت نشده است" : "درخواستی با این فیلترها پیدا نشد")</strong></div>
                 }
                 else
                 {
@@ -128,7 +128,7 @@
                                         <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
                                         <td>
                                             <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _openRequestId = open ? null : request.Id">
-                                                <i class="bx @(open ? "bx-chevron-up" : "bx-show")"></i> @(open ? "بستن" : "جزئیات")
+                                                <i class="ti @(open ? Icons.ChevronUp : Icons.Details)"></i> @(open ? "بستن" : "جزئیات")
                                             </button>
                                         </td>
                                     </tr>
@@ -176,7 +176,7 @@
             }
             else if (_apItems.Count == 0)
             {
-                <section class="card"><div class="empty-state"><i class="bx bx-history"></i><strong>موردی یافت نشد</strong><span>با این فیلترها تصمیمی از سمت‌های زیرمجموعه‌ی شما ثبت نشده است.</span></div></section>
+                <section class="card"><div class="empty-state"><i class="ti @Icons.History"></i><strong>موردی یافت نشد</strong><span>با این فیلترها تصمیمی از سمت‌های زیرمجموعه‌ی شما ثبت نشده است.</span></div></section>
             }
             else
             {
@@ -185,13 +185,13 @@
                     var expanded = _expandedDecisionId == item.Decision.Id;
                     <div class="request-card @(expanded ? "is-expanded" : "")">
                         <div class="request-card-header is-clickable" @onclick="() => _expandedDecisionId = expanded ? null : item.Decision.Id">
-                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
                                 <span>درخواست‌کننده: @item.RequesterName · تصمیم در «@item.StepName» · سمت «@item.PositionName» · توسط @(item.ActorName + (item.Decision.DelegationId is null ? "" : " (نیابتی)")) · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
-                            <i class="bx bx-chevron-down request-card-chevron"></i>
+                            <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
                         @if (expanded)
                         {

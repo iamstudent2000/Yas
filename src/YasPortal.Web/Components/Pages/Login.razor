@@ -33,9 +33,9 @@
                     <p>سامانه یکپارچه مدیریت سازمان، سمت‌ها و دسترسی‌های کارکنان — در یک بستر واحد.</p>
                 </div>
                 <ul class="brandpanel-points">
-                    <li><i class="bx bx-sitemap"></i> ساختار سازمانی شفاف و قابل پیگیری</li>
-                    <li><i class="bx bx-id-card"></i> سمت‌ها و مجوزهای هر کارمند، دقیق و به‌روز</li>
-                    <li><i class="bx bx-history"></i> رویدادهای سامانه، همیشه در دسترس</li>
+                    <li><i class="ti @Icons.OrgStructure"></i> ساختار سازمانی شفاف و قابل پیگیری</li>
+                    <li><i class="ti @Icons.Position"></i> سمت‌ها و مجوزهای هر کارمند، دقیق و به‌روز</li>
+                    <li><i class="ti @Icons.AuditLog"></i> رویدادهای سامانه، همیشه در دسترس</li>
                 </ul>
             </div>
         </section>
@@ -50,7 +50,7 @@
                 @if (NoPositionError)
                 {
                     <div class="login-alert login-alert-warning" role="alert">
-                        <i class="bx bx-sitemap" aria-hidden="true"></i>
+                        <i class="ti @Icons.Alert" aria-hidden="true"></i>
                         <div>
                             <strong>سمت فعالی برای حساب شما ثبت نشده است.</strong>
                             <span>برای ورود، ابتدا باید حداقل یک سمت فعال به شما تخصیص داده شود. لطفاً با مدیر سامانه
@@ -61,7 +61,7 @@
                 else if (Error)
                 {
                     <div class="login-alert" role="alert">
-                        <i class="bx bx-error-circle" aria-hidden="true"></i>
+                        <i class="ti @Icons.Alert" aria-hidden="true"></i>
                         <span>نام کاربری یا رمز عبور صحیح نیست.</span>
                     </div>
                 }
@@ -72,7 +72,7 @@
                     <div class="field">
                         <label for="username">نام کاربری</label>
                         <div class="input-wrap">
-                            <i class="bx bx-user" aria-hidden="true"></i>
+                            <i class="ti @Icons.User" aria-hidden="true"></i>
                             <input id="username" name="username" autocomplete="username"
                                    placeholder="نام کاربری خود را وارد کنید" required />
                         </div>
@@ -81,7 +81,7 @@
                     <div class="field">
                         <label for="password">رمز عبور</label>
                         <div class="input-wrap">
-                            <i class="bx bx-lock-alt" aria-hidden="true"></i>
+                            <i class="ti @Icons.PasswordField" aria-hidden="true"></i>
                             <input id="password" name="password" type="password" autocomplete="current-password"
                                    placeholder="رمز عبور خود را وارد کنید" required />
                         </div>
@@ -89,20 +89,20 @@
 
                     <button class="login-button" type="submit">
                         <span>ورود به سامانه</span>
-                        <i class="bx bx-left-arrow-alt" aria-hidden="true"></i>
+                        <i class="ti @Icons.ArrowGo" aria-hidden="true"></i>
                     </button>
                 </form>
 
                 <div class="login-footer">
-                    <i class="bx bx-shield-quarter" aria-hidden="true"></i>
+                    <i class="ti @Icons.Secure" aria-hidden="true"></i>
                     <span>ورود امن به سامانه یاس پورتال</span>
                 </div>
 
                 <details class="development-accounts">
                     <summary>
-                        <i class="bx bx-code-alt" aria-hidden="true"></i>
+                        <i class="ti @Icons.Code" aria-hidden="true"></i>
                         <span>حساب‌های توسعه</span>
-                        <i class="bx bx-chevron-down summary-chevron" aria-hidden="true"></i>
+                        <i class="ti @Icons.ChevronDown summary-chevron" aria-hidden="true"></i>
                     </summary>
                     <div class="account-list">
                         <div class="account-row">

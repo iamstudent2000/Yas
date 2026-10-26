@@ -18,11 +18,11 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">حساب من</div>
-            <h1 class="page-title"><i class="bx bx-palette"></i> ظاهر برنامه</h1>
+            <h1 class="page-title"><i class="ti @Icons.Appearance"></i> ظاهر برنامه</h1>
             <p class="page-subtitle">تم، رنگ، قلم و اندازه‌ی نوشته را به دلخواه خود تنظیم کنید. تغییرات بلافاصله اعمال و برای حساب شما ذخیره می‌شوند.</p>
         </div>
         <div class="form-actions">
-            <button class="btn btn-secondary" disabled="@(!_ready || _saving)" @onclick="ResetAsync"><i class="bx bx-reset"></i> بازگشت به پیش‌فرض</button>
+            <button class="btn btn-secondary" disabled="@(!_ready || _saving)" @onclick="ResetAsync"><i class="ti @Icons.AppearanceReset"></i> بازگشت به پیش‌فرض</button>
         </div>
     </div>
 
@@ -39,7 +39,7 @@
                 <div class="choice-row" role="radiogroup" aria-label="تم">
                     @foreach (var (value, label, icon) in Themes)
                     {
-                        <button type="button" role="radio" aria-checked="@(_theme == value)" class="choice @(_theme == value ? "is-selected" : "")" @onclick="() => SetAsync(theme: value)"><i class="bx @icon"></i> @label</button>
+                        <button type="button" role="radio" aria-checked="@(_theme == value)" class="choice @(_theme == value ? "is-selected" : "")" @onclick="() => SetAsync(theme: value)"><i class="ti @icon"></i> @label</button>
                     }
                 </div>
             </section>
@@ -91,14 +91,14 @@
             <h2 class="section-title">پیش‌نمایش</h2>
             <div class="request-card" style="margin-bottom:0">
                 <div class="request-card-header">
-                    <span class="request-card-icon"><i class="bx bx-calendar"></i></span>
+                    <span class="request-card-icon"><i class="ti @Icons.Calendar"></i></span>
                     <span class="request-card-title"><strong>درخواست مرخصی</strong><span>از طرف علی رضایی · ۱۴۰۵/۰۷/۲۵</span></span>
                     <span class="badge badge-warning">در انتظار تایید</span>
                 </div>
                 <div class="request-card-body">
                     <div class="form-actions" style="margin-top:12px">
-                        <button class="btn btn-primary"><i class="bx bx-check"></i> تایید</button>
-                        <button class="btn btn-danger"><i class="bx bx-x"></i> رد</button>
+                        <button class="btn btn-primary"><i class="ti @Icons.Confirm"></i> تایید</button>
+                        <button class="btn btn-danger"><i class="ti @Icons.Close"></i> رد</button>
                         <button class="btn btn-secondary">بازگشت</button>
                     </div>
                 </div>
@@ -110,9 +110,9 @@
 @code {
     private static readonly (UiTheme Value, string Label, string Icon)[] Themes =
     [
-        (UiTheme.System, "مطابق دستگاه", "bx-desktop"),
-        (UiTheme.Light, "روشن", "bx-sun"),
-        (UiTheme.Dark, "تیره", "bx-moon"),
+        (UiTheme.System, "مطابق دستگاه", Icons.ThemeSystem),
+        (UiTheme.Light, "روشن", Icons.ThemeLight),
+        (UiTheme.Dark, "تیره", Icons.ThemeDark),
     ];
 
     private static readonly (UiAccent Value, string Label, string Color)[] Accents =

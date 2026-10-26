@@ -23,7 +23,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-archive-in"></i> کارتابل تاییدات</h1>
+            <h1 class="page-title"><i class="ti @Icons.Inbox"></i> کارتابل تاییدات</h1>
             <p class="page-subtitle">درخواست‌هایی که در انتظار تصمیم شما (بر اساس سمت فعال شما) هستند.</p>
         </div>
     </div>
@@ -34,13 +34,13 @@
     }
     else if (_approverPositionId is null)
     {
-        <section class="card"><div class="empty-state"><i class="bx bx-error-circle"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Alert"></i><strong>سمت فعالی برای شما یافت نشد</strong></div></section>
     }
     else
     {
         <div class="inbox-tabs">
-            <button type="button" class="inbox-tab @(!_historyMode ? "is-active" : "")" @onclick="ShowPending"><i class="bx bx-time-five"></i> در انتظار من @(_pendingTotalCount > 0 ? $"({ToPersianDigits(_pendingTotalCount.ToString())})" : "")</button>
-            <button type="button" class="inbox-tab @(_historyMode ? "is-active" : "")" @onclick="ShowHistory"><i class="bx bx-history"></i> تاریخچه تصمیمات من</button>
+            <button type="button" class="inbox-tab @(!_historyMode ? "is-active" : "")" @onclick="ShowPending"><i class="ti @Icons.Awaiting"></i> در انتظار من @(_pendingTotalCount > 0 ? $"({ToPersianDigits(_pendingTotalCount.ToString())})" : "")</button>
+            <button type="button" class="inbox-tab @(_historyMode ? "is-active" : "")" @onclick="ShowHistory"><i class="ti @Icons.History"></i> تاریخچه تصمیمات من</button>
         </div>
 
         @if (!_historyMode)
@@ -49,7 +49,7 @@
                               SortOptions="_pendingSortOptions" Sort="@(_pendingSort)" DefaultSort="created:asc" SortChanged="OnPendingSortChangedAsync" />
             @if (_items.Count == 0)
             {
-                <section class="card"><div class="empty-state"><i class="bx bx-check-circle inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
+                <section class="card"><div class="empty-state"><i class="ti @Icons.Success inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
             }
             else
             {
@@ -58,16 +58,16 @@
                     var busy = _actingRequestId == item.Request.Id;
                     <div class="request-card">
                         <div class="request-card-header">
-                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
                                 <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                                 <RequestNowLine Request="item.Request" ShowWaitingFor="false" />
                             </span>
-                            <span class="admin-pill"><i class="bx bx-flag"></i> @item.CurrentStep.Name</span>
+                            <span class="admin-pill"><i class="ti @Icons.WorkflowStep"></i> @item.CurrentStep.Name</span>
                             @if (item.IsDelegated)
                             {
-                                <span class="badge badge-info"><i class="bx bx-transfer"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
+                                <span class="badge badge-info"><i class="ti @Icons.Delegation"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
                             }
                         </div>
 
@@ -81,7 +81,7 @@
                             @if (stepPart is not null)
                             {
                                 <div class="resubmit-panel">
-                                    <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px"><i class="bx bx-edit"></i> بخش @ToPersianDigits(stepPart.Part.ToString()): @stepPart.Title — پیش از تایید، این بخش را تکمیل کنید</h3>
+                                    <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px"><i class="ti @Icons.Edit"></i> بخش @ToPersianDigits(stepPart.Part.ToString()): @stepPart.Title — پیش از تایید، این بخش را تکمیل کنید</h3>
                                     <WorkflowFieldsForm Type="item.Request.WorkflowType" Part="stepPart.Part" Values="GetPartValues(item)" />
                                 </div>
                             }
@@ -94,18 +94,18 @@
                             <div class="inbox-actions">
                                 <div class="inbox-actions-primary">
                                 <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
-                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="bx bx-check"></i> تایید</button>
+                                    <button class="btn btn-primary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Approve)"><i class="ti @Icons.Approve"></i> تایید</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="@Perm.RequestsDecisionReject">
-                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="bx bx-x"></i> رد</button>
+                                    <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="ti @Icons.Reject"></i> رد</button>
                                 </AuthorizeView>
                                 </div>
                                 <div class="inbox-actions-secondary">
                                 <AuthorizeView Policy="@Perm.RequestsDecisionReturnToRequester">
-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="bx bx-undo"></i> بازگشت به درخواست‌کننده</button>
+                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="ti @Icons.ReturnToRequester"></i> بازگشت به درخواست‌کننده</button>
                                 </AuthorizeView>
                                 <AuthorizeView Policy="@Perm.RequestsDecisionReturnToPreviousStep">
-                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="bx bx-chevron-right"></i> بازگشت به مرحله قبل</button>
+                                    <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToPreviousStep)" title="@(item.HasPreviousStep ? "بازگشت به مرحله تایید قبلی" : "این اولین مرحله است؛ بازگشت به درخواست‌کننده انجام می‌شود")"><i class="ti @Icons.ReturnToPreviousStep"></i> بازگشت به مرحله قبل</button>
                                 </AuthorizeView>
                                 @{
                                     var earlierSteps = item.Request.Steps
@@ -127,13 +127,13 @@
                                                 <option value="@earlier.Order">@earlier.Name</option>
                                             }
                                         </select>
-                                        <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="bx bx-skip-next"></i> بازگشت به مرحله انتخاب‌شده</button>
+                                        <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="ti @Icons.ReturnToSpecificStep"></i> بازگشت به مرحله انتخاب‌شده</button>
                                     </AuthorizeView>
                                 }
                                 </div>
                                 @if (busy)
                                 {
-                                    <span class="muted"><i class="bx bx-loader-alt bx-spin"></i> در حال ثبت...</span>
+                                    <span class="muted"><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
                                 }
                             </div>
                         </div>
@@ -166,7 +166,7 @@
             }
             else if (_historyItems.Count == 0)
             {
-                <section class="card"><div class="empty-state"><i class="bx bx-history"></i><strong>موردی یافت نشد</strong><span>با این فیلترها هنوز تصمیمی ثبت نکرده‌اید.</span></div></section>
+                <section class="card"><div class="empty-state"><i class="ti @Icons.History"></i><strong>موردی یافت نشد</strong><span>با این فیلترها هنوز تصمیمی ثبت نکرده‌اید.</span></div></section>
             }
             else
             {
@@ -175,7 +175,7 @@
                     var expanded = _expandedHistoryId == item.Decision.Id;
                     <div class="request-card @(expanded ? "is-expanded" : "")">
                         <div class="request-card-header is-clickable" @onclick="() => ToggleHistory(item.Decision.Id)">
-                            <span class="request-card-icon"><i class="bx @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
+                            <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
                                 <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName»@(DelegatedLabel(item.Decision)) · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
@@ -186,7 +186,7 @@
                                 var targetName = item.Request.Steps.FirstOrDefault(st => st.Round == item.Decision.Round && st.Order == targetOrder)?.Name;
                                 <span class="muted"> ← «@(targetName ?? ("مرحله " + targetOrder))»</span>
                             }
-                            <i class="bx bx-chevron-down request-card-chevron"></i>
+                            <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
                         @if (expanded)
                         {

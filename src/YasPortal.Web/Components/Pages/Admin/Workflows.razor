@@ -18,7 +18,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه / گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-git-branch"></i> مراحل گردش‌کار</h1>
+            <h1 class="page-title"><i class="ti @Icons.Workflow"></i> مراحل گردش‌کار</h1>
             <p class="page-subtitle">فیلدهای هر نوع گردش‌کار ثابت است؛ مسیر تایید (مراحل) هر نوع را اینجا تعریف کنید.
             </p>
         </div>
@@ -27,7 +27,7 @@
 <div class="admin-stack">
         <section class="card">
             <div class="card-heading">
-                <div class="card-heading-icon"><i class="bx bx-list-ul"></i></div>
+                <div class="card-heading-icon"><i class="ti @Icons.List"></i></div>
                 <div>
                     <h2 class="section-title">انواع گردش‌کار</h2>
                     <p class="muted">یک نوع را انتخاب کنید تا مراحل تایید آن را ببینید.</p>
@@ -40,14 +40,14 @@
                     <div class="admin-list-row @(selected ? "admin-list-row-selected" : "")"
                          @onclick="() => SelectType(type)">
                         <div class="admin-list-primary">
-                            <span class="admin-list-avatar"><i class="bx bx-shape-square"></i></span>
+                            <span class="admin-list-avatar"><i class="ti @Icons.RequestType"></i></span>
                             <span class="admin-list-text">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(type)</strong>
                                 <span class="badge badge-muted">@type</span>
                             </span>
                         </div>
                         <div class="admin-list-meta">
-                            <span class="admin-pill"><i class="bx bx-list-check"></i> @StepCountFor(type) مرحله</span>
+                            <span class="admin-pill"><i class="ti @Icons.StepCount"></i> @StepCountFor(type) مرحله</span>
                         </div>
                     </div>
                 }
@@ -58,7 +58,7 @@
 <section class="card admin-form-row workflow-form-row">
             <div class="card-heading">
                 <div class="card-heading-icon"><i
-                    class="bx @(_editingId is null ? "bx-layer-plus" : "bx-edit-alt")"></i></div>
+                    class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i></div>
                     <div>
                         <h2 class="section-title">@(_editingId is null ? "مرحله جدید" : "ویرایش مرحله")</h2>
                         <p class="muted">برای «@WorkflowFieldCatalog.GetDisplayName(_selectedType)» یک مرحله تایید تعریف
@@ -69,7 +69,7 @@
                     @if (_blockingCount > 0)
                     {
                         <div class="empty-state" role="alert">
-                            <i class="bx bx-lock-alt"></i>
+                            <i class="ti @Icons.Restricted"></i>
                             <strong>تغییر مراحل فعلاً ممکن نیست</strong>
                             <span>@ToPersianDigits(_blockingCount.ToString()) درخواست فعال از این نوع در جریان است. تا زمانی که این درخواست‌ها تعیین تکلیف نشوند، مراحل این گردش‌کار قابل تغییر نیست.
                                 <a href="/admin/active-requests">مشاهده و تعیین تکلیف درخواست‌های فعال</a></span>
@@ -165,7 +165,7 @@
 
 <div class="form-field admin-row-submit">
                             <div class="form-actions">
-                                <button class="btn btn-primary" @onclick="SaveStep"><i class="bx bx-save"></i> @(_editingId is null ?
+                                <button class="btn btn-primary" @onclick="SaveStep"><i class="ti @Icons.Save"></i> @(_editingId is null ?
                                           "افزودن مرحله" : "ذخیره")</button>
                                     @if (_editingId is not null)
                                     {
@@ -180,7 +180,7 @@
                                 @if (!_loading && _steps.Count > 0 && WorkflowFieldCatalog.IsMultiPart(_selectedType) && PartProblems() is { Count: > 0 } partProblems)
                                 {
                                     <div class="empty-state" role="alert">
-                                        <i class="bx bx-error-circle"></i>
+                                        <i class="ti @Icons.Alert"></i>
                                         <strong>تخصیص بخش‌های فرم کامل نیست</strong>
                                         @foreach (var problem in partProblems)
                                         {
@@ -195,7 +195,7 @@
                                 }
                                 else if (_steps.Count == 0)
                                 {
-                                    <div class="empty-state"><i class="bx bx-error-circle"></i><strong>هنوز مرحله‌ای تعریف نشده
+                                    <div class="empty-state"><i class="ti @Icons.Alert"></i><strong>هنوز مرحله‌ای تعریف نشده
                                         است</strong><span>تا وقتی حداقل یک مرحله تعریف نشود، کارمندان نمی‌توانند این نوع گردش‌کار را ثبت
                                         کنند.</span></div>
                                     }
@@ -223,10 +223,10 @@
                                                             </select>
                                                         }
                                                         <span class="stage-actions">
-                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به بالا" disabled="@(stage.Key == _steps.Min(x => x.Order))" @onclick="() => MoveUp(members[0].Id)"><i class="bx bx-up-arrow-alt"></i></button>}
-                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به پایین" disabled="@(stage.Key == _steps.Max(x => x.Order))" @onclick="() => MoveDown(members[0].Id)"><i class="bx bx-down-arrow-alt"></i></button>}
-                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementJoin(stage.Key))"><i class="bx bx-user-plus"></i> تاییدکننده موازی</button>}
-                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementAfter(stage.Key))"><i class="bx bx-layer-plus"></i> مرحله بعد از این</button>}
+                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به بالا" disabled="@(stage.Key == _steps.Min(x => x.Order))" @onclick="() => MoveUp(members[0].Id)"><i class="ti @Icons.MoveUp"></i></button>}
+                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" title="انتقال مرحله به پایین" disabled="@(stage.Key == _steps.Max(x => x.Order))" @onclick="() => MoveDown(members[0].Id)"><i class="ti @Icons.MoveDown"></i></button>}
+                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementJoin(stage.Key))"><i class="ti @Icons.ParallelApprover"></i> تاییدکننده موازی</button>}
+                                                            @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => StartAdd(PlacementAfter(stage.Key))"><i class="ti @Icons.NextStep"></i> مرحله بعد از این</button>}
                                                         </span>
                                                     </div>
                                                     <div class="stage-members">
@@ -246,14 +246,14 @@
                                                                     }
                                                                     @if (WorkflowFieldCatalog.GetStepPart(step.WorkflowType, step.FillsPart) is { } fillsPart)
                                                                     {
-                                                                        <span class="badge badge-info"><i class="bx bx-edit"></i> تکمیل بخش @ToPersianDigits(fillsPart.Part.ToString()): @fillsPart.Title</span>
+                                                                        <span class="badge badge-info"><i class="ti @Icons.Edit"></i> تکمیل بخش @ToPersianDigits(fillsPart.Part.ToString()): @fillsPart.Title</span>
                                                                     }
                                                                 </span>
                                                                 <span class="stage-actions">
-                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" disabled="@(!parallel && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i class="bx bx-git-compare"></i> @(parallel ? "جدا کردن به مرحله مستقل" : "موازی با مرحله قبل")</button>}
-                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="bx bx-edit-alt"></i> ویرایش</button>}
-                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i class="bx @(step.IsActive ? "bx-pause-circle" : "bx-play-circle")"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>}
-                                                                    @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="bx bx-trash"></i> حذف</button>}
+                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" disabled="@(!parallel && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i class="ti @Icons.Parallel"></i> @(parallel ? "جدا کردن به مرحله مستقل" : "موازی با مرحله قبل")</button>}
+                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="ti @Icons.Edit"></i> ویرایش</button>}
+                                                                    @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i class="ti @(step.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>}
+                                                                    @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="ti @Icons.Delete"></i> حذف</button>}
                                                                 </span>
                                                             </div>
                                                         }
@@ -261,7 +261,7 @@
                                                 </div>
                                                 @if (stage.Key != stages[^1].Key)
                                                 {
-                                                    <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+                                                    <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
                                                 }
                                             }
                                         </div>
@@ -271,7 +271,7 @@
                                     {
                                         <hr class="section-divider" />
                                         <div class="card-heading">
-                                            <div class="card-heading-icon"><i class="bx bx-test-tube"></i></div>
+                                            <div class="card-heading-icon"><i class="ti @Icons.Test"></i></div>
                                             <div>
                                                 <h2 class="section-title">آزمایش مسیر</h2>
                                                 <p class="muted">سمت یک درخواست‌کننده را انتخاب کنید تا ببینید درخواستِ او دقیقاً از چه مسیری می‌گذرد؛ همان منطقی که هنگام ثبت واقعی اجرا می‌شود.</p>
@@ -285,7 +285,7 @@
                                             @if (!_preview.Success)
                                             {
                                                 <div class="empty-state" role="alert">
-                                                    <i class="bx bx-error-circle"></i>
+                                                    <i class="ti @Icons.Alert"></i>
                                                     <strong>درخواستی از این سمت ثبت نمی‌شود</strong>
                                                     <span>@WorkflowService.DescribeErrors(_preview.Errors)</span>
                                                 </div>
@@ -328,7 +328,7 @@
                                                         </div>
                                                         @if (stage.Number != _preview.Stages[^1].Number)
                                                         {
-                                                            <div class="stage-arrow" aria-hidden="true"><i class="bx bx-down-arrow-alt"></i></div>
+                                                            <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
                                                         }
                                                     }
                                                 </div>

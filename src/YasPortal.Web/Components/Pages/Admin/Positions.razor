@@ -24,22 +24,22 @@
             <p class="page-subtitle">ساختار سمت‌ها درختی است؛ برای تعداد زیاد سمت‌ها شاخه‌ها را باز و بسته کنید.</p>
         </div>
         <div class="form-actions">
-            <a class="btn btn-secondary" href="/admin/users"><i class="bx bx-group"></i> کاربران</a>
-            <a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i> داشبورد</a>
+            <a class="btn btn-secondary" href="/admin/users"><i class="ti @Icons.Users"></i> کاربران</a>
+            <a class="btn btn-secondary" href="/dashboard"><i class="ti @Icons.Back"></i> داشبورد</a>
         </div>
     </div>
 
     <div class="stat-grid">
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-sitemap"></i></div><span class="stat-label">کل سمت‌ها</span><strong
+            <div class="stat-icon"><i class="ti @Icons.Position"></i></div><span class="stat-label">کل سمت‌ها</span><strong
             class="stat-value">@_positions.Count</strong>
         </div>
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-user-check"></i></div><span class="stat-label">دارای
+            <div class="stat-icon"><i class="ti @Icons.Occupied"></i></div><span class="stat-label">دارای
             کارمند</span><strong class="stat-value">@_positions.Count(x => x.IsOccupied)</strong>
         </div>
         <div class="stat-card">
-            <div class="stat-icon"><i class="bx bx-briefcase"></i></div><span class="stat-label">سمت آزاد</span><strong
+            <div class="stat-icon"><i class="ti @Icons.PositionVacant"></i></div><span class="stat-label">سمت آزاد</span><strong
             class="stat-value">@_positions.Count(x => !x.IsOccupied)</strong>
         </div>
     </div>
@@ -47,7 +47,7 @@
         @if (_canManage) {
 <section class="card admin-form-row position-form-row">
         <div class="admin-form-row-head">
-            <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-plus-circle" : "bx-edit-alt")"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
+            <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
             <p class="muted">بدون بالادست = سمت ریشه. سمت زیرمجموعه باید در همان سازمان سمت بالادست باشد؛ سمت ریشه می‌تواند سازمان نداشته باشد.</p>
         </div>
         <div class="admin-row-grid">
@@ -62,7 +62,7 @@
                                             SelectedText="@_organizationName" Placeholder="بدون سازمان" SearchPlaceholder="نام سازمان..." /></div>
             <div class="form-field admin-row-submit">
                 <div class="form-actions">
-                    <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
+                    <button class="btn btn-primary" @onclick="Save"><i class="ti @Icons.Save"></i> @(_editingId is null ? "ایجاد سمت" : "ذخیره")</button>
                     @if (_editingId is not null)
                     {
                         <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
@@ -85,14 +85,14 @@
                                                 {
                                                     <p class="muted">و @(_blockers.Count - 20) مورد دیگر…</p>
                                                 }
-                                                <a class="btn btn-secondary btn-sm" href="/admin/active-requests"><i class="bx bx-pulse"></i> رفتن به درخواست‌های فعال</a>
+                                                <a class="btn btn-secondary btn-sm" href="/admin/active-requests"><i class="ti @Icons.ActiveRequests"></i> رفتن به درخواست‌های فعال</a>
                                             </div>
                                         }
         <div class="rules-mini">
-                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
-                                            <div><i class="bx bx-check"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
+                                            <div><i class="ti @Icons.Confirm"></i><span>هر سمت فقط یک بالادست دارد.</span></div>
+                                            <div><i class="ti @Icons.Confirm"></i><span>هر سمت می‌تواند چند زیرسمت داشته باشد.</span></div>
+                                            <div><i class="ti @Icons.Confirm"></i><span>هر سمت فقط یک کارمند فعال دارد.</span></div>
+                                            <div><i class="ti @Icons.Confirm"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
                                         </div>
     </section>
 }
@@ -115,16 +115,16 @@
         <section class="card position-tree-card-wrap">
             <div class="card-toolbar positions-tree-toolbar">
                 <div>
-                    <h2 class="section-title"><i class="bx bx-sitemap"></i> درخت سمت‌ها</h2>
+                    <h2 class="section-title"><i class="ti @Icons.PositionTree"></i> درخت سمت‌ها</h2>
                     <p class="muted">روی نام سمت برای مدیریت تخصیص کلیک کنید. دکمه‌های <strong>+</strong> و
                         <strong>−</strong> شاخه‌ها را باز و بسته می‌کنند.</p>
                     </div>
                     <div class="toolbar-tools">
                     <div class="tree-toolbar-actions">
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAll"><i
-                            class="bx bx-chevrons-down"></i> باز کردن همه</button>
+                            class="ti @Icons.ExpandAll"></i> باز کردن همه</button>
                             <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAll"><i
-                                class="bx bx-chevrons-up"></i> بستن همه</button>
+                                class="ti @Icons.CollapseAll"></i> بستن همه</button>
                                 </div>
                                 </div>
                             </div>
@@ -135,7 +135,7 @@
                             }
                             else if (_positions.Count == 0)
                             {
-                                <div class="empty-state"><i class="bx bx-sitemap empty-icon"></i><strong>سمتی ثبت نشده
+                                <div class="empty-state"><i class="ti @Icons.PositionTree empty-icon"></i><strong>سمتی ثبت نشده
                                     است</strong><span>اولین سمت ریشه را ایجاد کنید.</span></div>
                                 }
             else
@@ -143,19 +143,19 @@
                                     <div class="tree-summary">
                                         @if (_visiblePositionIds is not null)
                                         {
-                                            <span><i class="bx bx-search"></i> @_treeMatchCount نتیجه از @_positions.Count سمت</span>
+                                            <span><i class="ti @Icons.Search"></i> @_treeMatchCount نتیجه از @_positions.Count سمت</span>
                                         }
                                         else
                                         {
-                                            <span><i class="bx bx-sitemap"></i> @_positions.Count سمت</span>
-                                            <span><i class="bx bx-git-branch"></i> @Roots.Count() سمت ریشه</span>
-                                            <span><i class="bx bx-layer"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id)
+                                            <span><i class="ti @Icons.PositionTree"></i> @_positions.Count سمت</span>
+                                            <span><i class="ti @Icons.RootPosition"></i> @Roots.Count() سمت ریشه</span>
+                                            <span><i class="ti @Icons.OpenBranches"></i> شاخه‌های باز: @_positions.Count(x => !_collapsedNodeIds.Contains(x.Id)
                                                                     && HasChildren(x.Id))</span>
                                         }
                                         </div>
                                         @if (_visiblePositionIds is not null && _visiblePositionIds.Count == 0)
                                         {
-                                            <div class="empty-state"><i class="bx bx-search-alt empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام سمت دیگری را جستجو کنید.</span></div>
+                                            <div class="empty-state"><i class="ti @Icons.SearchEmpty empty-icon"></i><strong>نتیجه‌ای پیدا نشد</strong><span>نام سمت دیگری را جستجو کنید.</span></div>
                                         }
                                         else
                                         {
@@ -791,7 +791,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
             builder.AddAttribute(s++, "aria-label", expanded ? $"بستن {position.Name}" : $"باز کردن {position.Name}");
             builder.AddAttribute(s++, "onclick", EventCallback.Factory.Create(this, () => ToggleNode(position.Id)));
             builder.OpenElement(s++, "i");
-            builder.AddAttribute(s++, "class", expanded ? "bx bx-minus" : "bx bx-plus");
+            builder.AddAttribute(s++, "class", expanded ? ("ti " + Icons.TreeCollapse) : ("ti " + Icons.TreeExpand));
             builder.CloseElement();
             builder.CloseElement();
         }
@@ -811,7 +811,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         builder.OpenElement(s++, "span");
         builder.AddAttribute(s++, "class", position.IsOccupied ? "tree-icon occupied" : "tree-icon free");
         builder.OpenElement(s++, "i");
-        builder.AddAttribute(s++, "class", position.IsOccupied ? "bx bx-user" : "bx bx-briefcase");
+        builder.AddAttribute(s++, "class", position.IsOccupied ? ("ti " + Icons.User) : ("ti " + Icons.PositionVacant));
         builder.CloseElement();
         builder.CloseElement();
 
@@ -841,18 +841,18 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         builder.AddAttribute(s++, "class", "tree-actions");
         if (_canManage)
         {
-        AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-plus", "زیرسمت", () => BeginCreateChild(position.Id));
-        AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-edit-alt", "ویرایش", () => Edit(position.Id));
+        AddButton(builder, ref s, "btn btn-secondary btn-sm", ("ti " + Icons.Add), "زیرسمت", () => BeginCreateChild(position.Id));
+        AddButton(builder, ref s, "btn btn-secondary btn-sm", ("ti " + Icons.Edit), "ویرایش", () => Edit(position.Id));
         if (position.IsActive)
-            AddButton(builder, ref s, "btn btn-primary btn-sm", position.IsOccupied ? "bx bx-transfer" : "bx bx-link",
+            AddButton(builder, ref s, "btn btn-primary btn-sm", position.IsOccupied ? ("ti " + Icons.ReplaceEmployee) : ("ti " + Icons.AssignEmployee),
                 position.IsOccupied ? "تغییر کارمند" : "تخصیص کارمند", () => ToggleAssigning(position.Id));
         if (position.IsOccupied)
-            AddAsyncButton(builder, ref s, "btn btn-danger btn-sm", "bx bx-unlink", "آزاد", () => FreePosition(position.Id));
+            AddAsyncButton(builder, ref s, "btn btn-danger btn-sm", ("ti " + Icons.FreePosition), "آزاد", () => FreePosition(position.Id));
         if (position.IsActive)
-            AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-block", "غیرفعال‌سازی", () => DeactivateAsync(position.Id));
+            AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm", ("ti " + Icons.Deactivate), "غیرفعال‌سازی", () => DeactivateAsync(position.Id));
         else
-            AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check-circle", "فعال‌سازی", () => ActivateAsync(position.Id));
-        AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm icon-only", "bx bx-trash", "حذف", () => Delete(position.Id));
+            AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", ("ti " + Icons.Activate), "فعال‌سازی", () => ActivateAsync(position.Id));
+        AddAsyncButton(builder, ref s, "btn btn-secondary btn-sm icon-only", ("ti " + Icons.Delete), "حذف", () => Delete(position.Id));
         }
         builder.CloseElement();
         builder.CloseElement();
@@ -881,7 +881,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
                 builder.OpenElement(s++, "div");
                 builder.AddAttribute(s++, "class", "tree-assign-replace-warning");
                 builder.OpenElement(s++, "i");
-                builder.AddAttribute(s++, "class", "bx bx-error");
+                builder.AddAttribute(s++, "class", ("ti " + Icons.Warning));
                 builder.CloseElement();
                 builder.AddContent(s++, $"«{position.EmployeeName}» از این سمت خارج و کارمند جدید جایگزین می‌شود. مطمئن هستید؟");
                 builder.CloseElement();
@@ -891,15 +891,15 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
             builder.AddAttribute(s++, "class", "tree-assign-actions");
             if (position.IsOccupied && _confirmingReassignPositionId != position.Id)
             {
-                AddButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check", "تایید جابه‌جایی",
+                AddButton(builder, ref s, "btn btn-primary btn-sm", ("ti " + Icons.Confirm), "تایید جابه‌جایی",
                     () => RequestReplaceConfirmation(position.Id));
             }
             else
             {
-                AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", "bx bx-check",
+                AddAsyncButton(builder, ref s, "btn btn-primary btn-sm", ("ti " + Icons.Confirm),
                     position.IsOccupied ? "بله، جایگزین شود" : "تایید تخصیص", () => ReassignEmployeeAsync(position.Id));
             }
-            AddButton(builder, ref s, "btn btn-secondary btn-sm", "bx bx-x", "انصراف", () => ToggleAssigning(position.Id));
+            AddButton(builder, ref s, "btn btn-secondary btn-sm", ("ti " + Icons.Close), "انصراف", () => ToggleAssigning(position.Id));
             builder.CloseElement();
             builder.CloseElement();
         }

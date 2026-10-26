@@ -21,7 +21,7 @@
             </p>
         </div>
         <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i
-            class="bx bx-briefcase-alt-2"></i> مدیریت سمت‌ها</a></div>
+            class="ti @Icons.Position"></i> مدیریت سمت‌ها</a></div>
         </div>
         <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" ExportPermission="@(ReportPermissions.AssignmentHistory)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters">
             <div class="admin-filter"><label class="form-label">کارمند</label>
@@ -52,19 +52,19 @@
             <section class="card" style="margin-top:14px">
                 <div class="card-toolbar">
                     <div>
-                        <h2 class="section-title"><i class="bx bx-history"></i> تاریخچه</h2>
+                        <h2 class="section-title"><i class="ti @Icons.History"></i> تاریخچه</h2>
                         <p class="muted">@_total رکورد</p>
                     </div>
                 </div>
                 @if (_loading)
                 {
-                    <div class="empty-state"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری
+                    <div class="empty-state"><i class="ti @Icons.Spinner"></i><span>در حال بارگذاری
                         سوابق...</span></div>
                     }
         else if (_rows.Count == 0)
                     {
 
-                        <div class="empty-state"><i class="bx bx-history empty-icon"></i><strong>سابقه‌ای
+                        <div class="empty-state"><i class="ti @Icons.History empty-icon"></i><strong>سابقه‌ای
                             پیدا نشد</strong><span>فیلترها را تغییر دهید یا اولین تخصیص را از صفحه سمت‌ها انجام دهید.</span></div>
                         }
         else
@@ -85,19 +85,19 @@
                                         <tr>
                                             <td>
                                                 <div class="admin-list-primary"><span class="admin-list-avatar"><i
-                                                    class="bx bx-user"></i></span><span
+                                                    class="ti @Icons.User"></i></span><span
                                                     class="admin-list-text"><strong>@row.EmployeeName</strong><span>@row.Username</span></span>
                                                 </div>
                                             </td>
-                                            <td><span class="position-badge"><i class="bx bx-briefcase"></i> @row.PositionName</span></td>
+                                            <td><span class="position-badge"><i class="ti @Icons.Position"></i> @row.PositionName</span></td>
                                             <td>@FormatDate(row.StartedAt)</td>
                                             <td>@FormatDate(row.EndedAt)</td>
                                             <td>@if(row.EndedAt is null){
-                                                <span class="badge badge-success"><i class="bx bx-check-circle"></i> فعال</span>
+                                                <span class="badge badge-success"><i class="ti @Icons.Success"></i> فعال</span>
                                             }else
                                             {
 
-                                                <span class="badge badge-muted"><i class="bx bx-history"></i> پایان‌یافته</span>
+                                                <span class="badge badge-muted"><i class="ti @Icons.History"></i> پایان‌یافته</span>
                                             }
                                         </td>
                                     </tr>
@@ -110,15 +110,15 @@
                                   PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
             </section>
             <section class="admin-two-col" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px">
-                <div class="admin-notice-card card"><i class="bx bx-user"></i>
+                <div class="admin-notice-card card"><i class="ti @Icons.User"></i>
                     <div><strong>سابقه کارکنان</strong><span>با انتخاب کارمند، تمام سمت‌هایی که در طول زمان داشته نمایش داده
                         می‌شود.</span></div>
                     </div>
-                    <div class="admin-notice-card card"><i class="bx bx-sitemap"></i>
+                    <div class="admin-notice-card card"><i class="ti @Icons.Position"></i>
                         <div><strong>سابقه سمت‌ها</strong><span>با انتخاب سمت، تمام کارکنانی که در آن سمت بوده‌اند نمایش داده
                             می‌شود.</span></div>
                         </div>
-                        <div class="admin-notice-card card"><i class="bx bx-shield-quarter"></i>
+                        <div class="admin-notice-card card"><i class="ti @Icons.Active"></i>
                             <div><strong>تخصیص فعال</strong><span>هر سمت همچنان فقط یک کارمند فعال دارد؛ سابقه فقط اطلاعات تاریخی را نگه
                                 می‌دارد.</span></div>
                             </div>

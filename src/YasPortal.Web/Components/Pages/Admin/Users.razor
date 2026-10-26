@@ -26,23 +26,23 @@
             <p class="page-subtitle">حساب و اطلاعات کارکنان را مدیریت کنید. تخصیص سمت فقط در «مدیریت سمت‌ها» انجام
                 می‌شود.</p>
             </div>
-            <div class="form-actions"><a class="btn btn-primary" href="/admin/access"><i class="bx bx-shield-quarter"></i>
-                مدیریت دسترسی</a><a class="btn btn-primary" href="/admin/positions"><i class="bx bx-briefcase-alt-2"></i>
-                مدیریت سمت‌ها</a><a class="btn btn-secondary" href="/dashboard"><i class="bx bx-arrow-back"></i>
+            <div class="form-actions"><a class="btn btn-primary" href="/admin/access"><i class="ti @Icons.AccessManagement"></i>
+                مدیریت دسترسی</a><a class="btn btn-primary" href="/admin/positions"><i class="ti @Icons.Position"></i>
+                مدیریت سمت‌ها</a><a class="btn btn-secondary" href="/dashboard"><i class="ti @Icons.Back"></i>
                 داشبورد</a></div>
             </div>
 
             <div class="stat-grid">
                 <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-group"></i></div><span class="stat-label">کل کاربران</span><strong
+                    <div class="stat-icon"><i class="ti @Icons.Users"></i></div><span class="stat-label">کل کاربران</span><strong
                     class="stat-value">@_totalCount</strong>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-check-circle"></i></div><span class="stat-label">کاربران
+                    <div class="stat-icon"><i class="ti @Icons.Success"></i></div><span class="stat-label">کاربران
                     فعال</span><strong class="stat-value">@_activeCount</strong>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon"><i class="bx bx-shield-quarter"></i></div><span class="stat-label">مدیر
+                    <div class="stat-icon"><i class="ti @Icons.Admin"></i></div><span class="stat-label">مدیر
                     سامانه</span><strong class="stat-value">@_adminCount</strong>
                 </div>
             </div>
@@ -51,7 +51,7 @@
 @if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
-        <h2 class="section-title"><i class="bx @(_editingId is null ? "bx-user-plus" : "bx-edit-alt")"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
+        <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.UserAdd : Icons.Edit)"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
         <p class="muted">مدیر سامانه سمت سازمانی لازم ندارد؛ دسترسی مدیر در «مدیریت دسترسی» حساب‌محور است.</p>
     </div>
     <div class="admin-row-grid">
@@ -67,7 +67,7 @@
         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label></div>
         <div class="form-field admin-row-submit">
             <div class="form-actions">
-                <button class="btn btn-primary" @onclick="SaveEmployee"><i class="bx bx-save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>
+                <button class="btn btn-primary" @onclick="SaveEmployee"><i class="ti @Icons.Save"></i> @(_editingId is null ? "ایجاد کاربر" : "ذخیره")</button>
                 @if (_editingId is not null)
                 {
                     <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
@@ -142,7 +142,7 @@
                                                                 <a class="badge badge-muted position-badge"
                                                                    href="@($"/admin/positions?employee={x.Id}&position={position.Id}")"
                                                                    title="مدیریت این سمت"><i
-                                                                    class="bx bx-sitemap"></i><span>@position.Name</span></a>
+                                                                    class="ti @Icons.PositionTree"></i><span>@position.Name</span></a>
                                                                 }
                                                             </div>
                                                             <small class="position-count">@x.ActivePositions.Count سمت فعال</small>
@@ -158,16 +158,16 @@
                                                     </td>
                                                     <td class="action-cell">@if (_canManage) {<button class="btn btn-secondary btn-sm"
                                                                                     @onclick="() => BeginEdit(x)" title="ویرایش"><i
-                                                        class="bx bx-edit-alt"></i></button>}@if (_canManage) {<button
+                                                        class="ti @Icons.Edit"></i></button>}@if (_canManage) {<button
                                                         class="btn @(x.IsActive ? "btn-danger" : "btn-primary") btn-sm"
                                                         @onclick="() => ToggleEmployee(x.Id)"
                                                         title="@(x.IsActive ? "غیرفعال کردن" : "فعال کردن")"><i
-                                                        class="bx @(x.IsActive ? "bx-user-x" : "bx-user-check")"></i></button>}@if(!x.IsAdmin){
+                                                        class="ti @(x.IsActive ? Icons.UserDeactivate : Icons.UserActivate)"></i></button>}@if(!x.IsAdmin){
                                                         <a class="btn btn-secondary btn-sm" href="/admin/positions?employee=@x.Id"><i
-                                                            class="bx bx-sitemap"></i> سمت‌ها</a>
+                                                            class="ti @Icons.PositionTree"></i> سمت‌ها</a>
                                                         }
                                                         <a class="btn btn-secondary btn-sm" href="/admin/access?employee=@x.Id"><i
-                                                            class="bx bx-shield-quarter"></i> دسترسی</a>
+                                                            class="ti @Icons.AccessManagement"></i> دسترسی</a>
                                                         </td>
                                                     </tr>
                                                 }
@@ -185,13 +185,13 @@
                         </div>
 
                         <section class="card admin-notice-card" dir="rtl">
-                            <div class="stat-icon"><i class="bx bx-sitemap"></i></div>
+                            <div class="stat-icon"><i class="ti @Icons.Position"></i></div>
                             <div>
                                 <h2 class="section-title">تخصیص سمت متمرکز شد</h2>
                                 <p class="page-subtitle">دیگر از صفحه کاربران سمت تخصیص یا آزاد نمی‌شود. برای مشاهده درخت، مالک فعلی و
                                     آزادسازی/تخصیص سمت به <strong>مدیریت سمت‌ها</strong> بروید.</p>
                                 </div><a class="btn btn-primary" href="/admin/positions">باز کردن مدیریت سمت‌ها <i
-                                class="bx bx-left-arrow-alt"></i></a>
+                                class="ti @Icons.ArrowGo"></i></a>
                             </section>
                         </div>
 

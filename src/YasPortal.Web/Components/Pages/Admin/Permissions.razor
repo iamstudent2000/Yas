@@ -23,24 +23,24 @@
                 می‌کند.</p>
             </div>
             <div class="form-actions">
-                <a class="btn btn-primary" href="/admin/permission-groups"><i class="bx bx-layer"></i> گروه‌های مجوز</a>
-                <a class="btn btn-secondary" href="/admin/access"><i class="bx bx-shield-quarter"></i> مدیریت دسترسی</a>
+                <a class="btn btn-primary" href="/admin/permission-groups"><i class="ti @Icons.PermissionGroup"></i> گروه‌های مجوز</a>
+                <a class="btn btn-secondary" href="/admin/access"><i class="ti @Icons.AccessManagement"></i> مدیریت دسترسی</a>
             </div>
         </div>
 
         <div class="stat-grid">
             <div class="stat-card">
-                <div class="stat-icon"><i class="bx bx-key"></i></div>
+                <div class="stat-icon"><i class="ti @Icons.Permission"></i></div>
                 <span class="stat-label">کل مجوزها</span>
                 <strong class="stat-value">@_totalCount</strong>
             </div>
             <div class="stat-card">
-                <div class="stat-icon"><i class="bx bx-user-check"></i></div>
+                <div class="stat-icon"><i class="ti @Icons.DirectAssignment"></i></div>
                 <span class="stat-label">تخصیص مستقیم</span>
                 <strong class="stat-value">@_directAssignmentCount</strong>
             </div>
             <div class="stat-card">
-                <div class="stat-icon"><i class="bx bx-layer"></i></div>
+                <div class="stat-icon"><i class="ti @Icons.PermissionGroup"></i></div>
                 <span class="stat-label">استفاده در گروه‌ها</span>
                 <strong class="stat-value">@_groupMembershipCount</strong>
             </div>
@@ -52,7 +52,7 @@
         @if (_canManage) {
 <section class="card admin-form-row">
             <div class="admin-form-row-head">
-                <h2 class="section-title"><i class="bx bx-edit-alt"></i> ویرایش نام مجوز</h2>
+                <h2 class="section-title"><i class="ti @Icons.Edit"></i> ویرایش نام مجوز</h2>
                 <p class="muted">مجوزها در برنامه ثابت هستند؛ فقط نام نمایشی قابل ویرایش است و کد فنی تغییر نمی‌کند.</p>
             </div>
             <div class="admin-row-grid">
@@ -60,7 +60,7 @@
                 <div class="form-field is-grow"><label class="form-label">نام مجوز</label><input class="form-control" @bind="_name" maxlength="300" /></div>
                 <div class="form-field admin-row-submit">
                     <div class="form-actions">
-                        <button class="btn btn-primary" @onclick="Save"><i class="bx bx-save"></i> ذخیره نام</button>
+                        <button class="btn btn-primary" @onclick="Save"><i class="ti @Icons.Save"></i> ذخیره نام</button>
                         <button class="btn btn-secondary" @onclick="Cancel">انصراف</button>
                     </div>
                 </div>
@@ -85,18 +85,18 @@
                                     <p class="muted">برای مشاهده مصرف‌کنندگان، روی «مصرف و تخصیص‌ها» کلیک کنید.</p>
                                 </div>
                                 <div class="toolbar-tools">
-                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllAreas"><i class="bx bx-expand-alt"></i> باز کردن همه</button>
-                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllAreas"><i class="bx bx-collapse-alt"></i> بستن همه</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ExpandAllAreas"><i class="ti @Icons.ExpandAll"></i> باز کردن همه</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="CollapseAllAreas"><i class="ti @Icons.CollapseAll"></i> بستن همه</button>
                                 </div>
                             </div>
 
                                 @if (_loading)
                                 {
-                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری...</span></div>
+                                    <div class="admin-loading"><i class="ti @Icons.Spinner"></i><span>در حال بارگذاری...</span></div>
                                 }
                                 else if (_permissions.Count == 0)
                                 {
-                                    <div class="admin-empty"><i class="bx bx-search-alt"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا
+                                    <div class="admin-empty"><i class="ti @Icons.SearchEmpty"></i><strong>مجوزی پیدا نشد</strong><span>عبارت جستجو یا
                                         فیلتر را تغییر دهید.</span></div>
                                     }
             else
@@ -107,9 +107,9 @@
                                                 var collapsed = _collapsedAreas.Contains(area.Key) && string.IsNullOrWhiteSpace(_search);
                                                 <section class="permission-section @(collapsed ? "collapsed" : "")">
                                                     <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
-                                                        <div><i class="bx bx-folder-open"></i><strong>@area.Key</strong></div>
+                                                        <div><i class="ti @Icons.Folder"></i><strong>@area.Key</strong></div>
                                                         <span class="badge badge-muted">@area.Count() مجوز</span>
-                                                        <i class="bx bx-chevron-down chevron"></i>
+                                                        <i class="ti @Icons.ChevronDown chevron"></i>
                                                     </div>
                                                     <div class="permission-section-body">
                                                         <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
@@ -119,21 +119,21 @@
                                             <div @key="x.Id">
                                                 <div class="admin-list-row">
                                                     <div class="admin-list-primary">
-                                                        <div class="admin-list-avatar"><i class="bx bx-key"></i></div>
+                                                        <div class="admin-list-avatar"><i class="ti @Icons.Permission"></i></div>
                                                         <div class="admin-list-text">
                                                             <strong title="@x.Name">@x.Name</strong>
                                                             <code class="admin-code" dir="ltr">@x.Code</code><PermissionReachBadge Code="@(x.Code)" />
                                                         </div>
                                                     </div>
                                                     <div class="admin-list-meta">
-                                                        <span class="admin-pill"><i class="bx bx-user-check"></i>@x.DirectAssignmentCount مستقیم</span>
-                                                        <span class="admin-pill"><i class="bx bx-layer"></i>@x.GroupMembershipCount گروه</span>
+                                                        <span class="admin-pill"><i class="ti @Icons.DirectAssignment"></i>@x.DirectAssignmentCount مستقیم</span>
+                                                        <span class="admin-pill"><i class="ti @Icons.PermissionGroup"></i>@x.GroupMembershipCount گروه</span>
                                                     </div>
                                                     <div class="admin-list-actions">
                                                         <button class="btn btn-primary btn-sm" @onclick="() => ToggleUsage(x.Id)">
-                                                            <i class="bx @(isExpanded ? "bx-chevron-up" : "bx-show")"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")
+                                                            <i class="ti @(isExpanded ? Icons.ChevronUp : Icons.Details)"></i> @(isExpanded ? "بستن جزئیات" : "مصرف و تخصیص‌ها")
                                                         </button>
-                                                        @if (_canManage) {<button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="bx bx-edit-alt"></i>
+                                                        @if (_canManage) {<button class="btn btn-secondary btn-sm" @onclick="() => Edit(x)"><i class="ti @Icons.Edit"></i>
                                                             ویرایش</button>}
                                                             </div>
                                                         </div>
@@ -143,7 +143,7 @@
                                                             <div class="admin-detail">
                                                                 @if (_usageLoading)
                                                                 {
-                                                                    <div class="admin-loading"><i class="bx bx-loader-alt bx-spin"></i><span>در حال بارگذاری
+                                                                    <div class="admin-loading"><i class="ti @Icons.Spinner"></i><span>در حال بارگذاری
                                                                         جزئیات...</span></div>
                                                                     }
                                 else if (_usage is null)
@@ -158,11 +158,11 @@
                                                                         </div>
                                                                         <div class="admin-detail-grid">
                                                                             <div class="admin-detail-panel">
-                                                                                <div class="admin-detail-panel-title"><i class="bx bx-user-check"></i><strong>تخصیص
+                                                                                <div class="admin-detail-panel-title"><i class="ti @Icons.DirectAssignment"></i><strong>تخصیص
                                                                                     مستقیم</strong><span>@_usage.DirectAssignments.Count</span></div>
                                                                                     @if (_usage.DirectAssignments.Count > 5)
                                                                                     {
-                                                                                        <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
+                                                                                        <div class="admin-detail-panel-search"><i class="ti @Icons.Search"></i><input
                                                                                             class="form-control" placeholder="جستجوی کارمند..." value="@_directSearch"
                                                                                             @oninput="e => { _directSearch = e.Value?.ToString() ?? string.Empty; _directPage = 1; }" /></div>
                                                                                     }
@@ -181,7 +181,7 @@
                                                                                             @foreach (var d in PageOf(filteredDirect, _directPage))
                                                                                             {
                                                                                                 <div class="admin-detail-item">
-                                                                                                    <div class="admin-detail-item-icon"><i class="bx bx-user"></i></div>
+                                                                                                    <div class="admin-detail-item-icon"><i class="ti @Icons.User"></i></div>
                                                                                                     <div class="admin-detail-item-main"><strong>@d.EmployeeName</strong><span
                                                                                                         dir="ltr">@d.Username</span></div>
                                                                                                         <div class="admin-detail-item-side"><span>@d.Source</span>@if (d.PositionName is not
@@ -196,11 +196,11 @@
                                                                                             }
                                                                                         </div>
                                                                                         <div class="admin-detail-panel">
-                                                                                            <div class="admin-detail-panel-title"><i class="bx bx-layer"></i><strong>گروه‌های دارای این
+                                                                                            <div class="admin-detail-panel-title"><i class="ti @Icons.PermissionGroup"></i><strong>گروه‌های دارای این
                                                                                                 مجوز</strong><span>@_usage.Groups.Count</span></div>
                                                                                                 @if (_usage.Groups.Count > 5)
                                                                                                 {
-                                                                                                    <div class="admin-detail-panel-search"><i class="bx bx-search"></i><input
+                                                                                                    <div class="admin-detail-panel-search"><i class="ti @Icons.Search"></i><input
                                                                                                         class="form-control" placeholder="جستجوی گروه..." value="@_groupsSearch"
                                                                                                         @oninput="e => { _groupsSearch = e.Value?.ToString() ?? string.Empty; _groupsPage = 1; }" /></div>
                                                                                                 }
@@ -220,7 +220,7 @@
                                                                                                         {
                                                                                                             var groupExpanded = _expandedUsageGroupId == g.GroupId;
                                                                                                             <div class="admin-detail-item admin-detail-item-expandable">
-                                                                                                                <div class="admin-detail-item-icon"><i class="bx bx-layer"></i></div>
+                                                                                                                <div class="admin-detail-item-icon"><i class="ti @Icons.PermissionGroup"></i></div>
                                                                                                                 <div class="admin-detail-item-main"><strong>@g.GroupName</strong>@if
                                                                                                                     (!string.IsNullOrWhiteSpace(g.Description)){
                                                                                                                         <span>@g.Description</span>
@@ -230,7 +230,7 @@
                                                                                                                     مجوز</span>
                                                                                                                     <button type="button" class="admin-detail-item-toggle"
                                                                                                                             @onclick="() => ToggleUsageGroup(g.GroupId)"><span>@g.AssignedEmployeeCount
-                                                                                                                        تخصیص</span><i class="bx @(groupExpanded ? "bx-chevron-up" : "bx-chevron-down")"></i></button>
+                                                                                                                        تخصیص</span><i class="ti @(groupExpanded ? Icons.ChevronUp : Icons.ChevronDown)"></i></button>
                                                                                                                 </div>
                                                                                                                 @if (groupExpanded)
                                                                                                                 {
@@ -272,7 +272,7 @@
                                                                 </div>
 
                                                                 <section class="card admin-note">
-                                                                    <div class="admin-note-icon"><i class="bx bx-shield-quarter"></i></div>
+                                                                    <div class="admin-note-icon"><i class="ti @Icons.AccessManagement"></i></div>
                                                                     <div><strong>مدل دسترسی یاس پورتال</strong>
                                                                         <p>هیچ Deny permission وجود ندارد. مجوز نهایی برابر است با اجتماع مجوزهای مستقیم و تمام گروه‌های
                                                                             اختصاص‌یافته.</p>

@@ -10,12 +10,12 @@
    Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
 <section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
-        <i class="bx bx-filter-alt"></i> فیلترها@(SortOptions.Count > 0 ? " و ترتیب" : "")
+        <i class="ti @Icons.Filter"></i> فیلترها@(SortOptions.Count > 0 ? " و ترتیب" : "")
         @if (ActiveCount > 0)
         {
             <span class="badge badge-info">@ActiveCount فیلتر فعال</span>
         }
-        <i class="bx @(_open ? "bx-chevron-up" : "bx-chevron-down") request-filter-toggle-chevron"></i>
+        <i class="ti @(_open ? Icons.ChevronUp : Icons.ChevronDown) request-filter-toggle-chevron"></i>
     </button>
     <div class="admin-filters request-filter-body" @onkeydown="OnKeyDownAsync">
         @ChildContent
@@ -25,16 +25,16 @@
         }
         <div class="admin-filter request-filter-clear">
             <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
-                <i class="bx @(Busy ? "bx-loader-alt bx-spin" : "bx-search")"></i> جستجو
+                <i class="ti @(Busy ? Icons.Spinner : Icons.Search)"></i> جستجو
             </button>
             @if (Busy && OnCancel.HasDelegate)
             {
-                <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="bx bx-x-circle"></i> لغو</button>
+                <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="ti @Icons.CancelSearch"></i> لغو</button>
             }
             else
             {
                 <button type="button" class="btn btn-secondary" disabled="@(Busy || !CanClear)" @onclick="ClearAsync" @onkeydown:stopPropagation="true">
-                    <i class="bx bx-eraser"></i> پاک کردن فیلترها
+                    <i class="ti @Icons.FilterClear"></i> پاک کردن فیلترها
                 </button>
             }
             @if (OnExport.HasDelegate || OnExportSteps.HasDelegate)
@@ -43,7 +43,7 @@
                 <div class="list-more">
                     <button type="button" class="btn btn-secondary list-more-btn" disabled="@(Busy || Exporting)" aria-haspopup="menu" aria-expanded="@(_menu ? "true" : "false")" title="گزارش و خروجی"
                             @onclick="() => _menu = !_menu" @onkeydown:stopPropagation="true">
-                        <i class="bx @(Exporting ? "bx-loader-alt bx-spin" : "bx-dots-horizontal-rounded")"></i>
+                        <i class="ti @(Exporting ? Icons.Spinner : Icons.More)"></i>
                     </button>
                     @if (_menu)
                     {
@@ -52,17 +52,17 @@
                             @if (OnExport.HasDelegate)
                             {
                                 <button type="button" role="menuitem" title="همه نتایج آخرین جستجو، با همین ترتیب" @onclick="() => RunAsync(OnExport)" @onkeydown:stopPropagation="true">
-                                    <i class="bx bx-export"></i> خروجی CSV
+                                    <i class="ti @Icons.ExportData"></i> خروجی CSV
                                 </button>
                             }
                             @if (OnExportSteps.HasDelegate)
                             {
                                 <button type="button" role="menuitem" title="هر مرحله یک ردیف: تصمیم‌گیرنده، زمان، توضیح و مدت انتظار" @onclick="() => RunAsync(OnExportSteps)" @onkeydown:stopPropagation="true">
-                                    <i class="bx bx-spreadsheet"></i> گزارش مراحل (CSV)
+                                    <i class="ti @Icons.ExportSteps"></i> گزارش مراحل (CSV)
                                 </button>
                             }
                             <button type="button" role="menuitem" title="چاپ همین فهرست (صفحه جاری)" @onclick="PrintListAsync" @onkeydown:stopPropagation="true">
-                                <i class="bx bx-printer"></i> چاپ فهرست
+                                <i class="ti @Icons.Print"></i> چاپ فهرست
                             </button>
                         </div>
                     }
