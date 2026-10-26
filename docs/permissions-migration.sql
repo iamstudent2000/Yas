@@ -314,6 +314,394 @@ IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Forms.VehicleRequest.Pri
 ELSE
     UPDATE Permissions SET Name = N'چاپ فرم درخواست خودرو' WHERE Code = N'Forms.VehicleRequest.Print';
 
+
+-- Leftovers: if the NEW code already existed, the rename above was skipped. Move the old row's grants onto the new row and delete the old row.
+DECLARE @old uniqueidentifier, @new uniqueidentifier;
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.View'), @new = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.Page.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.Mine'), @new = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.Mine.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.Team'), @new = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.Team.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.System'), @new = (SELECT Id FROM Permissions WHERE Code = N'Dashboard.System.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Profile.View'), @new = (SELECT Id FROM Permissions WHERE Code = N'Profile.Own.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.Create'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Own.Create');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.View'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Own.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ViewSubordinateRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Team.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ViewSubordinateApprovals'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.TeamApprovals.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.Approve'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Decision.Approve');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.Reject'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Decision.Reject');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ReturnToRequester'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Decision.ReturnToRequester');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ReturnToPreviousStep'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Decision.ReturnToPreviousStep');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ReturnToSpecificStep'), @new = (SELECT Id FROM Permissions WHERE Code = N'Requests.Decision.ReturnToSpecificStep');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.Delegation'), @new = (SELECT Id FROM Permissions WHERE Code = N'Delegations.Own.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Delegations.Create'), @new = (SELECT Id FROM Permissions WHERE Code = N'Delegations.Own.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.RequestForOthers'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests.CreateForOthers');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.ForceClose'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests.ForceClose');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Requests.Reopen'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests.Reopen');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Users'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Users.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Organizations'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Organizations.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Positions'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Positions.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Workflows'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Workflows.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Delegation'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Delegations.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Delegations.Manage'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Delegations.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Access'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Access.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.Permissions'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.Permissions.Manage');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.AssignmentHistory'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.AssignmentHistory.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Admin.AuditLog'), @new = (SELECT Id FROM Permissions WHERE Code = N'Admin.AuditLog.View');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.AllRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.AllRequests.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.ActiveRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.ActiveRequests.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.RejectedRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.RejectedRequests.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.TeamRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.TeamRequests.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.MyRequests'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.MyRequests.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.Users'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.Users.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.Organizations'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.Organizations.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.Positions'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.Positions.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.AssignmentHistory'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.AssignmentHistory.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.AuditLog'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.AuditLog.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Reports.Delegations'), @new = (SELECT Id FROM Permissions WHERE Code = N'Reports.Delegations.Export');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.Leave'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.Leave.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.Purchase'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.Purchase.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.Access'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.Access.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.Loan'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.Loan.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.Helpdesk'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.Helpdesk.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.WorkReport'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.WorkReport.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+SELECT @old = (SELECT Id FROM Permissions WHERE Code = N'Forms.VehicleRequest'), @new = (SELECT Id FROM Permissions WHERE Code = N'Forms.VehicleRequest.Print');
+IF @old IS NOT NULL AND @new IS NOT NULL AND @old <> @new
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId) SELECT EmployeeId, @new FROM EmployeePermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM EmployeePermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PermissionId = @new);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId) SELECT EmployeeId, PositionId, @new FROM UserPositionPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions n WHERE n.EmployeeId = o.EmployeeId AND n.PositionId = o.PositionId AND n.PermissionId = @new);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId) SELECT GroupId, @new FROM PermissionGroupPermissions o WHERE o.PermissionId = @old AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions n WHERE n.GroupId = o.GroupId AND n.PermissionId = @new);
+    DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
+END
+
 -- Optional: give every administrator account all new permissions that it does not have yet (admins hold permissions only through direct grants).
 -- INSERT INTO EmployeePermissions (EmployeeId, PermissionId)
 -- SELECT e.Id, p.Id FROM Employees e CROSS JOIN Permissions p

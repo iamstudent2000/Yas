@@ -114,6 +114,30 @@ public static class DevelopmentDataSeeder
             permissions[definition.Code] = row;
         }
 
+        // Leftover rows that still carry an old code (the new row already existed, so the rename was skipped):
+        // move their grants onto the new permission, then delete them, so nothing is listed twice.
+        foreach (var definition in PermissionCatalog.All)
+        {
+            var target = permissions[definition.Code];
+            foreach (var oldCode in definition.OldCodes)
+            {
+                var old = await db.Permissions.SingleOrDefaultAsync(x => x.Code == oldCode, ct);
+                if (old is null || old.Id == target.Id) continue;
+                foreach (var g in await db.EmployeePermissions.Where(x => x.PermissionId == old.Id).ToListAsync(ct))
+                    if (!await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == g.EmployeeId && x.PermissionId == target.Id, ct))
+                        db.EmployeePermissions.Add(new EmployeePermission(g.EmployeeId, target.Id));
+                foreach (var g in await db.UserPositionPermissions.Where(x => x.PermissionId == old.Id).ToListAsync(ct))
+                    if (!await db.UserPositionPermissions.AnyAsync(x => x.EmployeeId == g.EmployeeId && x.PositionId == g.PositionId && x.PermissionId == target.Id, ct))
+                        db.UserPositionPermissions.Add(new UserPositionPermission(g.EmployeeId, g.PositionId, target.Id));
+                foreach (var g in await db.PermissionGroupPermissions.Where(x => x.PermissionId == old.Id).ToListAsync(ct))
+                    if (!await db.PermissionGroupPermissions.AnyAsync(x => x.GroupId == g.GroupId && x.PermissionId == target.Id, ct))
+                        db.PermissionGroupPermissions.Add(new PermissionGroupPermission(g.GroupId, target.Id));
+                await db.SaveChangesAsync(ct);
+                db.Permissions.Remove(old);
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
         // Permissions that were once seeded but nothing ever checked; removed so they stop showing up in the access screens.
         // Deleting a permission also removes any grants of it (cascade).
         string[] retired = ["Employees.View", "Employees.Manage", "Organizations.View", "Positions.View", "Permissions.View"];
