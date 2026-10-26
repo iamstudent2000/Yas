@@ -122,10 +122,10 @@
             <div class="dlg-col">
             <DelegationFilterBar State="_receivedFilter" Busy="_listBusy" Changed="OnReceivedFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportReceivedAsync" Exporting="_exporting" />
             <section class="card">
-                <h2 class="card-title"><i class="bx bx-inbox"></i> تفویض‌های دریافتی</h2>
+                <h2 class="card-title"><i class="bx bx-archive-in"></i> تفویض‌های دریافتی</h2>
                 @if (_received.Count == 0)
                 {
-                    <div class="empty-state is-compact"><i class="bx bx-inbox"></i><strong>@(_receivedFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی به شما سپرده نشده است")</strong></div>
+                    <div class="empty-state is-compact"><i class="bx bx-archive-in"></i><strong>@(_receivedFilter.IsActive ? "تفویضی با این فیلترها پیدا نشد" : "تفویضی به شما سپرده نشده است")</strong></div>
                 }
                 @foreach (var row in _received)
                 {

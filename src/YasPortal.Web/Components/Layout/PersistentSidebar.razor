@@ -28,7 +28,7 @@
             {
                 <div class="sidebar-group">
                     <button type="button" class="sidebar-group-toggle @(_accountExpanded ? "expanded" : "")"
-                            @onclick="ToggleAccountGroup"><i class="bx bx-user-circle"></i><span class="group-title">حساب
+                            @onclick="ToggleAccountGroup"><i class="bx bx-user"></i><span class="group-title">حساب
                         کاربری</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_accountExpanded ? "expanded" : "")">
                         <AuthorizeView Policy="@Perm.DashboardPageView">
@@ -55,7 +55,7 @@
                 <div class="sidebar-group">
                     <button type="button"
                             class="sidebar-group-toggle @(_accessExpanded ? "expanded" : "") @(_accessActive ? "active-parent" : "")"
-                            @onclick="ToggleAccessGroup"><i class="bx bx-group"></i><span class="group-title">مدیریت کاربران و
+                            @onclick="ToggleAccessGroup"><i class="bx bx-user-check"></i><span class="group-title">مدیریت کاربران و
                         دسترسی‌ها</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_accessExpanded ? "expanded" : "")">
                         <AuthorizeView Policy="@Perm.AdminUsersView">
@@ -66,7 +66,7 @@
                             </NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminUsersView">
-                            <NavLink href="/admin/password-policy"><i class="bx bx-lock-open-alt"></i><span>سیاست رمز عبور</span></NavLink>
+                            <NavLink href="/admin/password-policy"><i class="bx bx-lock"></i><span>سیاست رمز عبور</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminPermissionsView">
                             <NavLink href="/admin/permissions"><i class="bx bx-key"></i><span>مجوزها</span></NavLink>
@@ -83,7 +83,7 @@
                 <div class="sidebar-group">
                     <button type="button"
                             class="sidebar-group-toggle @(_structureExpanded ? "expanded" : "") @(_structureActive ? "active-parent" : "")"
-                            @onclick="ToggleStructureGroup"><i class="bx bx-buildings"></i><span class="group-title">ساختار
+                            @onclick="ToggleStructureGroup"><i class="bx bx-network-chart"></i><span class="group-title">ساختار
                         سازمانی</span><i class="bx bx-chevron-down group-chevron"></i></button>
                     <div class="sidebar-group-items @(_structureExpanded ? "expanded" : "")">
                         <AuthorizeView Policy="@Perm.AdminPositionsView">
@@ -120,7 +120,7 @@
                           </AuthorizeView>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsView">
-                            <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="bx bx-search-alt"></i><span>گزارش درخواست‌ها</span></NavLink>
+                            <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="bx bx-bar-chart-alt-2"></i><span>گزارش درخواست‌ها</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsCreateForOthers">
                             <NavLink href="/admin/requests/new"><i class="bx bx-user-plus"></i><span>ثبت درخواست برای دیگران</span></NavLink>
@@ -135,7 +135,7 @@
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.RequestsOwnView">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/inbox"><i class="bx bx-inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
+                            <NavLink href="/requests/inbox"><i class="bx bx-archive-in"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
                                 {
                                     <span class="nav-badge">@_inboxBadge</span>
                                 }</NavLink>
@@ -156,10 +156,10 @@
                             <NavLink href="/admin/workflows"><i class="bx bx-cog"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsReopen">
-                            <NavLink href="/admin/rejected-requests"><i class="bx bx-revision"></i><span>درخواست‌های ردشده</span></NavLink>
+                            <NavLink href="/admin/rejected-requests"><i class="bx bx-x-circle"></i><span>درخواست‌های ردشده</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsForceClose">
-                            <NavLink href="/admin/active-requests"><i class="bx bx-error-circle"></i><span>درخواست‌های فعال</span></NavLink>
+                            <NavLink href="/admin/active-requests"><i class="bx bx-pulse"></i><span>درخواست‌های فعال</span></NavLink>
                         </AuthorizeView>
                     </div>
                 </div>

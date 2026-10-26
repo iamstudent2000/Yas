@@ -23,7 +23,7 @@
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
-            <h1 class="page-title"><i class="bx bx-inbox"></i> کارتابل تاییدات</h1>
+            <h1 class="page-title"><i class="bx bx-archive-in"></i> کارتابل تاییدات</h1>
             <p class="page-subtitle">درخواست‌هایی که در انتظار تصمیم شما (بر اساس سمت فعال شما) هستند.</p>
         </div>
     </div>
@@ -127,7 +127,7 @@
                                                 <option value="@earlier.Order">@earlier.Name</option>
                                             }
                                         </select>
-                                        <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="bx bx-skip-previous"></i> بازگشت به مرحله انتخاب‌شده</button>
+                                        <button class="btn btn-secondary" disabled="@(busy || GetReturnTarget(item.Request.Id) == 0)" @onclick="() => Act(item, WorkflowAction.ReturnToSpecificStep)"><i class="bx bx-skip-next"></i> بازگشت به مرحله انتخاب‌شده</button>
                                     </AuthorizeView>
                                 }
                                 </div>
