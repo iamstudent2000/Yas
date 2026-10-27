@@ -21,9 +21,12 @@ SELECT NEWID(), v.Code, v.Name
 FROM (VALUES
     (N'Notifications.Message.Send', N'ارسال اعلان به کارمندان و مشاهده اعلان‌های ارسالی خود'),
     (N'Admin.Notifications.View', N'مشاهده گزارش همه اعلان‌ها (فقط خواندنی)'),
-    (N'Reports.Notifications.Export', N'خروجی گزارش اعلان‌ها')
+    (N'Reports.Notifications.Export', N'خروجی اعلان‌ها (گزارش همه اعلان‌ها و فهرست اعلان‌های من)')
 ) AS v(Code, Name)
 WHERE NOT EXISTS (SELECT 1 FROM Permissions p WHERE p.Code = v.Code);
+
+-- The export permission also covers the export on /notifications (the person's own notifications); keep its name in step.
+UPDATE Permissions SET Name = N'خروجی اعلان‌ها (گزارش همه اعلان‌ها و فهرست اعلان‌های من)' WHERE Code = N'Reports.Notifications.Export' AND Name <> N'خروجی اعلان‌ها (گزارش همه اعلان‌ها و فهرست اعلان‌های من)';
 
 -- 3) Give every administrator account the new permissions (administrators hold permissions only through direct grants).
 --    Employees get them from /admin/access (per person, position or permission group), like any other permission.

@@ -32,6 +32,6 @@ public static class ReportPermissions
         (AssignmentHistory, "خروجی سوابق تخصیص سمت‌ها", "Reports.AssignmentHistory"),
         (AuditLog, "خروجی گزارش رویدادها", "Reports.AuditLog"),
         (Delegations, "خروجی فهرست تفویض‌ها", "Reports.Delegations"),
-        (Notifications, "خروجی گزارش اعلان‌ها", ""),
+        (Notifications, "خروجی اعلان‌ها (گزارش همه اعلان‌ها و فهرست اعلان‌های من)", ""),
     ];
 }
