@@ -15,15 +15,17 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notif
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_CreatedAtUtc')
     EXEC(N'CREATE INDEX IX_Notifications_CreatedAtUtc ON dbo.Notifications (CreatedAtUtc)');
 
--- 2) The three new permissions (the application also creates missing ones at development startup).
+-- 2) The four new permissions (the application also creates missing ones at development startup).
 INSERT INTO Permissions (Id, Code, Name)
 SELECT NEWID(), v.Code, v.Name
 FROM (VALUES
     (N'Notifications.Message.Send', N'ارسال اعلان به کارمندان و مشاهده اعلان‌های ارسالی خود'),
     (N'Admin.Notifications.View', N'مشاهده گزارش همه اعلان‌ها (فقط خواندنی)'),
-    (N'Reports.Notifications.Export', N'خروجی گزارش اعلان‌ها')
+    (N'Reports.Notifications.Export', N'خروجی گزارش همه اعلان‌ها (مدیریت)'),
+    (N'Reports.MyNotifications.Export', N'خروجی اعلان‌های من')
 ) AS v(Code, Name)
 WHERE NOT EXISTS (SELECT 1 FROM Permissions p WHERE p.Code = v.Code);
+
 
 -- 3) Give every administrator account the new permissions (administrators hold permissions only through direct grants).
 --    Employees get them from /admin/access (per person, position or permission group), like any other permission.
@@ -32,7 +34,7 @@ SELECT e.Id, p.Id
 FROM Employees e
 CROSS JOIN Permissions p
 WHERE e.IsAdmin = 1
-  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export')
+  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export', N'Reports.MyNotifications.Export')
   AND NOT EXISTS (SELECT 1 FROM EmployeePermissions x WHERE x.EmployeeId = e.Id AND x.PermissionId = p.Id);
 
 COMMIT;

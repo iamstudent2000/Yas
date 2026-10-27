@@ -18,6 +18,8 @@ public static class ReportPermissions
     public const string AuditLog = "Reports.AuditLog.Export";
     public const string Delegations = "Reports.Delegations.Export";
     public const string Notifications = "Reports.Notifications.Export";
+    /// <summary>Export of the signed-in person's own notifications (/notifications); separate from <see cref="Notifications"/>, the all-notifications report.</summary>
+    public const string MyNotifications = "Reports.MyNotifications.Export";
 
     public static readonly IReadOnlyList<(string Code, string Name, string OldCode)> All =
     [
@@ -32,6 +34,7 @@ public static class ReportPermissions
         (AssignmentHistory, "خروجی سوابق تخصیص سمت‌ها", "Reports.AssignmentHistory"),
         (AuditLog, "خروجی گزارش رویدادها", "Reports.AuditLog"),
         (Delegations, "خروجی فهرست تفویض‌ها", "Reports.Delegations"),
-        (Notifications, "خروجی گزارش اعلان‌ها", ""),
+        (Notifications, "خروجی گزارش همه اعلان‌ها (مدیریت)", ""),
+        (MyNotifications, "خروجی اعلان‌های من", ""),
     ];
 }

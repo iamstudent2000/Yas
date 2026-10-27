@@ -5,6 +5,7 @@
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @inject NotificationService NotificationSvc
+@inject ReportExportService Reports
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
@@ -25,6 +26,7 @@
 
     <ListFilterBar Busy="_loading" ActiveCount="@((_unreadOnly ? 1 : 0) + (_kind is null ? 0 : 1))"
                    CanClear="@(_unreadOnly || _kind is not null || _dUnread || _dKind is not null)" OnSearch="SearchAsync" OnClear="ClearAsync"
+                   ExportPermission="@(ReportPermissions.MyNotifications)" OnExport="ExportAsync" Exporting="_exporting"
                    SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync">
         @if (!AdminView)
         {
@@ -130,6 +132,29 @@
 
     private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
         Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), NotificationDisplay.KindLabel(k))).ToList();
+
+    private bool _exporting;
+
+    /// <summary>CSV of the signed-in person's own notifications, with the filters and sort currently applied (not just the visible page).</summary>
+    private async Task ExportAsync()
+    {
+        if (_exporting || _employeeId is not Guid employeeId)
+            return;
+        _exporting = true;
+        try
+        {
+            var filter = new NotificationService.ReportFilter(RecipientId: employeeId, Kind: _kind, ReadState: _unreadOnly ? "unread" : null);
+            var (sortKey, sortDesc) = SortSelect.Split(_sort);
+            var sortBy = sortKey == "unread" ? "unread" : "created";
+            await Reports.ExportTableAsync(ReportPermissions.MyNotifications, "my-notifications",
+                ["زمان", "نوع", "فرستنده", "متن", "مربوط به", "وضعیت", "زمان خواندن"],
+                db => NotificationService.Report(db, filter, sortBy, sortDesc),
+                (_, chunk, _) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(chunk.Select(x => (IReadOnlyList<string>)
+                    [ReportExportService.Time(x.CreatedAtUtc), NotificationDisplay.KindLabel(x.Kind), x.SenderName ?? "سامانه", x.Message,
+                     x.Kind == NotificationKind.Manual ? "" : x.RequestType, x.IsRead ? "خوانده شد" : "خوانده‌نشده", ReportExportService.Time(x.ReadAtUtc)]).ToList()));
+        }
+        finally { _exporting = false; }
+    }
 
     private async Task SearchAsync()
     {

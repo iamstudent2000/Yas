@@ -210,6 +210,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             ("kind", true) => joined.OrderByDescending(x => x.n.Kind),
             ("read", false) => joined.OrderBy(x => x.n.IsRead),
             ("read", true) => joined.OrderByDescending(x => x.n.IsRead),
+            ("unread", _) => joined.OrderBy(x => x.n.IsRead).ThenByDescending(x => x.n.CreatedAtUtc),
             ("created", false) => joined.OrderBy(x => x.n.CreatedAtUtc),
             _ => joined.OrderByDescending(x => x.n.CreatedAtUtc),
         };
