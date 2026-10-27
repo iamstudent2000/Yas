@@ -145,10 +145,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public async Task<(List<SentRow> Items, int Total)> ListSentAsync(Guid senderId, int page, int pageSize, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId);
-        var total = await query.CountAsync(ct);
-        var items = await query.OrderByDescending(x => x.CreatedAtUtc).ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
-            .Join(db.Employees.AsNoTracking(), n => n.RecipientEmployeeId, e => e.Id, (n, e) => new SentRow(n.Id, e.FullName, n.Message, n.CreatedAtUtc, n.IsRead, n.ReadAtUtc))
+        var joined = db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId)
+            .Join(db.Employees.AsNoTracking(), n => n.RecipientEmployeeId, e => e.Id, (n, e) => new { n, e });
+        var total = await joined.CountAsync(ct);
+        var items = await joined.OrderByDescending(x => x.n.CreatedAtUtc).ThenBy(x => x.n.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new SentRow(x.n.Id, x.e.FullName, x.n.Message, x.n.CreatedAtUtc, x.n.IsRead, x.n.ReadAtUtc))
             .ToListAsync(ct);
         return (items, total);
     }
@@ -191,27 +192,29 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     }
 
     /// <summary>The filtered notifications with the recipient's and sender's names, in the requested order (ends with the Id so batches never overlap).</summary>
+    /// <remarks>Sorting happens on the joined rows and the <see cref="ReportRow"/> is projected last: EF Core cannot translate a sort on the properties of a constructor projection.</remarks>
     public static IQueryable<ReportRow> Report(ApplicationDbContext db, ReportFilter filter, string sortBy, bool descending)
     {
-        var rows = from n in Filtered(db, filter)
-                   join r in db.Employees.AsNoTracking() on n.RecipientEmployeeId equals r.Id
-                   join s in db.Employees.AsNoTracking() on n.SenderEmployeeId equals s.Id into senders
-                   from s in senders.DefaultIfEmpty()
-                   select new ReportRow(n.Id, n.CreatedAtUtc, n.Kind, r.FullName, r.Username, s == null ? null : s.FullName, n.Message, n.RequestType, n.IsRead, n.ReadAtUtc);
-        IOrderedQueryable<ReportRow> ordered = (sortBy, descending) switch
+        var joined = from n in Filtered(db, filter)
+                     join r in db.Employees.AsNoTracking() on n.RecipientEmployeeId equals r.Id
+                     join s in db.Employees.AsNoTracking() on n.SenderEmployeeId equals s.Id into senders
+                     from s in senders.DefaultIfEmpty()
+                     select new { n, r, s };
+        var ordered = (sortBy, descending) switch
         {
-            ("recipient", false) => rows.OrderBy(x => x.RecipientName),
-            ("recipient", true) => rows.OrderByDescending(x => x.RecipientName),
-            ("sender", false) => rows.OrderBy(x => x.SenderName ?? ""),
-            ("sender", true) => rows.OrderByDescending(x => x.SenderName ?? ""),
-            ("kind", false) => rows.OrderBy(x => x.Kind),
-            ("kind", true) => rows.OrderByDescending(x => x.Kind),
-            ("read", false) => rows.OrderBy(x => x.IsRead),
-            ("read", true) => rows.OrderByDescending(x => x.IsRead),
-            ("created", false) => rows.OrderBy(x => x.CreatedAtUtc),
-            _ => rows.OrderByDescending(x => x.CreatedAtUtc),
+            ("recipient", false) => joined.OrderBy(x => x.r.FullName),
+            ("recipient", true) => joined.OrderByDescending(x => x.r.FullName),
+            ("sender", false) => joined.OrderBy(x => x.s == null ? "" : x.s.FullName),
+            ("sender", true) => joined.OrderByDescending(x => x.s == null ? "" : x.s.FullName),
+            ("kind", false) => joined.OrderBy(x => x.n.Kind),
+            ("kind", true) => joined.OrderByDescending(x => x.n.Kind),
+            ("read", false) => joined.OrderBy(x => x.n.IsRead),
+            ("read", true) => joined.OrderByDescending(x => x.n.IsRead),
+            ("created", false) => joined.OrderBy(x => x.n.CreatedAtUtc),
+            _ => joined.OrderByDescending(x => x.n.CreatedAtUtc),
         };
-        return ordered.ThenBy(x => x.Id);
+        return ordered.ThenBy(x => x.n.Id).Select(x => new ReportRow(x.n.Id, x.n.CreatedAtUtc, x.n.Kind, x.r.FullName, x.r.Username,
+            x.s == null ? null : x.s.FullName, x.n.Message, x.n.RequestType, x.n.IsRead, x.n.ReadAtUtc));
     }
 
     public async Task<int> CountUnreadAsync(Guid? employeeId, CancellationToken ct = default)
