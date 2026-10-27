@@ -28,6 +28,14 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Employees.AsNoTracking().Where(x => q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)).OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
     }
+    /// <summary>Active employees (administrators included), for choosing who to send a notification to.</summary>
+    public async Task<IReadOnlyList<LookupItem>> SearchActiveEmployeesAsync(string? search, Guid? excludeId, CancellationToken ct = default)
+    {
+        var q = Normalize(search);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Employees.AsNoTracking().Where(x => x.IsActive && (excludeId == null || x.Id != excludeId) && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)))
+            .OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+    }
     public async Task<IReadOnlyList<LookupItem>> SearchAssignableEmployeesAsync(string? search, CancellationToken ct = default)
     {
         var q = Normalize(search);

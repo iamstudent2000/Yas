@@ -7,7 +7,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
-<a href="/notifications" class="icon-button notification-bell" title="@(_unread > 0 ? $"اعلان‌ها ({_unread} خوانده‌نشده)" : "اعلان‌ها")" aria-label="اعلان‌ها">
+<a href="@_href" class="icon-button notification-bell" title="@(_unread > 0 ? $"اعلان‌ها ({_unread} خوانده‌نشده)" : "اعلان‌ها")" aria-label="اعلان‌ها">
     <i class="ti @Icons.Bell"></i>
     @if (_unread > 0)
     {
@@ -17,6 +17,7 @@
 
 @code {
     private int _unread;
+    private string _href = "/notifications";
 
     protected override async Task OnInitializedAsync()
     {
@@ -41,6 +42,8 @@
         {
             var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
             var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? (Guid?)id : null;
+            // Administrators have no position, so their alerts are on their own page, not the personal one.
+            _href = user.HasClaim("yas_is_admin", "True") ? "/admin/notifications" : "/notifications";
             _unread = await NotificationSvc.CountUnreadAsync(employeeId);
         }
         catch

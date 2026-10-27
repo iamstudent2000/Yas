@@ -32,6 +32,9 @@ public enum NotificationKind
 
     /// <summary>A step targets a position nobody currently holds (spec §5.4). Recipient: SuperAdmins.</summary>
     VacantPosition,
+
+    /// <summary>A message one person sent to another by hand (not produced by a workflow event). Recipient: the chosen employee.</summary>
+    Manual,
 }
 
 /// <summary>
@@ -62,8 +65,32 @@ public sealed class Notification
         CreatedAtUtc = DateTime.UtcNow;
     }
 
+    /// <summary>The longest message a person can send by hand (also the column size).</summary>
+    public const int MaxMessageLength = 1000;
+
+    /// <summary>
+    /// A message sent by hand from <paramref name="senderEmployeeId"/> to <paramref name="recipientEmployeeId"/>.
+    /// <paramref name="senderLabel"/> is kept as text (like <see cref="RequestType"/>) so the line reads the same forever.
+    /// </summary>
+    public static Notification FromSender(Guid senderEmployeeId, Guid recipientEmployeeId, string senderLabel, string message, string linkPath)
+    {
+        if (senderEmployeeId == Guid.Empty)
+            throw new ArgumentException("Sender is required.", nameof(senderEmployeeId));
+        if (senderEmployeeId == recipientEmployeeId)
+            throw new ArgumentException("A notification cannot be sent to yourself.", nameof(recipientEmployeeId));
+        if (message is not null && message.Trim().Length > MaxMessageLength)
+            throw new ArgumentException($"Message is longer than {MaxMessageLength} characters.", nameof(message));
+
+        var notification = new Notification(recipientEmployeeId, NotificationKind.Manual, null, $"پیام از «{senderLabel}»", message ?? string.Empty, linkPath);
+        notification.SenderEmployeeId = senderEmployeeId;
+        return notification;
+    }
+
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid RecipientEmployeeId { get; private set; }
+
+    /// <summary>Who sent it, for hand-written messages (<see cref="NotificationKind.Manual"/>); null for notifications the system produced.</summary>
+    public Guid? SenderEmployeeId { get; private set; }
     public NotificationKind Kind { get; private set; }
     public Guid? RequestId { get; private set; }
 

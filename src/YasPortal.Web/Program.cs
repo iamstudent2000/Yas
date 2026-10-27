@@ -47,6 +47,8 @@ builder.Services.AddAuthorization(options => {
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
+    // Administrators' own notifications (vacant-position alerts) live on /admin/notifications; /notifications is for everyone else.
+    options.AddPolicy("AdminOnly", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => ctx.User.HasClaim("yas_is_admin", "True")));
 });
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddCascadingAuthenticationState();
@@ -127,6 +129,15 @@ if (app.Environment.IsDevelopment())
             ALTER TABLE [dbo].[WorkflowRequestSteps] ADD [FillsPart] int NULL;
             EXEC(N'UPDATE s SET s.[FillsPart] = s.[Order] + 1 FROM [dbo].[WorkflowRequestSteps] s INNER JOIN [dbo].[WorkflowRequests] r ON r.[Id] = s.[RequestId] WHERE r.[WorkflowType] = N''VehicleRequest'' AND s.[Order] IN (1, 2)');
         END;
+        IF COL_LENGTH(N'dbo.Notifications', N'SenderEmployeeId') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[Notifications] ADD [SenderEmployeeId] uniqueidentifier NULL;
+            EXEC(N'ALTER TABLE [dbo].[Notifications] ADD CONSTRAINT [FK_Notifications_Employees_SenderEmployeeId] FOREIGN KEY ([SenderEmployeeId]) REFERENCES [dbo].[Employees] ([Id])');
+        END;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_SenderEmployeeId_CreatedAtUtc')
+            EXEC(N'CREATE INDEX [IX_Notifications_SenderEmployeeId_CreatedAtUtc] ON [dbo].[Notifications] ([SenderEmployeeId], [CreatedAtUtc])');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_CreatedAtUtc')
+            EXEC(N'CREATE INDEX [IX_Notifications_CreatedAtUtc] ON [dbo].[Notifications] ([CreatedAtUtc])');
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);

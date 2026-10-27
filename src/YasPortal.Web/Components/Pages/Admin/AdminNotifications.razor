@@ -1,0 +1,6 @@
+@page "/admin/notifications"
+@using Microsoft.AspNetCore.Authorization
+@using YasPortal.Web.Components.Shared
+@attribute [Authorize(Policy = "AdminOnly")]
+
+<NotificationList AdminView="true" />

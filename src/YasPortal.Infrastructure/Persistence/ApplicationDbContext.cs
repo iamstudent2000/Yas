@@ -298,8 +298,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.Property(x => x.Message).HasMaxLength(1000).IsRequired();
             e.Property(x => x.LinkPath).HasMaxLength(300).IsRequired();
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RecipientEmployeeId).OnDelete(DeleteBehavior.Cascade);
+            // NoAction: SQL Server allows only one cascade path from Employees, and a sender's messages must outlive nothing but the sender row itself.
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.SenderEmployeeId).OnDelete(DeleteBehavior.NoAction);
             e.HasIndex(x => new { x.RecipientEmployeeId, x.IsRead, x.CreatedAtUtc });
             e.HasIndex(x => x.RequestId);
+            e.HasIndex(x => new { x.SenderEmployeeId, x.CreatedAtUtc });
+            e.HasIndex(x => x.CreatedAtUtc);
         });
         // Per-employee appearance settings: cosmetic only, one row per employee, never audited.
         modelBuilder.Entity<UserUiPreference>(e =>

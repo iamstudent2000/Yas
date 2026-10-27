@@ -17,6 +17,7 @@ public static class ReportPermissions
     public const string AssignmentHistory = "Reports.AssignmentHistory.Export";
     public const string AuditLog = "Reports.AuditLog.Export";
     public const string Delegations = "Reports.Delegations.Export";
+    public const string Notifications = "Reports.Notifications.Export";
 
     public static readonly IReadOnlyList<(string Code, string Name, string OldCode)> All =
     [
@@ -31,5 +32,6 @@ public static class ReportPermissions
         (AssignmentHistory, "خروجی سوابق تخصیص سمت‌ها", "Reports.AssignmentHistory"),
         (AuditLog, "خروجی گزارش رویدادها", "Reports.AuditLog"),
         (Delegations, "خروجی فهرست تفویض‌ها", "Reports.Delegations"),
+        (Notifications, "خروجی گزارش اعلان‌ها", ""),
     ];
 }
