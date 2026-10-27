@@ -257,7 +257,7 @@ public class NotificationTests
     [Fact]
     public void The_notification_permissions_are_in_the_catalog_exactly_once()
     {
-        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, ReportPermissions.Notifications })
+        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
             Assert.Single(PermissionCatalog.All, x => x.Code == code);
 
         Assert.Equal(PermissionCatalog.All.Count, PermissionCatalog.Codes.Distinct(StringComparer.OrdinalIgnoreCase).Count());

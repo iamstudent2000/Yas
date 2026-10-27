@@ -26,7 +26,7 @@
 
     <ListFilterBar Busy="_loading" ActiveCount="@((_unreadOnly ? 1 : 0) + (_kind is null ? 0 : 1))"
                    CanClear="@(_unreadOnly || _kind is not null || _dUnread || _dKind is not null)" OnSearch="SearchAsync" OnClear="ClearAsync"
-                   ExportPermission="@(ReportPermissions.Notifications)" OnExport="ExportAsync" Exporting="_exporting"
+                   ExportPermission="@(ReportPermissions.MyNotifications)" OnExport="ExportAsync" Exporting="_exporting"
                    SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync">
         @if (!AdminView)
         {
@@ -146,7 +146,7 @@
             var filter = new NotificationService.ReportFilter(RecipientId: employeeId, Kind: _kind, ReadState: _unreadOnly ? "unread" : null);
             var (sortKey, sortDesc) = SortSelect.Split(_sort);
             var sortBy = sortKey == "unread" ? "unread" : "created";
-            await Reports.ExportTableAsync(ReportPermissions.Notifications, "my-notifications",
+            await Reports.ExportTableAsync(ReportPermissions.MyNotifications, "my-notifications",
                 ["زمان", "نوع", "فرستنده", "متن", "مربوط به", "وضعیت", "زمان خواندن"],
                 db => NotificationService.Report(db, filter, sortBy, sortDesc),
                 (_, chunk, _) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(chunk.Select(x => (IReadOnlyList<string>)
