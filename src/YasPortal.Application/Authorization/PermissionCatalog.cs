@@ -30,6 +30,9 @@ public static class Perm
 
     public const string DelegationsOwnManage = "Delegations.Own.Manage";
 
+    /// <summary>Send a notification by hand to any active employee, and see the ones you sent.</summary>
+    public const string NotificationsMessageSend = "Notifications.Message.Send";
+
     public const string AdminRequestsView = "Admin.Requests.View";
     public const string AdminRequestsCreateForOthers = "Admin.Requests.CreateForOthers";
     public const string AdminRequestsForceClose = "Admin.Requests.ForceClose";
@@ -51,6 +54,8 @@ public static class Perm
     public const string AdminPermissionsManage = "Admin.Permissions.Manage";
     public const string AdminAssignmentHistoryView = "Admin.AssignmentHistory.View";
     public const string AdminAuditLogView = "Admin.AuditLog.View";
+    /// <summary>The report of every notification in the system (who sent what to whom, read or not).</summary>
+    public const string AdminNotificationsView = "Admin.Notifications.View";
 
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>
@@ -124,6 +129,8 @@ public static class PermissionCatalog
 
             new(Perm.DelegationsOwnManage, "تفویض اختیار سمت خود به دیگری", "Requests.Delegation", "Delegations.Create"),
 
+            new(Perm.NotificationsMessageSend, "ارسال اعلان به کارمندان و مشاهده اعلان‌های ارسالی خود"),
+
             new(Perm.AdminRequestsView, "مشاهده گزارش همه درخواست‌ها", "Admin.Requests"),
             new(Perm.AdminRequestsCreateForOthers, "ثبت درخواست برای دیگران", "Admin.RequestForOthers"),
             new(Perm.AdminRequestsForceClose, "بستن اجباری درخواست‌های گیر کرده", "Requests.ForceClose"),
@@ -145,9 +152,10 @@ public static class PermissionCatalog
             new(Perm.AdminPermissionsManage, "مدیریت مجوزها و گروه‌ها (ویرایش نام، ساخت گروه)", "Admin.Permissions"),
             new(Perm.AdminAssignmentHistoryView, "مشاهده سوابق تخصیص سمت‌ها", "Admin.AssignmentHistory"),
             new(Perm.AdminAuditLogView, "مشاهده گزارش رویدادها", "Admin.AuditLog"),
+            new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
         };
 
-        list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, x.OldCode)));
+        list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));
         list.AddRange(FormPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, x.OldCode)));
         return list;
     }

@@ -70,6 +70,11 @@ public static class Icons
     public const string Test = "ti-test-pipe";
     public const string Secure = "ti-shield-lock";
 
+    // Notifications
+    public const string Message = "ti-message-circle";
+    public const string SendNotification = "ti-bell-plus";
+    public const string NotificationsReport = "ti-report-search";
+
     // Account and appearance
     public const string Brand = "ti-flower";
     public const string Dashboard = "ti-layout-dashboard";

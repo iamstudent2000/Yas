@@ -148,17 +148,23 @@
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.RequestsOwnView">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/notifications"><i class="ti @Icons.Bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
+                            <NavLink href="/notifications" Match="NavLinkMatch.All"><i class="ti @Icons.Bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
                                 {
                                     <span class="nav-badge">@_notificationBadge</span>
                                 }</NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
                         <AuthorizeView Policy="AdminOnly">
-                            <NavLink href="/admin/notifications"><i class="ti @Icons.Bell"></i><span>اعلان‌های مدیر</span>@if (_notificationBadge > 0)
+                            <NavLink href="/admin/notifications" Match="NavLinkMatch.All"><i class="ti @Icons.Bell"></i><span>اعلان‌های مدیر</span>@if (_notificationBadge > 0)
                                 {
                                     <span class="nav-badge">@_notificationBadge</span>
                                 }</NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="@Perm.NotificationsMessageSend">
+                            <NavLink href="/notifications/send"><i class="ti @Icons.SendNotification"></i><span>ارسال اعلان</span></NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminNotificationsView">
+                            <NavLink href="/admin/notifications/report"><i class="ti @Icons.NotificationsReport"></i><span>گزارش اعلان‌ها</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminWorkflowsView">
                             <NavLink href="/admin/workflows"><i class="ti @Icons.Workflow"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
@@ -232,6 +238,7 @@
             || await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
         _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.RequestsOwnView)
             || await Can(Perm.AdminWorkflowsView) || await Can(Perm.AdminRequestsForceClose) || await Can(Perm.AdminRequestsReopen) || await Can(Perm.RequestsTeamView) || await Can(Perm.RequestsTeamApprovalsView)
+            || await Can(Perm.NotificationsMessageSend) || await Can(Perm.AdminNotificationsView)
             || user.HasClaim("yas_is_admin", "True"); // administrators always get their notifications entry
         _delegationsVisible = await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
     }

@@ -52,10 +52,10 @@
         @foreach (var item in _items)
         {
             <div class="request-card notification-card @(item.IsRead ? "is-read" : "is-unread")">
-                <div class="request-card-header is-clickable" role="link" tabindex="0" @onclick="() => OpenAsync(item)" @onkeydown="e => OnKeyAsync(e, item)">
-                    <span class="request-card-icon"><i class="ti @IconFor(item.Kind)"></i></span>
+                <div class="request-card-header @(item.Kind == NotificationKind.Manual && item.IsRead ? "" : "is-clickable")" role="@(item.Kind == NotificationKind.Manual ? "button" : "link")" tabindex="0" @onclick="() => OpenAsync(item)" @onkeydown="e => OnKeyAsync(e, item)">
+                    <span class="request-card-icon"><i class="ti @NotificationDisplay.IconFor(item.Kind)"></i></span>
                     <span class="request-card-title">
-                        <strong>@item.Message</strong>
+                        <strong style="white-space:pre-line">@item.Message</strong>
                         <span>@item.RequestType · @item.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                     </span>
                     @if (!item.IsRead)
@@ -129,7 +129,7 @@
     private static readonly IReadOnlyList<(string Key, string Text)> _readOptions = [("unread", "فقط خوانده‌نشده")];
 
     private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
-        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), KindLabel(k))).ToList();
+        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), NotificationDisplay.KindLabel(k))).ToList();
 
     private async Task SearchAsync()
     {
@@ -154,21 +154,6 @@
         _page = 1;
         await LoadAsync();
     }
-
-    private static string KindLabel(NotificationKind kind) => kind switch
-    {
-        NotificationKind.StepReached => "رسیدن درخواست به مرحله شما",
-        NotificationKind.ReturnedToStep => "بازگشت درخواست به مرحله شما",
-        NotificationKind.RequestApproved => "تایید نهایی درخواست",
-        NotificationKind.RequestRejected => "رد درخواست",
-        NotificationKind.RequestReturned => "بازگشت درخواست به شما",
-        NotificationKind.RequestForceClosed => "بسته‌شدن توسط مدیر",
-        NotificationKind.RequestReopened => "بازگشایی درخواست",
-        NotificationKind.DelegationReceived => "تفویض دریافتی",
-        NotificationKind.RequestCreatedForYou => "ثبت درخواست توسط مدیر",
-        NotificationKind.VacantPosition => "سمت خالی",
-        _ => kind.ToString(),
-    };
 
     private async Task GoToPageAsync(int page)
     {
@@ -196,7 +181,9 @@
             await NotificationSvc.MarkReadAsync(employeeId, item.Id);
             AppState.NotifyRequestBadgesChanged();
         }
-        Navigation.NavigateTo(item.LinkPath);
+        // A hand-written message has nowhere to go: opening it only marks it read.
+        if (item.Kind != NotificationKind.Manual)
+            Navigation.NavigateTo(item.LinkPath);
     }
 
     private async Task MarkAllReadAsync()
@@ -207,17 +194,4 @@
         AppState.NotifyRequestBadgesChanged();
         await LoadAsync();
     }
-
-    private static string IconFor(NotificationKind kind) => kind switch
-    {
-        NotificationKind.StepReached => Icons.Inbox,
-        NotificationKind.ReturnedToStep => Icons.Returned,
-        NotificationKind.RequestApproved => Icons.Approved,
-        NotificationKind.RequestRejected => Icons.Rejected,
-        NotificationKind.RequestReturned => Icons.Returned,
-        NotificationKind.RequestForceClosed => Icons.ForceClose,
-        NotificationKind.RequestCreatedForYou => Icons.NewRequestForOthers,
-        NotificationKind.VacantPosition => Icons.PositionVacant,
-        _ => Icons.Bell,
-    };
 }

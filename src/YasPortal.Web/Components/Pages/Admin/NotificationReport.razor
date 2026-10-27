@@ -1,0 +1,234 @@
+@page "/admin/notifications/report"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Notifications
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.AdminNotificationsView)]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AdminQueryService AdminQueries
+@inject ReportExportService Reports
+
+<PageTitle>گزارش اعلان‌ها - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه</div>
+            <h1 class="page-title"><i class="ti @Icons.NotificationsReport"></i> گزارش اعلان‌ها</h1>
+            <p class="page-subtitle">همه اعلان‌های سامانه، چه ساخته‌شده توسط گردش‌کار و چه فرستاده‌شده دستی، با گیرنده، فرستنده و وضعیت خوانده‌شدن. بر اساس گیرنده، فرستنده، نوع، تاریخ و متن فیلتر کنید.</p>
+        </div>
+        <div class="form-actions">
+            <AuthorizeView Policy="@Perm.NotificationsMessageSend">
+                <a class="btn btn-secondary" href="/notifications/send"><i class="ti @Icons.SendNotification"></i> ارسال اعلان</a>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="ti @Icons.NotificationsReport"></i></div>
+            <span class="stat-label">اعلان‌های مطابق فیلتر</span>
+            <strong class="stat-value">@_total.ToString("N0")</strong>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="ti @Icons.Awaiting"></i></div>
+            <span class="stat-label">خوانده‌نشده</span>
+            <strong class="stat-value">@_unread.ToString("N0")</strong>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="ti @Icons.Message"></i></div>
+            <span class="stat-label">پیام‌های دستی</span>
+            <strong class="stat-value">@_manual.ToString("N0")</strong>
+        </div>
+    </div>
+
+    <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || Draft().Count > 0)"
+                   ExportPermission="@(ReportPermissions.Notifications)" OnExport="ExportAsync" Exporting="_exporting"
+                   OnSearch="SearchAsync" OnClear="ClearAsync">
+        <div class="admin-filter"><label class="form-label">گیرنده</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_recipientId" ValueChanged="id => { _recipientId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchEmployeesAsync" Placeholder="همه کارکنان" SearchPlaceholder="نام، کد یا نام کاربری..." />
+        </div>
+        <div class="admin-filter"><label class="form-label">فرستنده</label>
+            <ServerSearchableGuidSelect @key="_resetKey" Value="_senderId" ValueChanged="id => { _senderId = id; return Task.CompletedTask; }"
+                                        SearchAsync="SearchEmployeesAsync" Placeholder="همه فرستنده‌ها" SearchPlaceholder="نام، کد یا نام کاربری..." />
+        </div>
+        <div class="admin-filter"><label class="form-label">نوع اعلان</label>
+            <LookupSelect @key="_resetKey" Options="KindOptions" Value="@(_kind?.ToString())"
+                          ValueChanged="k => _kind = Enum.TryParse<NotificationKind>(k, out var parsed) ? parsed : null" Placeholder="همه انواع" />
+        </div>
+        <div class="admin-filter"><label class="form-label">وضعیت خواندن</label>
+            <LookupSelect @key="_resetKey" Options="_readOptions" Value="@_readState" ValueChanged="k => _readState = k" Placeholder="همه" />
+        </div>
+        <div class="admin-filter"><label class="form-label">از تاریخ</label>
+            <PersianDatePicker @key="_resetKey" Value="_from" ValueChanged="d => _from = d" Placeholder="تاریخ" />
+        </div>
+        <div class="admin-filter"><label class="form-label">تا تاریخ</label>
+            <PersianDatePicker @key="_resetKey" Value="_to" ValueChanged="d => _to = d" Placeholder="تاریخ" />
+        </div>
+        <div class="admin-filter"><label class="form-label">جستجو در متن</label>
+            <input class="form-control" @key="_resetKey" value="@_search" @oninput="e => _search = e.Value?.ToString()" placeholder="بخشی از متن اعلان..." />
+        </div>
+    </ListFilterBar>
+
+    <section class="card table-card" style="margin-top:14px">
+        @if (_loading)
+        {
+            <LoadingState />
+        }
+        else if (_rows.Count == 0)
+        {
+            <div class="empty-state"><i class="ti @Icons.SearchEmpty"></i><strong>@(_applied.Count == 0 ? "هنوز اعلانی ثبت نشده است" : "اعلانی با این فیلترها پیدا نشد")</strong></div>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <SortableHeader Text="زمان" Column="created" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                            <SortableHeader Text="نوع" Column="kind" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                            <SortableHeader Text="گیرنده" Column="recipient" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                            <SortableHeader Text="فرستنده" Column="sender" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                            <th>متن</th>
+                            <SortableHeader Text="وضعیت" Column="read" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                                <td><span class="admin-pill"><i class="ti @NotificationDisplay.IconFor(row.Kind)"></i> @NotificationDisplay.KindLabel(row.Kind)</span></td>
+                                <td><strong>@row.RecipientName</strong><br /><small class="muted">@row.RecipientUsername</small></td>
+                                <td>@(row.SenderName ?? "سامانه")</td>
+                                <td style="max-width:420px;white-space:pre-line">@row.Message
+                                    @if (row.Kind != NotificationKind.Manual && !string.IsNullOrWhiteSpace(row.RequestType))
+                                    {
+                                        <br /><small class="muted">@row.RequestType</small>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.IsRead)
+                                    {
+                                        <span class="badge badge-success" title="@(row.ReadAtUtc is DateTime readAt ? WorkflowDisplay.ToPersianDateTime(readAt) : "")"><i class="ti @Icons.ConfirmAll"></i> خوانده شد</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
+        }
+    </section>
+</div>
+
+@code {
+    private static readonly IReadOnlyList<(string Key, string Text)> _readOptions = [("read", "فقط خوانده‌شده"), ("unread", "فقط خوانده‌نشده")];
+    private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
+        Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), NotificationDisplay.KindLabel(k))).ToList();
+
+    // The boxes edit these draft fields; "جستجو" copies them to _applied, which paging, sorting and the export read.
+    private Guid? _recipientId, _senderId;
+    private NotificationKind? _kind;
+    private string? _readState, _search;
+    private DateTime? _from, _to;
+    private int _resetKey;
+    private NotificationService.ReportFilter _applied = new();
+
+    private List<NotificationService.ReportRow> _rows = [];
+    private int _page = 1, _pageSize = 20, _total, _unread, _manual;
+    private string _sortBy = "created";
+    private bool _sortDesc = true;
+    private bool _loading = true, _exporting;
+
+    private NotificationService.ReportFilter Draft() => new(_recipientId, _senderId, _kind, _readState, _search, _from, _to);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var filtered = NotificationService.Filtered(db, _applied);
+            _total = await filtered.CountAsync();
+            _unread = await filtered.CountAsync(x => !x.IsRead);
+            _manual = await filtered.CountAsync(x => x.Kind == NotificationKind.Manual);
+            var totalPages = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+            if (_page > totalPages) _page = totalPages;
+            _rows = await NotificationService.Report(db, _applied, _sortBy, _sortDesc).Skip((_page - 1) * _pageSize).Take(_pageSize).ToListAsync();
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task SearchAsync()
+    {
+        _applied = Draft();
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        _recipientId = _senderId = null;
+        _kind = null;
+        _readState = _search = null;
+        _from = _to = null;
+        _applied = new();
+        _resetKey++;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task SortByAsync(string column)
+    {
+        if (_sortBy == column) _sortDesc = !_sortDesc;
+        else { _sortBy = column; _sortDesc = column == "created"; }
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int size)
+    {
+        _pageSize = Math.Clamp(size, 1, 100);
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        try
+        {
+            var filter = _applied;
+            var sortBy = _sortBy;
+            var sortDesc = _sortDesc;
+            await Reports.ExportTableAsync(ReportPermissions.Notifications, "notifications",
+                ["زمان", "نوع", "گیرنده", "نام کاربری گیرنده", "فرستنده", "متن", "مربوط به", "وضعیت", "زمان خواندن"],
+                db => NotificationService.Report(db, filter, sortBy, sortDesc),
+                (_, chunk, _) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(chunk.Select(x => (IReadOnlyList<string>)
+                    [ReportExportService.Time(x.CreatedAtUtc), NotificationDisplay.KindLabel(x.Kind), x.RecipientName, x.RecipientUsername, x.SenderName ?? "سامانه",
+                     x.Message, x.Kind == NotificationKind.Manual ? "" : x.RequestType, x.IsRead ? "خوانده شد" : "خوانده‌نشده", ReportExportService.Time(x.ReadAtUtc)]).ToList()));
+        }
+        finally { _exporting = false; }
+    }
+}

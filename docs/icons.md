@@ -12,11 +12,11 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 |---|---|---|---|
 | `Close` | `ti-x` | 17 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +7 more |
 | `Confirm` | `ti-check` | 22 | Positions×6, AccessManagement×3, PermissionGroups×2, WorkflowDisplay×2 +9 more |
-| `ConfirmAll` | `ti-checks` | 4 | Notifications, AccessManagement, PermissionGroups, MyRequests |
+| `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
 | `Save` | `ti-device-floppy` | 8 | MyProfile, PasswordPolicy, Organizations, Workflows +4 more |
 | `Delete` | `ti-trash` | 4 | AuditLog, Workflows, PermissionGroups, Positions |
 | `Search` | `ti-search` | 16 | AccessManagement×3, AuditLog×2, Organizations×2, Permissions×2 +7 more |
-| `SearchEmpty` | `ti-search-off` | 6 | AuditLog, AllRequests, Organizations, Permissions +2 more |
+| `SearchEmpty` | `ti-search-off` | 7 | AuditLog, AllRequests, Organizations, NotificationReport +3 more |
 | `Filter` | `ti-filter` | 1 | ListFilterBar |
 | `FilterClear` | `ti-filter-off` | 1 | ListFilterBar |
 | `CancelSearch` | `ti-player-stop` | 1 | ListFilterBar |
@@ -24,7 +24,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Edit` | `ti-pencil` | 15 | Workflows×3, Organizations×2, PermissionGroups×2, Users×2 +4 more |
 | `Details` | `ti-eye` | 5 | AuditLog, AllRequests, RejectedRequests, Permissions +1 more |
 | `More` | `ti-dots` | 1 | ListFilterBar |
-| `Send` | `ti-send` | 3 | NewRequestForOthers, NewRequest, MyRequests |
+| `Send` | `ti-send` | 4 | SendNotification, NewRequestForOthers, NewRequest, MyRequests |
 | `Print` | `ti-printer` | 2 | RequestSummary, ListFilterBar |
 | `ExportData` | `ti-file-export` | 1 | ListFilterBar |
 | `ExportSteps` | `ti-file-spreadsheet` | 1 | ListFilterBar |
@@ -67,16 +67,24 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Circle` | `ti-circle` | 1 | WorkflowDisplay |
 | `Calendar` | `ti-calendar` | 1 | Appearance |
 | `Clock` | `ti-clock` | 5 | AuditLog×2, WorkflowDisplay×2, RequestSummary |
-| `Awaiting` | `ti-hourglass-high` | 6 | RequestSummary×2, WorkflowDisplay×2, Inbox, RequestNowLine |
+| `Awaiting` | `ti-hourglass-high` | 9 | NotificationReport×2, RequestSummary×2, WorkflowDisplay×2, SendNotification +2 more |
 | `Age` | `ti-hourglass` | 1 | RequestNowLine |
-| `Bell` | `ti-bell` | 4 | Notifications×2, TopBarNotificationBell, PersistentSidebar |
-| `NoNotifications` | `ti-bell-off` | 1 | Notifications |
+| `Bell` | `ti-bell` | 5 | PersistentSidebar×2, TopBarNotificationBell, NotificationList, NotificationDisplay |
+| `NoNotifications` | `ti-bell-off` | 2 | SendNotification, NotificationList |
 | `LogIn` | `ti-login` | 2 | ApplicationLayout, ApplicationShell |
 | `LogOut` | `ti-logout` | 2 | ApplicationLayout, ApplicationShell |
 | `Code` | `ti-code` | 1 | Login |
 | `EventCount` | `ti-database` | 1 | AuditLog |
 | `Test` | `ti-test-pipe` | 2 | PasswordPolicy, Workflows |
 | `Secure` | `ti-shield-lock` | 3 | Login, ApplicationLayout, PersistentSidebar |
+
+## Notifications
+
+| Concept | Icon | Uses | Where |
+|---|---|---|---|
+| `Message` | `ti-message-circle` | 3 | SendNotification, NotificationReport, NotificationDisplay |
+| `SendNotification` | `ti-bell-plus` | 3 | SendNotification, NotificationReport, PersistentSidebar |
+| `NotificationsReport` | `ti-report-search` | 3 | NotificationReport×2, PersistentSidebar |
 
 ## Account and appearance
 
@@ -127,7 +135,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
 | `Position` | `ti-briefcase` | 21 | MyPositions×3, AssignmentHistory×3, ActivePositionSelector×3, Dashboard×2 +7 more |
-| `PositionVacant` | `ti-briefcase-off` | 3 | Positions×2, Notifications |
+| `PositionVacant` | `ti-briefcase-off` | 3 | Positions×2, NotificationDisplay |
 | `Occupied` | `ti-user-check` | 1 | Positions |
 | `PositionTree` | `ti-sitemap` | 5 | Positions×3, Users×2 |
 | `RootPosition` | `ti-tree` | 1 | Positions |
@@ -156,17 +164,17 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `NewRequest` | `ti-file-plus` | 5 | MyRequests×2, NewRequest, RequestFlow, PersistentSidebar |
 | `MyRequests` | `ti-list-details` | 4 | NewRequest, TeamHistory, MyRequests, PersistentSidebar |
 | `RequestsEmpty` | `ti-file-off` | 1 | MyRequests |
-| `Inbox` | `ti-inbox` | 3 | Notifications, Inbox, PersistentSidebar |
-| `NewRequestForOthers` | `ti-user-edit` | 5 | Notifications, AllRequests, NewRequestForOthers, MyRequests +1 more |
+| `Inbox` | `ti-inbox` | 3 | Inbox, PersistentSidebar, NotificationDisplay |
+| `NewRequestForOthers` | `ti-user-edit` | 5 | AllRequests, NewRequestForOthers, MyRequests, PersistentSidebar +1 more |
 | `RequestsReport` | `ti-report-analytics` | 2 | AllRequests, PersistentSidebar |
 | `ActiveRequests` | `ti-progress` | 5 | AllRequests, ActiveRequests, NewRequestForOthers, Positions +1 more |
 | `RejectedRequests` | `ti-file-x` | 2 | AllRequests, PersistentSidebar |
 | `Reopen` | `ti-restore` | 1 | RejectedRequests |
-| `ForceClose` | `ti-ban` | 4 | Notifications, ActiveRequests, RequestSummary, RequestFlow |
+| `ForceClose` | `ti-ban` | 4 | ActiveRequests, RequestSummary, RequestFlow, NotificationDisplay |
 | `Withdraw` | `ti-circle-x` | 2 | MyRequests, RequestFlow |
-| `Rejected` | `ti-circle-x` | 3 | Notifications, RejectedRequests, RequestSummary |
-| `Approved` | `ti-circle-check` | 2 | Notifications, RequestSummary |
-| `Returned` | `ti-arrow-back-up` | 5 | Notifications×2, WorkflowDisplay×2, RequestSummary |
+| `Rejected` | `ti-circle-x` | 3 | RejectedRequests, RequestSummary, NotificationDisplay |
+| `Approved` | `ti-circle-check` | 2 | RequestSummary, NotificationDisplay |
+| `Returned` | `ti-arrow-back-up` | 5 | WorkflowDisplay×2, NotificationDisplay×2, RequestSummary |
 | `ReturnToRequester` | `ti-arrow-back-up` | 1 | Inbox |
 | `ReturnToPreviousStep` | `ti-chevrons-right` | 1 | Inbox |
 | `ReturnToSpecificStep` | `ti-target-arrow` | 1 | Inbox |
@@ -189,4 +197,4 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `TypeHelpdesk` | `ti-headset` | 1 | WorkflowDisplay |
 | `TypeWorkReport` | `ti-notes` | 1 | WorkflowDisplay |
 | `TypeVehicle` | `ti-car` | 1 | WorkflowDisplay |
-| `Spinner` | `ti-loader-2 icon-spin` | 19 | Permissions×2, MyRequests×2, ListFilterBar×2, App +12 more |
+| `Spinner` | `ti-loader-2 icon-spin` | 20 | Permissions×2, MyRequests×2, ListFilterBar×2, App +13 more |

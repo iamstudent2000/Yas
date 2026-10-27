@@ -1,0 +1,183 @@
+@page "/notifications/send"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Notifications
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.NotificationsMessageSend)]
+@inject NotificationService NotificationSvc
+@inject AdminQueryService AdminQueries
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>ارسال اعلان - یاس پورتال</PageTitle>
+
+<div class="requests-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="ti @Icons.SendNotification"></i> ارسال اعلان</h1>
+            <p class="page-subtitle">یک پیام کوتاه برای یکی از کارکنان بفرستید. پیام در بخش اعلان‌های او نمایش داده می‌شود و فرستنده‌اش شما هستید.</p>
+        </div>
+    </div>
+
+    <section class="card">
+        <div class="form-grid">
+            <div class="form-field">
+                <label class="form-label">گیرنده</label>
+                <ServerSearchableGuidSelect @key="_resetKey" Value="_recipientId" ValueChanged="id => { _recipientId = id; return Task.CompletedTask; }"
+                                            SearchAsync="SearchRecipientsAsync" Placeholder="انتخاب کارمند..."
+                                            SearchPlaceholder="نام، کد یا نام کاربری را جستجو کنید..." />
+            </div>
+            <div class="form-field" style="grid-column:1 / -1">
+                <label class="form-label">متن اعلان</label>
+                <textarea class="form-control" rows="4" maxlength="@Notification.MaxMessageLength" placeholder="پیام خود را بنویسید..."
+                          value="@_message" @oninput="e => _message = e.Value?.ToString() ?? string.Empty"></textarea>
+                <small class="muted">@_message.Trim().Length از @Notification.MaxMessageLength نویسه</small>
+            </div>
+            <div class="form-field dlg-submit">
+                <button class="btn btn-primary" disabled="@(_busy || _recipientId is null || _message.Trim().Length == 0)" @onclick="SendAsync">
+                    @if (_busy)
+                    {
+                        <i class="ti @Icons.Spinner"></i>
+                    }
+                    else
+                    {
+                        <i class="ti @Icons.Send"></i>
+                    }
+                    ارسال اعلان
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="card table-card" style="margin-top:14px">
+        <div class="card-toolbar">
+            <div>
+                <h2 class="section-title"><i class="ti @Icons.Message"></i> اعلان‌های ارسالی من <span class="badge badge-muted">@_total</span></h2>
+                <p class="muted">هر اعلان با وضعیت خوانده‌شدن آن توسط گیرنده.</p>
+            </div>
+        </div>
+        @if (_loading)
+        {
+            <LoadingState />
+        }
+        else if (_sent.Count == 0)
+        {
+            <div class="empty-state is-compact"><i class="ti @Icons.NoNotifications"></i><strong>هنوز اعلانی نفرستاده‌اید</strong></div>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr><th>گیرنده</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _sent)
+                        {
+                            <tr>
+                                <td>@row.RecipientName</td>
+                                <td style="white-space:pre-line">@row.Message</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                                <td>
+                                    @if (row.IsRead)
+                                    {
+                                        <span class="badge badge-success" title="@(row.ReadAtUtc is DateTime readAt ? WorkflowDisplay.ToPersianDateTime(readAt) : "")"><i class="ti @Icons.ConfirmAll"></i> خوانده شد</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
+        }
+    </section>
+</div>
+
+@code {
+    private Guid? _employeeId;
+    private Guid? _recipientId;
+    private string _message = string.Empty;
+    private bool _busy;
+    private int _resetKey;
+
+    private bool _loading = true;
+    private List<NotificationService.SentRow> _sent = [];
+    private int _page = 1;
+    private int _pageSize = 10;
+    private int _total;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        await LoadAsync();
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchRecipientsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchActiveEmployeesAsync(search, _employeeId, ct);
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            if (_employeeId is not Guid employeeId)
+            {
+                _sent = [];
+                _total = 0;
+                return;
+            }
+            (_sent, _total) = await NotificationSvc.ListSentAsync(employeeId, _page, _pageSize);
+            if (_sent.Count == 0 && _page > 1)
+            {
+                _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
+                (_sent, _total) = await NotificationSvc.ListSentAsync(employeeId, _page, _pageSize);
+            }
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task SendAsync()
+    {
+        if (_busy || _employeeId is not Guid senderId || _recipientId is not Guid recipientId)
+            return;
+        _busy = true;
+        try
+        {
+            var (ok, error) = await NotificationSvc.SendAsync(senderId, recipientId, _message);
+            if (!ok)
+            {
+                AppState.AddToast(error ?? "ارسال اعلان انجام نشد.", ToastLevel.Error);
+                return;
+            }
+            AppState.AddToast("اعلان ارسال شد.", ToastLevel.Success);
+            _message = string.Empty;
+            _recipientId = null;
+            _resetKey++;
+            _page = 1;
+            await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int size)
+    {
+        _pageSize = Math.Clamp(size, 1, 100);
+        _page = 1;
+        await LoadAsync();
+    }
+}
