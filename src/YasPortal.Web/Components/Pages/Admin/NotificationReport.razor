@@ -10,6 +10,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject ReportExportService Reports
+@inject AppState AppState
 
 <PageTitle>گزارش اعلان‌ها - یاس پورتال</PageTitle>
 
@@ -31,21 +32,21 @@
         <div class="stat-card">
             <div class="stat-icon"><i class="ti @Icons.NotificationsReport"></i></div>
             <span class="stat-label">اعلان‌های مطابق فیلتر</span>
-            <strong class="stat-value">@_total.ToString("N0")</strong>
+            <strong class="stat-value">@(_hasSearched ? _total.ToString("N0") : "—")</strong>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="ti @Icons.Awaiting"></i></div>
             <span class="stat-label">خوانده‌نشده</span>
-            <strong class="stat-value">@_unread.ToString("N0")</strong>
+            <strong class="stat-value">@(_hasSearched ? _unread.ToString("N0") : "—")</strong>
         </div>
         <div class="stat-card">
             <div class="stat-icon"><i class="ti @Icons.Message"></i></div>
             <span class="stat-label">پیام‌های دستی</span>
-            <strong class="stat-value">@_manual.ToString("N0")</strong>
+            <strong class="stat-value">@(_hasSearched ? _manual.ToString("N0") : "—")</strong>
         </div>
     </div>
 
-    <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || Draft().Count > 0)"
+    <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || Draft().Count > 0)"
                    ExportPermission="@(ReportPermissions.Notifications)" OnExport="ExportAsync" Exporting="_exporting"
                    OnSearch="SearchAsync" OnClear="ClearAsync">
         <div class="admin-filter"><label class="form-label">گیرنده</label>
@@ -75,7 +76,11 @@
     </ListFilterBar>
 
     <section class="card table-card" style="margin-top:14px">
-        @if (_loading)
+        @if (!_hasSearched)
+        {
+            <div class="empty-state"><i class="ti @Icons.Search"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است. فیلترها را تنظیم کنید و «جستجو» را بزنید.</span></div>
+        }
+        else if (_loading)
         {
             <LoadingState />
         }
@@ -148,11 +153,11 @@
     private int _page = 1, _pageSize = 20, _total, _unread, _manual;
     private string _sortBy = "created";
     private bool _sortDesc = true;
-    private bool _loading = true, _exporting;
+    // Nothing is read from the database until the first "جستجو" (like the audit log): the notifications table can be large.
+    private bool _hasSearched;
+    private bool _loading, _exporting;
 
     private NotificationService.ReportFilter Draft() => new(_recipientId, _senderId, _kind, _readState, _search, _from, _to);
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
 
@@ -176,11 +181,12 @@
     private async Task SearchAsync()
     {
         _applied = Draft();
+        _hasSearched = true;
         _page = 1;
         await LoadAsync();
     }
 
-    private async Task ClearAsync()
+    private Task ClearAsync()
     {
         _recipientId = _senderId = null;
         _kind = null;
@@ -189,7 +195,11 @@
         _applied = new();
         _resetKey++;
         _page = 1;
-        await LoadAsync();
+        // Back to the "ready to search" state: clearing the filters does not fetch anything.
+        _hasSearched = false;
+        _rows = [];
+        _total = _unread = _manual = 0;
+        return Task.CompletedTask;
     }
 
     private async Task SortByAsync(string column)
@@ -197,25 +207,30 @@
         if (_sortBy == column) _sortDesc = !_sortDesc;
         else { _sortBy = column; _sortDesc = column == "created"; }
         _page = 1;
-        await LoadAsync();
+        if (_hasSearched) await LoadAsync();
     }
 
     private async Task GoToPageAsync(int page)
     {
         _page = page;
-        await LoadAsync();
+        if (_hasSearched) await LoadAsync();
     }
 
     private async Task OnPageSizeChangedAsync(int size)
     {
         _pageSize = Math.Clamp(size, 1, 100);
         _page = 1;
-        await LoadAsync();
+        if (_hasSearched) await LoadAsync();
     }
 
     private async Task ExportAsync()
     {
         if (_exporting) return;
+        if (!_hasSearched)
+        {
+            AppState.AddToast("ابتدا جستجو کنید.", ToastLevel.Info);
+            return;
+        }
         _exporting = true;
         try
         {
