@@ -116,8 +116,9 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// Who a hand-written message goes to: the union of everyone picked by hand, every member of the chosen organizations, and every member of
     /// the sender's own saved groups; or every active employee when <see cref="Everyone"/> is set. Inactive employees and the sender are always left out.
     /// </summary>
+    /// <param name="ExcludedEmployeeIds">People taken out of the audience before sending, whichever way they were included (ticked off in the review list).</param>
     public sealed record Audience(bool Everyone = false, IReadOnlyCollection<Guid>? EmployeeIds = null, IReadOnlyCollection<Guid>? OrganizationIds = null,
-        IReadOnlyCollection<Guid>? GroupIds = null)
+        IReadOnlyCollection<Guid>? GroupIds = null, IReadOnlyCollection<Guid>? ExcludedEmployeeIds = null)
     {
         public bool IsEmpty => !Everyone && (EmployeeIds?.Count ?? 0) == 0 && (OrganizationIds?.Count ?? 0) == 0 && (GroupIds?.Count ?? 0) == 0;
     }
@@ -133,9 +134,14 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public const int MaxRecipients = 5000;
 
     /// <summary>Active employees the audience resolves to, never including the sender.</summary>
-    private static IQueryable<Employee> Recipients(ApplicationDbContext db, Audience audience, Guid senderId)
+    private static IQueryable<Employee> Recipients(ApplicationDbContext db, Audience audience, Guid senderId, bool applyExclusions = true)
     {
         var query = db.Employees.AsNoTracking().Where(e => e.IsActive && e.Id != senderId);
+        if (applyExclusions && audience.ExcludedEmployeeIds is { Count: > 0 })
+        {
+            var excluded = audience.ExcludedEmployeeIds.Distinct().ToList();
+            query = query.Where(e => !excluded.Contains(e.Id));
+        }
         if (audience.Everyone)
             return query;
         var employeeIds = (audience.EmployeeIds ?? []).Distinct().ToList();
@@ -155,6 +161,24 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             return 0;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await Recipients(db, audience, senderId).CountAsync(ct);
+    }
+
+    /// <summary>
+    /// The people the audience reaches, before any exclusions, for the review list where some can be ticked off. Optional text filter on name, code or username.
+    /// </summary>
+    public async Task<(List<AdminQueryService.LookupItem> Items, int Total)> ListRecipientsAsync(Guid senderId, Audience audience, string? search, int skip, int take, CancellationToken ct = default)
+    {
+        if (audience.IsEmpty)
+            return ([], 0);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var query = Recipients(db, audience, senderId, applyExclusions: false);
+        var text = (search ?? string.Empty).Trim();
+        if (text.Length > 0)
+            query = query.Where(e => e.FullName.Contains(text) || e.Username.Contains(text) || e.Code.Contains(text));
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(e => e.FullName).ThenBy(e => e.Id).Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 200))
+            .Select(e => new AdminQueryService.LookupItem(e.Id, e.Code + " — " + e.FullName + " — " + e.Username + (e.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+        return (items, total);
     }
 
     /// <summary>
@@ -189,7 +213,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         if (recipients.Count > MaxRecipients)
             return new(false, $"حداکثر {MaxRecipients} گیرنده در هر ارسال مجاز است.");
 
-        var audienceLabel = await DescribeAsync(db, audience, senderId, recipients.Count, ct);
+        var withoutExclusions = audience.ExcludedEmployeeIds is { Count: > 0 } ? await Recipients(db, audience, senderId, applyExclusions: false).CountAsync(ct) : recipients.Count;
+        var audienceLabel = await DescribeAsync(db, audience, senderId, recipients.Count, withoutExclusions - recipients.Count, ct);
         var batchId = recipients.Count > 1 ? Guid.NewGuid() : (Guid?)null;
 
         // Administrators read their notifications on their own page (they have no position and no personal request pages).
@@ -205,10 +230,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     }
 
     /// <summary>The audience in words, kept with the message so the sender (and the report) can see who it was meant for.</summary>
-    private static async Task<string?> DescribeAsync(ApplicationDbContext db, Audience audience, Guid senderId, int recipientCount, CancellationToken ct)
+    private static async Task<string?> DescribeAsync(ApplicationDbContext db, Audience audience, Guid senderId, int recipientCount, int leftOut, CancellationToken ct)
     {
+        var exclusion = leftOut > 0 ? $" (بدون {leftOut} نفر)" : string.Empty;
         if (audience.Everyone)
-            return "همه کارکنان";
+            return "همه کارکنان" + exclusion;
         var parts = new List<string>();
         var picked = (audience.EmployeeIds ?? []).Distinct().Count();
         var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
@@ -219,7 +245,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             parts.Add("سازمان‌ها: " + string.Join("، ", await db.Organizations.AsNoTracking().Where(o => organizationIds.Contains(o.Id)).OrderBy(o => o.Name).Select(o => o.Name).ToListAsync(ct)));
         if (groupIds.Count > 0)
             parts.Add("گروه‌ها: " + string.Join("، ", await db.RecipientGroups.AsNoTracking().Where(g => g.OwnerEmployeeId == senderId && groupIds.Contains(g.Id)).OrderBy(g => g.Name).Select(g => g.Name).ToListAsync(ct)));
-        return parts.Count == 0 ? null : string.Join(" + ", parts);
+        return parts.Count == 0 ? null : string.Join(" + ", parts) + exclusion;
     }
 
     // ---- saved recipient groups (the sender's own; need the same send permission) ----

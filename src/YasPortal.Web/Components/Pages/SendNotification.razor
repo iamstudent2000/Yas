@@ -32,12 +32,6 @@
             @if (!_everyone)
             {
                 <div class="form-field">
-                    <label class="form-label"><i class="ti @Icons.Users"></i> افزودن کارمند (جستجو)</label>
-                    <ServerSearchableGuidSelect @key="_pickKey" Value="null" ValueChanged="AddEmployeeAsync"
-                                                SearchAsync="SearchRecipientsAsync" Placeholder="افزودن کارمند..."
-                                                SearchPlaceholder="نام، کد یا نام کاربری را جستجو کنید..." />
-                </div>
-                <div class="form-field">
                     <label class="form-label"><i class="ti @Icons.Organization"></i> افزودن همه‌ی اعضای یک سازمان</label>
                     <ServerSearchableGuidSelect @key="_pickKey" Value="null" ValueChanged="AddOrganizationAsync"
                                                 SearchAsync="SearchOrganizationsAsync" Placeholder="افزودن سازمان..."
@@ -45,8 +39,8 @@
                 </div>
 
                 <div class="form-field" style="grid-column:1 / -1">
-                    <button type="button" class="btn btn-secondary" @onclick="() => _showBrowser = !_showBrowser"><i class="ti @Icons.PickFromList"></i> انتخاب از فهرست با تیک</button>
-                    @if (_showBrowser)
+                    <label class="form-label"><i class="ti @Icons.PickFromList"></i> انتخاب افراد از فهرست (با تیک)</label>
+                    @if (true)
                     {
                         <div class="audience-browser">
                             <div class="audience-browser-filters">
@@ -146,6 +140,42 @@
                 }
             }
 
+            @if (!CurrentAudience().IsEmpty && _recipientCount is int total && total + _excluded.Count > 0)
+            {
+                <div class="form-field" style="grid-column:1 / -1">
+                    <button type="button" class="btn btn-secondary" @onclick="ToggleReviewAsync"><i class="ti @Icons.PickFromList"></i> @(_showReview ? "بستن فهرست گیرندگان" : "مشاهده و ویرایش فهرست گیرندگان") @(_excluded.Count > 0 ? $"({_excluded.Count:N0} نفر کنار گذاشته شد)" : "")</button>
+                    @if (_showReview)
+                    {
+                        <div class="audience-browser">
+                            <div class="audience-browser-filters">
+                                <input class="form-control" value="@_reviewText" placeholder="جستجو در گیرندگان..." @oninput="e => _reviewText = e.Value?.ToString()" @onkeydown="OnReviewKeyAsync" />
+                                <span></span>
+                                <button type="button" class="btn btn-primary" @onclick="LoadReviewAsync"><i class="ti @Icons.Search"></i> جستجو</button>
+                            </div>
+                            <div class="audience-browser-actions">
+                                <small class="muted">تیک را از کسانی که نباید پیام را بگیرند بردارید. @_reviewTotal.ToString("N0") نفر در این فهرست.</small>
+                                @if (_excluded.Count > 0)
+                                {
+                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ClearExclusionsAsync">بازگرداندن همه</button>
+                                }
+                            </div>
+                            <div class="audience-browser-list">
+                                @foreach (var item in _reviewItems)
+                                {
+                                    <label class="check-row">
+                                        <input type="checkbox" checked="@(!_excluded.Contains(item.Id))" @onchange="e => ToggleRecipientAsync(item.Id, e.Value is true)" />
+                                        <span>@item.Text</span>
+                                    </label>
+                                }
+                                @if (_reviewItems.Count < _reviewTotal)
+                                {
+                                    <button type="button" class="btn btn-secondary btn-sm" @onclick="MoreReviewAsync">نمایش بیشتر</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
             @if (_recipientCount is int count)
             {
                 <div class="form-field" style="grid-column:1 / -1">
@@ -276,11 +306,19 @@
     private Guid? _retractKey;
 
     // The tick-box list.
-    private bool _showBrowser, _browsing;
+    private bool _browsing;
     private string? _browseText;
     private Guid? _browseOrgId;
     private List<AdminQueryService.LookupItem>? _browseResults;
     private readonly HashSet<Guid> _checked = [];
+
+    // The review list: everyone the audience reaches, so some can be ticked off before sending.
+    private readonly HashSet<Guid> _excluded = [];
+    private bool _showReview;
+    private string? _reviewText;
+    private List<AdminQueryService.LookupItem> _reviewItems = [];
+    private int _reviewTotal;
+    private const int ReviewPage = 100;
 
     private bool _loading = true;
     private List<NotificationService.SentGroup> _sent = [];
@@ -299,13 +337,54 @@
     private bool CanSubmit => _message.Trim().Length > 0 && !CurrentAudience().IsEmpty;
 
     private NotificationService.Audience CurrentAudience() =>
-        new(_everyone, _employees.Keys.ToList(), _organizations.Keys.ToList(), _groupIds.Keys.ToList());
+        new(_everyone, _employees.Keys.ToList(), _organizations.Keys.ToList(), _groupIds.Keys.ToList(), _excluded.ToList());
 
     private async Task RefreshCountAsync()
     {
         _confirming = false;
         var audience = CurrentAudience();
         _recipientCount = _employeeId is Guid senderId && !audience.IsEmpty ? await NotificationSvc.CountRecipientsAsync(senderId, audience) : null;
+        if (audience.IsEmpty) _excluded.Clear();
+        if (_showReview) await LoadReviewAsync();
+    }
+
+    private async Task ToggleReviewAsync()
+    {
+        _showReview = !_showReview;
+        if (_showReview) await LoadReviewAsync();
+    }
+
+    private async Task LoadReviewAsync()
+    {
+        if (_employeeId is not Guid senderId) return;
+        (_reviewItems, _reviewTotal) = await NotificationSvc.ListRecipientsAsync(senderId, CurrentAudience(), _reviewText, 0, ReviewPage);
+    }
+
+    private async Task MoreReviewAsync()
+    {
+        if (_employeeId is not Guid senderId) return;
+        var (more, total) = await NotificationSvc.ListRecipientsAsync(senderId, CurrentAudience(), _reviewText, _reviewItems.Count, ReviewPage);
+        _reviewItems.AddRange(more);
+        _reviewTotal = total;
+    }
+
+    private async Task OnReviewKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadReviewAsync();
+    }
+
+    private async Task ToggleRecipientAsync(Guid id, bool receives)
+    {
+        if (receives) _excluded.Remove(id);
+        else _excluded.Add(id);
+        _confirming = false;
+        _recipientCount = _employeeId is Guid senderId ? await NotificationSvc.CountRecipientsAsync(senderId, CurrentAudience()) : null;
+    }
+
+    private async Task ClearExclusionsAsync()
+    {
+        _excluded.Clear();
+        await RefreshCountAsync();
     }
 
     private async Task LoadGroupsAsync()
@@ -320,13 +399,6 @@
     {
         _everyone = e.Value is true;
         await RefreshCountAsync();
-    }
-
-    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchRecipientsAsync(string search, CancellationToken ct)
-    {
-        var items = await AdminQueries.SearchActiveEmployeesAsync(search, _employeeId, ct);
-        foreach (var item in items) _seen[item.Id] = item.Text;
-        return items;
     }
 
     private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct)
@@ -346,16 +418,6 @@
         }
         _employees[id] = text;
         return true;
-    }
-
-    private async Task AddEmployeeAsync(Guid? id)
-    {
-        if (id is not Guid employeeId) return;
-        if (TryAddEmployee(employeeId, _seen.TryGetValue(employeeId, out var text) ? text : employeeId.ToString()))
-        {
-            _pickKey++;
-            await RefreshCountAsync();
-        }
     }
 
     private async Task AddOrganizationAsync(Guid? id)
@@ -533,6 +595,8 @@
             _employees.Clear();
             _organizations.Clear();
             _groupIds.Clear();
+            _excluded.Clear();
+            _showReview = false;
             _everyone = false;
             _checked.Clear();
             _browseResults = null;

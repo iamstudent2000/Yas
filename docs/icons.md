@@ -15,7 +15,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
 | `Save` | `ti-device-floppy` | 9 | MyProfile, SendNotification, PasswordPolicy, Organizations +5 more |
 | `Delete` | `ti-trash` | 5 | SendNotification, AuditLog, Workflows, PermissionGroups +1 more |
-| `Search` | `ti-search` | 18 | AccessManagement×3, AuditLog×2, Organizations×2, Permissions×2 +9 more |
+| `Search` | `ti-search` | 19 | AccessManagement×3, SendNotification×2, AuditLog×2, Organizations×2 +9 more |
 | `SearchEmpty` | `ti-search-off` | 7 | AuditLog, AllRequests, Organizations, NotificationReport +3 more |
 | `Filter` | `ti-filter` | 1 | ListFilterBar |
 | `FilterClear` | `ti-filter-off` | 1 | ListFilterBar |
@@ -87,7 +87,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `NotificationsReport` | `ti-report-search` | 3 | NotificationReport×2, PersistentSidebar |
 | `Broadcast` | `ti-speakerphone` | 1 | SendNotification |
 | `RecipientGroup` | `ti-users-group` | 2 | SendNotification×2 |
-| `PickFromList` | `ti-list-check` | 1 | SendNotification |
+| `PickFromList` | `ti-list-check` | 2 | SendNotification×2 |
 | `Retract` | `ti-message-off` | 5 | NotificationReport×3, SendNotification×2 |
 | `RestoreNotification` | `ti-arrow-back-up` | 2 | NotificationReport×2 |
 
@@ -120,7 +120,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
 | `User` | `ti-user` | 9 | AssignmentHistory×2, Login, AuditLog, AccessManagement +4 more |
-| `Users` | `ti-users` | 10 | SendNotification×2, Organizations×2, PasswordPolicy, AccessManagement +4 more |
+| `Users` | `ti-users` | 9 | Organizations×2, SendNotification, PasswordPolicy, AccessManagement +4 more |
 | `UserAdd` | `ti-user-plus` | 1 | Users |
 | `UserActivate` | `ti-user-check` | 1 | Users |
 | `UserDeactivate` | `ti-user-off` | 1 | Users |
