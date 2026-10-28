@@ -64,6 +64,9 @@ public static class Icons
     public const string Bell = "ti-bell";
     public const string NoNotifications = "ti-bell-off";
     public const string LogIn = "ti-login";
+    public const string AccessDenied = "ti-shield-lock";
+    public const string NotFound = "ti-error-404";
+    public const string Home = "ti-home";
     public const string LogOut = "ti-logout";
     public const string Code = "ti-code";
     public const string EventCount = "ti-database";

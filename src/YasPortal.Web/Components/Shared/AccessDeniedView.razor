@@ -1,0 +1,21 @@
+@* What a person sees when a page needs more than they have: signed in but without the permission, or not signed in at all. *@
+@if (Authenticated)
+{
+    <StatusPage Icon="@Icons.AccessDenied" Tone="is-warning" Code="۴۰۳" Title="دسترسی به این بخش مجاز نیست"
+                Message="شما وارد سامانه شده‌اید، اما مجوز لازم برای دیدن یا انجام این کار را ندارید."
+                Hint="اگر فکر می‌کنید باید دسترسی داشته باشید، از مدیر سامانه بخواهید مجوز مربوط را به شما بدهد. مجوزها به سمت فعال شما بستگی دارند؛ اگر چند سمت دارید، سمت دیگری را از بالای صفحه انتخاب کنید. پس از دریافت مجوز، یک بار خارج و دوباره وارد شوید.">
+        <button type="button" class="btn btn-secondary" onclick="history.back()"><i class="ti @Icons.Back"></i> بازگشت</button>
+        <a class="btn btn-primary" href="/"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+    </StatusPage>
+}
+else
+{
+    <StatusPage Icon="@Icons.LogIn" Tone="is-info" Title="ورود به سامانه لازم است"
+                Message="برای دیدن این صفحه ابتدا باید وارد حساب کاربری خود شوید.">
+        <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
+    </StatusPage>
+}
+
+@code {
+    [Parameter] public bool Authenticated { get; set; }
+}

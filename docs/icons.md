@@ -39,7 +39,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `PagePrev` | `ti-chevron-right` | 2 | ServerPagination, UsagePager |
 | `PageNext` | `ti-chevron-left` | 3 | ServerPagination, UsagePager, SearchableGuidSelect |
 | `ArrowGo` | `ti-arrow-left` | 10 | Dashboard×5, Login, MyProfile, Delegations +2 more |
-| `Back` | `ti-arrow-right` | 4 | AuditLog, Organizations, Users, Positions |
+| `Back` | `ti-arrow-right` | 6 | Routes, AuditLog, Organizations, Users +2 more |
 | `MoveUp` | `ti-arrow-up` | 1 | Workflows |
 | `MoveDown` | `ti-arrow-down` | 1 | Workflows |
 | `StageArrow` | `ti-arrow-down` | 5 | Workflows×2, RequestFlow×2, WorkflowStepTimeline |
@@ -57,7 +57,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Alert` | `ti-alert-circle` | 11 | Workflows×3, Login×2, MyProfile, Delegations +4 more |
+| `Alert` | `ti-alert-circle` | 14 | Workflows×3, Login×2, StatusPage×2, Error +6 more |
 | `Warning` | `ti-alert-triangle` | 2 | AppNotifications, Positions |
 | `Info` | `ti-info-circle` | 3 | AppNotifications×2, MyPositions |
 | `Success` | `ti-circle-check` | 12 | AppNotifications, MyProfile, MyPositions, Dashboard +8 more |
@@ -71,7 +71,10 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Age` | `ti-hourglass` | 1 | RequestNowLine |
 | `Bell` | `ti-bell` | 5 | PersistentSidebar×2, TopBarNotificationBell, NotificationList, NotificationDisplay |
 | `NoNotifications` | `ti-bell-off` | 2 | SendNotification, NotificationList |
-| `LogIn` | `ti-login` | 2 | ApplicationLayout, ApplicationShell |
+| `LogIn` | `ti-login` | 4 | AccessDeniedView×2, ApplicationLayout, ApplicationShell |
+| `AccessDenied` | `ti-shield-lock` | 1 | AccessDeniedView |
+| `NotFound` | `ti-error-404` | 1 | Routes |
+| `Home` | `ti-home` | 3 | Routes, Error, AccessDeniedView |
 | `LogOut` | `ti-logout` | 2 | ApplicationLayout, ApplicationShell |
 | `Code` | `ti-code` | 1 | Login |
 | `EventCount` | `ti-database` | 1 | AuditLog |

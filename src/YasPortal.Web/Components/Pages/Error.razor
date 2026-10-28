@@ -1,5 +1,10 @@
 @page "/error"
+@using YasPortal.Web.Components.Shared
 
-<PageTitle>Error</PageTitle>
-<h1>Something went wrong.</h1>
-<p>Please try again.</p>
+<PageTitle>خطا - یاس پورتال</PageTitle>
+
+<StatusPage Icon="@Icons.Alert" Tone="is-danger" Title="مشکلی پیش آمد"
+            Message="درخواست شما انجام نشد. لطفاً چند لحظه بعد دوباره تلاش کنید."
+            Hint="اگر خطا تکرار شد، زمان و کاری که انجام می‌دادید را به مدیر سامانه اطلاع دهید.">
+    <a class="btn btn-secondary" href="/"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+</StatusPage>

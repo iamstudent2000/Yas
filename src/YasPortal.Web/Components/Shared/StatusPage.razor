@@ -1,0 +1,29 @@
+@* A calm full-width message page: used for "access denied", "sign in required", "not found" and "something went wrong". *@
+<div class="status-page" dir="rtl">
+    <section class="status-card @Tone">
+        <div class="status-icon"><i class="ti @Icon"></i></div>
+        @if (!string.IsNullOrWhiteSpace(Code))
+        {
+            <div class="status-code">@Code</div>
+        }
+        <h1 class="status-title">@Title</h1>
+        <p class="status-message">@Message</p>
+        @if (Hint is not null)
+        {
+            <p class="status-hint"><i class="ti @Icons.Alert"></i> @Hint</p>
+        }
+        <div class="status-actions">@ChildContent</div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = Icons.Alert;
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string? Code { get; set; }
+
+    /// <summary>"is-warning", "is-danger" or "is-info": the accent of the icon and the top edge.</summary>
+    [Parameter] public string Tone { get; set; } = "is-info";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
