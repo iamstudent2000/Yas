@@ -359,7 +359,7 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .status-actions:empty{display:none}
 /* sign-in screen: no top bar, fills the window and never scrolls (a very short window scrolls inside the form panel only) */
 .application-shell.is-bare,.application-shell.is-bare .application-body,.application-shell.is-bare .shell-main{height:var(--app-h,100dvh);min-height:0;overflow:hidden;overflow:clip}
-.application-shell.is-bare .topbar{display:none}
+.application-shell.is-bare .topbar,.application-shell.is-bare .sidebar{display:none}
 .application-shell.is-bare .content{padding:0;max-width:none;margin:0;width:100%;flex:1 1 auto;min-height:0;overflow:hidden}
 .application-shell.is-bare .login-shell{min-height:0;height:100%;overflow:hidden;padding:clamp(12px,3vh,28px)}
 .application-shell.is-bare .login-frame{max-height:100%;min-height:0}
