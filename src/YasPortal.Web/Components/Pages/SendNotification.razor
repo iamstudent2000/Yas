@@ -23,15 +23,14 @@
     </div>
 
     <section class="card send-card">
-        <div class="send-everyone">
-            <button type="button" class="btn btn-secondary btn-sm" disabled="@(_busy || !HasAnythingToClear)" @onclick="ClearFormAsync"><i class="ti @Icons.ClearForm"></i> پاک‌کردن فهرست و فرم تازه</button>
-            <label class="check-row"><input type="checkbox" checked="@_everyone" @onchange="OnEveryoneChangedAsync" /> <i class="ti @Icons.Broadcast"></i> همه کارکنان فعال</label>
-            <small class="muted">با انتخاب این گزینه، همه‌ی کارکنان فعال گیرنده‌اند؛ می‌توانید در «فهرست گیرندگان» تیک عده‌ای را بردارید.</small>
-        </div>
-
         <div class="send-columns">
             <div class="send-panel">
                 <h3 class="send-panel-title"><i class="ti @Icons.PickFromList"></i> انتخاب افراد از فهرست</h3>
+                <div class="send-everyone">
+                    <label class="check-row"><input type="checkbox" checked="@_everyone" @onchange="OnEveryoneChangedAsync" /> <i class="ti @Icons.Broadcast"></i> همه کارکنان فعال</label>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(_busy || !HasAnythingToClear)" @onclick="ClearFormAsync"><i class="ti @Icons.ClearForm"></i> پاک‌کردن فهرست و فرم تازه</button>
+                </div>
+                <small class="muted">با «همه کارکنان فعال» همه گیرنده‌اند؛ در «فهرست گیرندگان» می‌توانید تیک عده‌ای را بردارید.</small>
                 <div class="audience-browser-filters">
                     <input class="form-control" value="@_browseText" placeholder="بخشی از نام، کد یا نام کاربری..."
                            @oninput="e => _browseText = e.Value?.ToString()" @onkeydown="OnBrowseKeyAsync" />
