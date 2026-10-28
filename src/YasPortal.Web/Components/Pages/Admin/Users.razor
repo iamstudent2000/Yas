@@ -62,8 +62,8 @@
             <ServerSearchableGuidSelect Value="@_organizationId" ValueChanged="OrganizationChanged"
                                         SearchAsync="SearchOrganizationsAsync" SelectedText="@_organizationName"
                                         Placeholder="سازمان را جستجو کنید..." SearchPlaceholder="نام سازمان را تایپ کنید..." /></div>
-        <div class="form-field"><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
-            <small class="help-text">@string.Join(" · ", _policy.Describe())</small></div>
+        @if (_editingId is null || _canSetPassword) {<div class="form-field"><label class="form-label">رمز عبور @(_editingId is null ? "" : "جدید - اختیاری")</label><input class="form-control" type="password" @bind="_password" autocomplete="new-password" />
+            <small class="help-text">@string.Join(" · ", _policy.Describe())</small></div>}
         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isAdmin" /> <span>مدیر سامانه باشد</span></label></div>
         <div class="form-field admin-row-submit">
             <div class="form-actions">
@@ -196,7 +196,7 @@
                         </div>
 
 @code {
-    private bool _canManage;
+    private bool _canManage, _canSetPassword;
     private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId, _organizationId;
     private string _code = "", _username = "", _fullName = "", _password = "", _organizationName = "";
@@ -224,7 +224,7 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
-    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersManage);  _policy = await PolicyService.GetAsync(); await LoadAsync(); }
+    protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersManage); _canSetPassword = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersPasswordSet);  _policy = await PolicyService.GetAsync(); await LoadAsync(); }
     private async Task LoadAsync()
     {
         _loading = true; try
@@ -298,6 +298,11 @@ null) { AppState.AddToast("کد، نام کاربری، نام و سازمان �
         await using var db = await
 DbFactory.CreateDbContextAsync();
         if (await db.Employees.AnyAsync(x => x.Code == code && x.Id != (_editingId ?? Guid.Empty))) { AppState.AddToast("کارمندی با این کد قبلاً ثبت شده است.", ToastLevel.Error); return; }
+        if (_editingId is not null && !_canSetPassword && !string.IsNullOrWhiteSpace(_password))
+        {
+            AppState.AddToast("شما مجوز تغییر رمز عبور کاربران را ندارید.", ToastLevel.Error);
+            return;
+        }
         if (!string.IsNullOrWhiteSpace(_password))
         {
             _policy = await PolicyService.GetAsync();

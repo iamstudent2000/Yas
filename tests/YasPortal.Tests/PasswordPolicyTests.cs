@@ -1,4 +1,5 @@
 using Xunit;
+using YasPortal.Application.Authorization;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Security;
 
@@ -83,5 +84,14 @@ public class PasswordPolicyTests
         e.SetAvatar(null);
         Assert.Null(e.AvatarKey);
         Assert.Throws<ArgumentException>(() => e.SetAvatar(new string('x', 41)));
+    }
+
+    [Fact]
+    public void The_password_permissions_are_in_the_catalog_once_and_manage_implies_view()
+    {
+        foreach (var code in new[] { Perm.AdminPasswordPolicyView, Perm.AdminPasswordPolicyManage, Perm.AdminUsersPasswordSet })
+            Assert.Single(PermissionCatalog.All, x => x.Code == code);
+        Assert.Equal(Perm.AdminPasswordPolicyManage, Perm.ManageFor(Perm.AdminPasswordPolicyView));
+        Assert.Equal(PermissionCatalog.All.Count, PermissionCatalog.Codes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 }
