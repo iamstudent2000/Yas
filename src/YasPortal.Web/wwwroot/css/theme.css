@@ -343,3 +343,17 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 @media(max-width:1100px){.send-columns{grid-template-columns:1fr}}
 @media(max-width:850px){.audience-browser-filters,.audience-save{grid-template-columns:1fr}}
 .send-everyone{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+/* status pages: access denied, sign-in required, not found, error */
+.status-page{display:flex;justify-content:center;padding:clamp(24px,7vh,72px) 0}
+.status-card{position:relative;width:min(560px,100%);padding:36px 32px 30px;border:1px solid var(--border,#e6ebf2);border-radius:18px;background:var(--surface,#fff);box-shadow:0 10px 36px rgba(16,24,40,.07);text-align:center;overflow:hidden;--status:var(--accent,#155eef);--status-soft:var(--accent-soft,#eef4ff)}
+.status-card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--status)}
+.status-card.is-warning{--status:#b54708;--status-soft:var(--warn-soft,#fffaeb)}
+.status-card.is-danger{--status:#b42318;--status-soft:var(--bad-soft,#fef3f2)}
+.status-icon{width:76px;height:76px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;background:var(--status-soft);color:var(--status);font-size:38px}
+.status-code{font-size:13px;font-weight:800;letter-spacing:.06em;color:var(--status);margin-bottom:4px}
+.status-title{margin:0 0 10px;font-size:22px}
+.status-message{margin:0 auto;max-width:440px;color:var(--text,#344054);font-size:14px;line-height:1.9}
+.status-hint{margin:16px auto 0;max-width:460px;padding:10px 14px;border-radius:11px;background:var(--surface-2,#f8fafc);color:var(--text-muted,#667085);font-size:12px;line-height:1.9;text-align:right}
+.status-hint i{vertical-align:-2px;color:var(--status)}
+.status-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}
+.status-actions:empty{display:none}

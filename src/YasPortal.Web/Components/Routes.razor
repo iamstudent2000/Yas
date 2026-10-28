@@ -1,17 +1,19 @@
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Components.Shared
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData">
-            <NotAuthorized>
-                <h1>Sign in required</h1>
-                <p>You must sign in to access this page.</p>
-                <a href="/login">Go to sign in</a>
+            <NotAuthorized Context="state">
+                <AccessDeniedView Authenticated="@(state.User.Identity?.IsAuthenticated == true)" />
             </NotAuthorized>
         </AuthorizeRouteView>
     </Found>
     <NotFound>
-        <h1>Not found</h1>
-        <p>Sorry, there's nothing at this address.</p>
+        <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="صفحه‌ای پیدا نشد"
+                    Message="نشانی واردشده وجود ندارد یا این صفحه جابه‌جا شده است.">
+            <button type="button" class="btn btn-secondary" onclick="history.back()"><i class="ti @Icons.Back"></i> بازگشت</button>
+            <a class="btn btn-primary" href="/"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+        </StatusPage>
     </NotFound>
 </Router>
