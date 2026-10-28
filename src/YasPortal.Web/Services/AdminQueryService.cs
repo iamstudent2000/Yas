@@ -36,14 +36,17 @@ public sealed class AdminQueryService(IDbContextFactory<ApplicationDbContext> db
         return await db.Employees.AsNoTracking().Where(x => x.IsActive && (excludeId == null || x.Id != excludeId) && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)))
             .OrderBy(x => x.FullName).Take(30).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
     }
-    /// <summary>Active employees for a tick-box list: optional text and organization filters, up to <paramref name="take"/> rows.</summary>
-    public async Task<IReadOnlyList<LookupItem>> BrowseActiveEmployeesAsync(string? search, Guid? organizationId, Guid? excludeId, int take = 100, CancellationToken ct = default)
+    /// <summary>Active employees for a tick-box list, one page at a time: optional text and organization filters.</summary>
+    public async Task<(IReadOnlyList<LookupItem> Items, int Total)> BrowseActiveEmployeesAsync(string? search, Guid? organizationId, Guid? excludeId, int skip, int take, CancellationToken ct = default)
     {
         var q = Normalize(search);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        return await db.Employees.AsNoTracking().Where(x => x.IsActive && (excludeId == null || x.Id != excludeId) && (organizationId == null || x.OrganizationId == organizationId)
-                && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)))
-            .OrderBy(x => x.FullName).Take(Math.Clamp(take, 1, 500)).Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+        var query = db.Employees.AsNoTracking().Where(x => x.IsActive && (excludeId == null || x.Id != excludeId) && (organizationId == null || x.OrganizationId == organizationId)
+            && (q == "" || x.FullName.Contains(q) || x.Username.Contains(q) || x.Code.Contains(q)));
+        var total = await query.CountAsync(ct);
+        var items = await query.OrderBy(x => x.FullName).ThenBy(x => x.Id).Skip(Math.Max(0, skip)).Take(Math.Clamp(take, 1, 500))
+            .Select(x => new LookupItem(x.Id, x.Code + " — " + x.FullName + " — " + x.Username + (x.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+        return (items, total);
     }
     public async Task<IReadOnlyList<LookupItem>> SearchAssignableEmployeesAsync(string? search, CancellationToken ct = default)
     {

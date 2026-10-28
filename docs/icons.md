@@ -10,7 +10,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Close` | `ti-x` | 20 | AccessManagement×4, SendNotification×3, AuditLog×2, PermissionGroups×2 +8 more |
+| `Close` | `ti-x` | 17 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +7 more |
 | `Confirm` | `ti-check` | 22 | Positions×6, AccessManagement×3, PermissionGroups×2, WorkflowDisplay×2 +9 more |
 | `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
 | `Save` | `ti-device-floppy` | 9 | MyProfile, SendNotification, PasswordPolicy, Organizations +5 more |
@@ -86,8 +86,8 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `SendNotification` | `ti-bell-plus` | 3 | SendNotification, NotificationReport, PersistentSidebar |
 | `NotificationsReport` | `ti-report-search` | 3 | NotificationReport×2, PersistentSidebar |
 | `Broadcast` | `ti-speakerphone` | 1 | SendNotification |
-| `RecipientGroup` | `ti-users-group` | 2 | SendNotification×2 |
-| `PickFromList` | `ti-list-check` | 2 | SendNotification×2 |
+| `RecipientGroup` | `ti-users-group` | 1 | SendNotification |
+| `PickFromList` | `ti-list-check` | 1 | SendNotification |
 | `Retract` | `ti-message-off` | 5 | NotificationReport×3, SendNotification×2 |
 | `RestoreNotification` | `ti-arrow-back-up` | 2 | NotificationReport×2 |
 
@@ -146,7 +146,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `RootPosition` | `ti-tree` | 1 | Positions |
 | `OpenBranches` | `ti-folder-open` | 1 | Positions |
 | `OrgStructure` | `ti-hierarchy-3` | 2 | Login, PersistentSidebar |
-| `Organization` | `ti-building` | 10 | Organizations×4, SendNotification×2, MyProfile, Dashboard +2 more |
+| `Organization` | `ti-building` | 8 | Organizations×4, MyProfile, Dashboard, ApplicationLayout +1 more |
 | `Subordinates` | `ti-users-group` | 3 | TeamHistory×2, PersistentSidebar |
 | `History` | `ti-history` | 13 | AssignmentHistory×3, PositionAssignmentHistoryPanel×3, TeamHistory×2, Inbox×2 +3 more |
 | `AuditLog` | `ti-file-search` | 4 | Login, AuditLog, ApplicationLayout, PersistentSidebar |
