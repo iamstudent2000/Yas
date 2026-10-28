@@ -316,3 +316,30 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .reach-team{background:#fff4e0;color:#b45309;border-color:#f6d9a6}
 .reach-all{background:#fde8e8;color:#b42318;border-color:#f5c2c0}
 .reach-all-act{background:#b42318;color:#fff}
+
+/* notification audience picker, small buttons, removed rows */
+.audience-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.audience-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--accent-soft,#eef4ff);color:var(--accent,#155eef);font-size:11px;font-weight:600}
+.audience-chip button{border:0;background:transparent;color:inherit;cursor:pointer;padding:0 2px;display:inline-flex}
+.btn-sm{padding:5px 9px;font-size:11px}
+.admin-table tr.row-muted td{opacity:.6}
+.audience-chip.is-on{background:var(--accent,#155eef);color:#fff}
+.audience-chip i{font-size:14px}
+.audience-chip-main{font-weight:700;font-size:11px}
+.audience-chip-confirm{font-size:10px;font-weight:700;color:#b42318}
+.check-row{display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:12px}
+.check-row input{width:16px;height:16px;accent-color:var(--accent,#155eef)}
+.send-page{max-width:none}
+.send-card{display:grid;gap:16px}
+.send-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.send-panel{border:1px solid var(--border,#e6ebf2);border-radius:12px;background:var(--surface-2,#f8fafc);padding:12px;min-width:0}
+.send-panel-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;font-size:14px}
+.audience-browser-filters{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:start}
+.audience-browser-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 6px}
+.audience-browser-list{margin-top:8px;border-top:1px solid var(--border,#e6ebf2);padding-top:6px;min-height:120px}
+.audience-save{display:grid;grid-template-columns:1fr auto;gap:8px;margin:12px 0 4px;max-width:720px}
+.send-message textarea{width:100%}
+.send-submit{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+@media(max-width:1100px){.send-columns{grid-template-columns:1fr}}
+@media(max-width:850px){.audience-browser-filters,.audience-save{grid-template-columns:1fr}}
+.send-everyone{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}

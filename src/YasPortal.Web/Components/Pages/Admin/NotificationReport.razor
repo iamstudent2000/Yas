@@ -1,6 +1,7 @@
 @page "/admin/notifications/report"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Notifications
 @using YasPortal.Infrastructure.Persistence
@@ -9,8 +10,11 @@
 @attribute [Authorize(Policy = Perm.AdminNotificationsView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
+@inject NotificationService NotificationSvc
 @inject ReportExportService Reports
 @inject AppState AppState
+@inject IAuthorizationService AuthorizationService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>گزارش اعلان‌ها - یاس پورتال</PageTitle>
 
@@ -64,6 +68,9 @@
         <div class="admin-filter"><label class="form-label">وضعیت خواندن</label>
             <LookupSelect @key="_resetKey" Options="_readOptions" Value="@_readState" ValueChanged="k => _readState = k" Placeholder="همه" />
         </div>
+        <div class="admin-filter"><label class="form-label">وضعیت نمایش</label>
+            <LookupSelect @key="_resetKey" Options="_removedOptions" Value="@_removedState" ValueChanged="k => _removedState = k" Placeholder="همه" />
+        </div>
         <div class="admin-filter"><label class="form-label">از تاریخ</label>
             <PersianDatePicker @key="_resetKey" Value="_from" ValueChanged="d => _from = d" Placeholder="تاریخ" />
         </div>
@@ -74,6 +81,31 @@
             <input class="form-control" @key="_resetKey" value="@_search" @oninput="e => _search = e.Value?.ToString()" placeholder="بخشی از متن اعلان..." />
         </div>
     </ListFilterBar>
+
+    @if (_canManage && _hasSearched && _applied.Count > 0 && _total > 0)
+    {
+        <section class="card" style="margin-top:14px">
+            <div class="card-toolbar">
+                <div>
+                    <strong>عملیات گروهی روی نتیجه‌ی فیلتر</strong>
+                    <p class="muted">اعلان‌های حذف‌شده از فهرست گیرنده پنهان می‌شوند ولی در گزارش می‌مانند و قابل بازگردانی‌اند.</p>
+                </div>
+                <div class="form-actions">
+                    @if (_confirmBulk is null)
+                    {
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirmBulk = true)"><i class="ti @Icons.Retract"></i> حذف همه‌ی نتیجه‌ها از فهرست گیرندگان</button>
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirmBulk = false)"><i class="ti @Icons.RestoreNotification"></i> بازگرداندن همه‌ی نتیجه‌ها</button>
+                    }
+                    else
+                    {
+                        <span class="muted">@(_confirmBulk == true ? "حذف" : "بازگرداندن") برای همه‌ی اعلان‌های مطابق فیلتر؟</span>
+                        <button class="btn btn-primary" disabled="@_busy" @onclick="ConfirmBulkAsync">بله، انجام شود</button>
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirmBulk = null)">انصراف</button>
+                    }
+                </div>
+            </div>
+        </section>
+    }
 
     <section class="card table-card" style="margin-top:14px">
         @if (!_hasSearched)
@@ -100,12 +132,16 @@
                             <SortableHeader Text="فرستنده" Column="sender" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
                             <th>متن</th>
                             <SortableHeader Text="وضعیت" Column="read" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />
+                            @if (_canManage)
+                            {
+                                <th></th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in _rows)
                         {
-                            <tr>
+                            <tr class="@(row.RemovedAtUtc is null ? "" : "row-muted")">
                                 <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
                                 <td><span class="admin-pill"><i class="ti @NotificationDisplay.IconFor(row.Kind)"></i> @NotificationDisplay.KindLabel(row.Kind)</span></td>
                                 <td><strong>@row.RecipientName</strong><br /><small class="muted">@row.RecipientUsername</small></td>
@@ -125,7 +161,24 @@
                                     {
                                         <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
                                     }
+                                    @if (row.RemovedAtUtc is DateTime removedAt)
+                                    {
+                                        <br /><span class="badge badge-warning" title="@WorkflowDisplay.ToPersianDateTime(removedAt)"><i class="ti @Icons.Retract"></i> حذف‌شده@(row.RemovedByName is null ? "" : " توسط " + row.RemovedByName)</span>
+                                    }
                                 </td>
+                                @if (_canManage)
+                                {
+                                    <td>
+                                        @if (row.RemovedAtUtc is null)
+                                        {
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" title="حذف از فهرست گیرنده" @onclick="() => SetRemovedAsync(row.Id, true)"><i class="ti @Icons.Retract"></i></button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" title="بازگرداندن به فهرست گیرنده" @onclick="() => SetRemovedAsync(row.Id, false)"><i class="ti @Icons.RestoreNotification"></i></button>
+                                        }
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>
@@ -138,13 +191,14 @@
 
 @code {
     private static readonly IReadOnlyList<(string Key, string Text)> _readOptions = [("read", "فقط خوانده‌شده"), ("unread", "فقط خوانده‌نشده")];
+    private static readonly IReadOnlyList<(string Key, string Text)> _removedOptions = [("active", "فقط نمایش‌داده‌شده"), ("removed", "فقط حذف‌شده")];
     private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
         Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), NotificationDisplay.KindLabel(k))).ToList();
 
     // The boxes edit these draft fields; "جستجو" copies them to _applied, which paging, sorting and the export read.
     private Guid? _recipientId, _senderId;
     private NotificationKind? _kind;
-    private string? _readState, _search;
+    private string? _readState, _search, _removedState;
     private DateTime? _from, _to;
     private int _resetKey;
     private NotificationService.ReportFilter _applied = new();
@@ -155,9 +209,47 @@
     private bool _sortDesc = true;
     // Nothing is read from the database until the first "جستجو" (like the audit log): the notifications table can be large.
     private bool _hasSearched;
-    private bool _loading, _exporting;
+    private bool _loading, _exporting, _busy;
+    private bool _canManage;
+    private Guid? _actorId;
+    // null = no bulk action pending; true = confirm removing the filtered notifications; false = confirm restoring them.
+    private bool? _confirmBulk;
 
-    private NotificationService.ReportFilter Draft() => new(_recipientId, _senderId, _kind, _readState, _search, _from, _to);
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _actorId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        _canManage = (await AuthorizationService.AuthorizeAsync(user, Perm.AdminNotificationsManage)).Succeeded;
+    }
+
+    private async Task SetRemovedAsync(Guid id, bool removed)
+    {
+        if (_busy || _actorId is not Guid actor) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.SetRemovedAsync(actor, [id], removed);
+            AppState.AddToast(result.Ok ? (removed ? "اعلان از فهرست گیرنده حذف شد." : "اعلان بازگردانده شد.") : result.Error ?? "انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            if (result.Ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ConfirmBulkAsync()
+    {
+        if (_busy || _confirmBulk is not bool removed || _actorId is not Guid actor) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.SetRemovedForFilterAsync(actor, _applied, removed);
+            _confirmBulk = null;
+            AppState.AddToast(result.Ok ? $"{result.Count.ToString("N0")} اعلان {(removed ? "حذف" : "بازگردانده")} شد." : result.Error ?? "انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            if (result.Ok) await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private NotificationService.ReportFilter Draft() => new(_recipientId, _senderId, _kind, _readState, _search, _from, _to, _removedState);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
 
@@ -190,7 +282,8 @@
     {
         _recipientId = _senderId = null;
         _kind = null;
-        _readState = _search = null;
+        _readState = _search = _removedState = null;
+        _confirmBulk = null;
         _from = _to = null;
         _applied = new();
         _resetKey++;
@@ -238,11 +331,11 @@
             var sortBy = _sortBy;
             var sortDesc = _sortDesc;
             await Reports.ExportTableAsync(ReportPermissions.Notifications, "notifications",
-                ["زمان", "نوع", "گیرنده", "نام کاربری گیرنده", "فرستنده", "متن", "مربوط به", "وضعیت", "زمان خواندن"],
+                ["زمان", "نوع", "گیرنده", "نام کاربری گیرنده", "فرستنده", "متن", "مربوط به", "وضعیت", "زمان خواندن", "حذف‌شده در", "حذف‌کننده"],
                 db => NotificationService.Report(db, filter, sortBy, sortDesc),
                 (_, chunk, _) => Task.FromResult<IReadOnlyList<IReadOnlyList<string>>>(chunk.Select(x => (IReadOnlyList<string>)
                     [ReportExportService.Time(x.CreatedAtUtc), NotificationDisplay.KindLabel(x.Kind), x.RecipientName, x.RecipientUsername, x.SenderName ?? "سامانه",
-                     x.Message, x.Kind == NotificationKind.Manual ? "" : x.RequestType, x.IsRead ? "خوانده شد" : "خوانده‌نشده", ReportExportService.Time(x.ReadAtUtc)]).ToList()));
+                     x.Message, x.Kind == NotificationKind.Manual ? "" : x.RequestType, x.IsRead ? "خوانده شد" : "خوانده‌نشده", ReportExportService.Time(x.ReadAtUtc), ReportExportService.Time(x.RemovedAtUtc), x.RemovedByName ?? ""]).ToList()));
         }
         finally { _exporting = false; }
     }

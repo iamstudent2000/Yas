@@ -10,21 +10,21 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Close` | `ti-x` | 17 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +7 more |
+| `Close` | `ti-x` | 18 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +8 more |
 | `Confirm` | `ti-check` | 22 | Positions×6, AccessManagement×3, PermissionGroups×2, WorkflowDisplay×2 +9 more |
 | `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
-| `Save` | `ti-device-floppy` | 8 | MyProfile, PasswordPolicy, Organizations, Workflows +4 more |
-| `Delete` | `ti-trash` | 4 | AuditLog, Workflows, PermissionGroups, Positions |
-| `Search` | `ti-search` | 16 | AccessManagement×3, AuditLog×2, Organizations×2, Permissions×2 +7 more |
+| `Save` | `ti-device-floppy` | 9 | MyProfile, SendNotification, PasswordPolicy, Organizations +5 more |
+| `Delete` | `ti-trash` | 5 | SendNotification, AuditLog, Workflows, PermissionGroups +1 more |
+| `Search` | `ti-search` | 19 | AccessManagement×3, SendNotification×2, AuditLog×2, Organizations×2 +9 more |
 | `SearchEmpty` | `ti-search-off` | 7 | AuditLog, AllRequests, Organizations, NotificationReport +3 more |
 | `Filter` | `ti-filter` | 1 | ListFilterBar |
 | `FilterClear` | `ti-filter-off` | 1 | ListFilterBar |
 | `CancelSearch` | `ti-player-stop` | 1 | ListFilterBar |
-| `Add` | `ti-plus` | 7 | Positions×2, Delegations, AuditLog, Organizations +2 more |
-| `Edit` | `ti-pencil` | 15 | Workflows×3, Organizations×2, PermissionGroups×2, Users×2 +4 more |
+| `Add` | `ti-plus` | 8 | Positions×2, SendNotification, Delegations, AuditLog +3 more |
+| `Edit` | `ti-pencil` | 16 | Workflows×3, Organizations×2, PermissionGroups×2, Users×2 +5 more |
 | `Details` | `ti-eye` | 5 | AuditLog, AllRequests, RejectedRequests, Permissions +1 more |
 | `More` | `ti-dots` | 1 | ListFilterBar |
-| `Send` | `ti-send` | 4 | SendNotification, NewRequestForOthers, NewRequest, MyRequests |
+| `Send` | `ti-send` | 5 | SendNotification×2, NewRequestForOthers, NewRequest, MyRequests |
 | `Print` | `ti-printer` | 2 | RequestSummary, ListFilterBar |
 | `ExportData` | `ti-file-export` | 1 | ListFilterBar |
 | `ExportSteps` | `ti-file-spreadsheet` | 1 | ListFilterBar |
@@ -85,6 +85,12 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Message` | `ti-message-circle` | 3 | SendNotification, NotificationReport, NotificationDisplay |
 | `SendNotification` | `ti-bell-plus` | 3 | SendNotification, NotificationReport, PersistentSidebar |
 | `NotificationsReport` | `ti-report-search` | 3 | NotificationReport×2, PersistentSidebar |
+| `Broadcast` | `ti-speakerphone` | 1 | SendNotification |
+| `RecipientGroup` | `ti-users-group` | 1 | SendNotification |
+| `PickFromList` | `ti-list-check` | 1 | SendNotification |
+| `ClearForm` | `ti-eraser` | 1 | SendNotification |
+| `Retract` | `ti-message-off` | 5 | NotificationReport×3, SendNotification×2 |
+| `RestoreNotification` | `ti-arrow-back-up` | 2 | NotificationReport×2 |
 
 ## Account and appearance
 
@@ -115,7 +121,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
 | `User` | `ti-user` | 9 | AssignmentHistory×2, Login, AuditLog, AccessManagement +4 more |
-| `Users` | `ti-users` | 8 | Organizations×2, PasswordPolicy, AccessManagement, Users +3 more |
+| `Users` | `ti-users` | 9 | Organizations×2, SendNotification, PasswordPolicy, AccessManagement +4 more |
 | `UserAdd` | `ti-user-plus` | 1 | Users |
 | `UserActivate` | `ti-user-check` | 1 | Users |
 | `UserDeactivate` | `ti-user-off` | 1 | Users |

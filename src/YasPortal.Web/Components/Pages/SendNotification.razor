@@ -13,31 +13,134 @@
 
 <PageTitle>ارسال اعلان - یاس پورتال</PageTitle>
 
-<div class="requests-page" dir="rtl">
+<div class="requests-page send-page" dir="rtl">
     <div class="page-header">
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
             <h1 class="page-title"><i class="ti @Icons.SendNotification"></i> ارسال اعلان</h1>
-            <p class="page-subtitle">یک پیام کوتاه برای یکی از کارکنان بفرستید. پیام در بخش اعلان‌های او نمایش داده می‌شود و فرستنده‌اش شما هستید.</p>
+            <p class="page-subtitle">یک پیام کوتاه برای یک یا چند نفر بفرستید. پیام در بخش اعلان‌های هر گیرنده نمایش داده می‌شود و فرستنده‌اش شما هستید. هر پیامی که فرستاده‌اید را می‌توانید پس بگیرید.</p>
         </div>
     </div>
 
-    <section class="card">
-        <div class="form-grid">
-            <div class="form-field">
-                <label class="form-label">گیرنده</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_recipientId" ValueChanged="id => { _recipientId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchRecipientsAsync" Placeholder="انتخاب کارمند..."
-                                            SearchPlaceholder="نام، کد یا نام کاربری را جستجو کنید..." />
+    <section class="card send-card">
+        <div class="send-columns">
+            <div class="send-panel">
+                <h3 class="send-panel-title"><i class="ti @Icons.PickFromList"></i> انتخاب افراد از فهرست</h3>
+                <div class="send-everyone">
+                    <label class="check-row"><input type="checkbox" checked="@_everyone" @onchange="OnEveryoneChangedAsync" /> <i class="ti @Icons.Broadcast"></i> همه کارکنان فعال</label>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(_busy || !HasAnythingToClear)" @onclick="ClearFormAsync"><i class="ti @Icons.ClearForm"></i> پاک‌کردن فهرست و فرم تازه</button>
+                </div>
+                <small class="muted">با «همه کارکنان فعال» همه گیرنده‌اند؛ در «فهرست گیرندگان» می‌توانید تیک عده‌ای را بردارید.</small>
+                <div class="audience-browser-filters">
+                    <input class="form-control" value="@_browseText" placeholder="بخشی از نام، کد یا نام کاربری..."
+                           @oninput="e => _browseText = e.Value?.ToString()" @onkeydown="OnBrowseKeyAsync" />
+                    <ServerSearchableGuidSelect @key="_browseKey" Value="_browseOrgId" ValueChanged="id => { _browseOrgId = id; return Task.CompletedTask; }"
+                                                SearchAsync="SearchOrganizationsAsync" Placeholder="همه‌ی سازمان‌ها" SearchPlaceholder="نام سازمان..." />
+                    <button type="button" class="btn btn-primary" disabled="@_browsing" @onclick="SearchBrowseAsync"><i class="ti @Icons.Search"></i> جستجو</button>
+                </div>
+                <div class="audience-browser-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(_browseItems.Count == 0 || _everyone)" @onclick="TickPageAsync">تیک همه‌ی این صفحه</button>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(_browseTotal == 0 || _everyone)" @onclick="TickAllMatchesAsync"><i class="ti @Icons.Add"></i> افزودن همه‌ی @_browseTotal.ToString("N0") نتیجه</button>
+                    <button type="button" class="btn btn-secondary btn-sm" disabled="@(_browseItems.Count == 0 || _everyone)" @onclick="UntickPageAsync">برداشتن تیک این صفحه</button>
+                </div>
+                <div class="audience-browser-list">
+                    @foreach (var item in _browseItems)
+                    {
+                        <label class="check-row">
+                            <input type="checkbox" disabled="@_everyone" checked="@(_everyone || _employees.ContainsKey(item.Id))" @onchange="e => TogglePickedAsync(item, e.Value is true)" />
+                            <span>@item.Text</span>
+                        </label>
+                    }
+                    @if (_browseItems.Count == 0)
+                    {
+                        <div class="muted" style="padding:10px">کسی پیدا نشد.</div>
+                    }
+                </div>
+                <ServerPagination Page="_browsePage" PageSize="_browsePageSize" TotalCount="_browseTotal" Busy="_browsing" PageChanged="GoToBrowsePageAsync" PageSizeChanged="OnBrowsePageSizeChangedAsync" />
             </div>
-            <div class="form-field" style="grid-column:1 / -1">
-                <label class="form-label">متن اعلان</label>
-                <textarea class="form-control" rows="4" maxlength="@Notification.MaxMessageLength" placeholder="پیام خود را بنویسید..."
-                          value="@_message" @oninput="e => _message = e.Value?.ToString() ?? string.Empty"></textarea>
-                <small class="muted">@_message.Trim().Length از @Notification.MaxMessageLength نویسه</small>
+
+            <div class="send-panel">
+                <h3 class="send-panel-title"><i class="ti @Icons.Users"></i> فهرست گیرندگان
+                    <span class="badge badge-muted">@((_recipientCount ?? 0).ToString("N0")) نفر</span>
+                    @if (_excluded.Count > 0)
+                    {
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="ClearExclusionsAsync">بازگرداندن @_excluded.Count.ToString("N0") نفر کنار گذاشته‌شده</button>
+                    }
+                </h3>
+                <div class="audience-browser-filters">
+                    <input class="form-control" value="@_reviewText" placeholder="جستجو در گیرندگان..." @oninput="e => _reviewText = e.Value?.ToString()" @onkeydown="OnReviewKeyAsync" />
+                    <span></span>
+                    <button type="button" class="btn btn-primary" @onclick="SearchReviewAsync"><i class="ti @Icons.Search"></i> جستجو</button>
+                </div>
+                <small class="muted">تیک را از کسانی که نباید پیام را بگیرند بردارید.</small>
+                <div class="audience-browser-list">
+                    @foreach (var item in _reviewItems)
+                    {
+                        <label class="check-row">
+                            <input type="checkbox" checked="@(!_excluded.Contains(item.Id))" @onchange="e => ToggleRecipientAsync(item.Id, e.Value is true)" />
+                            <span>@item.Text</span>
+                        </label>
+                    }
+                    @if (_reviewItems.Count == 0)
+                    {
+                        <div class="muted" style="padding:10px">هنوز گیرنده‌ای انتخاب نشده است. از فهرست سمت راست تیک بزنید یا یک گروه را اضافه کنید.</div>
+                    }
+                </div>
+                <ServerPagination Page="_reviewPage" PageSize="_reviewPageSize" TotalCount="_reviewTotal" Busy="false" PageChanged="GoToReviewPageAsync" PageSizeChanged="OnReviewPageSizeChangedAsync" />
             </div>
-            <div class="form-field dlg-submit">
-                <button class="btn btn-primary" disabled="@(_busy || _recipientId is null || _message.Trim().Length == 0)" @onclick="SendAsync">
+        </div>
+
+        <div class="send-groups">
+            <label class="form-label"><i class="ti @Icons.RecipientGroup"></i> گروه‌های من</label>
+            @if (_groups.Count == 0)
+            {
+                <small class="muted">هنوز گروهی ندارید. گیرندگان را انتخاب کنید و با «ذخیره به‌عنوان گروه» برای دفعات بعد نگه دارید.</small>
+            }
+            else
+            {
+                <div class="audience-chips">
+                    @foreach (var group in _groups)
+                    {
+                        var used = _groupIds.ContainsKey(group.Id);
+                        <span class="audience-chip @(used ? "is-on" : "")">
+                            <button type="button" class="audience-chip-main" title="@(used ? "برداشتن از گیرندگان" : "افزودن به گیرندگان")" @onclick="() => ToggleGroupAsync(group)">@group.Name (@group.MemberCount.ToString("N0"))</button>
+                            <button type="button" title="بارگذاری اعضا در انتخاب دستی برای ویرایش" @onclick="() => LoadGroupMembersAsync(group)"><i class="ti @Icons.Edit"></i></button>
+                            @if (_deleteGroupId == group.Id)
+                            {
+                                <button type="button" class="audience-chip-confirm" title="تأیید حذف گروه" disabled="@_busy" @onclick="() => DeleteGroupAsync(group)">حذف شود؟</button>
+                                <button type="button" title="انصراف از حذف" @onclick="() => _deleteGroupId = null"><i class="ti @Icons.Close"></i> انصراف</button>
+                            }
+                            else
+                            {
+                                <button type="button" title="حذف گروه" @onclick="() => _deleteGroupId = group.Id"><i class="ti @Icons.Delete"></i></button>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+            <div class="audience-save">
+                <input class="form-control" maxlength="@RecipientGroup.MaxNameLength" value="@_groupName" placeholder="نام گروه برای ذخیره‌ی گیرندگان فعلی..." @oninput="e => _groupName = e.Value?.ToString() ?? string.Empty" />
+                <button type="button" class="btn btn-secondary" disabled="@(_busy || _groupName.Trim().Length == 0 || CurrentAudience().IsEmpty)" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> ذخیره به‌عنوان گروه</button>
+            </div>
+            <small class="muted">هم‌نام بودن با گروه قبلی، اعضای آن را جایگزین می‌کند.</small>
+        </div>
+
+        <div class="send-message">
+            <label class="form-label">متن اعلان</label>
+            <textarea class="form-control" rows="4" maxlength="@Notification.MaxMessageLength" placeholder="پیام خود را بنویسید..."
+                      value="@_message" @oninput="e => _message = e.Value?.ToString() ?? string.Empty"></textarea>
+            <small class="muted">@_message.Trim().Length از @Notification.MaxMessageLength نویسه</small>
+        </div>
+        <div class="send-submit">
+            @if (_confirming)
+            {
+                <span class="muted">ارسال برای @(_recipientCount?.ToString("N0")) نفر؟ بعداً می‌توانید آن را پس بگیرید.</span>
+                <button class="btn btn-primary" disabled="@_busy" @onclick="SendAsync"><i class="ti @Icons.Send"></i> بله، ارسال شود</button>
+                <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirming = false)">انصراف</button>
+            }
+            else
+            {
+                <button class="btn btn-primary" disabled="@(_busy || !CanSubmit)" @onclick="BeginSendAsync">
                     @if (_busy)
                     {
                         <i class="ti @Icons.Spinner"></i>
@@ -48,7 +151,7 @@
                     }
                     ارسال اعلان
                 </button>
-            </div>
+            }
         </div>
     </section>
 
@@ -56,7 +159,7 @@
         <div class="card-toolbar">
             <div>
                 <h2 class="section-title"><i class="ti @Icons.Message"></i> اعلان‌های ارسالی من <span class="badge badge-muted">@_total</span></h2>
-                <p class="muted">هر اعلان با وضعیت خوانده‌شدن آن توسط گیرنده.</p>
+                <p class="muted">هر پیام یک بار نمایش داده می‌شود، با تعداد گیرندگان و خوانده‌شده‌ها. «پس‌گرفتن» پیام را از فهرست همه‌ی گیرندگان پنهان می‌کند.</p>
             </div>
         </div>
         @if (_loading)
@@ -72,23 +175,47 @@
             <div class="admin-table-wrap">
                 <table class="admin-table">
                     <thead>
-                        <tr><th>گیرنده</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th></tr>
+                        <tr><th>گیرنده‌ها</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var row in _sent)
                         {
-                            <tr>
-                                <td>@row.RecipientName</td>
-                                <td style="white-space:pre-line">@row.Message</td>
-                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                            <tr class="@(row.Removed == row.Total ? "row-muted" : "")">
                                 <td>
-                                    @if (row.IsRead)
+                                    @if (row.RecipientName is not null)
                                     {
-                                        <span class="badge badge-success" title="@(row.ReadAtUtc is DateTime readAt ? WorkflowDisplay.ToPersianDateTime(readAt) : "")"><i class="ti @Icons.ConfirmAll"></i> خوانده شد</span>
+                                        @row.RecipientName
                                     }
                                     else
                                     {
-                                        <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
+                                        <strong>@row.Total.ToString("N0") نفر</strong>
+                                        @if (!string.IsNullOrWhiteSpace(row.AudienceLabel))
+                                        {
+                                            <br /><small class="muted">@row.AudienceLabel</small>
+                                        }
+                                    }
+                                </td>
+                                <td style="white-space:pre-line">@row.Message</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                                <td>
+                                    <span class="badge @(row.Read == row.Total ? "badge-success" : "badge-muted")"><i class="ti @(row.Read == row.Total ? Icons.ConfirmAll : Icons.Awaiting)"></i> @row.Read.ToString("N0") از @row.Total.ToString("N0") خوانده شد</span>
+                                    @if (row.Removed > 0)
+                                    {
+                                        <br /><span class="badge badge-warning"><i class="ti @Icons.Retract"></i> @(row.Removed == row.Total ? "پس‌گرفته شد" : $"{row.Removed:N0} مورد پس‌گرفته شد")</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.Removed < row.Total)
+                                    {
+                                        @if (_retractKey == row.Key)
+                                        {
+                                            <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => RetractAsync(row.Key)">تأیید پس‌گرفتن</button>
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="@(() => _retractKey = null)">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="@(() => _retractKey = row.Key)"><i class="ti @Icons.Retract"></i> پس‌گرفتن</button>
+                                        }
                                     }
                                 </td>
                             </tr>
@@ -103,13 +230,35 @@
 
 @code {
     private Guid? _employeeId;
-    private Guid? _recipientId;
+    private bool _everyone;
+    // Ticked people and chosen groups; the people the message reaches are these plus the groups' members, minus _excluded.
+    private readonly Dictionary<Guid, string> _employees = [];
+    private readonly Dictionary<Guid, string> _groupIds = [];
+    private readonly Dictionary<Guid, string> _seen = [];
+    private readonly HashSet<Guid> _excluded = [];
+    private List<NotificationService.GroupSummary> _groups = [];
+    private Guid? _deleteGroupId;
+    private string _groupName = string.Empty;
+    private int _browseKey;
+    private int? _recipientCount;
     private string _message = string.Empty;
-    private bool _busy;
-    private int _resetKey;
+    private bool _busy, _confirming;
+    private Guid? _retractKey;
+
+    // "انتخاب افراد از فهرست": a paged list of active employees; a tick adds the person straight away.
+    private bool _browsing;
+    private string? _browseText;
+    private Guid? _browseOrgId;
+    private List<AdminQueryService.LookupItem> _browseItems = [];
+    private int _browsePage = 1, _browsePageSize = 20, _browseTotal;
+
+    // "فهرست گیرندگان": everyone the message reaches, paged, with a tick each (untick = leave out).
+    private string? _reviewText;
+    private List<AdminQueryService.LookupItem> _reviewItems = [];
+    private int _reviewPage = 1, _reviewPageSize = 20, _reviewTotal;
 
     private bool _loading = true;
-    private List<NotificationService.SentRow> _sent = [];
+    private List<NotificationService.SentGroup> _sent = [];
     private int _page = 1;
     private int _pageSize = 10;
     private int _total;
@@ -118,11 +267,283 @@
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        await LoadGroupsAsync();
+        await LoadBrowseAsync();
         await LoadAsync();
     }
 
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchRecipientsAsync(string search, CancellationToken ct) =>
-        AdminQueries.SearchActiveEmployeesAsync(search, _employeeId, ct);
+    private bool HasAnythingToClear => _everyone || _employees.Count > 0 || _groupIds.Count > 0 || _excluded.Count > 0 || _message.Length > 0
+        || _groupName.Length > 0 || !string.IsNullOrWhiteSpace(_browseText) || _browseOrgId is not null || !string.IsNullOrWhiteSpace(_reviewText);
+
+    /// <summary>Back to a fresh form: no recipients, no message, no filters.</summary>
+    private async Task ClearFormAsync()
+    {
+        _everyone = false;
+        _employees.Clear();
+        _groupIds.Clear();
+        _excluded.Clear();
+        _message = string.Empty;
+        _groupName = string.Empty;
+        _deleteGroupId = null;
+        _confirming = false;
+        _browseText = null;
+        _browseOrgId = null;
+        _browseKey++;
+        _browsePage = 1;
+        _reviewText = null;
+        _reviewPage = 1;
+        _recipientCount = null;
+        _reviewItems = [];
+        _reviewTotal = 0;
+        await LoadBrowseAsync();
+    }
+
+    private bool CanSubmit => _message.Trim().Length > 0 && !CurrentAudience().IsEmpty;
+
+    private NotificationService.Audience CurrentAudience() =>
+        new(_everyone, _employees.Keys.ToList(), null, _groupIds.Keys.ToList(), _excluded.ToList());
+
+    /// <summary>The audience changed: recount, and show the first page of the recipients again.</summary>
+    private async Task AudienceChangedAsync()
+    {
+        _confirming = false;
+        var audience = CurrentAudience();
+        if (audience.IsEmpty) _excluded.Clear();
+        _reviewPage = 1;
+        await RefreshRecipientsAsync();
+    }
+
+    private async Task RefreshRecipientsAsync()
+    {
+        var audience = CurrentAudience();
+        if (_employeeId is not Guid senderId || audience.IsEmpty)
+        {
+            _recipientCount = null;
+            _reviewItems = [];
+            _reviewTotal = 0;
+            return;
+        }
+        _recipientCount = await NotificationSvc.CountRecipientsAsync(senderId, audience);
+        await LoadReviewAsync();
+    }
+
+    private async Task LoadGroupsAsync()
+    {
+        _groups = _employeeId is Guid owner ? await NotificationSvc.ListGroupsAsync(owner) : [];
+        // Forget groups that no longer exist.
+        foreach (var gone in _groupIds.Keys.Where(k => _groups.All(g => g.Id != k)).ToList())
+            _groupIds.Remove(gone);
+    }
+
+    private async Task OnEveryoneChangedAsync(ChangeEventArgs e)
+    {
+        _everyone = e.Value is true;
+        await AudienceChangedAsync();
+    }
+
+    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) =>
+        await AdminQueries.SearchOrganizationsAsync(search, true, ct);
+
+    // ---- فهرست گیرندگان ----
+
+    private async Task LoadReviewAsync()
+    {
+        if (_employeeId is not Guid senderId) return;
+        var audience = CurrentAudience();
+        var totalPages = 1;
+        (_reviewItems, _reviewTotal) = await NotificationSvc.ListRecipientsAsync(senderId, audience, _reviewText, (_reviewPage - 1) * _reviewPageSize, _reviewPageSize);
+        totalPages = Math.Max(1, (int)Math.Ceiling(_reviewTotal / (double)_reviewPageSize));
+        if (_reviewPage > totalPages)
+        {
+            _reviewPage = totalPages;
+            (_reviewItems, _reviewTotal) = await NotificationSvc.ListRecipientsAsync(senderId, audience, _reviewText, (_reviewPage - 1) * _reviewPageSize, _reviewPageSize);
+        }
+    }
+
+    private async Task SearchReviewAsync()
+    {
+        _reviewPage = 1;
+        await LoadReviewAsync();
+    }
+
+    private async Task OnReviewKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchReviewAsync();
+    }
+
+    private async Task GoToReviewPageAsync(int page)
+    {
+        _reviewPage = page;
+        await LoadReviewAsync();
+    }
+
+    private async Task OnReviewPageSizeChangedAsync(int size)
+    {
+        _reviewPageSize = Math.Clamp(size, 5, 100);
+        _reviewPage = 1;
+        await LoadReviewAsync();
+    }
+
+    private async Task ToggleRecipientAsync(Guid id, bool receives)
+    {
+        if (receives) _excluded.Remove(id);
+        else _excluded.Add(id);
+        _confirming = false;
+        _recipientCount = _employeeId is Guid senderId ? await NotificationSvc.CountRecipientsAsync(senderId, CurrentAudience()) : null;
+    }
+
+    private async Task ClearExclusionsAsync()
+    {
+        _excluded.Clear();
+        _confirming = false;
+        await RefreshRecipientsAsync();
+    }
+
+    // ---- انتخاب افراد از فهرست ----
+
+    private async Task LoadBrowseAsync()
+    {
+        _browsing = true;
+        try
+        {
+            var (items, total) = await AdminQueries.BrowseActiveEmployeesAsync(_browseText, _browseOrgId, _employeeId, (_browsePage - 1) * _browsePageSize, _browsePageSize);
+            var totalPages = Math.Max(1, (int)Math.Ceiling(total / (double)_browsePageSize));
+            if (_browsePage > totalPages)
+            {
+                _browsePage = totalPages;
+                (items, total) = await AdminQueries.BrowseActiveEmployeesAsync(_browseText, _browseOrgId, _employeeId, (_browsePage - 1) * _browsePageSize, _browsePageSize);
+            }
+            _browseItems = items.ToList();
+            _browseTotal = total;
+        }
+        finally { _browsing = false; }
+    }
+
+    private async Task SearchBrowseAsync()
+    {
+        _browsePage = 1;
+        await LoadBrowseAsync();
+    }
+
+    private async Task OnBrowseKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchBrowseAsync();
+    }
+
+    private async Task GoToBrowsePageAsync(int page)
+    {
+        _browsePage = page;
+        await LoadBrowseAsync();
+    }
+
+    private async Task OnBrowsePageSizeChangedAsync(int size)
+    {
+        _browsePageSize = Math.Clamp(size, 5, 100);
+        _browsePage = 1;
+        await LoadBrowseAsync();
+    }
+
+    private bool TryPick(AdminQueryService.LookupItem item)
+    {
+        if (_employees.ContainsKey(item.Id)) return true;
+        if (_employees.Count >= NotificationService.MaxSelectedRecipients)
+        {
+            AppState.AddToast($"حداکثر {NotificationService.MaxSelectedRecipients} نفر را می‌توان یکی‌یکی انتخاب کرد؛ برای تعداد بیشتر از «همه» یا گروه استفاده کنید.", ToastLevel.Warning);
+            return false;
+        }
+        _employees[item.Id] = item.Text;
+        // Ticking someone again after leaving them out brings them back.
+        _excluded.Remove(item.Id);
+        return true;
+    }
+
+    private async Task TogglePickedAsync(AdminQueryService.LookupItem item, bool on)
+    {
+        if (on) TryPick(item);
+        else _employees.Remove(item.Id);
+        await AudienceChangedAsync();
+    }
+
+    private async Task TickPageAsync()
+    {
+        foreach (var item in _browseItems)
+            if (!TryPick(item)) break;
+        await AudienceChangedAsync();
+    }
+
+    private async Task UntickPageAsync()
+    {
+        foreach (var item in _browseItems)
+            _employees.Remove(item.Id);
+        await AudienceChangedAsync();
+    }
+
+    /// <summary>Adds every person the current search matches (all pages), up to the hand-picked limit.</summary>
+    private async Task TickAllMatchesAsync()
+    {
+        var (items, _) = await AdminQueries.BrowseActiveEmployeesAsync(_browseText, _browseOrgId, _employeeId, 0, NotificationService.MaxSelectedRecipients);
+        foreach (var item in items)
+            if (!TryPick(item)) break;
+        if (_browseTotal > NotificationService.MaxSelectedRecipients)
+            AppState.AddToast($"فقط {NotificationService.MaxSelectedRecipients} نفر اول افزوده شد؛ جستجو را محدودتر کنید یا «همه» را بزنید.", ToastLevel.Warning);
+        await AudienceChangedAsync();
+    }
+
+    // ---- groups ----
+
+    private async Task ToggleGroupAsync(NotificationService.GroupSummary group)
+    {
+        if (!_groupIds.Remove(group.Id))
+            _groupIds[group.Id] = group.Name;
+        await AudienceChangedAsync();
+    }
+
+    private async Task LoadGroupMembersAsync(NotificationService.GroupSummary group)
+    {
+        if (_employeeId is not Guid owner) return;
+        var members = await NotificationSvc.GetGroupMembersAsync(owner, group.Id);
+        foreach (var member in members)
+            if (!TryPick(member)) break;
+        _groupName = group.Name;
+        AppState.AddToast("اعضای گروه به انتخاب دستی اضافه شد؛ در «فهرست گیرندگان» ویرایش کنید و با همان نام دوباره ذخیره کنید.", ToastLevel.Info);
+        await AudienceChangedAsync();
+    }
+
+    private async Task SaveGroupAsync()
+    {
+        if (_busy || _employeeId is not Guid owner) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.SaveGroupAsync(owner, _groupName, CurrentAudience());
+            if (!result.Ok)
+            {
+                AppState.AddToast(result.Error ?? "ذخیره‌ی گروه انجام نشد.", ToastLevel.Error);
+                return;
+            }
+            AppState.AddToast($"گروه «{_groupName.Trim()}» با {result.Count:N0} عضو ذخیره شد.", ToastLevel.Success);
+            _groupName = string.Empty;
+            await LoadGroupsAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteGroupAsync(NotificationService.GroupSummary group)
+    {
+        if (_busy || _employeeId is not Guid owner) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.DeleteGroupAsync(owner, group.Id);
+            _deleteGroupId = null;
+            AppState.AddToast(result.Ok ? $"گروه «{group.Name}» حذف شد." : result.Error ?? "انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            await LoadGroupsAsync();
+            await AudienceChangedAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    // ---- sending and sent history ----
 
     private async Task LoadAsync()
     {
@@ -145,25 +566,57 @@
         finally { _loading = false; }
     }
 
+    // A message to several people asks for one more click before it goes out; a message to one person goes straight away.
+    private async Task BeginSendAsync()
+    {
+        if (!CanSubmit) return;
+        _recipientCount = _employeeId is Guid senderId ? await NotificationSvc.CountRecipientsAsync(senderId, CurrentAudience()) : null;
+        if (_recipientCount is int count && count > 1)
+        {
+            _confirming = true;
+            return;
+        }
+        await SendAsync();
+    }
+
     private async Task SendAsync()
     {
-        if (_busy || _employeeId is not Guid senderId || _recipientId is not Guid recipientId)
-            return;
+        if (_busy || _employeeId is not Guid senderId) return;
         _busy = true;
         try
         {
-            var (ok, error) = await NotificationSvc.SendAsync(senderId, recipientId, _message);
-            if (!ok)
+            var result = await NotificationSvc.SendAsync(senderId, CurrentAudience(), _message);
+            _confirming = false;
+            if (!result.Ok)
             {
-                AppState.AddToast(error ?? "ارسال اعلان انجام نشد.", ToastLevel.Error);
+                AppState.AddToast(result.Error ?? "ارسال اعلان انجام نشد.", ToastLevel.Error);
                 return;
             }
-            AppState.AddToast("اعلان ارسال شد.", ToastLevel.Success);
+            AppState.AddToast(result.Sent == 1 ? "اعلان ارسال شد." : $"اعلان برای {result.Sent:N0} نفر ارسال شد.", ToastLevel.Success);
             _message = string.Empty;
-            _recipientId = null;
-            _resetKey++;
+            _employees.Clear();
+            _groupIds.Clear();
+            _excluded.Clear();
+            _everyone = false;
+            _recipientCount = null;
+            _reviewItems = [];
+            _reviewTotal = 0;
             _page = 1;
             await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RetractAsync(Guid key)
+    {
+        if (_busy || _employeeId is not Guid senderId) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.RetractAsync(senderId, key);
+            _retractKey = null;
+            AppState.AddToast(result.Ok ? $"پیام از فهرست {result.Count:N0} گیرنده پس‌گرفته شد." : result.Error ?? "انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            if (result.Ok) await LoadAsync();
         }
         finally { _busy = false; }
     }

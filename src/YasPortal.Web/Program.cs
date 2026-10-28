@@ -136,8 +136,26 @@ if (app.Environment.IsDevelopment())
         END;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_SenderEmployeeId_CreatedAtUtc')
             EXEC(N'CREATE INDEX [IX_Notifications_SenderEmployeeId_CreatedAtUtc] ON [dbo].[Notifications] ([SenderEmployeeId], [CreatedAtUtc])');
+        IF COL_LENGTH(N'dbo.Notifications', N'BatchId') IS NULL ALTER TABLE [dbo].[Notifications] ADD [BatchId] uniqueidentifier NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'AudienceLabel') IS NULL ALTER TABLE [dbo].[Notifications] ADD [AudienceLabel] nvarchar(300) NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'RemovedAtUtc') IS NULL ALTER TABLE [dbo].[Notifications] ADD [RemovedAtUtc] datetime2 NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'RemovedByEmployeeId') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[Notifications] ADD [RemovedByEmployeeId] uniqueidentifier NULL;
+            EXEC(N'ALTER TABLE [dbo].[Notifications] ADD CONSTRAINT [FK_Notifications_Employees_RemovedByEmployeeId] FOREIGN KEY ([RemovedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id])');
+        END;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_BatchId')
+            EXEC(N'CREATE INDEX [IX_Notifications_BatchId] ON [dbo].[Notifications] ([BatchId])');
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_CreatedAtUtc')
             EXEC(N'CREATE INDEX [IX_Notifications_CreatedAtUtc] ON [dbo].[Notifications] ([CreatedAtUtc])');
+        IF OBJECT_ID(N'dbo.RecipientGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[RecipientGroups] ([Id] uniqueidentifier NOT NULL, [OwnerEmployeeId] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_RecipientGroups] PRIMARY KEY ([Id]), CONSTRAINT [FK_RecipientGroups_Employees_OwnerEmployeeId] FOREIGN KEY ([OwnerEmployeeId]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE CASCADE);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.RecipientGroups') AND name = N'IX_RecipientGroups_OwnerEmployeeId_Name')
+            EXEC(N'CREATE UNIQUE INDEX [IX_RecipientGroups_OwnerEmployeeId_Name] ON [dbo].[RecipientGroups] ([OwnerEmployeeId], [Name])');
+        IF OBJECT_ID(N'dbo.RecipientGroupMembers', N'U') IS NULL
+            CREATE TABLE [dbo].[RecipientGroupMembers] ([GroupId] uniqueidentifier NOT NULL, [EmployeeId] uniqueidentifier NOT NULL, CONSTRAINT [PK_RecipientGroupMembers] PRIMARY KEY ([GroupId], [EmployeeId]), CONSTRAINT [FK_RecipientGroupMembers_RecipientGroups_GroupId] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[RecipientGroups] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_RecipientGroupMembers_Employees_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.RecipientGroupMembers') AND name = N'IX_RecipientGroupMembers_EmployeeId')
+            EXEC(N'CREATE INDEX [IX_RecipientGroupMembers_EmployeeId] ON [dbo].[RecipientGroupMembers] ([EmployeeId])');
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);

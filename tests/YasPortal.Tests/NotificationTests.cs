@@ -255,9 +255,71 @@ public class NotificationTests
     }
 
     [Fact]
+    public void A_message_sent_to_many_carries_the_batch_and_audience_and_can_be_removed_and_restored()
+    {
+        var sender = Guid.NewGuid();
+        var batch = Guid.NewGuid();
+        var n = Notification.FromSender(sender, Guid.NewGuid(), "علی", "سلام", "/notifications", batch, "همه کارکنان");
+        Assert.Equal(batch, n.BatchId);
+        Assert.Equal("همه کارکنان", n.AudienceLabel);
+        Assert.False(n.IsRemoved);
+
+        var admin = Guid.NewGuid();
+        n.Remove(admin);
+        var firstRemoval = n.RemovedAtUtc;
+        n.Remove(Guid.NewGuid());
+        Assert.True(n.IsRemoved);
+        Assert.Equal(admin, n.RemovedByEmployeeId);
+        Assert.Equal(firstRemoval, n.RemovedAtUtc);
+        Assert.Throws<ArgumentException>(() => Notification.FromSender(sender, Guid.NewGuid(), "x", "y", "/n").Remove(Guid.Empty));
+
+        n.Restore();
+        Assert.False(n.IsRemoved);
+        Assert.Null(n.RemovedByEmployeeId);
+    }
+
+    [Fact]
+    public void A_very_long_audience_label_is_truncated()
+    {
+        var n = Notification.FromSender(Guid.NewGuid(), Guid.NewGuid(), "علی", "سلام", "/notifications", Guid.NewGuid(), new string('م', 1000));
+        Assert.Equal(Notification.MaxAudienceLabelLength, n.AudienceLabel!.Length);
+    }
+
+    [Fact]
+    public void A_recipient_group_needs_an_owner_and_a_name_that_fits()
+    {
+        var owner = Guid.NewGuid();
+        var group = new RecipientGroup(owner, "  تیم فروش  ");
+        Assert.Equal("تیم فروش", group.Name);
+        Assert.Equal(owner, group.OwnerEmployeeId);
+
+        group.Rename("تیم مالی");
+        Assert.Equal("تیم مالی", group.Name);
+
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(Guid.Empty, "x"));
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(owner, "   "));
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(owner, new string('ن', RecipientGroup.MaxNameLength + 1)));
+        Assert.Throws<ArgumentException>(() => new RecipientGroupMember(Guid.NewGuid(), Guid.Empty));
+    }
+
+    [Fact]
+    public async Task Group_members_are_stored_once_per_employee_and_removed_with_their_group()
+    {
+        await using var db = Create(nameof(Group_members_are_stored_once_per_employee_and_removed_with_their_group));
+        var group = new RecipientGroup(Guid.NewGuid(), "گروه");
+        var employee = Guid.NewGuid();
+        db.RecipientGroups.Add(group);
+        db.RecipientGroupMembers.Add(new RecipientGroupMember(group.Id, employee));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, await db.RecipientGroupMembers.CountAsync(m => m.GroupId == group.Id));
+        Assert.Single(await db.RecipientGroups.Where(g => g.Name == "گروه").ToListAsync());
+    }
+
+    [Fact]
     public void The_notification_permissions_are_in_the_catalog_exactly_once()
     {
-        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
+        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, Perm.AdminNotificationsManage, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
             Assert.Single(PermissionCatalog.All, x => x.Code == code);
 
         Assert.Equal(PermissionCatalog.All.Count, PermissionCatalog.Codes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
