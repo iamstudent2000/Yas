@@ -15,14 +15,28 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notif
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_CreatedAtUtc')
     EXEC(N'CREATE INDEX IX_Notifications_CreatedAtUtc ON dbo.Notifications (CreatedAtUtc)');
 
--- 2) The four new permissions (the application also creates missing ones at development startup).
+-- 1b) Sending to many people at once, and taking a message back (hidden from the recipient, kept in the report).
+IF COL_LENGTH(N'dbo.Notifications', N'BatchId') IS NULL ALTER TABLE dbo.Notifications ADD BatchId uniqueidentifier NULL;
+IF COL_LENGTH(N'dbo.Notifications', N'AudienceLabel') IS NULL ALTER TABLE dbo.Notifications ADD AudienceLabel nvarchar(300) NULL;
+IF COL_LENGTH(N'dbo.Notifications', N'RemovedAtUtc') IS NULL ALTER TABLE dbo.Notifications ADD RemovedAtUtc datetime2 NULL;
+IF COL_LENGTH(N'dbo.Notifications', N'RemovedByEmployeeId') IS NULL
+BEGIN
+    ALTER TABLE dbo.Notifications ADD RemovedByEmployeeId uniqueidentifier NULL;
+    EXEC(N'ALTER TABLE dbo.Notifications ADD CONSTRAINT FK_Notifications_Employees_RemovedByEmployeeId FOREIGN KEY (RemovedByEmployeeId) REFERENCES dbo.Employees (Id)');
+END;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_BatchId')
+    EXEC(N'CREATE INDEX IX_Notifications_BatchId ON dbo.Notifications (BatchId)');
+
+-- 2) The new permissions (the application also creates missing ones at development startup).
 INSERT INTO Permissions (Id, Code, Name)
 SELECT NEWID(), v.Code, v.Name
 FROM (VALUES
     (N'Notifications.Message.Send', N'ارسال اعلان به کارمندان و مشاهده اعلان‌های ارسالی خود'),
     (N'Admin.Notifications.View', N'مشاهده گزارش همه اعلان‌ها (فقط خواندنی)'),
     (N'Reports.Notifications.Export', N'خروجی گزارش همه اعلان‌ها (مدیریت)'),
-    (N'Reports.MyNotifications.Export', N'خروجی اعلان‌های من')
+    (N'Reports.MyNotifications.Export', N'خروجی اعلان‌های من'),
+    (N'Notifications.Broadcast.Send', N'ارسال اعلان به همه کارکنان یا به همه اعضای سازمان‌های انتخاب‌شده'),
+    (N'Admin.Notifications.Manage', N'مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)')
 ) AS v(Code, Name)
 WHERE NOT EXISTS (SELECT 1 FROM Permissions p WHERE p.Code = v.Code);
 
@@ -34,7 +48,7 @@ SELECT e.Id, p.Id
 FROM Employees e
 CROSS JOIN Permissions p
 WHERE e.IsAdmin = 1
-  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export', N'Reports.MyNotifications.Export')
+  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export', N'Reports.MyNotifications.Export', N'Notifications.Broadcast.Send', N'Admin.Notifications.Manage')
   AND NOT EXISTS (SELECT 1 FROM EmployeePermissions x WHERE x.EmployeeId = e.Id AND x.PermissionId = p.Id);
 
 COMMIT;

@@ -10,12 +10,12 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Close` | `ti-x` | 17 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +7 more |
+| `Close` | `ti-x` | 19 | AccessManagement×4, SendNotification×2, AuditLog×2, PermissionGroups×2 +8 more |
 | `Confirm` | `ti-check` | 22 | Positions×6, AccessManagement×3, PermissionGroups×2, WorkflowDisplay×2 +9 more |
 | `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
 | `Save` | `ti-device-floppy` | 8 | MyProfile, PasswordPolicy, Organizations, Workflows +4 more |
 | `Delete` | `ti-trash` | 4 | AuditLog, Workflows, PermissionGroups, Positions |
-| `Search` | `ti-search` | 16 | AccessManagement×3, AuditLog×2, Organizations×2, Permissions×2 +7 more |
+| `Search` | `ti-search` | 17 | AccessManagement×3, AuditLog×2, Organizations×2, Permissions×2 +8 more |
 | `SearchEmpty` | `ti-search-off` | 7 | AuditLog, AllRequests, Organizations, NotificationReport +3 more |
 | `Filter` | `ti-filter` | 1 | ListFilterBar |
 | `FilterClear` | `ti-filter-off` | 1 | ListFilterBar |
@@ -24,7 +24,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Edit` | `ti-pencil` | 15 | Workflows×3, Organizations×2, PermissionGroups×2, Users×2 +4 more |
 | `Details` | `ti-eye` | 5 | AuditLog, AllRequests, RejectedRequests, Permissions +1 more |
 | `More` | `ti-dots` | 1 | ListFilterBar |
-| `Send` | `ti-send` | 4 | SendNotification, NewRequestForOthers, NewRequest, MyRequests |
+| `Send` | `ti-send` | 5 | SendNotification×2, NewRequestForOthers, NewRequest, MyRequests |
 | `Print` | `ti-printer` | 2 | RequestSummary, ListFilterBar |
 | `ExportData` | `ti-file-export` | 1 | ListFilterBar |
 | `ExportSteps` | `ti-file-spreadsheet` | 1 | ListFilterBar |
@@ -85,6 +85,9 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Message` | `ti-message-circle` | 3 | SendNotification, NotificationReport, NotificationDisplay |
 | `SendNotification` | `ti-bell-plus` | 3 | SendNotification, NotificationReport, PersistentSidebar |
 | `NotificationsReport` | `ti-report-search` | 3 | NotificationReport×2, PersistentSidebar |
+| `Broadcast` | `ti-speakerphone` | 1 | SendNotification |
+| `Retract` | `ti-message-off` | 5 | NotificationReport×3, SendNotification×2 |
+| `RestoreNotification` | `ti-arrow-back-up` | 2 | NotificationReport×2 |
 
 ## Account and appearance
 
@@ -115,7 +118,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
 | `User` | `ti-user` | 9 | AssignmentHistory×2, Login, AuditLog, AccessManagement +4 more |
-| `Users` | `ti-users` | 8 | Organizations×2, PasswordPolicy, AccessManagement, Users +3 more |
+| `Users` | `ti-users` | 10 | SendNotification×2, Organizations×2, PasswordPolicy, AccessManagement +4 more |
 | `UserAdd` | `ti-user-plus` | 1 | Users |
 | `UserActivate` | `ti-user-check` | 1 | Users |
 | `UserDeactivate` | `ti-user-off` | 1 | Users |
@@ -141,7 +144,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `RootPosition` | `ti-tree` | 1 | Positions |
 | `OpenBranches` | `ti-folder-open` | 1 | Positions |
 | `OrgStructure` | `ti-hierarchy-3` | 2 | Login, PersistentSidebar |
-| `Organization` | `ti-building` | 8 | Organizations×4, MyProfile, Dashboard, ApplicationLayout +1 more |
+| `Organization` | `ti-building` | 9 | Organizations×4, MyProfile, Dashboard, SendNotification +2 more |
 | `Subordinates` | `ti-users-group` | 3 | TeamHistory×2, PersistentSidebar |
 | `History` | `ti-history` | 13 | AssignmentHistory×3, PositionAssignmentHistoryPanel×3, TeamHistory×2, Inbox×2 +3 more |
 | `AuditLog` | `ti-file-search` | 4 | Login, AuditLog, ApplicationLayout, PersistentSidebar |

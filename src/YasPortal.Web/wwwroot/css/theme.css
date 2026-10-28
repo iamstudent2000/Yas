@@ -316,3 +316,13 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .reach-team{background:#fff4e0;color:#b45309;border-color:#f6d9a6}
 .reach-all{background:#fde8e8;color:#b42318;border-color:#f5c2c0}
 .reach-all-act{background:#b42318;color:#fff}
+
+/* notification audience picker, small buttons, removed rows */
+.audience-tabs{display:flex;flex-wrap:wrap;gap:8px}
+.audience-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border,#d0d5dd);border-radius:10px;background:var(--surface,#fff);color:var(--text,#344054);font-weight:700;font-size:12px;cursor:pointer}
+.audience-tab.active{background:var(--accent-soft,#eef4ff);border-color:var(--accent,#155eef);color:var(--accent,#155eef)}
+.audience-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.audience-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--accent-soft,#eef4ff);color:var(--accent,#155eef);font-size:11px;font-weight:600}
+.audience-chip button{border:0;background:transparent;color:inherit;cursor:pointer;padding:0 2px;display:inline-flex}
+.btn-sm{padding:5px 9px;font-size:11px}
+.admin-table tr.row-muted td{opacity:.6}

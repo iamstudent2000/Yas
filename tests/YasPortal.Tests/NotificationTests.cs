@@ -255,9 +255,40 @@ public class NotificationTests
     }
 
     [Fact]
+    public void A_message_sent_to_many_carries_the_batch_and_audience_and_can_be_removed_and_restored()
+    {
+        var sender = Guid.NewGuid();
+        var batch = Guid.NewGuid();
+        var n = Notification.FromSender(sender, Guid.NewGuid(), "علی", "سلام", "/notifications", batch, "همه کارکنان");
+        Assert.Equal(batch, n.BatchId);
+        Assert.Equal("همه کارکنان", n.AudienceLabel);
+        Assert.False(n.IsRemoved);
+
+        var admin = Guid.NewGuid();
+        n.Remove(admin);
+        var firstRemoval = n.RemovedAtUtc;
+        n.Remove(Guid.NewGuid());
+        Assert.True(n.IsRemoved);
+        Assert.Equal(admin, n.RemovedByEmployeeId);
+        Assert.Equal(firstRemoval, n.RemovedAtUtc);
+        Assert.Throws<ArgumentException>(() => Notification.FromSender(sender, Guid.NewGuid(), "x", "y", "/n").Remove(Guid.Empty));
+
+        n.Restore();
+        Assert.False(n.IsRemoved);
+        Assert.Null(n.RemovedByEmployeeId);
+    }
+
+    [Fact]
+    public void A_very_long_audience_label_is_truncated()
+    {
+        var n = Notification.FromSender(Guid.NewGuid(), Guid.NewGuid(), "علی", "سلام", "/notifications", Guid.NewGuid(), new string('م', 1000));
+        Assert.Equal(Notification.MaxAudienceLabelLength, n.AudienceLabel!.Length);
+    }
+
+    [Fact]
     public void The_notification_permissions_are_in_the_catalog_exactly_once()
     {
-        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
+        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.NotificationsBroadcastSend, Perm.AdminNotificationsView, Perm.AdminNotificationsManage, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
             Assert.Single(PermissionCatalog.All, x => x.Code == code);
 
         Assert.Equal(PermissionCatalog.All.Count, PermissionCatalog.Codes.Distinct(StringComparer.OrdinalIgnoreCase).Count());

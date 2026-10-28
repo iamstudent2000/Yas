@@ -302,6 +302,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasOne<Employee>().WithMany().HasForeignKey(x => x.SenderEmployeeId).OnDelete(DeleteBehavior.NoAction);
             e.HasIndex(x => new { x.RecipientEmployeeId, x.IsRead, x.CreatedAtUtc });
             e.HasIndex(x => x.RequestId);
+            e.Property(x => x.AudienceLabel).HasMaxLength(300);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.RemovedByEmployeeId).OnDelete(DeleteBehavior.NoAction);
+            e.HasIndex(x => x.BatchId);
             e.HasIndex(x => new { x.SenderEmployeeId, x.CreatedAtUtc });
             e.HasIndex(x => x.CreatedAtUtc);
         });

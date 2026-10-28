@@ -136,6 +136,16 @@ if (app.Environment.IsDevelopment())
         END;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_SenderEmployeeId_CreatedAtUtc')
             EXEC(N'CREATE INDEX [IX_Notifications_SenderEmployeeId_CreatedAtUtc] ON [dbo].[Notifications] ([SenderEmployeeId], [CreatedAtUtc])');
+        IF COL_LENGTH(N'dbo.Notifications', N'BatchId') IS NULL ALTER TABLE [dbo].[Notifications] ADD [BatchId] uniqueidentifier NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'AudienceLabel') IS NULL ALTER TABLE [dbo].[Notifications] ADD [AudienceLabel] nvarchar(300) NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'RemovedAtUtc') IS NULL ALTER TABLE [dbo].[Notifications] ADD [RemovedAtUtc] datetime2 NULL;
+        IF COL_LENGTH(N'dbo.Notifications', N'RemovedByEmployeeId') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[Notifications] ADD [RemovedByEmployeeId] uniqueidentifier NULL;
+            EXEC(N'ALTER TABLE [dbo].[Notifications] ADD CONSTRAINT [FK_Notifications_Employees_RemovedByEmployeeId] FOREIGN KEY ([RemovedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id])');
+        END;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_BatchId')
+            EXEC(N'CREATE INDEX [IX_Notifications_BatchId] ON [dbo].[Notifications] ([BatchId])');
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_CreatedAtUtc')
             EXEC(N'CREATE INDEX [IX_Notifications_CreatedAtUtc] ON [dbo].[Notifications] ([CreatedAtUtc])');
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL

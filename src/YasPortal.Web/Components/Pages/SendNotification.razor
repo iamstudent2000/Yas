@@ -9,6 +9,7 @@
 @inject NotificationService NotificationSvc
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
+@inject IAuthorizationService AuthorizationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>ارسال اعلان - یاس پورتال</PageTitle>
@@ -18,18 +19,65 @@
         <div>
             <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
             <h1 class="page-title"><i class="ti @Icons.SendNotification"></i> ارسال اعلان</h1>
-            <p class="page-subtitle">یک پیام کوتاه برای یکی از کارکنان بفرستید. پیام در بخش اعلان‌های او نمایش داده می‌شود و فرستنده‌اش شما هستید.</p>
+            <p class="page-subtitle">یک پیام کوتاه برای یک یا چند نفر بفرستید. پیام در بخش اعلان‌های هر گیرنده نمایش داده می‌شود و فرستنده‌اش شما هستید. هر پیامی که فرستاده‌اید را می‌توانید پس بگیرید.</p>
         </div>
     </div>
 
     <section class="card">
         <div class="form-grid">
-            <div class="form-field">
-                <label class="form-label">گیرنده</label>
-                <ServerSearchableGuidSelect @key="_resetKey" Value="_recipientId" ValueChanged="id => { _recipientId = id; return Task.CompletedTask; }"
-                                            SearchAsync="SearchRecipientsAsync" Placeholder="انتخاب کارمند..."
-                                            SearchPlaceholder="نام، کد یا نام کاربری را جستجو کنید..." />
-            </div>
+            @if (_canBroadcast)
+            {
+                <div class="form-field" style="grid-column:1 / -1">
+                    <label class="form-label">ارسال به</label>
+                    <div class="audience-tabs">
+                        <button type="button" class="@TabClass(NotificationService.AudienceKind.Selected)" @onclick="() => SetKind(NotificationService.AudienceKind.Selected)"><i class="ti @Icons.Users"></i> افراد منتخب</button>
+                        <button type="button" class="@TabClass(NotificationService.AudienceKind.Organizations)" @onclick="() => SetKind(NotificationService.AudienceKind.Organizations)"><i class="ti @Icons.Organization"></i> سازمان‌ها</button>
+                        <button type="button" class="@TabClass(NotificationService.AudienceKind.Everyone)" @onclick="() => SetKind(NotificationService.AudienceKind.Everyone)"><i class="ti @Icons.Broadcast"></i> همه کارکنان</button>
+                    </div>
+                </div>
+            }
+            @if (_kind == NotificationService.AudienceKind.Selected)
+            {
+                <div class="form-field" style="grid-column:1 / -1">
+                    <label class="form-label">گیرندگان (تا @NotificationService.MaxSelectedRecipients نفر)</label>
+                    <ServerSearchableGuidSelect @key="_pickKey" Value="null" ValueChanged="AddEmployeeAsync"
+                                                SearchAsync="SearchRecipientsAsync" Placeholder="افزودن کارمند..."
+                                                SearchPlaceholder="نام، کد یا نام کاربری را جستجو کنید..." />
+                    @if (_employees.Count > 0)
+                    {
+                        <div class="audience-chips">
+                            @foreach (var item in _employees)
+                            {
+                                <span class="audience-chip">@item.Value<button type="button" title="حذف" @onclick="() => RemoveEmployee(item.Key)"><i class="ti @Icons.Close"></i></button></span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else if (_kind == NotificationService.AudienceKind.Organizations)
+            {
+                <div class="form-field" style="grid-column:1 / -1">
+                    <label class="form-label">سازمان‌ها (همه‌ی اعضای فعال هر سازمان)</label>
+                    <ServerSearchableGuidSelect @key="_pickKey" Value="null" ValueChanged="AddOrganizationAsync"
+                                                SearchAsync="SearchOrganizationsAsync" Placeholder="افزودن سازمان..."
+                                                SearchPlaceholder="نام سازمان را جستجو کنید..." />
+                    @if (_organizations.Count > 0)
+                    {
+                        <div class="audience-chips">
+                            @foreach (var item in _organizations)
+                            {
+                                <span class="audience-chip">@item.Value<button type="button" title="حذف" @onclick="() => RemoveOrganization(item.Key)"><i class="ti @Icons.Close"></i></button></span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (_recipientCount is int count)
+            {
+                <div class="form-field" style="grid-column:1 / -1">
+                    <small class="muted"><i class="ti @Icons.Users"></i> این پیام برای @count.ToString("N0") نفر ارسال می‌شود.</small>
+                </div>
+            }
             <div class="form-field" style="grid-column:1 / -1">
                 <label class="form-label">متن اعلان</label>
                 <textarea class="form-control" rows="4" maxlength="@Notification.MaxMessageLength" placeholder="پیام خود را بنویسید..."
@@ -37,17 +85,26 @@
                 <small class="muted">@_message.Trim().Length از @Notification.MaxMessageLength نویسه</small>
             </div>
             <div class="form-field dlg-submit">
-                <button class="btn btn-primary" disabled="@(_busy || _recipientId is null || _message.Trim().Length == 0)" @onclick="SendAsync">
-                    @if (_busy)
-                    {
-                        <i class="ti @Icons.Spinner"></i>
-                    }
-                    else
-                    {
-                        <i class="ti @Icons.Send"></i>
-                    }
-                    ارسال اعلان
-                </button>
+                @if (_confirming)
+                {
+                    <span class="muted">ارسال برای @(_recipientCount?.ToString("N0")) نفر؟ این کار با «حذف» توسط شما قابل بازگرداندن است.</span>
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="SendAsync"><i class="ti @Icons.Send"></i> بله، ارسال شود</button>
+                    <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirming = false)">انصراف</button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" disabled="@(_busy || !CanSubmit)" @onclick="BeginSendAsync">
+                        @if (_busy)
+                        {
+                            <i class="ti @Icons.Spinner"></i>
+                        }
+                        else
+                        {
+                            <i class="ti @Icons.Send"></i>
+                        }
+                        ارسال اعلان
+                    </button>
+                }
             </div>
         </div>
     </section>
@@ -56,7 +113,7 @@
         <div class="card-toolbar">
             <div>
                 <h2 class="section-title"><i class="ti @Icons.Message"></i> اعلان‌های ارسالی من <span class="badge badge-muted">@_total</span></h2>
-                <p class="muted">هر اعلان با وضعیت خوانده‌شدن آن توسط گیرنده.</p>
+                <p class="muted">هر پیام یک بار نمایش داده می‌شود، با تعداد گیرندگان و خوانده‌شده‌ها. «پس‌گرفتن» پیام را از فهرست همه‌ی گیرندگان پنهان می‌کند.</p>
             </div>
         </div>
         @if (_loading)
@@ -72,23 +129,47 @@
             <div class="admin-table-wrap">
                 <table class="admin-table">
                     <thead>
-                        <tr><th>گیرنده</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th></tr>
+                        <tr><th>گیرنده‌ها</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var row in _sent)
                         {
-                            <tr>
-                                <td>@row.RecipientName</td>
-                                <td style="white-space:pre-line">@row.Message</td>
-                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                            <tr class="@(row.Removed == row.Total ? "row-muted" : "")">
                                 <td>
-                                    @if (row.IsRead)
+                                    @if (row.RecipientName is not null)
                                     {
-                                        <span class="badge badge-success" title="@(row.ReadAtUtc is DateTime readAt ? WorkflowDisplay.ToPersianDateTime(readAt) : "")"><i class="ti @Icons.ConfirmAll"></i> خوانده شد</span>
+                                        @row.RecipientName
                                     }
                                     else
                                     {
-                                        <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
+                                        <strong>@row.Total.ToString("N0") نفر</strong>
+                                        @if (!string.IsNullOrWhiteSpace(row.AudienceLabel))
+                                        {
+                                            <br /><small class="muted">@row.AudienceLabel</small>
+                                        }
+                                    }
+                                </td>
+                                <td style="white-space:pre-line">@row.Message</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(row.CreatedAtUtc)</td>
+                                <td>
+                                    <span class="badge @(row.Read == row.Total ? "badge-success" : "badge-muted")"><i class="ti @(row.Read == row.Total ? Icons.ConfirmAll : Icons.Awaiting)"></i> @row.Read.ToString("N0") از @row.Total.ToString("N0") خوانده شد</span>
+                                    @if (row.Removed > 0)
+                                    {
+                                        <br /><span class="badge badge-warning"><i class="ti @Icons.Retract"></i> @(row.Removed == row.Total ? "پس‌گرفته شد" : $"{row.Removed:N0} مورد پس‌گرفته شد")</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.Removed < row.Total)
+                                    {
+                                        @if (_retractKey == row.Key)
+                                        {
+                                            <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => RetractAsync(row.Key)">تأیید پس‌گرفتن</button>
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="@(() => _retractKey = null)">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="@(() => _retractKey = row.Key)"><i class="ti @Icons.Retract"></i> پس‌گرفتن</button>
+                                        }
                                     }
                                 </td>
                             </tr>
@@ -103,13 +184,20 @@
 
 @code {
     private Guid? _employeeId;
-    private Guid? _recipientId;
+    private bool _canBroadcast;
+    private NotificationService.AudienceKind _kind = NotificationService.AudienceKind.Selected;
+    // Picked people / organizations (id → display text), kept in pick order.
+    private readonly Dictionary<Guid, string> _employees = [];
+    private readonly Dictionary<Guid, string> _organizations = [];
+    private readonly Dictionary<Guid, string> _seen = [];
+    private int _pickKey;
+    private int? _recipientCount;
     private string _message = string.Empty;
-    private bool _busy;
-    private int _resetKey;
+    private bool _busy, _confirming;
+    private Guid? _retractKey;
 
     private bool _loading = true;
-    private List<NotificationService.SentRow> _sent = [];
+    private List<NotificationService.SentGroup> _sent = [];
     private int _page = 1;
     private int _pageSize = 10;
     private int _total;
@@ -118,11 +206,99 @@
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        _canBroadcast = (await AuthorizationService.AuthorizeAsync(user, Perm.NotificationsBroadcastSend)).Succeeded;
         await LoadAsync();
     }
 
-    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchRecipientsAsync(string search, CancellationToken ct) =>
-        AdminQueries.SearchActiveEmployeesAsync(search, _employeeId, ct);
+    private bool CanSubmit => _message.Trim().Length > 0 && _kind switch
+    {
+        NotificationService.AudienceKind.Selected => _employees.Count > 0,
+        NotificationService.AudienceKind.Organizations => _organizations.Count > 0,
+        _ => true,
+    };
+
+    private string TabClass(NotificationService.AudienceKind kind) => kind == _kind ? "audience-tab active" : "audience-tab";
+
+    private NotificationService.Audience CurrentAudience() => _kind switch
+    {
+        NotificationService.AudienceKind.Selected => new(_kind, _employees.Keys.ToList(), null),
+        NotificationService.AudienceKind.Organizations => new(_kind, null, _organizations.Keys.ToList()),
+        _ => new(_kind),
+    };
+
+    private async Task SetKind(NotificationService.AudienceKind kind)
+    {
+        if (!_canBroadcast && kind != NotificationService.AudienceKind.Selected) return;
+        _kind = kind;
+        _confirming = false;
+        await RefreshCountAsync();
+    }
+
+    private async Task RefreshCountAsync()
+    {
+        _confirming = false;
+        if (_employeeId is not Guid senderId || !CanAudience())
+        {
+            _recipientCount = null;
+            return;
+        }
+        _recipientCount = await NotificationSvc.CountRecipientsAsync(senderId, CurrentAudience());
+    }
+
+    // The count is only worth showing once someone is chosen (or for "everyone").
+    private bool CanAudience() => _kind switch
+    {
+        NotificationService.AudienceKind.Selected => _employees.Count > 0,
+        NotificationService.AudienceKind.Organizations => _organizations.Count > 0,
+        _ => true,
+    };
+
+    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchRecipientsAsync(string search, CancellationToken ct)
+    {
+        var items = await AdminQueries.SearchActiveEmployeesAsync(search, _employeeId, ct);
+        foreach (var item in items) _seen[item.Id] = item.Text;
+        return items;
+    }
+
+    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct)
+    {
+        var items = await AdminQueries.SearchOrganizationsAsync(search, true, ct);
+        foreach (var item in items) _seen[item.Id] = item.Text;
+        return items;
+    }
+
+    private async Task AddEmployeeAsync(Guid? id)
+    {
+        if (id is not Guid employeeId) return;
+        if (_employees.Count >= NotificationService.MaxSelectedRecipients)
+        {
+            AppState.AddToast($"حداکثر {NotificationService.MaxSelectedRecipients} نفر را می‌توان یکی‌یکی انتخاب کرد.", ToastLevel.Warning);
+            return;
+        }
+        _employees[employeeId] = _seen.TryGetValue(employeeId, out var text) ? text : employeeId.ToString();
+        _pickKey++;
+        await RefreshCountAsync();
+    }
+
+    private async Task AddOrganizationAsync(Guid? id)
+    {
+        if (id is not Guid organizationId) return;
+        _organizations[organizationId] = _seen.TryGetValue(organizationId, out var text) ? text : organizationId.ToString();
+        _pickKey++;
+        await RefreshCountAsync();
+    }
+
+    private async Task RemoveEmployee(Guid id)
+    {
+        _employees.Remove(id);
+        await RefreshCountAsync();
+    }
+
+    private async Task RemoveOrganization(Guid id)
+    {
+        _organizations.Remove(id);
+        await RefreshCountAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -145,25 +321,54 @@
         finally { _loading = false; }
     }
 
+    // A message to several people asks for one more click before it goes out; a message to one person goes straight away.
+    private async Task BeginSendAsync()
+    {
+        if (!CanSubmit) return;
+        await RefreshCountAsync();
+        if (_recipientCount is int count && count > 1)
+        {
+            _confirming = true;
+            return;
+        }
+        await SendAsync();
+    }
+
     private async Task SendAsync()
     {
-        if (_busy || _employeeId is not Guid senderId || _recipientId is not Guid recipientId)
-            return;
+        if (_busy || _employeeId is not Guid senderId) return;
         _busy = true;
         try
         {
-            var (ok, error) = await NotificationSvc.SendAsync(senderId, recipientId, _message);
-            if (!ok)
+            var result = await NotificationSvc.SendAsync(senderId, CurrentAudience(), _message);
+            _confirming = false;
+            if (!result.Ok)
             {
-                AppState.AddToast(error ?? "ارسال اعلان انجام نشد.", ToastLevel.Error);
+                AppState.AddToast(result.Error ?? "ارسال اعلان انجام نشد.", ToastLevel.Error);
                 return;
             }
-            AppState.AddToast("اعلان ارسال شد.", ToastLevel.Success);
+            AppState.AddToast(result.Sent == 1 ? "اعلان ارسال شد." : $"اعلان برای {result.Sent:N0} نفر ارسال شد.", ToastLevel.Success);
             _message = string.Empty;
-            _recipientId = null;
-            _resetKey++;
+            _employees.Clear();
+            _organizations.Clear();
+            _recipientCount = null;
+            _pickKey++;
             _page = 1;
             await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RetractAsync(Guid key)
+    {
+        if (_busy || _employeeId is not Guid senderId) return;
+        _busy = true;
+        try
+        {
+            var result = await NotificationSvc.RetractAsync(senderId, key);
+            _retractKey = null;
+            AppState.AddToast(result.Ok ? $"پیام از فهرست {result.Count:N0} گیرنده پس‌گرفته شد." : result.Error ?? "انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            if (result.Ok) await LoadAsync();
         }
         finally { _busy = false; }
     }

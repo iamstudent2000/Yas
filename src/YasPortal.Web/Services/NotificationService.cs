@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
+using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
 
@@ -109,49 +110,203 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             .Join(db.Employees.AsNoTracking().Where(e => e.IsActive), ep => ep.EmployeeId, e => e.Id, (ep, e) => e.Id)
             .ToListAsync(ct);
 
-    /// <summary>
-    /// Sends a hand-written notification from <paramref name="senderId"/> to one active employee. The sender must hold
-    /// <see cref="Perm.NotificationsMessageSend"/> (checked here as well as on the page). Returns the Persian reason when it cannot be sent.
-    /// </summary>
-    public async Task<(bool Ok, string? Error)> SendAsync(Guid senderId, Guid recipientId, string? message, CancellationToken ct = default)
+    // ---- sending by hand ----
+
+    /// <summary>Who a hand-written message goes to.</summary>
+    public enum AudienceKind
     {
-        if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
-            return (false, "شما مجوز ارسال اعلان ندارید.");
-        var text = (message ?? string.Empty).Trim();
-        if (text.Length == 0)
-            return (false, "متن اعلان را بنویسید.");
-        if (text.Length > Notification.MaxMessageLength)
-            return (false, $"متن اعلان نباید بیش از {Notification.MaxMessageLength} نویسه باشد.");
-        if (senderId == recipientId)
-            return (false, "ارسال اعلان به خودتان ممکن نیست.");
-
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var recipient = await db.Employees.AsNoTracking().Where(x => x.Id == recipientId).Select(x => new { x.IsActive, x.IsAdmin }).SingleOrDefaultAsync(ct);
-        if (recipient is null || !recipient.IsActive)
-            return (false, "گیرنده پیدا نشد یا غیرفعال است.");
-        var senderName = await db.Employees.AsNoTracking().Where(x => x.Id == senderId).Select(x => x.FullName).SingleOrDefaultAsync(ct);
-        if (senderName is null)
-            return (false, "فرستنده شناسایی نشد.");
-
-        // Administrators read their notifications on their own page (they have no position and no personal request pages).
-        db.Notifications.Add(Notification.FromSender(senderId, recipientId, senderName, text, recipient.IsAdmin ? "/admin/notifications" : "/notifications"));
-        await db.SaveChangesAsync(ct);
-        return (true, null);
+        /// <summary>Employees picked one by one.</summary>
+        Selected,
+        /// <summary>Every active member of the chosen organizations (needs <see cref="Perm.NotificationsBroadcastSend"/>).</summary>
+        Organizations,
+        /// <summary>Every active employee (needs <see cref="Perm.NotificationsBroadcastSend"/>).</summary>
+        Everyone,
     }
 
-    public sealed record SentRow(Guid Id, string RecipientName, string Message, DateTime CreatedAtUtc, bool IsRead, DateTime? ReadAtUtc);
+    public sealed record Audience(AudienceKind Kind, IReadOnlyCollection<Guid>? EmployeeIds = null, IReadOnlyCollection<Guid>? OrganizationIds = null);
 
-    /// <summary>The hand-written notifications this employee sent, newest first, with whether each was read.</summary>
-    public async Task<(List<SentRow> Items, int Total)> ListSentAsync(Guid senderId, int page, int pageSize, CancellationToken ct = default)
+    public sealed record SendResult(bool Ok, string? Error, int Sent = 0, int Skipped = 0);
+
+    public sealed record ChangeResult(bool Ok, string? Error, int Count = 0);
+
+    /// <summary>Most people that can be picked one by one for a single message.</summary>
+    public const int MaxSelectedRecipients = 500;
+
+    /// <summary>Most recipients of a single message, however they were chosen (a guard against a runaway broadcast).</summary>
+    public const int MaxRecipients = 5000;
+
+    /// <summary>Active employees the audience resolves to, never including the sender.</summary>
+    private static IQueryable<Employee> Recipients(ApplicationDbContext db, Audience audience, Guid senderId)
+    {
+        var query = db.Employees.AsNoTracking().Where(e => e.IsActive && e.Id != senderId);
+        switch (audience.Kind)
+        {
+            case AudienceKind.Selected:
+                var employeeIds = (audience.EmployeeIds ?? []).Distinct().ToList();
+                return query.Where(e => employeeIds.Contains(e.Id));
+            case AudienceKind.Organizations:
+                var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
+                return query.Where(e => organizationIds.Contains(e.OrganizationId));
+            default:
+                return query;
+        }
+    }
+
+    /// <summary>How many people the audience would reach right now (for the preview before sending).</summary>
+    public async Task<int> CountRecipientsAsync(Guid senderId, Audience audience, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var joined = db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId)
-            .Join(db.Employees.AsNoTracking(), n => n.RecipientEmployeeId, e => e.Id, (n, e) => new { n, e });
-        var total = await joined.CountAsync(ct);
-        var items = await joined.OrderByDescending(x => x.n.CreatedAtUtc).ThenBy(x => x.n.Id).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new SentRow(x.n.Id, x.e.FullName, x.n.Message, x.n.CreatedAtUtc, x.n.IsRead, x.n.ReadAtUtc))
-            .ToListAsync(ct);
-        return (items, total);
+        return await Recipients(db, audience, senderId).CountAsync(ct);
+    }
+
+    /// <summary>
+    /// Sends one hand-written notification from <paramref name="senderId"/> to every active employee in the audience (one copy each, tied together
+    /// by a batch id). The sender must hold <see cref="Perm.NotificationsMessageSend"/>, and also <see cref="Perm.NotificationsBroadcastSend"/> for
+    /// organizations or everyone; both are checked here as well as on the page. Returns the Persian reason when nothing was sent.
+    /// </summary>
+    public async Task<SendResult> SendAsync(Guid senderId, Audience audience, string? message, CancellationToken ct = default)
+    {
+        if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
+            return new(false, "شما مجوز ارسال اعلان ندارید.");
+        if (audience.Kind != AudienceKind.Selected && !await permissions.HasPermissionAsync(Perm.NotificationsBroadcastSend, ct))
+            return new(false, "شما مجوز ارسال اعلان به همه یا به سازمان‌ها را ندارید.");
+
+        var text = (message ?? string.Empty).Trim();
+        if (text.Length == 0)
+            return new(false, "متن اعلان را بنویسید.");
+        if (text.Length > Notification.MaxMessageLength)
+            return new(false, $"متن اعلان نباید بیش از {Notification.MaxMessageLength} نویسه باشد.");
+
+        var picked = (audience.EmployeeIds ?? []).Distinct().ToList();
+        var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
+        switch (audience.Kind)
+        {
+            case AudienceKind.Selected when picked.Count == 0:
+                return new(false, "گیرنده را انتخاب کنید.");
+            case AudienceKind.Selected when picked.Count > MaxSelectedRecipients:
+                return new(false, $"حداکثر {MaxSelectedRecipients} گیرنده را می‌توان یکی‌یکی انتخاب کرد؛ برای تعداد بیشتر سازمان یا «همه» را انتخاب کنید.");
+            case AudienceKind.Selected when picked.All(id => id == senderId):
+                return new(false, "ارسال اعلان به خودتان ممکن نیست.");
+            case AudienceKind.Organizations when organizationIds.Count == 0:
+                return new(false, "سازمانی انتخاب نشده است.");
+        }
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var senderName = await db.Employees.AsNoTracking().Where(x => x.Id == senderId).Select(x => x.FullName).SingleOrDefaultAsync(ct);
+        if (senderName is null)
+            return new(false, "فرستنده شناسایی نشد.");
+
+        var recipients = await Recipients(db, audience, senderId).Select(e => new { e.Id, e.IsAdmin }).Take(MaxRecipients + 1).ToListAsync(ct);
+        if (recipients.Count == 0)
+            return new(false, "گیرنده‌ی فعالی پیدا نشد.");
+        if (recipients.Count > MaxRecipients)
+            return new(false, $"حداکثر {MaxRecipients} گیرنده در هر ارسال مجاز است.");
+
+        string? audienceLabel = audience.Kind switch
+        {
+            AudienceKind.Everyone => "همه کارکنان",
+            AudienceKind.Organizations => "سازمان‌ها: " + string.Join("، ", await db.Organizations.AsNoTracking().Where(o => organizationIds.Contains(o.Id)).OrderBy(o => o.Name).Select(o => o.Name).ToListAsync(ct)),
+            _ => recipients.Count > 1 ? $"{recipients.Count} نفر منتخب" : null,
+        };
+        var batchId = recipients.Count > 1 ? Guid.NewGuid() : (Guid?)null;
+
+        // Administrators read their notifications on their own page (they have no position and no personal request pages).
+        var done = 0;
+        foreach (var chunk in recipients.Chunk(500))
+        {
+            foreach (var recipient in chunk)
+                db.Notifications.Add(Notification.FromSender(senderId, recipient.Id, senderName, text, recipient.IsAdmin ? "/admin/notifications" : "/notifications", batchId, audienceLabel));
+            await db.SaveChangesAsync(ct);
+            done += chunk.Length;
+        }
+        return new(true, null, done, audience.Kind == AudienceKind.Selected ? picked.Count - done : 0);
+    }
+
+    // ---- what a sender sent, and taking it back ----
+
+    /// <summary>One message the person sent: a single notification, or all the copies of a message sent to several people.</summary>
+    /// <param name="Key">The batch id, or the notification's own id for a message sent to one person.</param>
+    /// <param name="RecipientName">Set only when the message went to one person.</param>
+    public sealed record SentGroup(Guid Key, string Message, DateTime CreatedAtUtc, int Total, int Read, int Removed, string? RecipientName, string? AudienceLabel);
+
+    /// <summary>The hand-written notifications this employee sent, newest first, one row per message (not per recipient).</summary>
+    public async Task<(List<SentGroup> Items, int Total)> ListSentAsync(Guid senderId, int page, int pageSize, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var groups = db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId)
+            .GroupBy(x => x.BatchId ?? x.Id)
+            .Select(g => new
+            {
+                Key = g.Key,
+                CreatedAtUtc = g.Min(x => x.CreatedAtUtc),
+                Total = g.Count(),
+                Read = g.Count(x => x.IsRead),
+                Removed = g.Count(x => x.RemovedAtUtc != null),
+                Message = g.Max(x => x.Message),
+                AudienceLabel = g.Max(x => x.AudienceLabel),
+            });
+        var total = await groups.CountAsync(ct);
+        var rows = await groups.OrderByDescending(g => g.CreatedAtUtc).ThenBy(g => g.Key).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+
+        // A message to one person has a single row; look up that person's name for the groups that need it.
+        var singleKeys = rows.Where(g => g.Total == 1).Select(g => g.Key).ToList();
+        var names = singleKeys.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId && singleKeys.Contains(x.BatchId ?? x.Id))
+                .Join(db.Employees.AsNoTracking(), n => n.RecipientEmployeeId, e => e.Id, (n, e) => new { Key = n.BatchId ?? n.Id, e.FullName })
+                .ToDictionaryAsync(x => x.Key, x => x.FullName, ct);
+        return (rows.Select(g => new SentGroup(g.Key, g.Message, g.CreatedAtUtc, g.Total, g.Read, g.Removed,
+            g.Total == 1 && names.TryGetValue(g.Key, out var name) ? name : null, g.AudienceLabel)).ToList(), total);
+    }
+
+    /// <summary>
+    /// The sender takes back a message they sent: every copy of it disappears from the recipients' lists (the records stay in the report,
+    /// marked removed). Only the sender's own messages are touched.
+    /// </summary>
+    public async Task<ChangeResult> RetractAsync(Guid senderId, Guid groupKey, CancellationToken ct = default)
+    {
+        if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
+            return new(false, "شما مجوز ارسال اعلان ندارید.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var now = DateTime.UtcNow;
+        var count = await db.Notifications
+            .Where(x => x.SenderEmployeeId == senderId && x.RemovedAtUtc == null && (x.BatchId == groupKey || (x.BatchId == null && x.Id == groupKey)))
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)now).SetProperty(x => x.RemovedByEmployeeId, (Guid?)senderId), ct);
+        return new(true, null, count);
+    }
+
+    // ---- removing and restoring other people's notifications (Admin.Notifications.Manage) ----
+
+    private async Task<ChangeResult> ApplyRemovalAsync(Guid actorId, Func<ApplicationDbContext, IQueryable<Notification>> select, bool removed, CancellationToken ct)
+    {
+        if (!await permissions.HasPermissionAsync(Perm.AdminNotificationsManage, ct))
+            return new(false, "شما مجوز مدیریت اعلان‌ها را ندارید.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var now = DateTime.UtcNow;
+        var matching = select(db);
+        var count = removed
+            ? await matching.ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)now).SetProperty(x => x.RemovedByEmployeeId, (Guid?)actorId), ct)
+            : await matching.ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)null).SetProperty(x => x.RemovedByEmployeeId, (Guid?)null), ct);
+        return new(true, null, count);
+    }
+
+    /// <summary>Removes (or restores) specific notifications of any kind and any recipient.</summary>
+    public Task<ChangeResult> SetRemovedAsync(Guid actorId, IReadOnlyCollection<Guid> ids, bool removed, CancellationToken ct = default)
+    {
+        var list = ids.Distinct().ToList();
+        return ApplyRemovalAsync(actorId, db => db.Notifications.Where(x => list.Contains(x.Id) && (x.RemovedAtUtc == null) == removed), removed, ct);
+    }
+
+    /// <summary>
+    /// Removes (or restores) every notification the report currently matches. At least one filter is required, so a stray click can never
+    /// remove every notification in the system.
+    /// </summary>
+    public Task<ChangeResult> SetRemovedForFilterAsync(Guid actorId, ReportFilter filter, bool removed, CancellationToken ct = default)
+    {
+        if (filter.Count == 0)
+            return Task.FromResult(new ChangeResult(false, "برای عملیات گروهی دست‌کم یک فیلتر لازم است."));
+        var scoped = filter with { RemovedState = removed ? "active" : "removed" };
+        return ApplyRemovalAsync(actorId, db => Filtered(db, scoped), removed, ct);
     }
 
     // ---- the all-notifications report (Admin.Notifications.View) ----
@@ -160,19 +315,20 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// <param name="Search">Text that must appear in the message or in the "request type / sender" line.</param>
     /// <param name="From">First day (local) to include.</param>
     /// <param name="To">Last day (local) to include.</param>
+    /// <param name="RemovedState">"active" (still shown), "removed", or null for both.</param>
     public sealed record ReportFilter(Guid? RecipientId = null, Guid? SenderId = null, NotificationKind? Kind = null, string? ReadState = null,
-        string? Search = null, DateTime? From = null, DateTime? To = null)
+        string? Search = null, DateTime? From = null, DateTime? To = null, string? RemovedState = null)
     {
         public int Count => (RecipientId is null ? 0 : 1) + (SenderId is null ? 0 : 1) + (Kind is null ? 0 : 1) + (ReadState is null ? 0 : 1)
-            + (string.IsNullOrWhiteSpace(Search) ? 0 : 1) + (From is null ? 0 : 1) + (To is null ? 0 : 1);
+            + (string.IsNullOrWhiteSpace(Search) ? 0 : 1) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (RemovedState is null ? 0 : 1);
     }
 
     public sealed record ReportRow(Guid Id, DateTime CreatedAtUtc, NotificationKind Kind, string RecipientName, string RecipientUsername, string? SenderName,
-        string Message, string RequestType, bool IsRead, DateTime? ReadAtUtc);
+        string Message, string RequestType, bool IsRead, DateTime? ReadAtUtc, DateTime? RemovedAtUtc = null, string? RemovedByName = null);
 
     private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
 
-    /// <summary>Notifications matching the filter (not yet joined to names); shared by the page's list, its counters and the CSV export.</summary>
+    /// <summary>Notifications matching the filter (not yet joined to names); shared by the page's list, its counters, the bulk removal and the CSV export.</summary>
     public static IQueryable<Notification> Filtered(ApplicationDbContext db, ReportFilter filter)
     {
         var query = db.Notifications.AsNoTracking().AsQueryable();
@@ -181,6 +337,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         if (filter.Kind is NotificationKind kind) query = query.Where(x => x.Kind == kind);
         if (filter.ReadState == "read") query = query.Where(x => x.IsRead);
         else if (filter.ReadState == "unread") query = query.Where(x => !x.IsRead);
+        if (filter.RemovedState == "active") query = query.Where(x => x.RemovedAtUtc == null);
+        else if (filter.RemovedState == "removed") query = query.Where(x => x.RemovedAtUtc != null);
         if (filter.From is DateTime from) { var start = LocalDayStartUtc(from); query = query.Where(x => x.CreatedAtUtc >= start); }
         if (filter.To is DateTime to) { var end = LocalDayStartUtc(to.AddDays(1)); query = query.Where(x => x.CreatedAtUtc < end); }
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -191,7 +349,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return query;
     }
 
-    /// <summary>The filtered notifications with the recipient's and sender's names, in the requested order (ends with the Id so batches never overlap).</summary>
+    /// <summary>The filtered notifications with the recipient's, sender's and remover's names, in the requested order (ends with the Id so batches never overlap).</summary>
     /// <remarks>Sorting happens on the joined rows and the <see cref="ReportRow"/> is projected last: EF Core cannot translate a sort on the properties of a constructor projection.</remarks>
     public static IQueryable<ReportRow> Report(ApplicationDbContext db, ReportFilter filter, string sortBy, bool descending)
     {
@@ -199,7 +357,9 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                      join r in db.Employees.AsNoTracking() on n.RecipientEmployeeId equals r.Id
                      join s in db.Employees.AsNoTracking() on n.SenderEmployeeId equals s.Id into senders
                      from s in senders.DefaultIfEmpty()
-                     select new { n, r, s };
+                     join m in db.Employees.AsNoTracking() on n.RemovedByEmployeeId equals m.Id into removers
+                     from m in removers.DefaultIfEmpty()
+                     select new { n, r, s, m };
         var ordered = (sortBy, descending) switch
         {
             ("recipient", false) => joined.OrderBy(x => x.r.FullName),
@@ -215,7 +375,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             _ => joined.OrderByDescending(x => x.n.CreatedAtUtc),
         };
         return ordered.ThenBy(x => x.n.Id).Select(x => new ReportRow(x.n.Id, x.n.CreatedAtUtc, x.n.Kind, x.r.FullName, x.r.Username,
-            x.s == null ? null : x.s.FullName, x.n.Message, x.n.RequestType, x.n.IsRead, x.n.ReadAtUtc));
+            x.s == null ? null : x.s.FullName, x.n.Message, x.n.RequestType, x.n.IsRead, x.n.ReadAtUtc, x.n.RemovedAtUtc, x.m == null ? null : x.m.FullName));
     }
 
     public async Task<int> CountUnreadAsync(Guid? employeeId, CancellationToken ct = default)
@@ -223,13 +383,13 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         if (employeeId is not Guid id)
             return 0;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        return await db.Notifications.AsNoTracking().CountAsync(x => x.RecipientEmployeeId == id && !x.IsRead, ct);
+        return await db.Notifications.AsNoTracking().CountAsync(x => x.RecipientEmployeeId == id && !x.IsRead && x.RemovedAtUtc == null, ct);
     }
 
     public async Task<(List<Notification> Items, int Total)> ListAsync(Guid employeeId, bool unreadOnly, int page, int pageSize, NotificationKind? kind = null, bool oldestFirst = false, bool unreadFirst = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Notifications.AsNoTracking().Where(x => x.RecipientEmployeeId == employeeId);
+        var query = db.Notifications.AsNoTracking().Where(x => x.RecipientEmployeeId == employeeId && x.RemovedAtUtc == null);
         if (unreadOnly)
             query = query.Where(x => !x.IsRead);
         if (kind is NotificationKind kindFilter)
@@ -262,7 +422,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public async Task MarkRequestsReadAsync(Guid employeeId, IReadOnlyCollection<Guid>? requestIds, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var query = db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && !x.IsRead && x.RequestId != null
+        var query = db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && x.RemovedAtUtc == null && !x.IsRead && x.RequestId != null
             && x.Kind != NotificationKind.StepReached && x.Kind != NotificationKind.ReturnedToStep && x.Kind != NotificationKind.VacantPosition);
         if (requestIds is not null)
             query = query.Where(x => requestIds.Contains(x.RequestId!.Value));
@@ -277,7 +437,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public async Task MarkAllReadAsync(Guid employeeId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var unread = await db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && !x.IsRead).ToListAsync(ct);
+        var unread = await db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && x.RemovedAtUtc == null && !x.IsRead).ToListAsync(ct);
         foreach (var item in unread)
             item.MarkRead();
         if (unread.Count > 0)
