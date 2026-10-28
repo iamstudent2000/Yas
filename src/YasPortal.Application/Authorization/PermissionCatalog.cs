@@ -42,6 +42,12 @@ public static class Perm
 
     public const string AdminUsersView = "Admin.Users.View";
     public const string AdminUsersManage = "Admin.Users.Manage";
+    /// <summary>Set or change another user's password from the users page (a new user's first password still comes with creating the user).</summary>
+    public const string AdminUsersPasswordSet = "Admin.Users.PasswordSet";
+    /// <summary>See the password rules and try a sample password against them (read-only).</summary>
+    public const string AdminPasswordPolicyView = "Admin.PasswordPolicy.View";
+    /// <summary>Change the system-wide password rules. Implies the view permission.</summary>
+    public const string AdminPasswordPolicyManage = "Admin.PasswordPolicy.Manage";
     public const string AdminOrganizationsView = "Admin.Organizations.View";
     public const string AdminOrganizationsManage = "Admin.Organizations.Manage";
     public const string AdminPositionsView = "Admin.Positions.View";
@@ -142,6 +148,9 @@ public static class PermissionCatalog
 
             new(Perm.AdminUsersView, "مشاهده کاربران (فقط خواندنی)"),
             new(Perm.AdminUsersManage, "مدیریت کاربران (ایجاد، ویرایش، فعال/غیرفعال)", "Admin.Users"),
+            new(Perm.AdminUsersPasswordSet, "تعیین یا تغییر رمز عبور سایر کاربران"),
+            new(Perm.AdminPasswordPolicyView, "مشاهده سیاست رمز عبور (فقط خواندنی)"),
+            new(Perm.AdminPasswordPolicyManage, "مدیریت سیاست رمز عبور (ویرایش قوانین)"),
             new(Perm.AdminOrganizationsView, "مشاهده سازمان‌ها (فقط خواندنی)"),
             new(Perm.AdminOrganizationsManage, "مدیریت سازمان‌ها (ایجاد، ویرایش، تخصیص کارکنان)", "Admin.Organizations"),
             new(Perm.AdminPositionsView, "مشاهده سمت‌ها (فقط خواندنی)"),

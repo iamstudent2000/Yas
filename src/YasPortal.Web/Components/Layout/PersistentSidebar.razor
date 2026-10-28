@@ -65,7 +65,7 @@
                             <NavLink href="/admin/access"><i class="ti @Icons.AccessManagement"></i><span>مدیریت دسترسی</span>
                             </NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminUsersView">
+                        <AuthorizeView Policy="@Perm.AdminPasswordPolicyView">
                             <NavLink href="/admin/password-policy"><i class="ti @Icons.PasswordPolicy"></i><span>سیاست رمز عبور</span></NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminPermissionsView">
@@ -233,7 +233,7 @@
         _accountGroupVisible = await Can(Perm.DashboardPageView)
             || await Can(Perm.ProfileOwnView)
             || !user.HasClaim("yas_is_admin", "True");
-        _accessGroupVisible = await Can(Perm.AdminUsersView) || await Can(Perm.AdminAccessView) || await Can(Perm.AdminPermissionsView);
+        _accessGroupVisible = await Can(Perm.AdminUsersView) || await Can(Perm.AdminPasswordPolicyView) || await Can(Perm.AdminAccessView) || await Can(Perm.AdminPermissionsView);
         _structureGroupVisible = await Can(Perm.AdminPositionsView) || await Can(Perm.AdminOrganizationsView) || await Can(Perm.AdminAssignmentHistoryView)
             || await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
         _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.RequestsOwnView)
