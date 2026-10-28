@@ -27,6 +27,8 @@ public static class Perm
     public const string RequestsDecisionReturnToRequester = "Requests.Decision.ReturnToRequester";
     public const string RequestsDecisionReturnToPreviousStep = "Requests.Decision.ReturnToPreviousStep";
     public const string RequestsDecisionReturnToSpecificStep = "Requests.Decision.ReturnToSpecificStep";
+    /// <summary>Take back a rejection the holder made themselves (from the inbox history), as long as it still stands.</summary>
+    public const string RequestsDecisionReopenOwn = "Requests.Decision.ReopenOwn";
 
     public const string DelegationsOwnManage = "Delegations.Own.Manage";
 
@@ -136,6 +138,7 @@ public static class PermissionCatalog
             new(Perm.RequestsDecisionReturnToRequester, "بازگرداندن درخواست به درخواست‌کننده", "Requests.ReturnToRequester"),
             new(Perm.RequestsDecisionReturnToPreviousStep, "بازگرداندن درخواست به مرحله قبل", "Requests.ReturnToPreviousStep"),
             new(Perm.RequestsDecisionReturnToSpecificStep, "بازگشت به مرحله دلخواه", "Requests.ReturnToSpecificStep"),
+            new(Perm.RequestsDecisionReopenOwn, "بازگشایی درخواستی که خودم رد کرده‌ام"),
 
             new(Perm.DelegationsOwnManage, "تفویض اختیار سمت خود به دیگری", "Requests.Delegation", "Delegations.Create"),
 

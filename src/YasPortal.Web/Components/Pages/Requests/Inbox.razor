@@ -181,6 +181,10 @@
                                 <span>از طرف @item.RequesterName · تصمیم شما در «@item.StepName»@(DelegatedLabel(item.Decision)) · @item.Decision.ActedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             </span>
                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
+                            @if (CanReopen(item))
+                            {
+                                <span class="badge badge-warning"><i class="ti @Icons.Reopen"></i> قابل بازگشایی</span>
+                            }
                             @if (item.Decision.ReturnTargetOrder is int targetOrder)
                             {
                                 var targetName = item.Request.Steps.FirstOrDefault(st => st.Round == item.Decision.Round && st.Order == targetOrder)?.Name;
@@ -191,6 +195,35 @@
                         @if (expanded)
                         {
                             <div class="request-card-body">
+                                @if (CanReopen(item))
+                                {
+                                    <div class="force-close-panel">
+                                        <p class="muted">این درخواست هنوز ردشده است. اگر رد کردن اشتباه بوده، می‌توانید آن را به مرحله‌ی خودتان برگردانید؛ تأییدهای مراحل قبل حفظ می‌شود و دلیل بازگشایی در تاریخچه ثبت می‌شود.</p>
+                                        @if (_reopenOpenFor == item.Request.Id)
+                                        {
+                                            <input type="text" class="form-control" placeholder="دلیل بازگشایی (الزامی)" maxlength="1000"
+                                                   value="@GetReopenReason(item.Request.Id)" @oninput="e => _reopenReasons[item.Request.Id] = e.Value?.ToString() ?? string.Empty" />
+                                            <div class="force-close-actions">
+                                                <button type="button" class="btn btn-primary btn-sm" disabled="@(_reopenBusyId == item.Request.Id || string.IsNullOrWhiteSpace(GetReopenReason(item.Request.Id)))"
+                                                        @onclick="() => ReopenOwnAsync(item.Request.Id)">
+                                                    @if (_reopenBusyId == item.Request.Id)
+                                                    {
+                                                        <span><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>تایید بازگشایی</span>
+                                                    }
+                                                </button>
+                                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _reopenOpenFor = null">انصراف</button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-primary btn-sm" @onclick="() => _reopenOpenFor = item.Request.Id"><i class="ti @Icons.Reopen"></i> بازگشایی رد من</button>
+                                        }
+                                    </div>
+                                }
                                 <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
                             </div>
                         }
@@ -214,6 +247,67 @@
 
     private bool _ready;
     private Guid? _employeeId;
+
+    // ---- taking back my own rejection (Requests.Decision.ReopenOwn) ----
+    private bool _canReopenOwn;
+    private Guid? _reopenOpenFor, _reopenBusyId;
+    private readonly Dictionary<Guid, string> _reopenReasons = [];
+    private string GetReopenReason(Guid requestId) => _reopenReasons.TryGetValue(requestId, out var r) ? r : string.Empty;
+
+    private bool CanReopen(HistoryItem item) =>
+        _canReopenOwn && _employeeId is Guid me && item.Decision.Outcome == WorkflowStepStatus.Rejected
+        && item.Decision.ActedByEmployeeId == me && item.Request.WasRejectedBy(me);
+
+    private async Task ReopenOwnAsync(Guid requestId)
+    {
+        if (_employeeId is not Guid me || _reopenBusyId is not null) return;
+        var reason = GetReopenReason(requestId).Trim();
+        if (reason.Length == 0) return;
+        _reopenBusyId = requestId;
+        try
+        {
+            // The card is only shown with the permission, but the handler checks it again itself.
+            if (!await Permissions.HasPermissionAsync(Perm.RequestsDecisionReopenOwn))
+            {
+                AppState.AddToast("شما مجوز بازگشایی درخواست ردشده را ندارید.", ToastLevel.Error);
+                return;
+            }
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var tracked = await db.WorkflowRequests.Include(x => x.Steps).Include(x => x.StepDecisions).SingleOrDefaultAsync(x => x.Id == requestId);
+            if (tracked is null)
+            {
+                await LoadHistoryAsync();
+                return;
+            }
+            try
+            {
+                tracked.ReopenOwnRejection(me, reason);
+            }
+            catch (InvalidOperationException)
+            {
+                AppState.AddToast("این رد دیگر قابل بازگشایی نیست (بازگشایی یا بسته شده است)؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadHistoryAsync();
+                return;
+            }
+            await NotificationSvc.StageAsync(db, tracked, WorkflowNotificationEvent.Reopened);
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                AppState.AddToast("وضعیت این درخواست هم‌زمان تغییر کرد؛ فهرست به‌روزرسانی شد.", ToastLevel.Info);
+                await LoadHistoryAsync();
+                return;
+            }
+            AppState.AddToast("درخواست بازگشایی شد و دوباره در کارتابل شما قرار گرفت.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
+            _reopenReasons.Remove(requestId);
+            _reopenOpenFor = null;
+            await LoadHistoryAsync();
+        }
+        finally { _reopenBusyId = null; }
+    }
     private Guid? _approverPositionId;
     private List<InboxItem> _items = [];
     private Dictionary<Guid, string> _employeeNames = [];
@@ -278,6 +372,7 @@
         var claimedPositionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
 
         _employeeId = employeeId;
+        _canReopenOwn = await Permissions.HasPermissionAsync(Perm.RequestsDecisionReopenOwn);
         // Re-verified fresh against the database rather than trusted from the cookie claim
         // alone, so a revoked or changed active position immediately loses this inbox.
         _approverPositionId = employeeId is Guid empId && await Workflows.HoldsActivePositionAsync(empId, claimedPositionId)

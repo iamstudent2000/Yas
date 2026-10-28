@@ -264,6 +264,38 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    /// <summary>
+    /// True when the rejection that currently stands was made by <paramref name="employeeId"/> (in their own right or as a delegate):
+    /// the request is rejected and the latest rejection on each rejecting step of the live group includes theirs. Needs the steps and
+    /// the decision log loaded; fails closed when they are not.
+    /// </summary>
+    public bool WasRejectedBy(Guid employeeId)
+    {
+        if (employeeId == Guid.Empty || Status != WorkflowRequestStatus.Rejected || Steps.Count == 0)
+            return false;
+        var rejectingStepIds = CurrentSteps.Where(x => x.Status == WorkflowStepStatus.Rejected).Select(x => x.Id).ToList();
+        foreach (var stepId in rejectingStepIds)
+        {
+            var latest = StepDecisions.Where(d => d.StepId == stepId && d.Round == CurrentRound && d.Outcome == WorkflowStepStatus.Rejected)
+                .OrderByDescending(d => d.ActedAtUtc).FirstOrDefault();
+            if (latest is not null && latest.ActedByEmployeeId == employeeId)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// The person who rejected a request takes the rejection back: same effect as <see cref="Reopen"/> (back to the rejecting step, earlier
+    /// approvals kept, the reopen recorded with who and why), but only for the rejecter. A rejection somebody else made, or one that no
+    /// longer stands (already reopened, cancelled, force-closed), is refused.
+    /// </summary>
+    public void ReopenOwnRejection(Guid actingEmployeeId, string reason)
+    {
+        if (!WasRejectedBy(actingEmployeeId))
+            throw new InvalidOperationException("Only the person who rejected the request can reopen it this way.");
+        Reopen(actingEmployeeId, reason);
+    }
+
     /// <param name="partValues">
     /// The values the approver filled in for the form part their step owns (see <see cref="WorkflowPartDefinition"/>).
     /// Required — and validated — when the step owns a part; refused when it does not. The step is the
