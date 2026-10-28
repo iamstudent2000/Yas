@@ -27,15 +27,32 @@ END;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Notifications') AND name = N'IX_Notifications_BatchId')
     EXEC(N'CREATE INDEX IX_Notifications_BatchId ON dbo.Notifications (BatchId)');
 
+-- 1c) Reusable recipient groups (private to the person who made them).
+IF OBJECT_ID(N'dbo.RecipientGroups', N'U') IS NULL
+    CREATE TABLE dbo.RecipientGroups (
+        Id uniqueidentifier NOT NULL, OwnerEmployeeId uniqueidentifier NOT NULL, Name nvarchar(100) NOT NULL,
+        CreatedAtUtc datetime2 NOT NULL, UpdatedAtUtc datetime2 NOT NULL,
+        CONSTRAINT PK_RecipientGroups PRIMARY KEY (Id),
+        CONSTRAINT FK_RecipientGroups_Employees_OwnerEmployeeId FOREIGN KEY (OwnerEmployeeId) REFERENCES dbo.Employees (Id) ON DELETE CASCADE);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.RecipientGroups') AND name = N'IX_RecipientGroups_OwnerEmployeeId_Name')
+    EXEC(N'CREATE UNIQUE INDEX IX_RecipientGroups_OwnerEmployeeId_Name ON dbo.RecipientGroups (OwnerEmployeeId, Name)');
+IF OBJECT_ID(N'dbo.RecipientGroupMembers', N'U') IS NULL
+    CREATE TABLE dbo.RecipientGroupMembers (
+        GroupId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NOT NULL,
+        CONSTRAINT PK_RecipientGroupMembers PRIMARY KEY (GroupId, EmployeeId),
+        CONSTRAINT FK_RecipientGroupMembers_RecipientGroups_GroupId FOREIGN KEY (GroupId) REFERENCES dbo.RecipientGroups (Id) ON DELETE CASCADE,
+        CONSTRAINT FK_RecipientGroupMembers_Employees_EmployeeId FOREIGN KEY (EmployeeId) REFERENCES dbo.Employees (Id));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.RecipientGroupMembers') AND name = N'IX_RecipientGroupMembers_EmployeeId')
+    EXEC(N'CREATE INDEX IX_RecipientGroupMembers_EmployeeId ON dbo.RecipientGroupMembers (EmployeeId)');
+
 -- 2) The new permissions (the application also creates missing ones at development startup).
 INSERT INTO Permissions (Id, Code, Name)
 SELECT NEWID(), v.Code, v.Name
 FROM (VALUES
-    (N'Notifications.Message.Send', N'ارسال اعلان به کارمندان و مشاهده اعلان‌های ارسالی خود'),
+    (N'Notifications.Message.Send', N'ارسال اعلان به یک یا چند نفر، سازمان‌ها یا همه کارکنان، نگهداری گروه‌های گیرنده و مشاهده و پس‌گرفتن اعلان‌های ارسالی خود'),
     (N'Admin.Notifications.View', N'مشاهده گزارش همه اعلان‌ها (فقط خواندنی)'),
     (N'Reports.Notifications.Export', N'خروجی گزارش همه اعلان‌ها (مدیریت)'),
     (N'Reports.MyNotifications.Export', N'خروجی اعلان‌های من'),
-    (N'Notifications.Broadcast.Send', N'ارسال اعلان به همه کارکنان یا به همه اعضای سازمان‌های انتخاب‌شده'),
     (N'Admin.Notifications.Manage', N'مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)')
 ) AS v(Code, Name)
 WHERE NOT EXISTS (SELECT 1 FROM Permissions p WHERE p.Code = v.Code);
@@ -48,7 +65,7 @@ SELECT e.Id, p.Id
 FROM Employees e
 CROSS JOIN Permissions p
 WHERE e.IsAdmin = 1
-  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export', N'Reports.MyNotifications.Export', N'Notifications.Broadcast.Send', N'Admin.Notifications.Manage')
+  AND p.Code IN (N'Notifications.Message.Send', N'Admin.Notifications.View', N'Reports.Notifications.Export', N'Reports.MyNotifications.Export', N'Admin.Notifications.Manage')
   AND NOT EXISTS (SELECT 1 FROM EmployeePermissions x WHERE x.EmployeeId = e.Id AND x.PermissionId = p.Id);
 
 COMMIT;

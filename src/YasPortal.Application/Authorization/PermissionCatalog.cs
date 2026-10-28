@@ -34,7 +34,6 @@ public static class Perm
     public const string NotificationsMessageSend = "Notifications.Message.Send";
 
     /// <summary>Send the same notification to every active employee, or to all members of chosen organizations (on top of <see cref="NotificationsMessageSend"/>).</summary>
-    public const string NotificationsBroadcastSend = "Notifications.Broadcast.Send";
 
     public const string AdminRequestsView = "Admin.Requests.View";
     public const string AdminRequestsCreateForOthers = "Admin.Requests.CreateForOthers";
@@ -134,8 +133,7 @@ public static class PermissionCatalog
 
             new(Perm.DelegationsOwnManage, "تفویض اختیار سمت خود به دیگری", "Requests.Delegation", "Delegations.Create"),
 
-            new(Perm.NotificationsMessageSend, "ارسال اعلان به کارمندان (یک نفر یا چند نفر منتخب) و مشاهده و پس‌گرفتن اعلان‌های ارسالی خود"),
-            new(Perm.NotificationsBroadcastSend, "ارسال اعلان به همه کارکنان یا به همه اعضای سازمان‌های انتخاب‌شده"),
+            new(Perm.NotificationsMessageSend, "ارسال اعلان به یک یا چند نفر، سازمان‌ها یا همه کارکنان، نگهداری گروه‌های گیرنده و مشاهده و پس‌گرفتن اعلان‌های ارسالی خود"),
 
             new(Perm.AdminRequestsView, "مشاهده گزارش همه درخواست‌ها", "Admin.Requests"),
             new(Perm.AdminRequestsCreateForOthers, "ثبت درخواست برای دیگران", "Admin.RequestForOthers"),

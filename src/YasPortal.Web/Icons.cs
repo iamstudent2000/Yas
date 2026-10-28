@@ -75,6 +75,8 @@ public static class Icons
     public const string SendNotification = "ti-bell-plus";
     public const string NotificationsReport = "ti-report-search";
     public const string Broadcast = "ti-speakerphone";
+    public const string RecipientGroup = "ti-users-group";
+    public const string PickFromList = "ti-list-check";
     public const string Retract = "ti-message-off";
     public const string RestoreNotification = "ti-arrow-back-up";
 

@@ -37,6 +37,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WorkflowStepDecision> WorkflowStepDecisions => Set<WorkflowStepDecision>();
     public DbSet<WorkflowFieldChange> WorkflowFieldChanges => Set<WorkflowFieldChange>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<RecipientGroup> RecipientGroups => Set<RecipientGroup>();
+    public DbSet<RecipientGroupMember> RecipientGroupMembers => Set<RecipientGroupMember>();
     public DbSet<UserUiPreference> UiPreferences => Set<UserUiPreference>();
     public DbSet<PasswordPolicy> PasswordPolicies => Set<PasswordPolicy>();
     public DbSet<PositionDelegation> PositionDelegations => Set<PositionDelegation>();
@@ -60,7 +62,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     private void CaptureAuditEntries()
     {
-        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && x.Entity is not Notification && x.Entity is not UserUiPreference && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
+        var entries = ChangeTracker.Entries().Where(x => x.Entity is not AuditEntry && x.Entity is not Notification && x.Entity is not RecipientGroup && x.Entity is not RecipientGroupMember && x.Entity is not UserUiPreference && (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)).ToList();
         foreach (var entry in entries)
         {
             var action = entry.State switch {
@@ -307,6 +309,22 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasIndex(x => x.BatchId);
             e.HasIndex(x => new { x.SenderEmployeeId, x.CreatedAtUtc });
             e.HasIndex(x => x.CreatedAtUtc);
+        });
+        // Reusable recipient lists: private to their owner. Members' FK to Employees is NoAction (SQL Server allows one cascade path: Employees -> groups -> members).
+        modelBuilder.Entity<RecipientGroup>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.Name).HasMaxLength(RecipientGroup.MaxNameLength).IsRequired();
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.OwnerEmployeeId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.OwnerEmployeeId, x.Name }).IsUnique();
+        });
+        modelBuilder.Entity<RecipientGroupMember>(e =>
+        {
+            e.HasKey(x => new { x.GroupId, x.EmployeeId });
+            e.HasOne<RecipientGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.NoAction);
+            e.HasIndex(x => x.EmployeeId);
         });
         // Per-employee appearance settings: cosmetic only, one row per employee, never audited.
         modelBuilder.Entity<UserUiPreference>(e =>

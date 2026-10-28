@@ -286,9 +286,40 @@ public class NotificationTests
     }
 
     [Fact]
+    public void A_recipient_group_needs_an_owner_and_a_name_that_fits()
+    {
+        var owner = Guid.NewGuid();
+        var group = new RecipientGroup(owner, "  تیم فروش  ");
+        Assert.Equal("تیم فروش", group.Name);
+        Assert.Equal(owner, group.OwnerEmployeeId);
+
+        group.Rename("تیم مالی");
+        Assert.Equal("تیم مالی", group.Name);
+
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(Guid.Empty, "x"));
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(owner, "   "));
+        Assert.Throws<ArgumentException>(() => new RecipientGroup(owner, new string('ن', RecipientGroup.MaxNameLength + 1)));
+        Assert.Throws<ArgumentException>(() => new RecipientGroupMember(Guid.NewGuid(), Guid.Empty));
+    }
+
+    [Fact]
+    public async Task Group_members_are_stored_once_per_employee_and_removed_with_their_group()
+    {
+        await using var db = Create(nameof(Group_members_are_stored_once_per_employee_and_removed_with_their_group));
+        var group = new RecipientGroup(Guid.NewGuid(), "گروه");
+        var employee = Guid.NewGuid();
+        db.RecipientGroups.Add(group);
+        db.RecipientGroupMembers.Add(new RecipientGroupMember(group.Id, employee));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, await db.RecipientGroupMembers.CountAsync(m => m.GroupId == group.Id));
+        Assert.Single(await db.RecipientGroups.Where(g => g.Name == "گروه").ToListAsync());
+    }
+
+    [Fact]
     public void The_notification_permissions_are_in_the_catalog_exactly_once()
     {
-        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.NotificationsBroadcastSend, Perm.AdminNotificationsView, Perm.AdminNotificationsManage, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
+        foreach (var code in new[] { Perm.NotificationsMessageSend, Perm.AdminNotificationsView, Perm.AdminNotificationsManage, ReportPermissions.Notifications, ReportPermissions.MyNotifications })
             Assert.Single(PermissionCatalog.All, x => x.Code == code);
 
         Assert.Equal(PermissionCatalog.All.Count, PermissionCatalog.Codes.Distinct(StringComparer.OrdinalIgnoreCase).Count());

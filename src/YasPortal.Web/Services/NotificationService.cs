@@ -112,24 +112,21 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
 
     // ---- sending by hand ----
 
-    /// <summary>Who a hand-written message goes to.</summary>
-    public enum AudienceKind
+    /// <summary>
+    /// Who a hand-written message goes to: the union of everyone picked by hand, every member of the chosen organizations, and every member of
+    /// the sender's own saved groups; or every active employee when <see cref="Everyone"/> is set. Inactive employees and the sender are always left out.
+    /// </summary>
+    public sealed record Audience(bool Everyone = false, IReadOnlyCollection<Guid>? EmployeeIds = null, IReadOnlyCollection<Guid>? OrganizationIds = null,
+        IReadOnlyCollection<Guid>? GroupIds = null)
     {
-        /// <summary>Employees picked one by one.</summary>
-        Selected,
-        /// <summary>Every active member of the chosen organizations (needs <see cref="Perm.NotificationsBroadcastSend"/>).</summary>
-        Organizations,
-        /// <summary>Every active employee (needs <see cref="Perm.NotificationsBroadcastSend"/>).</summary>
-        Everyone,
+        public bool IsEmpty => !Everyone && (EmployeeIds?.Count ?? 0) == 0 && (OrganizationIds?.Count ?? 0) == 0 && (GroupIds?.Count ?? 0) == 0;
     }
 
-    public sealed record Audience(AudienceKind Kind, IReadOnlyCollection<Guid>? EmployeeIds = null, IReadOnlyCollection<Guid>? OrganizationIds = null);
-
-    public sealed record SendResult(bool Ok, string? Error, int Sent = 0, int Skipped = 0);
+    public sealed record SendResult(bool Ok, string? Error, int Sent = 0);
 
     public sealed record ChangeResult(bool Ok, string? Error, int Count = 0);
 
-    /// <summary>Most people that can be picked one by one for a single message.</summary>
+    /// <summary>Most people that can be picked by hand for a single message.</summary>
     public const int MaxSelectedRecipients = 500;
 
     /// <summary>Most recipients of a single message, however they were chosen (a guard against a runaway broadcast).</summary>
@@ -139,57 +136,47 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     private static IQueryable<Employee> Recipients(ApplicationDbContext db, Audience audience, Guid senderId)
     {
         var query = db.Employees.AsNoTracking().Where(e => e.IsActive && e.Id != senderId);
-        switch (audience.Kind)
-        {
-            case AudienceKind.Selected:
-                var employeeIds = (audience.EmployeeIds ?? []).Distinct().ToList();
-                return query.Where(e => employeeIds.Contains(e.Id));
-            case AudienceKind.Organizations:
-                var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
-                return query.Where(e => organizationIds.Contains(e.OrganizationId));
-            default:
-                return query;
-        }
+        if (audience.Everyone)
+            return query;
+        var employeeIds = (audience.EmployeeIds ?? []).Distinct().ToList();
+        var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
+        var groupIds = (audience.GroupIds ?? []).Distinct().ToList();
+        // Only the sender's own groups count, whatever ids the caller passes.
+        var memberIds = db.RecipientGroupMembers.AsNoTracking()
+            .Where(m => groupIds.Contains(m.GroupId) && db.RecipientGroups.Any(g => g.Id == m.GroupId && g.OwnerEmployeeId == senderId))
+            .Select(m => m.EmployeeId);
+        return query.Where(e => employeeIds.Contains(e.Id) || organizationIds.Contains(e.OrganizationId) || memberIds.Contains(e.Id));
     }
 
     /// <summary>How many people the audience would reach right now (for the preview before sending).</summary>
     public async Task<int> CountRecipientsAsync(Guid senderId, Audience audience, CancellationToken ct = default)
     {
+        if (audience.IsEmpty)
+            return 0;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await Recipients(db, audience, senderId).CountAsync(ct);
     }
 
     /// <summary>
     /// Sends one hand-written notification from <paramref name="senderId"/> to every active employee in the audience (one copy each, tied together
-    /// by a batch id). The sender must hold <see cref="Perm.NotificationsMessageSend"/>, and also <see cref="Perm.NotificationsBroadcastSend"/> for
-    /// organizations or everyone; both are checked here as well as on the page. Returns the Persian reason when nothing was sent.
+    /// by a batch id). One permission covers all of it: <see cref="Perm.NotificationsMessageSend"/>, checked here as well as on the page.
+    /// Returns the Persian reason when nothing was sent.
     /// </summary>
     public async Task<SendResult> SendAsync(Guid senderId, Audience audience, string? message, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
             return new(false, "شما مجوز ارسال اعلان ندارید.");
-        if (audience.Kind != AudienceKind.Selected && !await permissions.HasPermissionAsync(Perm.NotificationsBroadcastSend, ct))
-            return new(false, "شما مجوز ارسال اعلان به همه یا به سازمان‌ها را ندارید.");
 
         var text = (message ?? string.Empty).Trim();
         if (text.Length == 0)
             return new(false, "متن اعلان را بنویسید.");
         if (text.Length > Notification.MaxMessageLength)
             return new(false, $"متن اعلان نباید بیش از {Notification.MaxMessageLength} نویسه باشد.");
-
-        var picked = (audience.EmployeeIds ?? []).Distinct().ToList();
-        var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
-        switch (audience.Kind)
-        {
-            case AudienceKind.Selected when picked.Count == 0:
-                return new(false, "گیرنده را انتخاب کنید.");
-            case AudienceKind.Selected when picked.Count > MaxSelectedRecipients:
-                return new(false, $"حداکثر {MaxSelectedRecipients} گیرنده را می‌توان یکی‌یکی انتخاب کرد؛ برای تعداد بیشتر سازمان یا «همه» را انتخاب کنید.");
-            case AudienceKind.Selected when picked.All(id => id == senderId):
-                return new(false, "ارسال اعلان به خودتان ممکن نیست.");
-            case AudienceKind.Organizations when organizationIds.Count == 0:
-                return new(false, "سازمانی انتخاب نشده است.");
-        }
+        if (audience.IsEmpty)
+            return new(false, "گیرنده را انتخاب کنید.");
+        var pickedCount = audience.Everyone ? 0 : (audience.EmployeeIds ?? []).Distinct().Count();
+        if (pickedCount > MaxSelectedRecipients)
+            return new(false, $"حداکثر {MaxSelectedRecipients} نفر را می‌توان یکی‌یکی انتخاب کرد؛ برای تعداد بیشتر سازمان، گروه یا «همه» را انتخاب کنید.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var senderName = await db.Employees.AsNoTracking().Where(x => x.Id == senderId).Select(x => x.FullName).SingleOrDefaultAsync(ct);
@@ -202,12 +189,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         if (recipients.Count > MaxRecipients)
             return new(false, $"حداکثر {MaxRecipients} گیرنده در هر ارسال مجاز است.");
 
-        string? audienceLabel = audience.Kind switch
-        {
-            AudienceKind.Everyone => "همه کارکنان",
-            AudienceKind.Organizations => "سازمان‌ها: " + string.Join("، ", await db.Organizations.AsNoTracking().Where(o => organizationIds.Contains(o.Id)).OrderBy(o => o.Name).Select(o => o.Name).ToListAsync(ct)),
-            _ => recipients.Count > 1 ? $"{recipients.Count} نفر منتخب" : null,
-        };
+        var audienceLabel = await DescribeAsync(db, audience, senderId, recipients.Count, ct);
         var batchId = recipients.Count > 1 ? Guid.NewGuid() : (Guid?)null;
 
         // Administrators read their notifications on their own page (they have no position and no personal request pages).
@@ -219,7 +201,104 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             await db.SaveChangesAsync(ct);
             done += chunk.Length;
         }
-        return new(true, null, done, audience.Kind == AudienceKind.Selected ? picked.Count - done : 0);
+        return new(true, null, done);
+    }
+
+    /// <summary>The audience in words, kept with the message so the sender (and the report) can see who it was meant for.</summary>
+    private static async Task<string?> DescribeAsync(ApplicationDbContext db, Audience audience, Guid senderId, int recipientCount, CancellationToken ct)
+    {
+        if (audience.Everyone)
+            return "همه کارکنان";
+        var parts = new List<string>();
+        var picked = (audience.EmployeeIds ?? []).Distinct().Count();
+        var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
+        var groupIds = (audience.GroupIds ?? []).Distinct().ToList();
+        if (picked > 0 && (organizationIds.Count > 0 || groupIds.Count > 0 || recipientCount > 1))
+            parts.Add($"{picked} نفر منتخب");
+        if (organizationIds.Count > 0)
+            parts.Add("سازمان‌ها: " + string.Join("، ", await db.Organizations.AsNoTracking().Where(o => organizationIds.Contains(o.Id)).OrderBy(o => o.Name).Select(o => o.Name).ToListAsync(ct)));
+        if (groupIds.Count > 0)
+            parts.Add("گروه‌ها: " + string.Join("، ", await db.RecipientGroups.AsNoTracking().Where(g => g.OwnerEmployeeId == senderId && groupIds.Contains(g.Id)).OrderBy(g => g.Name).Select(g => g.Name).ToListAsync(ct)));
+        return parts.Count == 0 ? null : string.Join(" + ", parts);
+    }
+
+    // ---- saved recipient groups (the sender's own; need the same send permission) ----
+
+    public sealed record GroupSummary(Guid Id, string Name, int MemberCount);
+
+    public async Task<List<GroupSummary>> ListGroupsAsync(Guid ownerId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var counts = db.RecipientGroupMembers.AsNoTracking().GroupBy(m => m.GroupId).Select(g => new { GroupId = g.Key, Count = g.Count() });
+        return await (from g in db.RecipientGroups.AsNoTracking()
+                      where g.OwnerEmployeeId == ownerId
+                      join c in counts on g.Id equals c.GroupId into cs
+                      from c in cs.DefaultIfEmpty()
+                      orderby g.Name
+                      select new GroupSummary(g.Id, g.Name, c == null ? 0 : c.Count)).ToListAsync(ct);
+    }
+
+    /// <summary>The members of one of the owner's groups (active or not), for loading them back into the hand-picked list.</summary>
+    public async Task<List<AdminQueryService.LookupItem>> GetGroupMembersAsync(Guid ownerId, Guid groupId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await (from m in db.RecipientGroupMembers.AsNoTracking()
+                      join g in db.RecipientGroups.AsNoTracking() on m.GroupId equals g.Id
+                      join e in db.Employees.AsNoTracking() on m.EmployeeId equals e.Id
+                      where g.Id == groupId && g.OwnerEmployeeId == ownerId && e.IsActive
+                      orderby e.FullName
+                      select new AdminQueryService.LookupItem(e.Id, e.Code + " — " + e.FullName + " — " + e.Username + (e.IsAdmin ? " (مدیر سامانه)" : " (کارمند)"))).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Saves what the audience resolves to right now as a group under <paramref name="name"/>: a new group, or, when the owner already has one with
+    /// that name, its members are replaced. The group is a snapshot of people (not of the organizations behind it).
+    /// </summary>
+    public async Task<ChangeResult> SaveGroupAsync(Guid ownerId, string? name, Audience audience, CancellationToken ct = default)
+    {
+        if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
+            return new(false, "شما مجوز ارسال اعلان ندارید.");
+        var value = (name ?? string.Empty).Trim();
+        if (value.Length == 0)
+            return new(false, "نام گروه را بنویسید.");
+        if (value.Length > RecipientGroup.MaxNameLength)
+            return new(false, $"نام گروه نباید بیش از {RecipientGroup.MaxNameLength} نویسه باشد.");
+        if (audience.IsEmpty)
+            return new(false, "ابتدا گیرندگان را انتخاب کنید.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var memberIds = await Recipients(db, audience, ownerId).Select(e => e.Id).Take(MaxRecipients + 1).ToListAsync(ct);
+        if (memberIds.Count == 0)
+            return new(false, "گیرنده‌ی فعالی پیدا نشد.");
+        if (memberIds.Count > MaxRecipients)
+            return new(false, $"یک گروه حداکثر {MaxRecipients} عضو دارد.");
+
+        var group = await db.RecipientGroups.SingleOrDefaultAsync(g => g.OwnerEmployeeId == ownerId && g.Name == value, ct);
+        if (group is null)
+        {
+            if (await db.RecipientGroups.CountAsync(g => g.OwnerEmployeeId == ownerId, ct) >= RecipientGroup.MaxGroupsPerOwner)
+                return new(false, $"حداکثر {RecipientGroup.MaxGroupsPerOwner} گروه می‌توانید داشته باشید؛ یکی را حذف کنید.");
+            group = new RecipientGroup(ownerId, value);
+            db.RecipientGroups.Add(group);
+        }
+        else
+        {
+            group.Touch();
+            await db.RecipientGroupMembers.Where(m => m.GroupId == group.Id).ExecuteDeleteAsync(ct);
+        }
+        foreach (var id in memberIds)
+            db.RecipientGroupMembers.Add(new RecipientGroupMember(group.Id, id));
+        await db.SaveChangesAsync(ct);
+        return new(true, null, memberIds.Count);
+    }
+
+    public async Task<ChangeResult> DeleteGroupAsync(Guid ownerId, Guid groupId, CancellationToken ct = default)
+    {
+        if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
+            return new(false, "شما مجوز ارسال اعلان ندارید.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var count = await db.RecipientGroups.Where(g => g.Id == groupId && g.OwnerEmployeeId == ownerId).ExecuteDeleteAsync(ct);
+        return new(count > 0, count > 0 ? null : "گروه پیدا نشد.", count);
     }
 
     // ---- what a sender sent, and taking it back ----
