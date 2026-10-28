@@ -1,5 +1,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
+@implements IDisposable
+@inject NavigationManager Navigation
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="jasmine-bloom-outline" viewBox="0 0 100 100">
@@ -15,7 +17,7 @@
 </svg>
 
 
-<div class="application-shell" dir="rtl">
+<div class="application-shell @(IsBare ? "is-bare" : "")" dir="rtl">
     <div class="application-body">
         <AuthorizeView>
             <Authorized>
@@ -47,3 +49,14 @@
     </div>
     <YasPortal.Web.Components.AppNotifications />
 </div>
+
+@code {
+    // The sign-in screen is a full-screen page of its own: no top bar, no scrolling.
+    private bool IsBare => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Equals("/login", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}
