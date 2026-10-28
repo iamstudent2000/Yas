@@ -19,12 +19,16 @@
 
 <div class="application-shell @(IsBare ? "is-bare" : "")" dir="rtl">
     <div class="application-body">
-        <AuthorizeView>
-            <Authorized>
-                <PersistentSidebar />
-                <YasPortal.Web.Components.Shared.SessionGuard />
-            </Authorized>
-        </AuthorizeView>
+        @* The sign-in screen is bare even for someone who is still signed in (opened /login by hand, back button, an old tab): no sidebar, no top bar. *@
+        @if (!IsBare)
+        {
+            <AuthorizeView>
+                <Authorized>
+                    <PersistentSidebar />
+                    <YasPortal.Web.Components.Shared.SessionGuard />
+                </Authorized>
+            </AuthorizeView>
+        }
 
         <div class="shell-main">
             <header class="topbar">
