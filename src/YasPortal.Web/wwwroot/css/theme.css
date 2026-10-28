@@ -357,3 +357,15 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 .status-hint i{vertical-align:-2px;color:var(--status)}
 .status-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}
 .status-actions:empty{display:none}
+/* sign-in screen: no top bar, fills the window and never scrolls (a very short window scrolls inside the form panel only) */
+.application-shell.is-bare,.application-shell.is-bare .application-body,.application-shell.is-bare .shell-main{height:var(--app-h,100dvh);min-height:0;overflow:hidden;overflow:clip}
+.application-shell.is-bare .topbar{display:none}
+.application-shell.is-bare .content{padding:0;max-width:none;margin:0;width:100%;flex:1 1 auto;min-height:0;overflow:hidden}
+.application-shell.is-bare .login-shell{min-height:0;height:100%;overflow:hidden;padding:clamp(12px,3vh,28px)}
+.application-shell.is-bare .login-frame{max-height:100%;min-height:0}
+.application-shell.is-bare .login-brandpanel{min-height:0}
+.application-shell.is-bare .login-formpanel{overflow:auto;min-height:0}
+@media(max-width:860px){
+    .application-shell.is-bare .login-shell{padding:0}
+    .application-shell.is-bare .login-frame{height:100%;grid-template-rows:auto minmax(0,1fr)}
+}
