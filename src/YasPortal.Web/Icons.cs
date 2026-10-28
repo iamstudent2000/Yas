@@ -77,6 +77,7 @@ public static class Icons
     public const string Broadcast = "ti-speakerphone";
     public const string RecipientGroup = "ti-users-group";
     public const string PickFromList = "ti-list-check";
+    public const string ClearForm = "ti-eraser";
     public const string Retract = "ti-message-off";
     public const string RestoreNotification = "ti-arrow-back-up";
 

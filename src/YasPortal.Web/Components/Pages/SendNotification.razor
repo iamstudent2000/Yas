@@ -24,6 +24,7 @@
 
     <section class="card send-card">
         <div class="send-everyone">
+            <button type="button" class="btn btn-secondary btn-sm" disabled="@(_busy || !HasAnythingToClear)" @onclick="ClearFormAsync"><i class="ti @Icons.ClearForm"></i> پاک‌کردن فهرست و فرم تازه</button>
             <label class="check-row"><input type="checkbox" checked="@_everyone" @onchange="OnEveryoneChangedAsync" /> <i class="ti @Icons.Broadcast"></i> همه کارکنان فعال</label>
             <small class="muted">با انتخاب این گزینه، همه‌ی کارکنان فعال گیرنده‌اند؛ می‌توانید در «فهرست گیرندگان» تیک عده‌ای را بردارید.</small>
         </div>
@@ -107,7 +108,8 @@
                             <button type="button" title="بارگذاری اعضا در انتخاب دستی برای ویرایش" @onclick="() => LoadGroupMembersAsync(group)"><i class="ti @Icons.Edit"></i></button>
                             @if (_deleteGroupId == group.Id)
                             {
-                                <button type="button" class="audience-chip-confirm" title="تأیید حذف گروه" @onclick="() => DeleteGroupAsync(group)">حذف شود؟</button>
+                                <button type="button" class="audience-chip-confirm" title="تأیید حذف گروه" disabled="@_busy" @onclick="() => DeleteGroupAsync(group)">حذف شود؟</button>
+                                <button type="button" title="انصراف از حذف" @onclick="() => _deleteGroupId = null"><i class="ti @Icons.Close"></i> انصراف</button>
                             }
                             else
                             {
@@ -269,6 +271,32 @@
         await LoadGroupsAsync();
         await LoadBrowseAsync();
         await LoadAsync();
+    }
+
+    private bool HasAnythingToClear => _everyone || _employees.Count > 0 || _groupIds.Count > 0 || _excluded.Count > 0 || _message.Length > 0
+        || _groupName.Length > 0 || !string.IsNullOrWhiteSpace(_browseText) || _browseOrgId is not null || !string.IsNullOrWhiteSpace(_reviewText);
+
+    /// <summary>Back to a fresh form: no recipients, no message, no filters.</summary>
+    private async Task ClearFormAsync()
+    {
+        _everyone = false;
+        _employees.Clear();
+        _groupIds.Clear();
+        _excluded.Clear();
+        _message = string.Empty;
+        _groupName = string.Empty;
+        _deleteGroupId = null;
+        _confirming = false;
+        _browseText = null;
+        _browseOrgId = null;
+        _browseKey++;
+        _browsePage = 1;
+        _reviewText = null;
+        _reviewPage = 1;
+        _recipientCount = null;
+        _reviewItems = [];
+        _reviewTotal = 0;
+        await LoadBrowseAsync();
     }
 
     private bool CanSubmit => _message.Trim().Length > 0 && !CurrentAudience().IsEmpty;

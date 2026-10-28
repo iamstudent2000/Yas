@@ -10,7 +10,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Close` | `ti-x` | 17 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +7 more |
+| `Close` | `ti-x` | 18 | AccessManagement×4, AuditLog×2, PermissionGroups×2, WorkflowDisplay×2 +8 more |
 | `Confirm` | `ti-check` | 22 | Positions×6, AccessManagement×3, PermissionGroups×2, WorkflowDisplay×2 +9 more |
 | `ConfirmAll` | `ti-checks` | 6 | SendNotification, AccessManagement, PermissionGroups, NotificationReport +2 more |
 | `Save` | `ti-device-floppy` | 9 | MyProfile, SendNotification, PasswordPolicy, Organizations +5 more |
@@ -88,6 +88,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Broadcast` | `ti-speakerphone` | 1 | SendNotification |
 | `RecipientGroup` | `ti-users-group` | 1 | SendNotification |
 | `PickFromList` | `ti-list-check` | 1 | SendNotification |
+| `ClearForm` | `ti-eraser` | 1 | SendNotification |
 | `Retract` | `ti-message-off` | 5 | NotificationReport×3, SendNotification×2 |
 | `RestoreNotification` | `ti-arrow-back-up` | 2 | NotificationReport×2 |
 

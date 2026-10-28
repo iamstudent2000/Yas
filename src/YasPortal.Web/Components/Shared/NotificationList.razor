@@ -9,6 +9,7 @@
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@implements IAsyncDisposable
 
 <PageTitle>@(AdminView ? "اعلان‌های مدیر" : "اعلان‌ها") - یاس پورتال</PageTitle>
 
@@ -97,11 +98,43 @@
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
         await LoadAsync();
+        // New notifications show up without a page refresh: re-read the list quietly every so often.
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(RefreshInterval);
+        _ = PollAsync(_cts.Token);
     }
 
-    private async Task LoadAsync()
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    private async Task PollAsync(CancellationToken ct)
     {
-        _loading = true;
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+            {
+                try { await InvokeAsync(async () => { if (!_loading && !_exporting) { await LoadAsync(quiet: true); StateHasChanged(); } }); }
+                catch (Exception) when (!ct.IsCancellationRequested) { /* best effort: try again on the next tick */ }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left.
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private async Task LoadAsync(bool quiet = false)
+    {
+        if (!quiet) _loading = true;
         try
         {
             if (_employeeId is not Guid employeeId)
@@ -121,7 +154,7 @@
             }
             _unread = await NotificationSvc.CountUnreadAsync(employeeId);
         }
-        finally { _loading = false; }
+        finally { if (!quiet) _loading = false; }
     }
 
     // The boxes edit the draft (_d…); "جستجو" copies it to _kind/_unreadOnly, which LoadAsync reads.
@@ -204,6 +237,9 @@
         if (_employeeId is Guid employeeId && !item.IsRead)
         {
             await NotificationSvc.MarkReadAsync(employeeId, item.Id);
+            // Show it as read straight away (no refresh needed) and bring the counters and the bell badge down by one.
+            item.MarkRead();
+            _unread = Math.Max(0, _unread - 1);
             AppState.NotifyRequestBadgesChanged();
         }
         // A hand-written message has nowhere to go: opening it only marks it read.

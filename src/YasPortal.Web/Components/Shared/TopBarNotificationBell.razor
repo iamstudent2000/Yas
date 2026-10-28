@@ -1,7 +1,7 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Web.Services
-@implements IDisposable
+@implements IAsyncDisposable
 @inject NotificationService NotificationSvc
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -24,6 +24,27 @@
         Navigation.LocationChanged += OnLocationChanged;
         AppState.OnChange += OnAppStateChanged;
         await RefreshAsync();
+        // Pick up new notifications without a page refresh: every so often tell the bell and the sidebar badges to re-read their counts.
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(RefreshInterval);
+        _ = PollAsync(_cts.Token);
+    }
+
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+                AppState.NotifyRequestBadgesChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // The circuit ended.
+        }
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => await RefreshAndRenderAsync();
@@ -53,10 +74,14 @@
         }
     }
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
         Navigation.LocationChanged -= OnLocationChanged;
         AppState.OnChange -= OnAppStateChanged;
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+        return ValueTask.CompletedTask;
     }
 
     private static string ToPersianDigits(string value)
