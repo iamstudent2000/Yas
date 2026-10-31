@@ -12,6 +12,9 @@
 @inject AdminQueryService AdminQueries
 @inject ReportExportService Reports
 @inject AuditEventWriter Audit
+@inject IPermissionChecker Permissions
+@inject AuditArchiver Archiver
+@inject AuditArchiveSettingsService ArchiveSettings
 @inject AppState AppState
 
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
@@ -29,6 +32,51 @@
         </div>
     </div>
 
+    @if (_canManage)
+    {
+        <section class="card admin-form-row">
+            <div class="admin-form-row-head">
+                <h2 class="section-title"><i class="ti @Icons.History"></i> بایگانی رویدادهای قدیمی</h2>
+                <p class="muted">رویدادهای بایگانی‌شده حذف نمی‌شوند؛ فقط از فهرست جاری کنار می‌روند و با فیلتر «منبع» دیده می‌شوند.</p>
+            </div>
+            <div class="admin-row-grid">
+                <div class="form-field"><label class="form-label">روش بایگانی</label>
+                    <LookupSelect Options="_methodOptions" Value="@(_autoEnabled ? "auto" : "manual")" ValueChanged="MethodChanged" Placeholder="روش بایگانی" /></div>
+                <div class="form-field"><label class="form-label">قدیمی‌تر از (ماه)</label>
+                    <input class="form-control" type="number" min="@AuditArchiveSetting.LowestMonths" max="@AuditArchiveSetting.HighestMonths" @bind="_afterMonths" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    <button class="btn btn-primary" disabled="@(_savingSetting || _archiving)" @onclick="SaveArchiveSettingAsync"><i class="ti @Icons.Save"></i> ذخیره روش</button>
+                </div></div>
+            </div>
+            <p class="muted" style="margin-top:10px">
+                @if (_autoEnabled)
+                {
+                    <span>روش فعال: <strong>خودکار</strong> — هر روز رویدادهای قدیمی‌تر از @ToPersianDigits(_savedMonths.ToString()) ماه بایگانی می‌شود.</span>
+                }
+                else
+                {
+                    <span>روش فعال: <strong>دستی</strong> — خودکار انجام نمی‌شود و فقط با دکمه‌های زیر بایگانی می‌شود.</span>
+                }
+                @if (_lastRunUtc is DateTime lastRun)
+                {
+                    <span> آخرین اجرای خودکار: @ToPersianDate(lastRun.ToLocalTime()) @ToPersianDigits(lastRun.ToLocalTime().ToString("HH:mm")) (@ToPersianDigits(_lastRunCount.ToString("N0")) رویداد)</span>
+                }
+            </p>
+            <div class="admin-row-grid" style="margin-top:12px">
+                <div class="form-field"><label class="form-label">اجرای دستی: قدیمی‌تر از تاریخ</label>
+                    <PersianDatePicker Value="_archiveCutoff" ValueChanged="ArchiveCutoffChanged" Placeholder="تاریخ برش" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    <button class="btn btn-secondary" disabled="@(_archiving || _archiveCutoff is null)" @onclick="PreviewArchiveAsync"><i class="ti @Icons.Search"></i> شمارش</button>
+                    <button class="btn btn-primary" disabled="@(_archiving || _archiveCutoff is null)" @onclick="ArchiveAsync"><i class="ti @Icons.History"></i> @(_archiving ? "در حال بایگانی..." : "اجرای بایگانی همین حالا")</button>
+                </div></div>
+                @if (_archiveCount is int n)
+                {
+                    <div class="form-field"><span class="badge badge-muted">@ToPersianDigits(n.ToString("N0")) رویداد قابل بایگانی است</span></div>
+                }
+            </div>
+        </section>
+    }
+
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || DraftCount > 0)"
                    OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad" FilterSnapshot="@(() => _applied)" ExportPermission="@(ReportPermissions.AuditLog)" OnExport="ExportAsync" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">کاربر</label>
@@ -43,6 +91,7 @@
         </div>
         <div class="admin-filter"><label class="form-label">موجودیت</label><LookupSelect Options="EntityOptions" Value="@(string.IsNullOrEmpty(_entityType) ? null : _entityType)" ValueChanged="k => _entityType = k ?? string.Empty" Placeholder="همه موجودیت‌ها" /></div>
         <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">منبع</label><LookupSelect Options="_sourceOptions" Value="@(_archived ? "archived" : null)" ValueChanged="SourceChanged" Placeholder="رویدادهای جاری" /></div>
         <div class="admin-filter"><label class="form-label">عملیات</label><LookupSelect Options="_actionOptions" Value="@(string.IsNullOrEmpty(_action) ? null : _action)" ValueChanged="k => _action = k ?? string.Empty" Placeholder="همه عملیات" /></div>
         <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
         <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
@@ -142,15 +191,96 @@
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
     // The boxes edit the draft fields above; "جستجو" copies them here, and paging/sorting reload from this copy.
-    private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To)
+    private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To, bool Archived)
     {
-        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1);
+        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (Archived ? 1 : 0);
     }
-    private AuditFilter _applied = new(null, null, "", "", "", null, null);
+    private AuditFilter _applied = new(null, null, "", "", "", null, null, false);
     private int _resetKey;
-    private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate).Count;
+    private bool _archived;   // draft of the "source" filter: false = current events, true = the archive
+    private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate, _archived).Count;
+
+    // ---- archiving old events (needs Admin.AuditLog.Manage). The administrator picks automatic (daily job) or manual; "run now" works with either ----
+    private bool _canManage, _archiving, _savingSetting, _autoEnabled = true;
+    private int _afterMonths = 12, _savedMonths = 12, _lastRunCount;
+    private DateTime? _archiveCutoff, _lastRunUtc;
+    private int? _archiveCount;
+    private static readonly IReadOnlyList<(string Key, string Text)> _methodOptions = [("auto", "خودکار (روزانه)"), ("manual", "دستی")];
+    private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
+    private void SourceChanged(string? key) => _archived = key == "archived";
+    private void MethodChanged(string? key) => _autoEnabled = key != "manual";
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await Permissions.HasPermissionAsync(Perm.AdminAuditLogManage);
+        if (!_canManage) return;
+        await LoadArchiveSettingAsync();
+        _archiveCutoff = DateTime.Today.AddMonths(-_savedMonths);
+    }
+    private async Task LoadArchiveSettingAsync()
+    {
+        var setting = await ArchiveSettings.GetAsync();
+        _autoEnabled = setting.AutomaticEnabled;
+        _afterMonths = _savedMonths = setting.AfterMonths;
+        _lastRunUtc = setting.LastAutomaticRunAtUtc;
+        _lastRunCount = setting.LastAutomaticRunCount;
+    }
+    private async Task SaveArchiveSettingAsync()
+    {
+        if (_savingSetting || !_canManage) return;
+        if (_afterMonths < AuditArchiveSetting.LowestMonths || _afterMonths > AuditArchiveSetting.HighestMonths)
+        {
+            AppState.AddToast($"تعداد ماه باید بین {AuditArchiveSetting.LowestMonths} و {AuditArchiveSetting.HighestMonths} باشد.", ToastLevel.Error);
+            return;
+        }
+        _savingSetting = true;
+        try
+        {
+            await ArchiveSettings.SaveAsync(_autoEnabled, _afterMonths);
+            await LoadArchiveSettingAsync();
+            _archiveCutoff = DateTime.Today.AddMonths(-_savedMonths);
+            _archiveCount = null;
+            AppState.AddToast(_autoEnabled ? "روش بایگانی «خودکار» ذخیره شد." : "روش بایگانی «دستی» ذخیره شد.", ToastLevel.Success);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("ذخیره روش بایگانی انجام نشد.", ToastLevel.Error);
+        }
+        finally { _savingSetting = false; }
+    }
+    private void ArchiveCutoffChanged(DateTime? value)
+    {
+        _archiveCutoff = value;
+        _archiveCount = null;   // the count shown belongs to the old date
+    }
+    private async Task PreviewArchiveAsync()
+    {
+        if (_archiveCutoff is not DateTime day || _archiving) return;
+        if (!await Permissions.HasPermissionAsync(Perm.AdminAuditLogManage)) { AppState.AddToast("اجازه بایگانی رویدادها را ندارید.", ToastLevel.Error); return; }
+        _archiveCount = await Archiver.CountOlderThanAsync(LocalDayStartUtc(day));
+    }
+    private async Task ArchiveAsync()
+    {
+        if (_archiveCutoff is not DateTime day || _archiving) return;
+        if (!await Permissions.HasPermissionAsync(Perm.AdminAuditLogManage)) { AppState.AddToast("اجازه بایگانی رویدادها را ندارید.", ToastLevel.Error); return; }
+        if (day.Date > DateTime.Today) { AppState.AddToast("تاریخ بایگانی نباید در آینده باشد.", ToastLevel.Error); return; }
+        _archiving = true;
+        try
+        {
+            var cutoff = LocalDayStartUtc(day);
+            var count = await Archiver.ArchiveOlderThanAsync(cutoff);
+            await Audit.WriteAsync(AuditActions.AuditArchived, AuditEntityTypes.AuditRecord, null, new { Count = count, CutoffAtUtc = cutoff, Automatic = false });
+            AppState.AddToast(count == 0 ? "رویدادی برای بایگانی وجود نداشت." : $"{count:N0} رویداد بایگانی شد.", count == 0 ? ToastLevel.Info : ToastLevel.Success);
+            _archiveCount = null;
+            if (_hasSearched) await LoadPageAsync(1);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("بایگانی رویدادها انجام نشد.", ToastLevel.Error);
+        }
+        finally { _archiving = false; }
+    }
     private void CancelLoad() => _loadCts?.Cancel();
-    private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate);await LoadPageAsync(1);}
+    private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate,_archived);await LoadPageAsync(1);}
     private async Task LoadPageAsync(int page)
     {
         _loadCts?.Cancel();_loadCts?.Dispose();_loadCts=new CancellationTokenSource();var cts=_loadCts;var token=cts.Token;_loading=true;_hasSearched=true;_page=page;await InvokeAsync(StateHasChanged);
@@ -177,7 +307,8 @@
     }
     private IQueryable<AuditEntry> ApplyFilter(ApplicationDbContext db)
     {
-        var query=db.AuditEntries.AsNoTracking().AsQueryable();
+        // Current events by default; archived ones only when the "source" filter asks for them.
+        var query=db.AuditEntries.AsNoTracking().Where(x=>_applied.Archived?x.ArchivedAtUtc!=null:x.ArchivedAtUtc==null);
             if(!string.IsNullOrWhiteSpace(_applied.EntityType))query=query.Where(x=>x.EntityType==_applied.EntityType.Trim());
             if(!string.IsNullOrWhiteSpace(_applied.Action))query=query.Where(x=>x.Action==_applied.Action);
             if(!string.IsNullOrWhiteSpace(_applied.EntityId)){var idPart=_applied.EntityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
@@ -258,13 +389,14 @@
         }
         finally{_exporting=false;}
     }
-    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null);_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null,false);_archived=false;_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
+    private static readonly IReadOnlyList<(string Key, string Text)> _sourceOptions = [("archived", "بایگانی‌شده")];
     private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = new[] { AuditActions.Created, AuditActions.Updated, AuditActions.Deleted }.Concat(AuditActions.Events).Select(a => (a, GetActionText(a))).ToList();
     private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
-    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
+    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","AuditArchiveSetting","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
     /// <summary>Single-key rows store the id as "Id=guid"; explicit events store the bare guid. Accepts both.</summary>
     private static bool TryParseEntityGuid(string? entityId, out Guid id)
     {
@@ -370,7 +502,7 @@
         AuditActions.NotificationSent=>"ارسال اعلان",AuditActions.NotificationRetracted=>"بازپس‌گیری اعلان",
         AuditActions.NotificationRemoved=>"حذف اعلان",AuditActions.NotificationRestored=>"بازگردانی اعلان",
         AuditActions.NotificationsViewed=>"مشاهده فهرست اعلان‌ها",AuditActions.NotificationRead=>"خواندن اعلان",
-        AuditActions.NotificationsMarkedRead=>"خوانده‌شدن گروهی اعلان‌ها",AuditActions.AuditEntryViewed=>"مشاهده جزئیات رویداد",_=>a};
+        AuditActions.NotificationsMarkedRead=>"خوانده‌شدن گروهی اعلان‌ها",AuditActions.AuditEntryViewed=>"مشاهده جزئیات رویداد",AuditActions.AuditArchived=>"بایگانی رویدادهای قدیمی",_=>a};
     private static string GetActionClass(string a)=>a switch{
         AuditActions.Created or AuditActions.LoginSucceeded or AuditActions.NotificationRestored=>"admin-action--success",
         AuditActions.Deleted or AuditActions.LoginFailed or AuditActions.AccessDenied=>"admin-action--danger",
@@ -386,10 +518,11 @@
         AuditActions.NotificationSent=>Icons.Send,AuditActions.NotificationRetracted=>Icons.Retract,
         AuditActions.NotificationRemoved=>Icons.Delete,AuditActions.NotificationRestored=>Icons.RestoreNotification,
         AuditActions.NotificationsViewed or AuditActions.AuditEntryViewed=>Icons.Details,
+        AuditActions.AuditArchived=>Icons.History,
         AuditActions.NotificationRead or AuditActions.NotificationsMarkedRead=>Icons.ConfirmAll,
         _=>Icons.Edit};
     private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",
-        "PasswordPolicy"=>"سیاست رمز عبور","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
+        "PasswordPolicy"=>"سیاست رمز عبور","AuditArchiveSetting"=>"روش بایگانی رویدادها","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
         AuditEntityTypes.Session=>"نشست",AuditEntityTypes.Report=>"گزارش / فهرست",AuditEntityTypes.Access=>"دسترسی",AuditEntityTypes.Notification=>"اعلان",AuditEntityTypes.AuditRecord=>"رویداد ثبت‌شده",_=>e};
     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
@@ -401,7 +534,7 @@
         "RequestId"=>"درخواست","StepId"=>"مرحله","Round"=>"دور","Order"=>"ترتیب","ApproverPositionId"=>"سمت تاییدکننده","Outcome"=>"نتیجه","ActedByEmployeeId"=>"تصمیم‌گیرنده","ActedAtUtc"=>"زمان تصمیم","Comment"=>"توضیح","ReturnTargetOrder"=>"بازگشت به ترتیب","OnBehalfOfEmployeeId"=>"به نیابت از","DelegationId"=>"نمایندگی",
         "Kind"=>"نوع اقدام","AtUtc"=>"زمان","FieldKey"=>"فیلد","OldValue"=>"مقدار قبلی","NewValue"=>"مقدار جدید","ChangedByEmployeeId"=>"تغییردهنده","ChangedByPositionId"=>"سمت تغییردهنده","ChangedAtUtc"=>"زمان تغییر",
         "Shown"=>"تعداد نمایش‌داده‌شده","UnreadShown"=>"خوانده‌نشده در فهرست","Page"=>"صفحه","UnreadOnly"=>"فقط خوانده‌نشده","Ids"=>"شناسه اعلان‌ها","SentAtUtc"=>"زمان ارسال","WaitedSeconds"=>"ثانیه تا دیده‌شدن","Scope"=>"محدوده","NotificationKind"=>"نوع اعلان","Source"=>"از صفحه",
-        "Audience"=>"گیرندگان","Recipients"=>"تعداد گیرنده","RecipientId"=>"گیرنده","SenderId"=>"فرستنده","ReadState"=>"وضعیت خواندن","RemovedState"=>"وضعیت حذف","Count"=>"تعداد","Search"=>"متن جستجو",
+        "Audience"=>"گیرندگان","Recipients"=>"تعداد گیرنده","RecipientId"=>"گیرنده","SenderId"=>"فرستنده","ReadState"=>"وضعیت خواندن","RemovedState"=>"وضعیت حذف","Count"=>"تعداد","Automatic"=>"اجرای خودکار","CutoffAtUtc"=>"بایگانی رویدادهای قدیمی‌تر از","AutomaticEnabled"=>"بایگانی خودکار","AfterMonths"=>"قدیمی‌تر از (ماه)","LastAutomaticRunAtUtc"=>"آخرین اجرای خودکار","LastAutomaticRunCount"=>"تعداد آخرین اجرا","Search"=>"متن جستجو",
         "Type"=>"نوع","CancelledBy"=>"نحوه لغو","RequesterName"=>"نام درخواست‌کننده","StepName"=>"نام مرحله","IdText"=>"شناسه درخواست","Text"=>"متن فرم","CreatedByAdminOnly"=>"فقط ثبت‌شده توسط مدیر","RequesterOrganizationId"=>"سازمان درخواست‌کننده","WaitingAtPositionId"=>"منتظر سمت",
         "From"=>"از تاریخ","To"=>"تا تاریخ","EntityType"=>"موجودیت","EntityId"=>"شناسه موجودیت","Action"=>"عملیات",
         "EmployeeOrgId"=>"سازمان کارمند","PositionOrgId"=>"سازمان سمت","StartFrom"=>"شروع از","StartTo"=>"شروع تا","EndFrom"=>"پایان از","EndTo"=>"پایان تا",_=>n};

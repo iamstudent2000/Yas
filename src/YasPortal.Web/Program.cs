@@ -57,6 +57,9 @@ builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStat
 builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
+builder.Services.AddScoped<AuditArchiver>();
+builder.Services.AddScoped<AuditArchiveSettingsService>();
+builder.Services.AddHostedService<AuditArchiveWorker>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
@@ -160,6 +163,13 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_RecipientGroupMembers_EmployeeId] ON [dbo].[RecipientGroupMembers] ([EmployeeId])');
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
+        """);
+    await db.Database.ExecuteSqlRawAsync("""
+        IF COL_LENGTH(N'dbo.AuditEntries', N'ArchivedAtUtc') IS NULL ALTER TABLE [dbo].[AuditEntries] ADD [ArchivedAtUtc] datetime2 NULL;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.AuditEntries') AND name = N'IX_AuditEntries_ArchivedAtUtc_OccurredAtUtc')
+            EXEC(N'CREATE INDEX [IX_AuditEntries_ArchivedAtUtc_OccurredAtUtc] ON [dbo].[AuditEntries] ([ArchivedAtUtc], [OccurredAtUtc])');
+        IF OBJECT_ID(N'dbo.AuditArchiveSettings', N'U') IS NULL
+            CREATE TABLE [dbo].[AuditArchiveSettings] ([Id] int NOT NULL, [AutomaticEnabled] bit NOT NULL, [AfterMonths] int NOT NULL, [LastAutomaticRunAtUtc] datetime2 NULL, [LastAutomaticRunCount] int NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_AuditArchiveSettings] PRIMARY KEY ([Id]));
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }

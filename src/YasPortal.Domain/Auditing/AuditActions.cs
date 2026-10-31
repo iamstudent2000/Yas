@@ -32,6 +32,7 @@ public static class AuditActions
     public const string NotificationRead = "NotificationRead";
     public const string NotificationsMarkedRead = "NotificationsMarkedRead";
     public const string AuditEntryViewed = "AuditEntryViewed";
+    public const string AuditArchived = "AuditArchived";
 
     /// <summary>The explicit events, in the order the audit page offers them.</summary>
     public static readonly IReadOnlyList<string> Events =
@@ -40,7 +41,7 @@ public static class AuditActions
         PasswordChanged, PasswordReset, ReportExported, Searched, PageViewed, AccessDenied,
         RequestViewed, RequestPdfDownloaded, RequestFormPrinted,
         NotificationSent, NotificationRetracted, NotificationRemoved, NotificationRestored,
-        NotificationsViewed, NotificationRead, NotificationsMarkedRead, AuditEntryViewed,
+        NotificationsViewed, NotificationRead, NotificationsMarkedRead, AuditEntryViewed, AuditArchived,
     ];
 }
 

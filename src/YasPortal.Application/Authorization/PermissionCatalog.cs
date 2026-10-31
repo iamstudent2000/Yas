@@ -64,6 +64,8 @@ public static class Perm
     public const string AdminPermissionsManage = "Admin.Permissions.Manage";
     public const string AdminAssignmentHistoryView = "Admin.AssignmentHistory.View";
     public const string AdminAuditLogView = "Admin.AuditLog.View";
+    /// <summary>Move old events of the audit log to the archive by hand. Implies the view permission.</summary>
+    public const string AdminAuditLogManage = "Admin.AuditLog.Manage";
     /// <summary>The report of every notification in the system (who sent what to whom, read or not).</summary>
     public const string AdminNotificationsView = "Admin.Notifications.View";
     /// <summary>Remove (and restore) other people's notifications from the all-notifications report. Implies the view permission.</summary>
@@ -168,6 +170,7 @@ public static class PermissionCatalog
             new(Perm.AdminPermissionsManage, "مدیریت مجوزها و گروه‌ها (ویرایش نام، ساخت گروه)", "Admin.Permissions"),
             new(Perm.AdminAssignmentHistoryView, "مشاهده سوابق تخصیص سمت‌ها", "Admin.AssignmentHistory"),
             new(Perm.AdminAuditLogView, "مشاهده گزارش رویدادها", "Admin.AuditLog"),
+            new(Perm.AdminAuditLogManage, "مدیریت گزارش رویدادها (بایگانی رویدادهای قدیمی)"),
             new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
             new(Perm.AdminNotificationsManage, "مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)"),
         };
