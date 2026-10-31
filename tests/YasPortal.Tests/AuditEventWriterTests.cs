@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -62,6 +65,47 @@ public sealed class AuditEventWriterTests
     }
 
     [Fact]
+    public async Task Event_without_an_actor_uses_the_signed_in_claims_first()
+    {
+        var employeeId = Guid.NewGuid();
+        var positionId = Guid.NewGuid();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot())
+            .Options;
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, employeeId.ToString()), new Claim(AuthClaimNames.ActivePositionId, positionId.ToString()) };
+        var writer = new AuditEventWriter(new Factory(options), new AuditActorContext(), NullLogger<AuditEventWriter>.Instance,
+            new FixedAuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))));
+
+        await writer.WriteAsync(AuditActions.RequestViewed, "WorkflowRequest", Guid.NewGuid().ToString());
+
+        await using var db = new ApplicationDbContext(options);
+        var entry = Assert.Single(db.AuditEntries);
+        Assert.Equal(employeeId, entry.EmployeeId);
+        Assert.Equal(positionId, entry.ActivePositionId);
+    }
+
+    [Fact]
+    public void Flatten_keeps_only_the_filters_that_are_set()
+    {
+        var flat = AuditEventWriter.Flatten(new SampleFilter { Text = "abc", Kind = SampleKind.Second, Blank = " ", Flag = false });
+
+        // Blank text, a false flag, a null id and the computed Count are left out.
+        Assert.Equal(["Kind", "Text"], flat.Keys.OrderBy(k => k).ToArray());
+        Assert.Equal("abc", ((JsonNode)flat["Text"]!).GetValue<string>());
+        Assert.Equal("Second", ((JsonNode)flat["Kind"]!).GetValue<string>());
+    }
+
+    [Fact]
+    public void Describe_puts_the_fixed_values_before_the_filters()
+    {
+        var details = AuditEventWriter.Describe(("Permission", "Reports.View"), new SampleFilter { Text = "abc" }, ("RowCount", 7));
+
+        Assert.Equal(["Permission", "RowCount"], details.Keys.Take(2).ToArray());
+        Assert.Contains("Text", details.Keys);
+        Assert.Equal(7, details["RowCount"]);
+    }
+
+    [Fact]
     public async Task A_failing_database_never_breaks_the_caller()
     {
         var writer = new AuditEventWriter(new ThrowingFactory(), new AuditActorContext(), NullLogger<AuditEventWriter>.Instance);
@@ -83,6 +127,24 @@ public sealed class AuditEventWriterTests
         public ApplicationDbContext CreateDbContext() => new(options);
         public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new ApplicationDbContext(options));
+    }
+
+    private enum SampleKind { First, Second }
+
+    // A page filter written as a plain class with public fields, like the users page's.
+    private sealed class SampleFilter
+    {
+        public string? Text;
+        public string Blank = "";
+        public bool Flag;
+        public Guid? Id;
+        public SampleKind Kind;
+        public int Count => 5;
+    }
+
+    private sealed class FixedAuthenticationState(ClaimsPrincipal user) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(user));
     }
 
     private sealed class ThrowingFactory : IDbContextFactory<ApplicationDbContext>

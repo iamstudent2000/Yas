@@ -329,8 +329,12 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         var user = (await authState.GetAuthenticationStateAsync()).User;
         Guid? employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employee) ? employee : null;
         Guid? positionId = Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var position) ? position : null;
+        // The filters the list had when the button was pressed (set by the filter bar), so the event says what was exported.
+        var filters = audit.PendingExportFilters;
+        audit.PendingExportFilters = null;
         await audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, fileBaseName,
-            new { Permission = permission, RowCount = rows.Count }, employeeId: employeeId, activePositionId: positionId);
+            AuditEventWriter.Describe(("Permission", permission), filters, ("RowCount", rows.Count)),
+            employeeId: employeeId, activePositionId: positionId);
         appState.AddToast($"خروجی آماده شد ({rows.Count:N0} ردیف).", ToastLevel.Success);
     }
 

@@ -72,7 +72,7 @@
                         </div>
 
                         <div class="request-card-body">
-                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id" />
+                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id" LogView="false" />
 
                             @{
                                 // Multi-part forms: the approver at this step fills their own part before approving.
@@ -224,7 +224,7 @@
                                         }
                                     </div>
                                 }
-                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
+                                <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" LogView="false" />
                             </div>
                         }
                     </div>

@@ -19,12 +19,23 @@ public static class AuditActions
     public const string PasswordReset = "PasswordReset";
     public const string ReportExported = "ReportExported";
     public const string AccessDenied = "AccessDenied";
+    public const string Searched = "Searched";
+    public const string PageViewed = "PageViewed";
+    public const string RequestViewed = "RequestViewed";
+    public const string RequestPdfDownloaded = "RequestPdfDownloaded";
+    public const string RequestFormPrinted = "RequestFormPrinted";
+    public const string NotificationSent = "NotificationSent";
+    public const string NotificationRetracted = "NotificationRetracted";
+    public const string NotificationRemoved = "NotificationRemoved";
+    public const string NotificationRestored = "NotificationRestored";
 
     /// <summary>The explicit events, in the order the audit page offers them.</summary>
     public static readonly IReadOnlyList<string> Events =
     [
         LoginSucceeded, LoginFailed, LoggedOut, PositionSwitched, SessionEnded,
-        PasswordChanged, PasswordReset, ReportExported, AccessDenied,
+        PasswordChanged, PasswordReset, ReportExported, Searched, PageViewed, AccessDenied,
+        RequestViewed, RequestPdfDownloaded, RequestFormPrinted,
+        NotificationSent, NotificationRetracted, NotificationRemoved, NotificationRestored,
     ];
 }
 
@@ -34,11 +45,14 @@ public static class AuditEntityTypes
     /// <summary>Sign-in, sign-out and position-switch events; <see cref="AuditEntry.EntityId"/> is the employee.</summary>
     public const string Session = "Session";
 
-    /// <summary>A CSV export; <see cref="AuditEntry.EntityId"/> is the file's base name.</summary>
+    /// <summary>A CSV export (<see cref="AuditEntry.EntityId"/> is the file's base name) or a list search (the page's path).</summary>
     public const string Report = "Report";
 
-    /// <summary>A blocked page visit; the path is in the details.</summary>
+    /// <summary>A report page opened, or a blocked page visit; the path is in the details.</summary>
     public const string Access = "Access";
+
+    /// <summary>A notification send, take-back or removal; <see cref="AuditEntry.EntityId"/> is the batch when there is one.</summary>
+    public const string Notification = "Notification";
 }
 
 /// <summary>Why an explicit event happened, stored in its details as <c>Reason</c>.</summary>

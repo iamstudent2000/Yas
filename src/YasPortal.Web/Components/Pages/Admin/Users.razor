@@ -81,7 +81,7 @@
 }
 
 
-                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
+                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => _applied)" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
                     <div class="admin-filter"><label class="form-label">جستجو</label>
                         <input class="form-control" placeholder="نام یا نام کاربری..." @bind="_draft.Search" @bind:event="oninput" /></div>
                     <div class="admin-filter"><label class="form-label">وضعیت</label>

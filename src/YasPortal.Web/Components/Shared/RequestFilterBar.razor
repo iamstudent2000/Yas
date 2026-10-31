@@ -3,7 +3,7 @@
 @using YasPortal.Web.Services
 @inject AdminQueryService AdminQueries
 
-<ListFilterBar Busy="Busy" ExportPermission="@(ExportPermission)" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync"
+<ListFilterBar Busy="Busy" ExportPermission="@(ExportPermission)" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync" FilterSnapshot="@(() => Filter)"
                SortOptions="SortOptions" Sort="@(Sort)" DefaultSort="@(DefaultSort)" SortChanged="SortChanged">
     <div class="admin-filter">
         <label class="form-label">شناسه درخواست</label>

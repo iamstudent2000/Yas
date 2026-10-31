@@ -1,0 +1,15 @@
+@using YasPortal.Domain.Auditing
+@using YasPortal.Infrastructure.Persistence
+@inject AuditEventWriter Audit
+@inject NavigationManager Navigation
+@* No markup: put it on a report page to record in the audit log who opened it. The page's own [Authorize] runs first,
+   so a refused visit never gets here (it is logged as AccessDenied instead). It waits for the first interactive render
+   so the prerender pass does not write the same row twice. *@
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Audit.WriteAsync(AuditActions.PageViewed, AuditEntityTypes.Access, null, new { Path = new Uri(Navigation.Uri).AbsolutePath });
+    }
+}
