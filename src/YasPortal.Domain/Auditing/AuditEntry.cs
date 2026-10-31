@@ -57,4 +57,13 @@ public sealed class AuditEntry
     {
         get; private set;
     }
+
+    /// <summary>When the row was moved to the archive; null while it is a current event. Archived rows are kept and can still be searched.</summary>
+    public DateTime? ArchivedAtUtc
+    {
+        get; private set;
+    }
+
+    /// <summary>Moves the row to the archive. Archiving twice keeps the first time.</summary>
+    public void Archive(DateTime atUtc) => ArchivedAtUtc ??= atUtc;
 }

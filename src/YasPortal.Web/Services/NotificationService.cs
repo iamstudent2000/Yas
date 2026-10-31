@@ -514,6 +514,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             ? (oldestFirst ? query.OrderBy(x => x.IsRead).ThenBy(x => x.CreatedAtUtc) : query.OrderBy(x => x.IsRead).ThenByDescending(x => x.CreatedAtUtc))
             : (oldestFirst ? query.OrderBy(x => x.CreatedAtUtc) : query.OrderByDescending(x => x.CreatedAtUtc));
         var items = await ordered.ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        // The person is looking at these notifications now. One row per page of the list (not per reload within a minute).
+        if (audit is not null && await audit.ShouldLogAsync($"notifications:{page}:{pageSize}:{unreadOnly}:{kind}:{oldestFirst}:{unreadFirst}", TimeSpan.FromMinutes(1), employeeId))
+            await audit.WriteAsync(AuditActions.NotificationsViewed, AuditEntityTypes.Notification, null,
+                new { Page = page, Shown = items.Count, UnreadShown = items.Count(x => !x.IsRead), UnreadOnly = unreadOnly, Ids = string.Join(", ", items.Select(x => x.Id)) },
+                employeeId: employeeId);
         return (items, total);
     }
 
@@ -526,6 +531,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             return;
         item.MarkRead();
         await db.SaveChangesAsync(ct);
+        // When it was seen, and how long after it was sent.
+        if (audit is not null)
+            await audit.WriteAsync(AuditActions.NotificationRead, AuditEntityTypes.Notification, item.Id.ToString(),
+                new { NotificationKind = item.Kind, item.RequestId, SentAtUtc = item.CreatedAtUtc, WaitedSeconds = (long)((item.ReadAtUtc ?? DateTime.UtcNow) - item.CreatedAtUtc).TotalSeconds },
+                employeeId: employeeId);
     }
 
     /// <summary>
@@ -546,6 +556,9 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         foreach (var item in unread)
             item.MarkRead();
         await db.SaveChangesAsync(ct);
+        if (audit is not null)
+            await audit.WriteAsync(AuditActions.NotificationsMarkedRead, AuditEntityTypes.Notification, null,
+                new { Scope = requestIds is null ? "AllRequests" : "Requests", Count = unread.Count, Ids = string.Join(", ", unread.Select(x => x.Id)) }, employeeId: employeeId);
     }
 
     public async Task MarkAllReadAsync(Guid employeeId, CancellationToken ct = default)
@@ -554,7 +567,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var unread = await db.Notifications.Where(x => x.RecipientEmployeeId == employeeId && x.RemovedAtUtc == null && !x.IsRead).ToListAsync(ct);
         foreach (var item in unread)
             item.MarkRead();
-        if (unread.Count > 0)
-            await db.SaveChangesAsync(ct);
+        if (unread.Count == 0)
+            return;
+        await db.SaveChangesAsync(ct);
+        if (audit is not null)
+            await audit.WriteAsync(AuditActions.NotificationsMarkedRead, AuditEntityTypes.Notification, null,
+                new { Scope = "All", Count = unread.Count, Ids = string.Join(", ", unread.Select(x => x.Id)) }, employeeId: employeeId);
     }
 }

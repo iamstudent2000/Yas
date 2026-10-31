@@ -4,6 +4,7 @@
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
+        <RoutePageTracker RouteData="routeData" />
         <AuthorizeRouteView RouteData="routeData">
             <NotAuthorized Context="state">
                 <AccessDeniedView @key="Navigation.Uri" Authenticated="@(state.User.Identity?.IsAuthenticated == true)" />
