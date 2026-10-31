@@ -62,7 +62,7 @@
                         <span>ثبت‌شده در @request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                         @if (request.CreatedByEmployeeId is Guid createdBy)
                         {
-                            <span class="badge badge-muted"><i class="ti @Icons.NewRequestForOthers"></i> ثبت‌شده توسط مدیر: @(_employeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")</span>
+                            <span class="badge badge-muted"><i class="ti @Icons.NewRequestForOthers"></i> ثبت‌شده توسط: @(_employeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")</span>
                         }
                         <RequestNowLine Request="request" />
                     </span>

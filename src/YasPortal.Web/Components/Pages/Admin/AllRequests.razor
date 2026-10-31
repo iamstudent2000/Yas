@@ -74,7 +74,7 @@
                                         @(_names.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")
                                         @if (request.CreatedByEmployeeId is Guid by)
                                         {
-                                            <span class="badge badge-muted" title="ثبت‌شده توسط مدیر"><i class="ti @Icons.NewRequestForOthers"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
+                                            <span class="badge badge-muted" title="ثبت‌شده توسط دیگری"><i class="ti @Icons.NewRequestForOthers"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
                                         }
                                     </td>
                                     <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>

@@ -119,6 +119,11 @@
                             <NavLink href="/requests/new"><i class="ti @Icons.NewRequest"></i><span>درخواست جدید</span></NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
+                        <AuthorizeView Policy="@Perm.RequestsTeamCreate">
+                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
+                            <NavLink href="/requests/new-for-team"><i class="ti @Icons.NewRequestForOthers"></i><span>ثبت درخواست برای زیرمجموعه</span></NavLink>
+                          </AuthorizeView>
+                        </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsView">
                             <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="ti @Icons.RequestsReport"></i><span>گزارش درخواست‌ها</span></NavLink>
                         </AuthorizeView>
@@ -209,7 +214,7 @@
 
     private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
     private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history", "delegations" };
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "requests/team", "notifications", "admin/notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
+    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/new-for-team", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "requests/team", "notifications", "admin/notifications", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {

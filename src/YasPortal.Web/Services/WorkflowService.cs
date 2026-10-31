@@ -127,6 +127,28 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             .ToListAsync(ct);
     }
 
+    public sealed record SubordinateHolder(Guid EmployeeId, Guid PositionId, string EmployeeName, string PositionName);
+
+    /// <summary>
+    /// The people who today hold a position below <paramref name="positionId"/> (all levels): active, non-administrator employees only.
+    /// This is who a manager may register a request for. Computed fresh from the tree and the current assignments on every call.
+    /// </summary>
+    public async Task<IReadOnlyList<SubordinateHolder>> GetSubordinateHoldersAsync(Guid positionId, CancellationToken ct = default)
+    {
+        var positions = await GetSubordinatePositionsAsync(positionId, ct);
+        if (positions.Count == 0)
+            return [];
+        var ids = positions.Select(x => x.Id).ToList();
+        var names = positions.ToDictionary(x => x.Id, x => x.Name);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var holders = await db.EmployeePositions.AsNoTracking()
+            .Where(x => x.EndedAt == null && ids.Contains(x.PositionId))
+            .Join(db.Employees.AsNoTracking().Where(e => e.IsActive && !e.IsAdmin), ep => ep.EmployeeId, e => e.Id, (ep, e) => new { ep.PositionId, EmployeeId = e.Id, e.FullName })
+            .ToListAsync(ct);
+        return holders.Select(x => new SubordinateHolder(x.EmployeeId, x.PositionId, x.FullName, names[x.PositionId]))
+            .OrderBy(x => x.EmployeeName).ThenBy(x => x.PositionName).ToList();
+    }
+
     /// <summary>
     /// How many active requests of <paramref name="type"/> are still in flight (spec §18, §22.2).
     /// While this is above zero the type's approval steps must not be changed: the SuperAdmin

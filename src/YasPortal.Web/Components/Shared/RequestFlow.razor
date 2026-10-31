@@ -12,7 +12,7 @@
                 <div class="approval-step-meta">
                     @if (Request.CreatedByEmployeeId is Guid createdBy)
                     {
-                        <span>توسط مدیر سامانه (@(EmployeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—")) برای درخواست‌کننده ثبت شد</span>
+                        <span>توسط @(EmployeeNames.TryGetValue(createdBy, out var adminName) ? adminName : "—") برای درخواست‌کننده ثبت شد</span>
                     }
                     else
                     {
