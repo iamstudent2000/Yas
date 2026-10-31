@@ -195,7 +195,7 @@
     {
         public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (Source.Length > 0 ? 1 : 0);
     }
-    private AuditFilter _applied = new(null, null, "", "", "", null, null, false);
+    private AuditFilter _applied = new(null, null, "", "", "", null, null, "");
     private int _resetKey;
     private string _source = "";   // draft of the "source" filter: "" = current events, "archived" = the archive, "all" = both
     private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate, _source).Count;
