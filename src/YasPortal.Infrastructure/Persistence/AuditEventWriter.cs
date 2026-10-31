@@ -34,6 +34,34 @@ public sealed class AuditEventWriter(
     /// </summary>
     public object? PendingExportFilters { get; set; }
 
+    // Shared by every circuit and request: the prerender pass of a page and its live circuit are different scopes,
+    // so a per-scope memory would still log a "seen" event twice.
+    private static readonly Dictionary<string, DateTime> Recent = [];
+
+    /// <summary>
+    /// True when this person has not had <paramref name="key"/> recorded in the last <paramref name="window"/> (and marks it recorded now).
+    /// Used for "seen" events, so re-rendering a list or re-opening a card within a few minutes is one row, not twenty.
+    /// The person is <paramref name="employeeId"/>, or the signed-in one; with nobody signed in it returns false (nothing to record).
+    /// </summary>
+    public async Task<bool> ShouldLogAsync(string key, TimeSpan window, Guid? employeeId = null)
+    {
+        employeeId ??= (await ClaimsActorAsync())?.EmployeeId ?? actorContext.Actor?.EmployeeId;
+        if (employeeId is null)
+            return false;
+        var fullKey = $"{employeeId}|{key}";
+        var now = DateTime.UtcNow;
+        lock (Recent)
+        {
+            if (Recent.TryGetValue(fullKey, out var last) && now - last < window)
+                return false;
+            Recent[fullKey] = now;
+            if (Recent.Count > 2000)
+                foreach (var stale in Recent.Where(x => now - x.Value > TimeSpan.FromHours(1)).Select(x => x.Key).ToList())
+                    Recent.Remove(stale);
+            return true;
+        }
+    }
+
     /// <param name="details">Anything serializable to a JSON object (never a password); shown as the "after" side on the audit page.</param>
     /// <param name="employeeId">Who did it. When null, the signed-in user of the current circuit or request is used.</param>
     /// <param name="anonymous">True for events with no known person (a failed sign-in for an unknown username).</param>

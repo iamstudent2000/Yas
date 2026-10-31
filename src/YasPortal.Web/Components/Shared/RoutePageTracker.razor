@@ -1,0 +1,39 @@
+@using System.Reflection
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Auditing
+@using YasPortal.Infrastructure.Persistence
+@inject AuditEventWriter Audit
+@inject IAuthorizationService AuthzService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@* No markup: records in the audit log every page a signed-in person is really shown, with the time.
+   It sits next to the router's AuthorizeRouteView and runs the same [Authorize] policies of the page itself, so a
+   page the person is refused is not counted as seen (that visit is logged as AccessDenied instead).
+   It waits for the interactive render, so the prerender pass does not write the same row twice. *@
+
+@code {
+    [Parameter, EditorRequired] public RouteData RouteData { get; set; } = null!;
+
+    private string? _lastPath;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        if (string.Equals(path, _lastPath, StringComparison.OrdinalIgnoreCase))
+            return;
+        _lastPath = path;
+        if (path.TrimEnd('/').Equals("/login", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/access-denied", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (user.Identity?.IsAuthenticated != true)
+            return;
+        foreach (var attribute in RouteData.PageType.GetCustomAttributes<AuthorizeAttribute>(inherit: true))
+        {
+            if (!string.IsNullOrWhiteSpace(attribute.Policy) && !(await AuthzService.AuthorizeAsync(user, attribute.Policy)).Succeeded)
+                return;
+        }
+        await Audit.WriteAsync(AuditActions.PageViewed, AuditEntityTypes.Access, null, new { Path = path });
+    }
+}

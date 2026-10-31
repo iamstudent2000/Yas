@@ -315,6 +315,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     {
         if (await permissions.HasPermissionAsync(permission))
             return true;
+        await audit.WriteAsync(AuditActions.AccessDenied, AuditEntityTypes.Report, null, new { Permission = permission, Reason = "ExportNotAllowed" });
         appState.AddToast("اجازه دریافت خروجی را ندارید.", ToastLevel.Error);
         return false;
     }
