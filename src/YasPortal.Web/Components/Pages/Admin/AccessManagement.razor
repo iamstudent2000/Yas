@@ -339,15 +339,16 @@ DbFactory.CreateDbContextAsync(); if (_selectedEmployee.IsAdmin)
             {
                 var old = await
 db.EmployeePermissions.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
-                db.EmployeePermissions.RemoveRange(old); db.EmployeePermissions.AddRange(_directPermissionIds.Select(id => new
+                db.EmployeePermissions.RemoveRange(old.Where(x => !_directPermissionIds.Contains(x.PermissionId)));   // only the changes, so the audit log shows just what was added or removed
+                db.EmployeePermissions.AddRange(_directPermissionIds.Where(id => !old.Any(x => x.PermissionId == id)).Select(id => new
                 EmployeePermission(_selectedEmployee.Id, id)));
             }
             else
             {
                 var old = await
 db.UserPositionPermissions.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId ==
-_positionId!.Value).ToListAsync(); db.UserPositionPermissions.RemoveRange(old);
-                db.UserPositionPermissions.AddRange(_directPermissionIds.Select(id => new
+_positionId!.Value).ToListAsync(); db.UserPositionPermissions.RemoveRange(old.Where(x => !_directPermissionIds.Contains(x.PermissionId)));
+                db.UserPositionPermissions.AddRange(_directPermissionIds.Where(id => !old.Any(x => x.PermissionId == id)).Select(id => new
                 UserPositionPermission(_selectedEmployee.Id, _positionId!.Value, id)));
             }
             await db.SaveChangesAsync(); await
@@ -372,15 +373,16 @@ DbFactory.CreateDbContextAsync(); if (_selectedEmployee.IsAdmin)
             {
                 var old = await
 db.EmployeePermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id).ToListAsync();
-                db.EmployeePermissionGroups.RemoveRange(old); db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Select(id => new
+                db.EmployeePermissionGroups.RemoveRange(old.Where(x => !_assignedGroupIds.Contains(x.GroupId)));
+                db.EmployeePermissionGroups.AddRange(_assignedGroupIds.Where(id => !old.Any(x => x.GroupId == id)).Select(id => new
                 EmployeePermissionGroup(_selectedEmployee.Id, id)));
             }
             else
             {
                 var old = await
 db.UserPositionPermissionGroups.Where(x => x.EmployeeId == _selectedEmployee.Id && x.PositionId ==
-_positionId!.Value).ToListAsync(); db.UserPositionPermissionGroups.RemoveRange(old);
-                db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Select(id => new
+_positionId!.Value).ToListAsync(); db.UserPositionPermissionGroups.RemoveRange(old.Where(x => !_assignedGroupIds.Contains(x.GroupId)));
+                db.UserPositionPermissionGroups.AddRange(_assignedGroupIds.Where(id => !old.Any(x => x.GroupId == id)).Select(id => new
                 UserPositionPermissionGroup(_selectedEmployee.Id, _positionId!.Value, id)));
             }
             await db.SaveChangesAsync(); await
