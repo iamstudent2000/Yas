@@ -91,7 +91,7 @@
         </div>
         <div class="admin-filter"><label class="form-label">موجودیت</label><LookupSelect Options="EntityOptions" Value="@(string.IsNullOrEmpty(_entityType) ? null : _entityType)" ValueChanged="k => _entityType = k ?? string.Empty" Placeholder="همه موجودیت‌ها" /></div>
         <div class="admin-filter"><label class="form-label">شناسه موجودیت</label><input class="form-control" dir="ltr" placeholder="بخشی از شناسه" @bind="_entityId" @bind:event="oninput" /></div>
-        <div class="admin-filter"><label class="form-label">منبع</label><LookupSelect Options="_sourceOptions" Value="@(_archived ? "archived" : null)" ValueChanged="SourceChanged" Placeholder="رویدادهای جاری" /></div>
+        <div class="admin-filter"><label class="form-label">منبع</label><LookupSelect Options="_sourceOptions" Value="@(string.IsNullOrEmpty(_source) ? null : _source)" ValueChanged="SourceChanged" Placeholder="رویدادهای جاری" /></div>
         <div class="admin-filter"><label class="form-label">عملیات</label><LookupSelect Options="_actionOptions" Value="@(string.IsNullOrEmpty(_action) ? null : _action)" ValueChanged="k => _action = k ?? string.Empty" Placeholder="همه عملیات" /></div>
         <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_fromDate" Placeholder="تاریخ شروع" /></div>
         <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" @bind-Value="_toDate" Placeholder="تاریخ پایان" /></div>
@@ -191,14 +191,14 @@
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
     // The boxes edit the draft fields above; "جستجو" copies them here, and paging/sorting reload from this copy.
-    private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To, bool Archived)
+    private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To, string Source)
     {
-        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (Archived ? 1 : 0);
+        public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (Source.Length > 0 ? 1 : 0);
     }
     private AuditFilter _applied = new(null, null, "", "", "", null, null, false);
     private int _resetKey;
-    private bool _archived;   // draft of the "source" filter: false = current events, true = the archive
-    private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate, _archived).Count;
+    private string _source = "";   // draft of the "source" filter: "" = current events, "archived" = the archive, "all" = both
+    private int DraftCount => new AuditFilter(_employeeId, _positionId, _entityType, _entityId, _action, _fromDate, _toDate, _source).Count;
 
     // ---- archiving old events (needs Admin.AuditLog.Manage). The administrator picks automatic (daily job) or manual; "run now" works with either ----
     private bool _canManage, _archiving, _savingSetting, _autoEnabled = true;
@@ -207,7 +207,7 @@
     private int? _archiveCount;
     private static readonly IReadOnlyList<(string Key, string Text)> _methodOptions = [("auto", "خودکار (روزانه)"), ("manual", "دستی")];
     private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
-    private void SourceChanged(string? key) => _archived = key == "archived";
+    private void SourceChanged(string? key) => _source = key is "archived" or "all" ? key : "";
     private void MethodChanged(string? key) => _autoEnabled = key != "manual";
     protected override async Task OnInitializedAsync()
     {
@@ -280,7 +280,7 @@
         finally { _archiving = false; }
     }
     private void CancelLoad() => _loadCts?.Cancel();
-    private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate,_archived);await LoadPageAsync(1);}
+    private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate,_source);await LoadPageAsync(1);}
     private async Task LoadPageAsync(int page)
     {
         _loadCts?.Cancel();_loadCts?.Dispose();_loadCts=new CancellationTokenSource();var cts=_loadCts;var token=cts.Token;_loading=true;_hasSearched=true;_page=page;await InvokeAsync(StateHasChanged);
@@ -307,8 +307,8 @@
     }
     private IQueryable<AuditEntry> ApplyFilter(ApplicationDbContext db)
     {
-        // Current events by default; archived ones only when the "source" filter asks for them.
-        var query=db.AuditEntries.AsNoTracking().Where(x=>_applied.Archived?x.ArchivedAtUtc!=null:x.ArchivedAtUtc==null);
+        // Current events by default; the "source" filter can show only the archived ones, or all of them.
+        var query=db.AuditEntries.AsNoTracking().Where(x=>_applied.Source=="all"||(_applied.Source=="archived"?x.ArchivedAtUtc!=null:x.ArchivedAtUtc==null));
             if(!string.IsNullOrWhiteSpace(_applied.EntityType))query=query.Where(x=>x.EntityType==_applied.EntityType.Trim());
             if(!string.IsNullOrWhiteSpace(_applied.Action))query=query.Where(x=>x.Action==_applied.Action);
             if(!string.IsNullOrWhiteSpace(_applied.EntityId)){var idPart=_applied.EntityId.Trim().TrimStart('#');query=query.Where(x=>x.EntityId!=null&&EF.Functions.Like(x.EntityId,"%"+idPart+"%"));}
@@ -389,11 +389,11 @@
         }
         finally{_exporting=false;}
     }
-    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null,false);_archived=false;_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
+    private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null,"");_source="";_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
-    private static readonly IReadOnlyList<(string Key, string Text)> _sourceOptions = [("archived", "بایگانی‌شده")];
+    private static readonly IReadOnlyList<(string Key, string Text)> _sourceOptions = [("archived", "بایگانی‌شده"), ("all", "همه (جاری و بایگانی‌شده)")];
     private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = new[] { AuditActions.Created, AuditActions.Updated, AuditActions.Deleted }.Concat(AuditActions.Events).Select(a => (a, GetActionText(a))).ToList();
     private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
     private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","AuditArchiveSetting","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
