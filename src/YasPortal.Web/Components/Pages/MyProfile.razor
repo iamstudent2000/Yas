@@ -5,7 +5,9 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Identity
+@using YasPortal.Domain.Auditing
 @using YasPortal.Domain.Organization
+@using YasPortal.Infrastructure.Authorization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.ProfileOwnView)]
@@ -13,6 +15,7 @@
 @inject IPasswordHasher<Employee> Hasher
 @inject PasswordPolicyService PolicyService
 @inject AvatarService Avatars
+@inject AuditEventWriter Audit
 @inject AppState AppState
 
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
@@ -194,6 +197,10 @@ employeeId);
 
             employee.SetPasswordHash(Hasher.HashPassword(employee, _newPassword));
             await Db.SaveChangesAsync();
+            Guid? positionId = null;
+            if (AuthenticationStateTask is not null && Guid.TryParse((await AuthenticationStateTask).User.FindFirstValue(AuthClaimNames.ActivePositionId), out var activePosition))
+                positionId = activePosition;
+            await Audit.WriteAsync(AuditActions.PasswordChanged, nameof(Employee), id.ToString(), new { employee.Username }, employeeId: id, activePositionId: positionId);
             _currentPassword = _newPassword = _confirmPassword = "";
             AppState.AddToast("رمز عبور تغییر کرد.", ToastLevel.Success);
         }

@@ -1,8 +1,12 @@
+using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 using YasPortal.Application.Authorization;
+using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Workflows;
+using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
@@ -12,7 +16,7 @@ namespace YasPortal.Web.Services;
 /// visible page), read in batches so a large report never loads at once. The file opens in Excel
 /// (UTF-8 with a byte-order mark keeps the Persian text intact).
 /// </summary>
-public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState, IPermissionChecker permissions)
+public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState, IPermissionChecker permissions, AuditEventWriter audit, AuthenticationStateProvider authState)
 {
     /// <summary>Upper limit of one export; a bigger result is cut off and the user is told.</summary>
     public const int MaxRows = 20000;
@@ -106,7 +110,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             rows.AddRange(await rowsFor(db, chunk, ct));
         }
 
-        await DownloadAsync(fileBaseName, headers, rows);
+        await DownloadAsync(permission, fileBaseName, headers, rows);
         if (total > MaxRows)
             appState.AddToast($"فقط {MaxRows:N0} درخواست اول از {total:N0} درخواست در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
@@ -142,7 +146,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             rows.AddRange(await rowsFor(db, chunk, ct));
         }
 
-        await DownloadAsync(fileBaseName, headers, rows);
+        await DownloadAsync(permission, fileBaseName, headers, rows);
         if (total > MaxRows)
             appState.AddToast($"فقط {MaxRows:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
@@ -177,7 +181,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             return;
         }
 
-        await DownloadAsync(fileBaseName, headers, rows);
+        await DownloadAsync(permission, fileBaseName, headers, rows);
         if (total > rows.Count)
             appState.AddToast($"فقط {rows.Count:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
@@ -192,7 +196,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             appState.AddToast("موردی برای خروجی وجود ندارد.", ToastLevel.Info);
             return;
         }
-        await DownloadAsync(fileBaseName, headers, rows);
+        await DownloadAsync(permission, fileBaseName, headers, rows);
     }
 
     /// <summary>A UTC time as a Persian date and local time in Persian digits, or an empty cell.</summary>
@@ -315,11 +319,18 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return false;
     }
 
-    private async Task DownloadAsync(string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
+    private async Task DownloadAsync(string permission, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {
         var bytes = BuildCsv(headers, rows);
         var fileName = $"{fileBaseName}-{DateTime.Now:yyyyMMdd-HHmm}.csv";
         await js.InvokeVoidAsync("yasDownloadFile", fileName, "text/csv;charset=utf-8", bytes);
+        // Recorded once the file has been handed to the browser; the row count is what was really exported (cut at MaxRows).
+        // The person comes from the signed-in claims, not the ambient audit actor, which a Blazor circuit may not have.
+        var user = (await authState.GetAuthenticationStateAsync()).User;
+        Guid? employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employee) ? employee : null;
+        Guid? positionId = Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var position) ? position : null;
+        await audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, fileBaseName,
+            new { Permission = permission, RowCount = rows.Count }, employeeId: employeeId, activePositionId: positionId);
         appState.AddToast($"خروجی آماده شد ({rows.Count:N0} ردیف).", ToastLevel.Success);
     }
 

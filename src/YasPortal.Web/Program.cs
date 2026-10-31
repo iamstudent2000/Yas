@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Application.Authorization;
 using YasPortal.Application.Persistence;
+using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
@@ -55,6 +56,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
+builder.Services.AddScoped<AuditEventWriter>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
@@ -173,19 +175,29 @@ app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
 
-app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, IAntiforgery antiforgery) => {
+app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, IAntiforgery antiforgery, AuditEventWriter audit) => {
     await antiforgery.ValidateRequestAsync(http);
     var form = await http.Request.ReadFormAsync();
     var username = form["username"].ToString().Trim();
     var password = form["password"].ToString();
     if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         return Results.Redirect("/login?error=1");
+    var ip = http.Connection.RemoteIpAddress?.ToString();
     var employee = await db.Employees.Include(x => x.Positions).SingleOrDefaultAsync(x => x.Username.ToLower() == username.ToLower() && x.IsActive);
     if (employee is null || string.IsNullOrWhiteSpace(employee.PasswordHash))
+    {
+        // The typed username is kept (cut short) so repeated guesses can be spotted; the password never is.
+        await audit.WriteAsync(AuditActions.LoginFailed, AuditEntityTypes.Session, null,
+            new { Username = username.Length > 100 ? username[..100] : username, Reason = AuditReasons.UnknownOrInactive, Ip = ip }, anonymous: true);
         return Results.Redirect("/login?error=1");
+    }
     var passwordResult = passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, password);
     if (passwordResult == PasswordVerificationResult.Failed)
+    {
+        await audit.WriteAsync(AuditActions.LoginFailed, AuditEntityTypes.Session, employee.Id.ToString(),
+            new { employee.Username, Reason = AuditReasons.BadPassword, Ip = ip }, employeeId: employee.Id, anonymous: true);
         return Results.Redirect("/login?error=1");
+    }
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
 
@@ -195,12 +207,18 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         activePositionId = employee.Positions.Where(x => x.EndedAt == null && x.PositionId == employee.LastActivePositionId).Select(x => (Guid?)x.PositionId).FirstOrDefault();
         activePositionId ??= employee.Positions.Where(x => x.EndedAt == null).Select(x => (Guid?)x.PositionId).FirstOrDefault();
         if (activePositionId is null)
+        {
+            await audit.WriteAsync(AuditActions.LoginFailed, AuditEntityTypes.Session, employee.Id.ToString(),
+                new { employee.Username, Reason = AuditReasons.NoPosition, Ip = ip }, employeeId: employee.Id, anonymous: true);
             return Results.Redirect("/login?error=no-position");
+        }
     }
 
     if (employee.LastActivePositionId != activePositionId)
         employee.SetLastActivePosition(activePositionId);
     await db.SaveChangesAsync();
+    await audit.WriteAsync(AuditActions.LoginSucceeded, AuditEntityTypes.Session, employee.Id.ToString(),
+        new { employee.Username, Ip = ip }, employeeId: employee.Id, activePositionId: activePositionId, anonymous: true);
 
     var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, activePositionId, employee.IsAdmin);
     var claims = new List<Claim>
@@ -217,7 +235,7 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     return Results.Redirect("/");
 });
 
-app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery) => {
+app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery, AuditEventWriter audit) => {
     if (!(http.User.Identity?.IsAuthenticated ?? false))
         return Results.Redirect("/login");
     await antiforgery.ValidateRequestAsync(http);
@@ -234,8 +252,12 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     if (!employee.Positions.Any(x => x.PositionId == positionId && x.EndedAt == null))
         return Results.Redirect("/my-positions");
 
+    var previousPositionId = Guid.TryParse(http.User.FindFirstValue(AuthClaimNames.ActivePositionId), out var previous) ? previous : (Guid?)null;
     employee.SetLastActivePosition(positionId);
     await db.SaveChangesAsync();
+    if (previousPositionId != positionId)
+        await audit.WriteAsync(AuditActions.PositionSwitched, AuditEntityTypes.Session, employee.Id.ToString(),
+            new { FromPositionId = previousPositionId, ToPositionId = positionId }, employeeId: employee.Id, activePositionId: positionId, anonymous: true);
 
     // Rebuild the snapshot for the newly selected position. Old permission claims
     // are explicitly removed so permissions from the previous position cannot leak.
@@ -252,7 +274,15 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     return Results.Redirect("/my-positions");
 });
 
-app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery) => { await antiforgery.ValidateRequestAsync(http); await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect("/login"); });
+app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery, AuditEventWriter audit) =>
+{
+    await antiforgery.ValidateRequestAsync(http);
+    var (employeeId, positionId) = ActorOf(http.User);
+    if (employeeId is not null)
+        await audit.WriteAsync(AuditActions.LoggedOut, AuditEntityTypes.Session, employeeId.ToString(), null, employeeId: employeeId, activePositionId: positionId, anonymous: true);
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/login");
+});
 
 // Called by SessionGuard (a component mounted in every authenticated page) when it notices, from
 // inside a long-lived Blazor Server circuit, that the signed-in identity may no longer be valid.
@@ -264,7 +294,7 @@ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery
 // the request, so a crafted link cannot make it produce anything other than what the visiting
 // user's own account already legitimately has. The only effect of an unwanted visit is the same
 // early-logout nuisance any GET logout link already carries.
-app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, string? returnUrl) =>
+app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, AuditEventWriter audit, string? returnUrl) =>
 {
     var principal = http.User;
     if (principal.Identity?.IsAuthenticated != true)
@@ -283,6 +313,8 @@ app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<A
 
     if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
     {
+        await audit.WriteAsync(AuditActions.SessionEnded, AuditEntityTypes.Session, employeeId.ToString(),
+            new { Reason = AuditReasons.IdentityInvalid }, employeeId: employeeId, activePositionId: claimedPositionId, anonymous: true);
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Results.Redirect("/login");
     }
@@ -336,6 +368,9 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
     // since the identity itself is no longer valid the way the cookie describes it.
     if (!IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId))
     {
+        await context.HttpContext.RequestServices.GetRequiredService<AuditEventWriter>().WriteAsync(
+            AuditActions.SessionEnded, AuditEntityTypes.Session, employeeId.ToString(),
+            new { Reason = AuditReasons.IdentityInvalid }, employeeId: employeeId, activePositionId: claimedPositionId, anonymous: true);
         context.RejectPrincipal();
         await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return;
@@ -359,6 +394,10 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
     // would hit the database again instead of only once per RevalidationInterval.
     context.ShouldRenew = true;
 }
+
+static (Guid? EmployeeId, Guid? PositionId) ActorOf(ClaimsPrincipal user) =>
+    (Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId) ? employeeId : (Guid?)null,
+     Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionId) ? positionId : (Guid?)null);
 
 static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
     ApplicationDbContext db,
