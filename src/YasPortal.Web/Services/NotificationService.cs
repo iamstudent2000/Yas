@@ -100,7 +100,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         NotificationKind.RequestRejected => $"درخواست {requestLabel} رد شد.",
         NotificationKind.RequestReturned => $"درخواست {requestLabel} به شما بازگردانده شد؛ پس از اصلاح دوباره ارسال کنید.",
         NotificationKind.RequestForceClosed => $"درخواست {requestLabel} توسط مدیر سامانه بسته شد.",
-        NotificationKind.RequestCreatedForYou => $"مدیر سامانه درخواست {requestLabel} را برای شما ثبت کرد.",
+        NotificationKind.RequestCreatedForYou => $"درخواست {requestLabel} برای شما ثبت شد.",
         _ => $"وضعیت درخواست {requestLabel} تغییر کرد.",
     };
 

@@ -15,7 +15,7 @@ public static class NotificationDisplay
         NotificationKind.RequestForceClosed => "بسته‌شدن توسط مدیر",
         NotificationKind.RequestReopened => "بازگشایی درخواست",
         NotificationKind.DelegationReceived => "تفویض دریافتی",
-        NotificationKind.RequestCreatedForYou => "ثبت درخواست توسط مدیر",
+        NotificationKind.RequestCreatedForYou => "ثبت درخواست برای شما",
         NotificationKind.VacantPosition => "سمت خالی",
         NotificationKind.Manual => "پیام دستی",
         _ => kind.ToString(),

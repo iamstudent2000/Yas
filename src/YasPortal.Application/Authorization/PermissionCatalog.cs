@@ -21,6 +21,7 @@ public static class Perm
     public const string RequestsOwnCreate = "Requests.Own.Create";
     public const string RequestsOwnView = "Requests.Own.View";
     public const string RequestsTeamView = "Requests.Team.View";
+    public const string RequestsTeamCreate = "Requests.Team.Create";
     public const string RequestsTeamApprovalsView = "Requests.TeamApprovals.View";
     public const string RequestsDecisionApprove = "Requests.Decision.Approve";
     public const string RequestsDecisionReject = "Requests.Decision.Reject";
@@ -105,7 +106,7 @@ public static class PermissionCatalog
             return PermissionReach.All;
         if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
             return PermissionReach.Assigned;
-        if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
+        if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.RequestsTeamCreate or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
             return PermissionReach.Team;
         return PermissionReach.Own;
     }
@@ -114,7 +115,7 @@ public static class PermissionCatalog
     public static bool ActsOnOthers(string code) =>
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
-        || code is Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
+        || code is Perm.RequestsTeamCreate or Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
 
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
 
@@ -134,6 +135,7 @@ public static class PermissionCatalog
             new(Perm.RequestsOwnCreate, "ثبت درخواست جدید", "Requests.Create"),
             new(Perm.RequestsOwnView, "مشاهده درخواست‌ها و کارتابل خود", "Requests.View"),
             new(Perm.RequestsTeamView, "مشاهده درخواست‌های زیرمجموعه", "Requests.ViewSubordinateRequests"),
+            new(Perm.RequestsTeamCreate, "ثبت درخواست برای زیرمجموعه"),
             new(Perm.RequestsTeamApprovalsView, "مشاهده تصمیمات تایید زیرمجموعه", "Requests.ViewSubordinateApprovals"),
             new(Perm.RequestsDecisionApprove, "تأیید درخواست‌ها", "Requests.Approve"),
             new(Perm.RequestsDecisionReject, "رد درخواست‌ها", "Requests.Reject"),

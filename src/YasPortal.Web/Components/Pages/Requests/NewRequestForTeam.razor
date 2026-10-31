@@ -1,0 +1,190 @@
+@page "/requests/new-for-team"
+@using System.Security.Claims
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.RequestsTeamCreate)]
+@attribute [Authorize(Policy = "NonAdmin")]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject WorkflowService Workflows
+@inject NotificationService NotificationSvc
+@inject AppState AppState
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>ثبت درخواست برای زیرمجموعه - یاس پورتال</PageTitle>
+
+<div class="requests-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">درخواست‌ها و گردش‌کار</div>
+            <h1 class="page-title"><i class="ti @Icons.NewRequestForOthers"></i> ثبت درخواست برای زیرمجموعه</h1>
+            <p class="page-subtitle">درخواست به نام کارمند زیرمجموعه و از سمت او ثبت می‌شود و مسیر تأیید بر اساس همان سمت تعیین می‌شود. ثبت‌کننده (شما) در سابقه درخواست دیده می‌شود و کارمند اعلان می‌گیرد.</p>
+        </div>
+    </div>
+
+    @if (!_ready)
+    {
+        <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
+    }
+    else if (_myPositionId is null)
+    {
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Alert"></i><strong>سمت فعالی برای شما یافت نشد</strong><span>برای ثبت درخواست باید یک سمت فعال داشته باشید.</span></div></section>
+    }
+    else if (_holders.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><i class="ti @Icons.Subordinates"></i><strong>زیرمجموعه‌ی فعالی ندارید</strong><span>سمت فعال شما زیر خود سمتی با کارمند فعال ندارد.</span></div></section>
+    }
+    else
+    {
+        <section class="card admin-form-row">
+            <div class="admin-form-row-head">
+                <h2 class="section-title"><i class="ti @Icons.Requester"></i> درخواست‌دهنده</h2>
+                <p class="muted">فقط کارمندان فعالِ سمت‌های زیر سمت فعال شما (همه‌ی سطح‌ها) فهرست می‌شوند.</p>
+            </div>
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">کارمند زیرمجموعه</label>
+                    <LookupSelect Options="_options" Value="@_selectedKey" ValueChanged="HolderChanged" Placeholder="کارمند را انتخاب کنید..." SearchPlaceholder="نام کارمند یا سمت..." /></div>
+            </div>
+        </section>
+
+        @if (Selected is not null)
+        {
+            <section class="card">
+                <h2 class="section-title">نوع درخواست</h2>
+                <div class="request-type-grid">
+                    @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                    {
+                        <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
+                            <span class="request-type-card-icon"><i class="ti @WorkflowDisplay.IconFor(type)"></i></span>
+                            <span>@WorkflowFieldCatalog.GetDisplayName(type)</span>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="card request-form-card">
+                <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
+
+                <WorkflowFieldsForm Type="_selectedType" Values="_values" />
+
+                <div class="form-actions">
+                    <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
+                        @if (_submitting)
+                        {
+                            <i class="ti @Icons.Spinner"></i>
+                            <span>در حال ثبت...</span>
+                        }
+                        else
+                        {
+                            <i class="ti @Icons.Send"></i>
+                            <span>ثبت درخواست برای @Selected.EmployeeName</span>
+                        }
+                    </button>
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private bool _ready, _submitting;
+    private Guid? _myEmployeeId, _myPositionId;
+    private IReadOnlyList<WorkflowService.SubordinateHolder> _holders = [];
+    private IReadOnlyList<(string Key, string Text)> _options = [];
+    private string? _selectedKey;
+    private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
+    private Dictionary<string, string?> _values = [];
+
+    // The key is the position id (one active holder per position), so the pick identifies both the person and the position.
+    private WorkflowService.SubordinateHolder? Selected => _holders.FirstOrDefault(x => x.PositionId.ToString() == _selectedKey);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _myEmployeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        var claimed = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : (Guid?)null;
+        // Re-verified against the database, not trusted from the cookie claim alone.
+        _myPositionId = _myEmployeeId is Guid me && await Workflows.HoldsActivePositionAsync(me, claimed) ? claimed : null;
+        if (_myPositionId is Guid mine)
+            await LoadHoldersAsync(mine);
+        _ready = true;
+    }
+
+    private async Task LoadHoldersAsync(Guid myPositionId)
+    {
+        _holders = (await Workflows.GetSubordinateHoldersAsync(myPositionId)).Where(x => x.EmployeeId != _myEmployeeId).ToList();
+        _options = _holders.Select(x => (x.PositionId.ToString(), $"{x.EmployeeName} — {x.PositionName}")).ToList();
+    }
+
+    private void HolderChanged(string? key)
+    {
+        _selectedKey = key;
+        _values = [];
+    }
+
+    private void SelectType(WorkflowTypeCode type)
+    {
+        _selectedType = type;
+        _values = [];
+    }
+
+    private async Task Submit()
+    {
+        if (_submitting) return;
+        if (_myEmployeeId is not Guid me || _myPositionId is not Guid myPosition || Selected is not { } target)
+            return;
+
+        var errors = WorkflowFieldCatalog.ValidateValues(_selectedType, _values);
+        if (errors.Count > 0)
+        {
+            AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            // Everything is re-checked at submit time: I still hold my position, the chosen person still holds a position below mine,
+            // and is still an active non-administrator employee other than me.
+            var stillMine = await Workflows.HoldsActivePositionAsync(me, myPosition)
+                            && (await Workflows.GetSubordinateHoldersAsync(myPosition))
+                                .Any(x => x.EmployeeId == target.EmployeeId && x.PositionId == target.PositionId && x.EmployeeId != me);
+            if (!stillMine)
+            {
+                AppState.AddToast("این کارمند دیگر در زیرمجموعه‌ی شما نیست؛ دوباره انتخاب کنید.", ToastLevel.Error);
+                await LoadHoldersAsync(myPosition);
+                _selectedKey = null;
+                return;
+            }
+
+            var resolved = await Workflows.ResolveStepsAsync(_selectedType, target.PositionId);
+            if (!resolved.Success)
+            {
+                AppState.AddToast(resolved.Error!, ToastLevel.Error);
+                return;
+            }
+
+            var request = new WorkflowRequest(
+                _selectedType,
+                target.EmployeeId,
+                target.PositionId,
+                JsonSerializer.Serialize(_values),
+                resolved.Steps.Select(s => s.ToDomain()).ToList(),
+                createdByEmployeeId: me);
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.WorkflowRequests.Add(request);
+            await NotificationSvc.StageAsync(db, request, WorkflowNotificationEvent.Submitted);
+            await db.SaveChangesAsync();
+
+            AppState.AddToast($"درخواست برای {target.EmployeeName} ثبت شد.", ToastLevel.Success);
+            _values = [];   // stay on the page, ready for the next one (the team page needs a different permission)
+        }
+        finally { _submitting = false; }
+    }
+}
