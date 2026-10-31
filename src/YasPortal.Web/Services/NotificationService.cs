@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Application.Authorization;
+using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Organization;
@@ -9,7 +10,7 @@ using YasPortal.Infrastructure.Persistence;
 namespace YasPortal.Web.Services;
 
 /// <summary>In-app notifications (spec §17): creating them as part of a workflow action, and reading/marking them for the recipient.</summary>
-public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> dbFactory, IPermissionChecker permissions)
+public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> dbFactory, IPermissionChecker permissions, AuditEventWriter? audit = null)
 {
     /// <summary>
     /// Adds the notifications an event produces to <paramref name="db"/> <b>without saving</b>, so they
@@ -226,6 +227,10 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             await db.SaveChangesAsync(ct);
             done += chunk.Length;
         }
+        // Who sent it and to whom (the audience wording and head-count); the message text itself is not copied into the log.
+        if (audit is not null)
+            await audit.WriteAsync(AuditActions.NotificationSent, AuditEntityTypes.Notification, batchId?.ToString(),
+                new { Audience = audienceLabel, Recipients = done, RecipientId = done == 1 ? recipients[0].Id : (Guid?)null }, employeeId: senderId);
         return new(true, null, done);
     }
 
@@ -377,6 +382,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var count = await db.Notifications
             .Where(x => x.SenderEmployeeId == senderId && x.RemovedAtUtc == null && (x.BatchId == groupKey || (x.BatchId == null && x.Id == groupKey)))
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)now).SetProperty(x => x.RemovedByEmployeeId, (Guid?)senderId), ct);
+        if (audit is not null && count > 0)
+            await audit.WriteAsync(AuditActions.NotificationRetracted, AuditEntityTypes.Notification, groupKey.ToString(), new { Count = count }, employeeId: senderId);
         return new(true, null, count);
     }
 
@@ -392,6 +399,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var count = removed
             ? await matching.ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)now).SetProperty(x => x.RemovedByEmployeeId, (Guid?)actorId), ct)
             : await matching.ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovedAtUtc, (DateTime?)null).SetProperty(x => x.RemovedByEmployeeId, (Guid?)null), ct);
+        if (audit is not null && count > 0)
+            await audit.WriteAsync(removed ? AuditActions.NotificationRemoved : AuditActions.NotificationRestored, AuditEntityTypes.Notification, null, new { Count = count }, employeeId: actorId);
         return new(true, null, count);
     }
 

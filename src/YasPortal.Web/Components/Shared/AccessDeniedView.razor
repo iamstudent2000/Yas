@@ -1,4 +1,12 @@
 @* What a person sees when a page needs more than they have: signed in but without the permission, or not signed in at all. *@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Auditing
+@using YasPortal.Infrastructure.Authorization
+@using YasPortal.Infrastructure.Persistence
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject AuditEventWriter Audit
 @if (Authenticated)
 {
     <StatusPage Icon="@Icons.AccessDenied" Tone="is-warning" Code="۴۰۳" Title="دسترسی به این بخش مجاز نیست"
@@ -18,4 +26,19 @@ else
 
 @code {
     [Parameter] public bool Authenticated { get; set; }
+
+    // Runs once the circuit is interactive, not during the prerender pass, so a denied visit is recorded once.
+    // The caller gives this component a new @key per address, so each blocked page is its own instance.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !Authenticated)
+            return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
+            return;
+        Guid? positionId = Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var position) ? position : null;
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        await Audit.WriteAsync(AuditActions.AccessDenied, AuditEntityTypes.Access, null, new { Path = path },
+            employeeId: employeeId, activePositionId: positionId, anonymous: true);
+    }
 }

@@ -1,11 +1,12 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Web.Components.Shared
+@inject NavigationManager Navigation
 
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData">
             <NotAuthorized Context="state">
-                <AccessDeniedView Authenticated="@(state.User.Identity?.IsAuthenticated == true)" />
+                <AccessDeniedView @key="Navigation.Uri" Authenticated="@(state.User.Identity?.IsAuthenticated == true)" />
             </NotAuthorized>
         </AuthorizeRouteView>
     </Found>

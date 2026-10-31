@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Web
+@using YasPortal.Domain.Auditing
 @using YasPortal.Domain.Organization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
@@ -15,6 +16,7 @@
 @inject AppState AppState
 @inject ReportExportService Reports
 @inject PasswordPolicyService PolicyService
+@inject AuditEventWriter Audit
 
 <PageTitle>کاربران - یاس پورتال</PageTitle>
 
@@ -79,7 +81,7 @@
 }
 
 
-                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
+                <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => _applied)" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
                     <div class="admin-filter"><label class="form-label">جستجو</label>
                         <input class="form-control" placeholder="نام یا نام کاربری..." @bind="_draft.Search" @bind:event="oninput" /></div>
                     <div class="admin-filter"><label class="form-label">وضعیت</label>
@@ -309,6 +311,7 @@ DbFactory.CreateDbContextAsync();
             var passwordErrors = _policy.Validate(_password, _username);
             if (passwordErrors.Count > 0) { AppState.AddToast(string.Join(" ", passwordErrors), ToastLevel.Error); return; }
         }
+        var resettingPassword = _editingId is not null && !string.IsNullOrWhiteSpace(_password);
         Employee employee; var wasAdmin = false; if (_editingId is Guid id)
         {
             employee = await
@@ -337,7 +340,7 @@ Employee(code, username, _fullName, _organizationId.Value, _isAdmin);
             employee.SetPasswordHash(PasswordHasher.HashPassword(employee, _password)); db.Employees.Add(employee);
         }
         await
-db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "کاربر جدید ایجاد شد." : "کاربر ویرایش شد.",
+db.SaveChangesAsync(); if (resettingPassword) await Audit.WriteAsync(AuditActions.PasswordReset, nameof(Employee), employee.Id.ToString(), new { employee.Username }); AppState.AddToast(_editingId is null ? "کاربر جدید ایجاد شد." : "کاربر ویرایش شد.",
 ToastLevel.Success); CancelEdit(); await LoadAsync();
     }
     private async Task ToggleEmployee(Guid id)

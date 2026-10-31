@@ -11,6 +11,7 @@
 @inject ReportExportService Reports
 
 <PageTitle>سوابق تخصیص سمت‌ها - یاس پورتال</PageTitle>
+<YasPortal.Web.Components.Shared.PageViewLogger />
 
 <div class="admin-page" dir="rtl">
     <div class="page-header">
@@ -23,7 +24,7 @@
         <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i
             class="ti @Icons.Position"></i> مدیریت سمت‌ها</a></div>
         </div>
-        <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" ExportPermission="@(ReportPermissions.AssignmentHistory)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters">
+        <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" ExportPermission="@(ReportPermissions.AssignmentHistory)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters" FilterSnapshot="@(() => _applied)">
             <div class="admin-filter"><label class="form-label">کارمند</label>
                 <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
                                             SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeName" Placeholder="همه کارکنان"

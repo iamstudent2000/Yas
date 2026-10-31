@@ -17,6 +17,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>گزارش اعلان‌ها - یاس پورتال</PageTitle>
+<YasPortal.Web.Components.Shared.PageViewLogger />
 
 <div class="admin-page" dir="rtl">
     <div class="page-header">
@@ -52,7 +53,7 @@
 
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || Draft().Count > 0)"
                    ExportPermission="@(ReportPermissions.Notifications)" OnExport="ExportAsync" Exporting="_exporting"
-                   OnSearch="SearchAsync" OnClear="ClearAsync">
+                   OnSearch="SearchAsync" OnClear="ClearAsync" FilterSnapshot="@(() => _applied)">
         <div class="admin-filter"><label class="form-label">گیرنده</label>
             <ServerSearchableGuidSelect @key="_resetKey" Value="_recipientId" ValueChanged="id => { _recipientId = id; return Task.CompletedTask; }"
                                         SearchAsync="SearchEmployeesAsync" Placeholder="همه کارکنان" SearchPlaceholder="نام، کد یا نام کاربری..." />

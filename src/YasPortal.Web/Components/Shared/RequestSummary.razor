@@ -4,6 +4,9 @@
 @using YasPortal.Web.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
+@using YasPortal.Domain.Auditing
+@using YasPortal.Infrastructure.Persistence
+@inject AuditEventWriter Audit
 @inject IJSRuntime Js
 @inject RequestPdfService Pdf
 @inject AppState AppState
@@ -199,8 +202,22 @@
     [Parameter] public Guid? YourStepId { get; set; }
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
+    /// <summary>
+    /// Record in the audit log that this request was opened. A page that shows many summaries at once
+    /// (an inbox) turns it off, so the log holds requests someone chose to open, not every card on screen.
+    /// </summary>
+    [Parameter] public bool LogView { get; set; } = true;
+
     private readonly HashSet<int> _expandedRounds = [];
     private bool _printing;
+
+    // The first interactive render, not the prerender pass, so a request is recorded once per time it is opened.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && LogView)
+            await Audit.WriteAsync(AuditActions.RequestViewed, nameof(WorkflowRequest), Request.Id.ToString(),
+                new { Type = Request.WorkflowType, Status = Request.Status });
+    }
 
     /// <summary>The official printable form of an approved request (only types that have a form design).</summary>
     private async Task DownloadFormAsync()
@@ -211,7 +228,10 @@
         {
             var form = await Pdf.BuildFormAsync(Request, EmployeeNames, HolderNames);
             if (form is not null)
+            {
                 await Js.InvokeVoidAsync("yasDownloadFile", form.Value.FileName, "application/pdf", form.Value.Bytes);
+                await Audit.WriteAsync(AuditActions.RequestFormPrinted, nameof(WorkflowRequest), Request.Id.ToString(), new { Type = Request.WorkflowType });
+            }
         }
         catch (Exception ex)
         {
@@ -230,6 +250,7 @@
         {
             var bytes = await Pdf.BuildAsync(Request, EmployeeNames, HolderNames);
             await Js.InvokeVoidAsync("yasDownloadFile", $"request-{Request.Id.ToString("N")[..8]}.pdf", "application/pdf", bytes);
+            await Audit.WriteAsync(AuditActions.RequestPdfDownloaded, nameof(WorkflowRequest), Request.Id.ToString(), new { Type = Request.WorkflowType });
         }
         catch (Exception ex)
         {

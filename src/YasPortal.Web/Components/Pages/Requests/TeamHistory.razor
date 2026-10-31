@@ -17,6 +17,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>درخواست‌ها و تاییدات زیرمجموعه - یاس پورتال</PageTitle>
+<YasPortal.Web.Components.Shared.PageViewLogger />
 
 <div class="requests-page" dir="rtl">
     <div class="page-header">
@@ -200,7 +201,7 @@
                                 {
                                     <p><strong>نظر تصمیم‌گیرنده:</strong> @item.Decision.Comment</p>
                                 }
-                                <RequestSummary Request="item.Request" EmployeeNames="_names" HolderNames="_holders" HighlightStepId="item.Decision.StepId" />
+                                <RequestSummary Request="item.Request" EmployeeNames="_names" HolderNames="_holders" HighlightStepId="item.Decision.StepId" LogView="false" />
                             </div>
                         }
                     </div>

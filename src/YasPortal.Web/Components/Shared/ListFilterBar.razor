@@ -1,6 +1,9 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
+@using YasPortal.Infrastructure.Persistence
 @inject IJSRuntime Js
+@inject AuditEventWriter Audit
+@inject NavigationManager Navigation
 @* The one filter/sort card every list page uses, so filtering behaves the same everywhere:
    - nothing is searched while you pick or type; "جستجو" (or Enter) applies the draft,
    - "پاک کردن فیلترها" resets the draft and the list in one step,
@@ -101,6 +104,12 @@
     /// <summary>Optional: shows "گزارش مراحل (CSV)", the detailed one-row-per-step report of the last search.</summary>
     [Parameter] public EventCallback OnExportSteps { get; set; }
 
+    /// <summary>
+    /// Optional: the filters that are applied after a search (read once <see cref="OnSearch"/> has finished).
+    /// When set, every search is recorded in the audit log with these filters, and so is the next export.
+    /// </summary>
+    [Parameter] public Func<object?>? FilterSnapshot { get; set; }
+
     /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];
     [Parameter] public string Sort { get; set; } = "";
@@ -122,13 +131,18 @@
     private async Task RunAsync(EventCallback callback)
     {
         _menu = false;
+        // The export service reads this when the file is ready, so the export event says which filters it matched.
+        Audit.PendingExportFilters = FilterSnapshot?.Invoke();
         await callback.InvokeAsync();
     }
 
     private async Task SearchAsync()
     {
-        if (!Busy)
-            await OnSearch.InvokeAsync();
+        if (Busy)
+            return;
+        await OnSearch.InvokeAsync();
+        if (FilterSnapshot is not null)
+            await Audit.WriteSearchAsync(new Uri(Navigation.Uri).AbsolutePath, FilterSnapshot());
     }
 
     private Task ClearAsync() => OnClear.InvokeAsync();
