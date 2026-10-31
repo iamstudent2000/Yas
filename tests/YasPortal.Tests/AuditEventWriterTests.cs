@@ -106,6 +106,27 @@ public sealed class AuditEventWriterTests
     }
 
     [Fact]
+    public async Task A_seen_event_is_recorded_once_per_person_per_window()
+    {
+        var (_, writer, _) = Create();
+        var person = Guid.NewGuid();
+        var key = "request:" + Guid.NewGuid();
+
+        Assert.True(await writer.ShouldLogAsync(key, TimeSpan.FromMinutes(5), person));
+        Assert.False(await writer.ShouldLogAsync(key, TimeSpan.FromMinutes(5), person));
+        Assert.True(await writer.ShouldLogAsync(key, TimeSpan.FromMinutes(5), Guid.NewGuid()));   // someone else saw it too
+        Assert.True(await writer.ShouldLogAsync(key, TimeSpan.Zero, person));                      // the window has passed
+    }
+
+    [Fact]
+    public async Task A_seen_event_needs_a_person()
+    {
+        var (_, writer, _) = Create();
+
+        Assert.False(await writer.ShouldLogAsync("request:" + Guid.NewGuid(), TimeSpan.FromMinutes(5)));
+    }
+
+    [Fact]
     public async Task A_failing_database_never_breaks_the_caller()
     {
         var writer = new AuditEventWriter(new ThrowingFactory(), new AuditActorContext(), NullLogger<AuditEventWriter>.Instance);

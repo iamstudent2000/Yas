@@ -7,6 +7,7 @@
 @using YasPortal.Domain.Auditing
 @using YasPortal.Infrastructure.Persistence
 @inject AuditEventWriter Audit
+@inject NavigationManager Navigation
 @inject IJSRuntime Js
 @inject RequestPdfService Pdf
 @inject AppState AppState
@@ -203,8 +204,8 @@
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
     /// <summary>
-    /// Record in the audit log that this request was opened. A page that shows many summaries at once
-    /// (an inbox) turns it off, so the log holds requests someone chose to open, not every card on screen.
+    /// Record in the audit log that this request was shown to the person. A page can turn it off for a summary
+    /// that is not really being read.
     /// </summary>
     [Parameter] public bool LogView { get; set; } = true;
 
@@ -214,9 +215,10 @@
     // The first interactive render, not the prerender pass, so a request is recorded once per time it is opened.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && LogView)
+        // Once per person per request every five minutes, so an inbox that shows twenty cards writes twenty rows, not twenty per redraw.
+        if (firstRender && LogView && await Audit.ShouldLogAsync($"request:{Request.Id}", TimeSpan.FromMinutes(5)))
             await Audit.WriteAsync(AuditActions.RequestViewed, nameof(WorkflowRequest), Request.Id.ToString(),
-                new { Type = Request.WorkflowType, Status = Request.Status });
+                new { Type = Request.WorkflowType, Status = Request.Status, Source = new Uri(Navigation.Uri).AbsolutePath });
     }
 
     /// <summary>The official printable form of an approved request (only types that have a form design).</summary>

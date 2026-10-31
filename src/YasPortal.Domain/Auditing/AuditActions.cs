@@ -28,6 +28,10 @@ public static class AuditActions
     public const string NotificationRetracted = "NotificationRetracted";
     public const string NotificationRemoved = "NotificationRemoved";
     public const string NotificationRestored = "NotificationRestored";
+    public const string NotificationsViewed = "NotificationsViewed";
+    public const string NotificationRead = "NotificationRead";
+    public const string NotificationsMarkedRead = "NotificationsMarkedRead";
+    public const string AuditEntryViewed = "AuditEntryViewed";
 
     /// <summary>The explicit events, in the order the audit page offers them.</summary>
     public static readonly IReadOnlyList<string> Events =
@@ -36,6 +40,7 @@ public static class AuditActions
         PasswordChanged, PasswordReset, ReportExported, Searched, PageViewed, AccessDenied,
         RequestViewed, RequestPdfDownloaded, RequestFormPrinted,
         NotificationSent, NotificationRetracted, NotificationRemoved, NotificationRestored,
+        NotificationsViewed, NotificationRead, NotificationsMarkedRead, AuditEntryViewed,
     ];
 }
 
@@ -50,6 +55,9 @@ public static class AuditEntityTypes
 
     /// <summary>A report page opened, or a blocked page visit; the path is in the details.</summary>
     public const string Access = "Access";
+
+    /// <summary>One audit row opened in the details window; <see cref="AuditEntry.EntityId"/> is that row's id.</summary>
+    public const string AuditRecord = "AuditEntry";
 
     /// <summary>A notification send, take-back or removal; <see cref="AuditEntry.EntityId"/> is the batch when there is one.</summary>
     public const string Notification = "Notification";

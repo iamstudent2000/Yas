@@ -11,10 +11,10 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AdminQueryService AdminQueries
 @inject ReportExportService Reports
+@inject AuditEventWriter Audit
 @inject AppState AppState
 
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
-<YasPortal.Web.Components.Shared.PageViewLogger />
 
 <div class="admin-page" dir="rtl">
     <div class="page-header">
@@ -264,7 +264,7 @@
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
     private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = new[] { AuditActions.Created, AuditActions.Updated, AuditActions.Deleted }.Concat(AuditActions.Events).Select(a => (a, GetActionText(a))).ToList();
     private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
-    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access"];
+    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
     /// <summary>Single-key rows store the id as "Id=guid"; explicit events store the bare guid. Accepts both.</summary>
     private static bool TryParseEntityGuid(string? entityId, out Guid id)
     {
@@ -303,6 +303,8 @@
     {
         _selected=r;
         _idNameMap=await ResolveIdsInJsonAsync(r.BeforeJson,r.AfterJson,r.EntityId);
+        // Reading the log is itself recorded: which row was opened, and when.
+        await Audit.WriteAsync(AuditActions.AuditEntryViewed,AuditEntityTypes.AuditRecord,r.Id.ToString(),new{r.EntityType,r.Action});
     }
     private void CloseDetails()=>_selected=null;
     private async Task<Dictionary<Guid,string>> ResolveIdsInJsonAsync(string? beforeJson,string? afterJson,string? entityId)
@@ -366,7 +368,9 @@
         AuditActions.Searched=>"جستجو",AuditActions.PageViewed=>"مشاهده صفحه",AuditActions.RequestViewed=>"مشاهده درخواست",
         AuditActions.RequestPdfDownloaded=>"دریافت PDF درخواست",AuditActions.RequestFormPrinted=>"چاپ فرم درخواست",
         AuditActions.NotificationSent=>"ارسال اعلان",AuditActions.NotificationRetracted=>"بازپس‌گیری اعلان",
-        AuditActions.NotificationRemoved=>"حذف اعلان",AuditActions.NotificationRestored=>"بازگردانی اعلان",_=>a};
+        AuditActions.NotificationRemoved=>"حذف اعلان",AuditActions.NotificationRestored=>"بازگردانی اعلان",
+        AuditActions.NotificationsViewed=>"مشاهده فهرست اعلان‌ها",AuditActions.NotificationRead=>"خواندن اعلان",
+        AuditActions.NotificationsMarkedRead=>"خوانده‌شدن گروهی اعلان‌ها",AuditActions.AuditEntryViewed=>"مشاهده جزئیات رویداد",_=>a};
     private static string GetActionClass(string a)=>a switch{
         AuditActions.Created or AuditActions.LoginSucceeded or AuditActions.NotificationRestored=>"admin-action--success",
         AuditActions.Deleted or AuditActions.LoginFailed or AuditActions.AccessDenied=>"admin-action--danger",
@@ -381,10 +385,12 @@
         AuditActions.RequestPdfDownloaded=>Icons.Pdf,AuditActions.RequestFormPrinted=>Icons.Print,
         AuditActions.NotificationSent=>Icons.Send,AuditActions.NotificationRetracted=>Icons.Retract,
         AuditActions.NotificationRemoved=>Icons.Delete,AuditActions.NotificationRestored=>Icons.RestoreNotification,
+        AuditActions.NotificationsViewed or AuditActions.AuditEntryViewed=>Icons.Details,
+        AuditActions.NotificationRead or AuditActions.NotificationsMarkedRead=>Icons.ConfirmAll,
         _=>Icons.Edit};
     private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",
         "PasswordPolicy"=>"سیاست رمز عبور","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
-        AuditEntityTypes.Session=>"نشست",AuditEntityTypes.Report=>"گزارش / فهرست",AuditEntityTypes.Access=>"دسترسی",AuditEntityTypes.Notification=>"اعلان",_=>e};
+        AuditEntityTypes.Session=>"نشست",AuditEntityTypes.Report=>"گزارش / فهرست",AuditEntityTypes.Access=>"دسترسی",AuditEntityTypes.Notification=>"اعلان",AuditEntityTypes.AuditRecord=>"رویداد ثبت‌شده",_=>e};
     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
     private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='ti " + Icons.Inactive + "'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Name,p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
@@ -394,6 +400,7 @@
         "WorkflowType"=>"نوع درخواست","RequesterEmployeeId"=>"درخواست‌کننده","RequesterPositionId"=>"سمت درخواست‌کننده","CreatedByEmployeeId"=>"ثبت‌شده توسط مدیر","FieldValuesJson"=>"مقادیر فرم","CreatedAtUtc"=>"زمان ثبت","Status"=>"وضعیت","CurrentStepOrder"=>"ترتیب مرحله جاری","CurrentRound"=>"دور جاری",
         "RequestId"=>"درخواست","StepId"=>"مرحله","Round"=>"دور","Order"=>"ترتیب","ApproverPositionId"=>"سمت تاییدکننده","Outcome"=>"نتیجه","ActedByEmployeeId"=>"تصمیم‌گیرنده","ActedAtUtc"=>"زمان تصمیم","Comment"=>"توضیح","ReturnTargetOrder"=>"بازگشت به ترتیب","OnBehalfOfEmployeeId"=>"به نیابت از","DelegationId"=>"نمایندگی",
         "Kind"=>"نوع اقدام","AtUtc"=>"زمان","FieldKey"=>"فیلد","OldValue"=>"مقدار قبلی","NewValue"=>"مقدار جدید","ChangedByEmployeeId"=>"تغییردهنده","ChangedByPositionId"=>"سمت تغییردهنده","ChangedAtUtc"=>"زمان تغییر",
+        "Shown"=>"تعداد نمایش‌داده‌شده","UnreadShown"=>"خوانده‌نشده در فهرست","Page"=>"صفحه","UnreadOnly"=>"فقط خوانده‌نشده","Ids"=>"شناسه اعلان‌ها","SentAtUtc"=>"زمان ارسال","WaitedSeconds"=>"ثانیه تا دیده‌شدن","Scope"=>"محدوده","NotificationKind"=>"نوع اعلان","Source"=>"از صفحه",
         "Audience"=>"گیرندگان","Recipients"=>"تعداد گیرنده","RecipientId"=>"گیرنده","SenderId"=>"فرستنده","ReadState"=>"وضعیت خواندن","RemovedState"=>"وضعیت حذف","Count"=>"تعداد","Search"=>"متن جستجو",
         "Type"=>"نوع","CancelledBy"=>"نحوه لغو","RequesterName"=>"نام درخواست‌کننده","StepName"=>"نام مرحله","IdText"=>"شناسه درخواست","Text"=>"متن فرم","CreatedByAdminOnly"=>"فقط ثبت‌شده توسط مدیر","RequesterOrganizationId"=>"سازمان درخواست‌کننده","WaitingAtPositionId"=>"منتظر سمت",
         "From"=>"از تاریخ","To"=>"تا تاریخ","EntityType"=>"موجودیت","EntityId"=>"شناسه موجودیت","Action"=>"عملیات",
@@ -404,10 +411,24 @@
         {
             var s=v.GetString();
             if(propertyName!="Id"&&s is not null&&Guid.TryParse(s,out var id)&&_idNameMap.TryGetValue(id,out var name))return name;
+            // Times are stored in UTC (SentAtUtc, CreatedAtUtc, ...); show them as the local Persian date and time.
+            if(s is not null&&propertyName.EndsWith("AtUtc",StringComparison.Ordinal)&&DateTime.TryParse(s,System.Globalization.CultureInfo.InvariantCulture,System.Globalization.DateTimeStyles.RoundtripKind,out var moment))
+            {
+                var utc=moment.Kind==DateTimeKind.Unspecified?DateTime.SpecifyKind(moment,DateTimeKind.Utc):moment.ToUniversalTime();
+                var local=utc.ToLocalTime();
+                return ToPersianDate(local)+" "+ToPersianDigits(local.ToString("HH:mm:ss"));
+            }
             // Event details (searches, request views) store enums by name; show the same wording as the request pages.
             if(s is not null)
             {
                 var named=propertyName switch{
+                    "NotificationKind"=>Enum.TryParse<YasPortal.Domain.Notifications.NotificationKind>(s,out var notificationKind)?notificationKind switch{
+                        YasPortal.Domain.Notifications.NotificationKind.StepReached=>"رسیدن درخواست به مرحله",YasPortal.Domain.Notifications.NotificationKind.ReturnedToStep=>"بازگشت به مرحله",
+                        YasPortal.Domain.Notifications.NotificationKind.RequestApproved=>"تایید درخواست",YasPortal.Domain.Notifications.NotificationKind.RequestRejected=>"رد درخواست",
+                        YasPortal.Domain.Notifications.NotificationKind.RequestReturned=>"بازگشت به درخواست‌کننده",YasPortal.Domain.Notifications.NotificationKind.RequestForceClosed=>"بسته‌شدن توسط مدیر",
+                        YasPortal.Domain.Notifications.NotificationKind.RequestReopened=>"بازگشایی درخواست",YasPortal.Domain.Notifications.NotificationKind.DelegationReceived=>"دریافت نمایندگی",
+                        YasPortal.Domain.Notifications.NotificationKind.RequestCreatedForYou=>"ثبت درخواست برای شما",YasPortal.Domain.Notifications.NotificationKind.VacantPosition=>"سمت خالی",
+                        YasPortal.Domain.Notifications.NotificationKind.Manual=>"پیام دستی",_=>null}:null,
                     "Status"=>Enum.TryParse<WorkflowRequestStatus>(s,out var requestStatus)&&Enum.IsDefined(requestStatus)?WorkflowDisplay.StatusLabel(requestStatus):null,
                     "Type"=>Enum.TryParse<WorkflowTypeCode>(s,out var typeCode)&&Enum.IsDefined(typeCode)?WorkflowFieldCatalog.GetDisplayName(typeCode):null,
                     "CancelledBy"=>s switch{"ByRequester"=>"لغو توسط درخواست‌کننده","ByAdmin"=>"بسته‌شده توسط مدیر",_=>null},
