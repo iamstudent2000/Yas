@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace YasPortal.Infrastructure.Landing;
 
 /// <summary>One slide of the public landing page.</summary>
