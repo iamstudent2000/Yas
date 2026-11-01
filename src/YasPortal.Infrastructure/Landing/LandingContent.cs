@@ -29,13 +29,12 @@ public sealed class LandingInfo
 }
 
 /// <summary>
-/// What the public landing page shows: slides, quick links and general information cards. Nothing here comes from the database,
+/// What the public landing page shows besides the slides (those are managed by administrators, see <c>HomeSlide</c>): quick links and general information cards. Nothing here comes from the database,
 /// so nothing private can leak to a visitor who has not signed in. The built-in texts can be replaced from appsettings: a
-/// <c>Landing</c> section with <c>Slides</c>, <c>QuickLinks</c> and <c>Info</c> lists (a list that is present replaces the built-in one).
+/// <c>Landing</c> section with <c>QuickLinks</c> and <c>Info</c> lists (a list that is present replaces the built-in one).
 /// </summary>
 public sealed class LandingContent(IConfiguration configuration)
 {
-    public IReadOnlyList<LandingSlide> Slides => Read("Landing:Slides", DefaultSlides);
     public IReadOnlyList<LandingLink> QuickLinks => Read("Landing:QuickLinks", DefaultLinks);
     public IReadOnlyList<LandingInfo> Info => Read("Landing:Info", DefaultInfo);
 
@@ -44,13 +43,6 @@ public sealed class LandingContent(IConfiguration configuration)
         var items = configuration.GetSection(section).Get<List<T>>();
         return items is { Count: > 0 } ? items : fallback;
     }
-
-    private static readonly List<LandingSlide> DefaultSlides =
-    [
-        new() { Title = "به یاس پورتال خوش آمدید", Text = "سامانه یکپارچه مدیریت سازمان، سمت‌ها، درخواست‌ها و دسترسی‌های کارکنان در یک بستر واحد.", Icon = "ti-building", LinkText = "ورود به سامانه", LinkUrl = "/login" },
-        new() { Title = "درخواست‌ها بدون کاغذ", Text = "ثبت، پیگیری و تأیید درخواست‌ها به‌صورت برخط و با مسیر تأیید مشخص برای هر سمت.", Icon = "ti-file-check" },
-        new() { Title = "اعلان‌ها و رویدادها", Text = "از تصمیم‌ها و پیام‌های مهم بلافاصله باخبر شوید؛ همه رویدادهای سامانه ثبت و قابل پیگیری است.", Icon = "ti-bell-ringing" },
-    ];
 
     private static readonly List<LandingLink> DefaultLinks =
     [

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
+using YasPortal.Domain.Landing;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
@@ -31,6 +32,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<EmployeePermissionGroup> EmployeePermissionGroups => Set<EmployeePermissionGroup>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<AuditArchiveSetting> AuditArchiveSettings => Set<AuditArchiveSetting>();
+    public DbSet<HomeSlide> HomeSlides => Set<HomeSlide>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -243,6 +245,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<AuditEntry>(e => { e.HasKey(x => x.Id); e.Property(x => x.Action).HasMaxLength(100).IsRequired(); e.Property(x => x.EntityType).HasMaxLength(200).IsRequired(); e.Property(x => x.EntityId).HasMaxLength(500); e.Property(x => x.BeforeJson).HasColumnType("nvarchar(max)"); e.Property(x => x.AfterJson).HasColumnType("nvarchar(max)"); e.HasIndex(x => x.OccurredAtUtc); e.HasIndex(x => new { x.EntityType, x.EntityId }); e.HasIndex(x => x.EmployeeId); e.HasIndex(x => new { x.ArchivedAtUtc, x.OccurredAtUtc }); });
         modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); });
         modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.Property(x => x.AvatarKey).HasMaxLength(Employee.AvatarKeyMaxLength); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
+        modelBuilder.Entity<HomeSlide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeSlide.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeSlide.TextMax).IsRequired(); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.LinkText).HasMaxLength(HomeSlide.LinkTextMax); e.Property(x => x.LinkUrl).HasMaxLength(HomeSlide.LinkUrlMax); e.Property(x => x.StartsOn).HasColumnType("date"); e.Property(x => x.ExpiresOn).HasColumnType("date"); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
         modelBuilder.Entity<AuditArchiveSetting>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); });
         modelBuilder.Entity<PasswordPolicy>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); });
         modelBuilder.Entity<Position>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.HasOne(x => x.ParentPosition).WithMany(x => x.Children).HasForeignKey(x => x.ParentPositionId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.IsActive).HasDefaultValue(true); e.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => x.OrganizationId); });

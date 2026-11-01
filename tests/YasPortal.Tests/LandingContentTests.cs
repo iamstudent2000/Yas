@@ -11,10 +11,9 @@ public sealed class LandingContentTests
     {
         var content = new LandingContent(new ConfigurationBuilder().Build());
 
-        Assert.NotEmpty(content.Slides);
         Assert.NotEmpty(content.QuickLinks);
         Assert.NotEmpty(content.Info);
-        Assert.All(content.Slides, s => Assert.False(string.IsNullOrWhiteSpace(s.Title)));
+        Assert.All(content.Info, i => Assert.False(string.IsNullOrWhiteSpace(i.Title)));
     }
 
     [Fact]
@@ -22,17 +21,16 @@ public sealed class LandingContentTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Landing:Slides:0:Title"] = "اطلاعیه",
-            ["Landing:Slides:0:Text"] = "متن",
+            ["Landing:Info:0:Title"] = "اطلاعیه",
+            ["Landing:Info:0:Text"] = "متن",
             ["Landing:QuickLinks:0:Title"] = "پرتال",
             ["Landing:QuickLinks:0:Url"] = "/login",
         }).Build();
         var content = new LandingContent(configuration);
 
-        var slide = Assert.Single(content.Slides);
-        Assert.Equal("اطلاعیه", slide.Title);
-        Assert.Equal("ti-sparkles", slide.Icon);          // unset fields keep their defaults
+        var info = Assert.Single(content.Info);
+        Assert.Equal("اطلاعیه", info.Title);
+        Assert.Equal("ti-info-circle", info.Icon);        // unset fields keep their defaults
         Assert.Equal("پرتال", Assert.Single(content.QuickLinks).Title);
-        Assert.NotEmpty(content.Info);                    // a list that is not configured stays built-in
     }
 }

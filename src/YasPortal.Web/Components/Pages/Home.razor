@@ -5,6 +5,7 @@
 @using YasPortal.Infrastructure.Landing
 @implements IDisposable
 @inject LandingContent Content
+@inject HomeSlideProvider SlideProvider
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
@@ -14,7 +15,11 @@
 
 <PageTitle>یاس پورتال</PageTitle>
 
-@if (!_showLanding)
+@if (!_ready)
+{
+    @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
+}
+else if (!_showLanding)
 {
     <div class="card">
         <h1>خوش آمدید</h1>
@@ -24,6 +29,8 @@
 else
 {
     <div class="landing" dir="rtl">
+        @if (_slides.Count > 0)
+        {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه">
             @{ var slide = _slides[_index]; }
             <div class="landing-slide" @key="_index">
@@ -63,6 +70,7 @@ else
                 </div>
             }
         </section>
+        }
 
         <section class="landing-section">
             <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
@@ -105,7 +113,7 @@ else
 }
 
 @code {
-    private bool _signedIn, _canDashboard, _showLanding = true;
+    private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private IReadOnlyList<LandingLink> _links = [];
@@ -113,6 +121,12 @@ else
     private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _ready = true; }
+    }
+
+    private async Task LoadAsync()
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _signedIn = user.Identity?.IsAuthenticated == true;
@@ -128,7 +142,7 @@ else
                 return;
             }
         }
-        _slides = Content.Slides;
+        _slides = await SlideProvider.GetSlidesAsync();
         _links = Content.QuickLinks;
         _info = Content.Info;
     }
