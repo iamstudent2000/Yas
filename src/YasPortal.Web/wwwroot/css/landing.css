@@ -61,3 +61,8 @@
 .lm-search .ti{color:var(--text-muted)}
 .lm-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;min-width:150px;padding:8px 0}
 @media (max-width:720px){.lm-search{margin-inline-start:0;width:100%}.lm-search input{flex:1}.lm-panel{position:fixed;inset-inline:12px;top:auto;max-width:none}}
+
+/* Quick access: its own frame under the links menu */
+.landing-quick{padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.landing-quick .landing-heading{margin-bottom:12px}
+.landing-quick-links{display:flex;flex-wrap:wrap;gap:10px}

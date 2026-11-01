@@ -72,9 +72,22 @@ else
         </section>
         }
 
-        @if (!_tree.IsEmpty)
+        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
         {
             <LinkMenuBar Tree="_tree" />
+        }
+
+        @if (_tree.QuickAccess.Count > 0)
+        {
+            <section class="landing-quick" aria-label="دسترسی سریع">
+                <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
+                <div class="landing-quick-links">
+                    @foreach (var link in _tree.QuickAccess)
+                    {
+                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
+                    }
+                </div>
+            </section>
         }
 
         <section class="landing-section">
