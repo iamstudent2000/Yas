@@ -1,4 +1,5 @@
 @page "/"
+@page "/home"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Infrastructure.Landing
@@ -7,12 +8,13 @@
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
-@* The public front page: open to everyone, shows only the texts from LandingContent (no database data). A signed-in person is
-   sent on to the dashboard (or, without that permission, sees a short welcome); the personal sidebar appears only after sign-in. *@
+@* The public front page: open to everyone, shows only the texts from LandingContent (no database data). At "/" a signed-in person is
+   sent on to the dashboard (or, without that permission, sees a short welcome); "/home" shows this page to everyone, signed in or not
+   (the sidebar's "صفحه اصلی" link). The personal sidebar appears only after sign-in. *@
 
 <PageTitle>یاس پورتال</PageTitle>
 
-@if (_signedIn)
+@if (!_showLanding)
 {
     <div class="card">
         <h1>خوش آمدید</h1>
@@ -30,7 +32,17 @@ else
                     <h1>@slide.Title</h1>
                     <p>@slide.Text</p>
                     <div class="landing-slide-actions">
-                        <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
+                        @if (_signedIn)
+                        {
+                            if (_canDashboard)
+                            {
+                                <a class="btn btn-primary" href="/dashboard"><i class="ti @Icons.Dashboard"></i> رفتن به داشبورد</a>
+                            }
+                        }
+                        else
+                        {
+                            <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
+                        }
                         @if (!string.IsNullOrWhiteSpace(slide.LinkText) && !string.IsNullOrWhiteSpace(slide.LinkUrl) && slide.LinkUrl != "/login")
                         {
                             <a class="btn btn-secondary" href="@slide.LinkUrl">@slide.LinkText</a>
@@ -84,13 +96,16 @@ else
                 <strong>منوها و امکانات شما پس از ورود نمایش داده می‌شود</strong>
                 <span>هر کاربر فقط بخش‌هایی را می‌بیند که مجوز آن‌ها را دارد.</span>
             </div>
-            <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+            @if (!_signedIn)
+            {
+                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+            }
         </section>
     </div>
 }
 
 @code {
-    private bool _signedIn;
+    private bool _signedIn, _canDashboard, _showLanding = true;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private IReadOnlyList<LandingLink> _links = [];
@@ -103,9 +118,15 @@ else
         _signedIn = user.Identity?.IsAuthenticated == true;
         if (_signedIn)
         {
-            if ((await AuthzService.AuthorizeAsync(user, Perm.DashboardPageView)).Succeeded)
-                Navigation.NavigateTo("/dashboard", replace: true);
-            return;
+            _canDashboard = (await AuthzService.AuthorizeAsync(user, Perm.DashboardPageView)).Succeeded;
+            var isRoot = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Length == 0;
+            if (isRoot)
+            {
+                _showLanding = false;
+                if (_canDashboard)
+                    Navigation.NavigateTo("/dashboard", replace: true);
+                return;
+            }
         }
         _slides = Content.Slides;
         _links = Content.QuickLinks;
@@ -115,7 +136,7 @@ else
     protected override void OnAfterRender(bool firstRender)
     {
         // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds.
-        if (firstRender && !_signedIn && _slides.Count > 1)
+        if (firstRender && _showLanding && _slides.Count > 1)
             _timer = new Timer(_ => _ = InvokeAsync(() => { Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
     }
 

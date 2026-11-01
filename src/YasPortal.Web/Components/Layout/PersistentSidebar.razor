@@ -31,6 +31,7 @@
                             @onclick="ToggleAccountGroup"><i class="ti @Icons.AccountGroup"></i><span class="group-title">حساب
                         کاربری</span><i class="ti @Icons.ChevronDown group-chevron"></i></button>
                     <div class="sidebar-group-items @(_accountExpanded ? "expanded" : "")">
+                        <NavLink href="/home" Match="NavLinkMatch.All"><i class="ti @Icons.Home"></i><span>صفحه اصلی</span></NavLink>
                         <AuthorizeView Policy="@Perm.DashboardPageView">
                             <NavLink href="/dashboard" Match="NavLinkMatch.All"><i
                                 class="ti @Icons.Dashboard"></i><span>داشبورد</span></NavLink>
