@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Authorization;
+using YasPortal.Domain.Landing;
 using YasPortal.Domain.Organization;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
@@ -145,6 +146,13 @@ public static class DevelopmentDataSeeder
         if (obsolete.Count > 0)
             db.Permissions.RemoveRange(obsolete);
         await db.SaveChangesAsync(ct);
+
+        // The landing page needs at least one slide; a fresh database starts with a few that an administrator can change.
+        if (!await db.HomeSlides.AnyAsync(ct))
+        {
+            db.HomeSlides.AddRange(HomeSlide.StarterSet());
+            await db.SaveChangesAsync(ct);
+        }
 
         var employeeDefinitions = new[]
         {

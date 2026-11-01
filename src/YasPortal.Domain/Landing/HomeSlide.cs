@@ -79,6 +79,17 @@ public sealed class HomeSlide
     public bool IsShownOn(DateTime today) =>
         IsActive && (StartsOn is null || StartsOn.Value.Date <= today.Date) && (ExpiresOn is null || ExpiresOn.Value.Date >= today.Date);
 
+    /// <summary>True when at least one of the slides is shown on <paramref name="today"/>. The rule the admin page enforces: this must stay true.</summary>
+    public static bool HasValid(IEnumerable<HomeSlide> slides, DateTime today) => slides.Any(x => x.IsShownOn(today));
+
+    /// <summary>The slides a fresh system starts with (the seeder and the migration script add them when the table is empty); an administrator can change or delete them.</summary>
+    public static IReadOnlyList<HomeSlide> StarterSet() =>
+    [
+        new("به یاس پورتال خوش آمدید", "سامانه یکپارچه مدیریت سازمان، سمت‌ها، درخواست‌ها و دسترسی‌های کارکنان در یک بستر واحد.", "ti-building", "ورود به سامانه", "/login", 1, null, null),
+        new("درخواست‌ها بدون کاغذ", "ثبت، پیگیری و تأیید درخواست‌ها به‌صورت برخط و با مسیر تأیید مشخص برای هر سمت.", "ti-file-check", null, null, 2, null, null),
+        new("اعلان‌ها و رویدادها", "از تصمیم‌ها و پیام‌های مهم بلافاصله باخبر شوید؛ همه رویدادهای سامانه ثبت و قابل پیگیری است.", "ti-bell-ringing", null, null, 3, null, null),
+    ];
+
     /// <summary>A page of this site ("/…", not "//…") or an absolute http/https address. Nothing else (no javascript: links).</summary>
     public static bool IsSafeLink(string url)
     {

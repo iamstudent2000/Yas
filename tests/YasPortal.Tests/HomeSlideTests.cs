@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using YasPortal.Domain.Landing;
 using YasPortal.Infrastructure.Landing;
@@ -78,7 +77,7 @@ public sealed class HomeSlideTests
     }
 
     [Fact]
-    public async Task Provider_falls_back_to_the_built_in_slides_when_none_is_visible()
+    public async Task Provider_returns_nothing_when_no_slide_is_valid()
     {
         var (options, provider) = Create();
         await using (var db = new ApplicationDbContext(options))
@@ -87,10 +86,30 @@ public sealed class HomeSlideTests
             await db.SaveChangesAsync();
         }
 
-        var slides = await provider.GetSlidesAsync(Today);
+        Assert.Empty(await provider.GetSlidesAsync(Today));   // no built-in slides: every slide belongs to the administrator
+    }
 
-        Assert.NotEmpty(slides);
-        Assert.DoesNotContain(slides, x => x.Title == "منقضی");
+    [Fact]
+    public void Has_valid_tells_whether_a_slide_is_shown_today()
+    {
+        var expired = Slide("منقضی", 1, to: Today.AddDays(-1));
+        var future = Slide("آینده", 2, from: Today.AddDays(1));
+        var off = Slide("خاموش", 3); off.Deactivate();
+        var live = Slide("زنده", 4);
+
+        Assert.False(HomeSlide.HasValid([], Today));
+        Assert.False(HomeSlide.HasValid([expired, future, off], Today));
+        Assert.True(HomeSlide.HasValid([expired, live], Today));
+        Assert.False(HomeSlide.HasValid(new[] { expired, live }.Where(x => x != live), Today));   // what the page checks before a delete
+    }
+
+    [Fact]
+    public void The_starter_set_has_valid_slides()
+    {
+        var starter = HomeSlide.StarterSet();
+        Assert.True(starter.Count >= 1);
+        Assert.True(HomeSlide.HasValid(starter, Today));
+        Assert.All(starter, s => Assert.True(HomeSlide.IconChoices.Any(i => i.Key == s.Icon)));
     }
 
     private static (DbContextOptions<ApplicationDbContext> Options, HomeSlideProvider Provider) Create()
@@ -98,7 +117,7 @@ public sealed class HomeSlideTests
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString(), new InMemoryDatabaseRoot())
             .Options;
-        return (options, new HomeSlideProvider(new Factory(options), new LandingContent(new ConfigurationBuilder().Build()), NullLogger<HomeSlideProvider>.Instance));
+        return (options, new HomeSlideProvider(new Factory(options), NullLogger<HomeSlideProvider>.Instance));
     }
 
     private sealed class Factory(DbContextOptions<ApplicationDbContext> options) : IDbContextFactory<ApplicationDbContext>

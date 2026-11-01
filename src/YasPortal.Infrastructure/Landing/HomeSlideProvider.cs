@@ -6,9 +6,9 @@ namespace YasPortal.Infrastructure.Landing;
 
 /// <summary>
 /// The slides the landing page shows today: the administrator's slides that are active and inside their dates, in order.
-/// When there are none (or the database cannot be read) the built-in slides of <see cref="LandingContent"/> are shown, so the page is never empty.
+/// Every slide is managed by an administrator; there are no built-in slides. If none is valid (or the database cannot be read) the list is empty.
 /// </summary>
-public sealed class HomeSlideProvider(IDbContextFactory<ApplicationDbContext> dbFactory, LandingContent content, ILogger<HomeSlideProvider> logger)
+public sealed class HomeSlideProvider(IDbContextFactory<ApplicationDbContext> dbFactory, ILogger<HomeSlideProvider> logger)
 {
     public async Task<IReadOnlyList<LandingSlide>> GetSlidesAsync(DateTime? today = null, CancellationToken ct = default)
     {
@@ -20,13 +20,12 @@ public sealed class HomeSlideProvider(IDbContextFactory<ApplicationDbContext> db
                 .Where(x => x.IsActive && (x.StartsOn == null || x.StartsOn <= day) && (x.ExpiresOn == null || x.ExpiresOn >= day))
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
                 .ToListAsync(ct);
-            if (rows.Count > 0)
-                return rows.Select(x => new LandingSlide { Title = x.Title, Text = x.Text, Icon = x.Icon, LinkText = x.LinkText, LinkUrl = x.LinkUrl }).ToList();
+            return rows.Select(x => new LandingSlide { Title = x.Title, Text = x.Text, Icon = x.Icon, LinkText = x.LinkText, LinkUrl = x.LinkUrl }).ToList();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "Could not read the landing slides; showing the built-in ones.");
+            logger.LogWarning(ex, "Could not read the landing slides.");
+            return [];
         }
-        return content.Slides;
     }
 }

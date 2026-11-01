@@ -29,6 +29,8 @@ else if (!_showLanding)
 else
 {
     <div class="landing" dir="rtl">
+        @if (_slides.Count > 0)
+        {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه">
             @{ var slide = _slides[_index]; }
             <div class="landing-slide" @key="_index">
@@ -68,6 +70,7 @@ else
                 </div>
             }
         </section>
+        }
 
         <section class="landing-section">
             <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>

@@ -17,7 +17,7 @@
         <div>
             <div class="page-kicker">مدیریت سامانه / صفحه اصلی</div>
             <h1 class="page-title"><i class="ti @Icons.LandingSlides"></i> اسلایدهای صفحه اصلی</h1>
-            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")اسلایدهایی که در صفحه اصلی (پیش از ورود) نمایش داده می‌شوند. هر اسلاید می‌تواند تاریخ شروع و انقضا داشته باشد؛ اگر اسلاید فعالی نباشد، اسلاید پیش‌فرض سامانه نمایش داده می‌شود.</p>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")اسلایدهایی که در صفحه اصلی (پیش از ورود) نمایش داده می‌شوند. هر اسلاید می‌تواند تاریخ شروع و انقضا داشته باشد؛ همیشه باید حداقل یک اسلاید معتبر (فعال و در بازه نمایش) باقی بماند؛ سامانه اجازه نمی‌دهد آخرین اسلاید معتبر حذف، غیرفعال یا منقضی شود.</p>
         </div>
         <div class="form-actions">
             <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> مشاهده صفحه اصلی</a>
@@ -25,6 +25,14 @@
     </div>
 
     <div class="admin-stack">
+        @if (!_loading && !HomeSlide.HasValid(_slides, DateTime.Now))
+        {
+            <section class="card" style="border-color:var(--danger,#b42318)"><p style="margin:0;color:var(--danger,#b42318)"><i class="ti @Icons.Alert"></i> اسلاید معتبری وجود ندارد و صفحه اصلی بدون اسلاید نمایش داده می‌شود. یک اسلاید اضافه کنید.</p></section>
+        }
+        else if (!_loading && ExpiringSoon is int days)
+        {
+            <section class="card"><p style="margin:0"><i class="ti @Icons.Alert"></i> همه اسلایدهای معتبر تا @days روز دیگر منقضی می‌شوند؛ پیش از آن اسلاید جدیدی اضافه یا تاریخ انقضا را تمدید کنید.</p></section>
+        }
         @if (_canManage)
         {
             <section class="card admin-form-row">
@@ -127,6 +135,20 @@
     private int _sortOrder;
     private DateTime? _startsOn, _expiresOn;
     private int _formKey;
+    private const string KeepOneMessage = "حداقل یک اسلاید معتبر (فعال و در بازه نمایش) باید باقی بماند؛ ابتدا اسلاید معتبر دیگری اضافه کنید.";
+
+    // Days left until the last valid slide expires, when every valid slide has an expiry date within the coming week; otherwise null.
+    private int? ExpiringSoon
+    {
+        get
+        {
+            var today = DateTime.Now.Date;
+            var valid = _slides.Where(x => x.IsShownOn(today)).ToList();
+            if (valid.Count == 0 || valid.Any(x => x.ExpiresOn is null)) return null;
+            var days = (valid.Max(x => x.ExpiresOn!.Value.Date) - today).Days;
+            return days <= 7 ? days : null;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -191,9 +213,13 @@
             await using var db = await DbFactory.CreateDbContextAsync();
             if (_editingId is Guid id)
             {
-                var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+                var all = await db.HomeSlides.ToListAsync();
+                var slide = all.SingleOrDefault(x => x.Id == id);
                 if (slide is null) { AppState.AddToast("این اسلاید دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                var hadValid = HomeSlide.HasValid(all, DateTime.Now);
                 slide.Update(_title, _text, _icon, _linkText, _linkUrl, _sortOrder, _startsOn, _expiresOn);
+                // Nothing is saved when this edit would leave no valid slide (unless there was none to begin with).
+                if (hadValid && !HomeSlide.HasValid(all, DateTime.Now)) { AppState.AddToast(KeepOneMessage, ToastLevel.Error); return; }
             }
             else
             {
@@ -230,9 +256,12 @@
     {
         if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
         await using var db = await DbFactory.CreateDbContextAsync();
-        var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+        var all = await db.HomeSlides.ToListAsync();
+        var slide = all.SingleOrDefault(x => x.Id == id);
         if (slide is null) { await LoadAsync(); return; }
+        var hadValid = HomeSlide.HasValid(all, DateTime.Now);
         if (slide.IsActive) slide.Deactivate(); else slide.Activate();
+        if (hadValid && !HomeSlide.HasValid(all, DateTime.Now)) { AppState.AddToast(KeepOneMessage, ToastLevel.Error); await LoadAsync(); return; }
         await db.SaveChangesAsync();
         await LoadAsync();
     }
@@ -242,7 +271,13 @@
         _confirmDeleteId = null;
         if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
         await using var db = await DbFactory.CreateDbContextAsync();
-        var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+        var all = await db.HomeSlides.ToListAsync();
+        var slide = all.SingleOrDefault(x => x.Id == id);
+        if (slide is not null && HomeSlide.HasValid(all, DateTime.Now) && !HomeSlide.HasValid(all.Where(x => x.Id != id), DateTime.Now))
+        {
+            AppState.AddToast(KeepOneMessage, ToastLevel.Error);
+            return;
+        }
         if (slide is not null)
         {
             db.HomeSlides.Remove(slide);

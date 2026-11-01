@@ -1,5 +1,5 @@
 -- YasPortal: admin-managed slides of the public landing page. Idempotent; safe to run more than once.
--- RUN THIS BEFORE deploying: the landing page ("/") reads the HomeSlides table (if it cannot, it shows the built-in slide, but fix it).
+-- RUN THIS BEFORE deploying: the landing page ("/") reads the HomeSlides table (if it cannot, the page shows no slides).
 -- Adds the HomeSlides table and the permissions Admin.LandingSlides.View / Admin.LandingSlides.Manage (not granted to anyone: assign them on the access page).
 -- The development database creates the table itself at startup and the permission rows from the catalog.
 SET XACT_ABORT ON;
@@ -22,6 +22,14 @@ IF OBJECT_ID(N'dbo.HomeSlides', N'U') IS NULL
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HomeSlides') AND name = N'IX_HomeSlides_IsActive_SortOrder')
     EXEC(N'CREATE INDEX [IX_HomeSlides_IsActive_SortOrder] ON [dbo].[HomeSlides] ([IsActive], [SortOrder])');
+
+-- A fresh table gets the three starter slides (change or delete them on the admin page; the page keeps at least one valid slide).
+IF NOT EXISTS (SELECT 1 FROM HomeSlides)
+    INSERT INTO HomeSlides (Id, Title, Text, Icon, LinkText, LinkUrl, SortOrder, IsActive, StartsOn, ExpiresOn, CreatedAtUtc)
+    VALUES
+    (NEWID(), N'به یاس پورتال خوش آمدید', N'سامانه یکپارچه مدیریت سازمان، سمت‌ها، درخواست‌ها و دسترسی‌های کارکنان در یک بستر واحد.', N'ti-building', N'ورود به سامانه', N'/login', 1, 1, NULL, NULL, SYSUTCDATETIME()),
+    (NEWID(), N'درخواست‌ها بدون کاغذ', N'ثبت، پیگیری و تأیید درخواست‌ها به‌صورت برخط و با مسیر تأیید مشخص برای هر سمت.', N'ti-file-check', NULL, NULL, 2, 1, NULL, NULL, SYSUTCDATETIME()),
+    (NEWID(), N'اعلان‌ها و رویدادها', N'از تصمیم‌ها و پیام‌های مهم بلافاصله باخبر شوید؛ همه رویدادهای سامانه ثبت و قابل پیگیری است.', N'ti-bell-ringing', NULL, NULL, 3, 1, NULL, NULL, SYSUTCDATETIME());
 
 INSERT INTO Permissions (Id, Code, Name)
 SELECT NEWID(), v.Code, v.Name
