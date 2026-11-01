@@ -1,4 +1,4 @@
-namespace YasPortal.Web.Services;
+namespace YasPortal.Infrastructure.Landing;
 
 /// <summary>One slide of the public landing page.</summary>
 public sealed class LandingSlide

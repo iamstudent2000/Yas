@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Configuration;
-using YasPortal.Web.Services;
+using YasPortal.Infrastructure.Landing;
 using Xunit;
 
 namespace YasPortal.Tests;
