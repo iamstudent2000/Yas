@@ -13,6 +13,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
+using YasPortal.Infrastructure.Landing;
 using YasPortal.Infrastructure.Persistence;
 using YasPortal.Web.Services;
 
@@ -58,6 +59,7 @@ builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
+builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
 
