@@ -39,14 +39,7 @@ else
                     <h1>@slide.Title</h1>
                     <p>@slide.Text</p>
                     <div class="landing-slide-actions">
-                        @if (_signedIn)
-                        {
-                            if (_canDashboard)
-                            {
-                                <a class="btn btn-primary" href="/dashboard"><i class="ti @Icons.Dashboard"></i> رفتن به داشبورد</a>
-                            }
-                        }
-                        else
+                        @if (!_signedIn)
                         {
                             <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
                         }
