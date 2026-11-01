@@ -74,7 +74,7 @@ public sealed class HomeSlideTests
 
         var slides = await provider.GetSlidesAsync(Today);
 
-        Assert.Equal(["اول", "دوم"], slides.Select(x => x.Title));
+        Assert.Equal(new[] { "اول", "دوم" }, slides.Select(x => x.Title).ToArray());
     }
 
     [Fact]
