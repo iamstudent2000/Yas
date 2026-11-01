@@ -1,0 +1,117 @@
+@using YasPortal.Domain.Landing
+@* The home page's horizontal links menu: the quick-access links as direct items, then one dropdown per top group (its links and its
+   sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
+   another is opened or anything outside is clicked. *@
+<nav class="lm" aria-label="پیوندها">
+    @if (_open is not null || Searching)
+    {
+        <div class="lm-backdrop" @onclick="Close"></div>
+    }
+    <ul class="lm-bar">
+        @foreach (var link in Tree.QuickAccess)
+        {
+            <li class="lm-item"><span class="lm-quick"><LinkMenuEntry Link="link" /></span></li>
+        }
+        @for (var i = 0; i < Tree.Groups.Count; i++)
+        {
+            var group = Tree.Groups[i];
+            var key = group.Id.ToString();
+            <li class="lm-item">
+                <button type="button" class="lm-top @(_open == key ? "is-open" : "")" aria-expanded="@(_open == key ? "true" : "false")" @onclick="() => Toggle(key)">
+                    <i class="ti ti-folder"></i> @group.Name <i class="ti ti-chevron-down lm-caret"></i>
+                </button>
+                @if (_open == key)
+                {
+                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "")"><LinkMenuSection Node="group" /></div>
+                }
+            </li>
+        }
+        @if (Tree.Ungrouped.Count > 0)
+        {
+            <li class="lm-item">
+                <button type="button" class="lm-top @(_open == OtherKey ? "is-open" : "")" aria-expanded="@(_open == OtherKey ? "true" : "false")" @onclick="() => Toggle(OtherKey)">
+                    <i class="ti ti-folder"></i> سایر <i class="ti ti-chevron-down lm-caret"></i>
+                </button>
+                @if (_open == OtherKey)
+                {
+                    <div class="lm-panel is-flipped"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
+                }
+            </li>
+        }
+        @if (Tree.TotalLinks > 8)
+        {
+            <li class="lm-item lm-search">
+                <i class="ti ti-search"></i>
+                <input type="search" placeholder="جستجو در پیوندها..." aria-label="جستجو در پیوندها" value="@_query" @oninput="OnSearch" />
+                @if (Searching)
+                {
+                    <div class="lm-panel is-flipped lm-results">
+                        @if (Results.Count == 0)
+                        {
+                            <p class="muted">پیوندی با این عبارت پیدا نشد.</p>
+                        }
+                        else
+                        {
+                            <ul class="lm-links">
+                                @foreach (var (path, link) in Results)
+                                {
+                                    <li><LinkMenuEntry Link="link" />@if (path.Length > 0) { <div class="lm-path">@path</div> }</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+</nav>
+
+@code {
+    private const string OtherKey = "other";
+    private string? _open;
+    private string _query = "";
+
+    [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
+
+    private bool Searching => _query.Trim().Length > 0;
+
+    // The last dropdowns sit on the far side of the bar, so they open towards the middle instead of off the screen.
+    private bool Flip(int index) => index >= (Tree.Groups.Count + 1) / 2;
+
+    private void Toggle(string key)
+    {
+        _query = "";
+        _open = _open == key ? null : key;
+    }
+
+    private void Close()
+    {
+        _open = null;
+        _query = "";
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _open = null;
+    }
+
+    // Everything that matches the search, with the group it is in (shown small under the link).
+    private List<(string Path, PortalLink Link)> Results
+    {
+        get
+        {
+            var found = Tree.Filter(_query);
+            var list = new List<(string, PortalLink)>();
+            void Walk(LinkGroupNode node, string path)
+            {
+                var here = path.Length == 0 ? node.Name : path + " › " + node.Name;
+                list.AddRange(node.Links.Select(l => (here, l)));
+                foreach (var child in node.Children) Walk(child, here);
+            }
+            foreach (var group in found.Groups) Walk(group, "");
+            list.AddRange(found.Ungrouped.Select(l => ("", l)));
+            return list;
+        }
+    }
+}

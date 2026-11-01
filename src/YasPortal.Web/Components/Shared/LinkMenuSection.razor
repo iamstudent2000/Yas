@@ -1,0 +1,26 @@
+@using YasPortal.Domain.Landing
+@* One group inside a dropdown of the links menu: its links, then its sub-groups (this component again) under their own headings. *@
+<div class="lm-section @(Depth > 0 ? "is-sub" : "")">
+    @if (Depth > 0)
+    {
+        <div class="lm-section-title"><i class="ti ti-folder"></i> @Node.Name</div>
+    }
+    @if (Node.Links.Count > 0)
+    {
+        <ul class="lm-links">
+            @foreach (var link in Node.Links)
+            {
+                <li><LinkMenuEntry Link="link" /></li>
+            }
+        </ul>
+    }
+    @foreach (var child in Node.Children)
+    {
+        <LinkMenuSection Node="child" Depth="Depth + 1" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
+    [Parameter] public int Depth { get; set; }
+}

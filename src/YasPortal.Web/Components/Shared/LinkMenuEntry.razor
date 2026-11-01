@@ -1,0 +1,10 @@
+@using YasPortal.Domain.Landing
+@{ var external = PortalLink.IsExternal(Link.Url); }
+<a href="@Link.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)" title="@Link.Description">
+    <i class="ti @(external ? "ti-external-link" : "ti-link")"></i>
+    <span>@Link.Title@if (!string.IsNullOrWhiteSpace(Link.Description)) { <small>@Link.Description</small> }</span>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public PortalLink Link { get; set; } = null!;
+}
