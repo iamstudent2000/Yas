@@ -17,14 +17,6 @@ public sealed class LandingSlide
     public long FileSize { get; set; }
 }
 
-public sealed class LandingLink
-{
-    public string Title { get; set; } = "";
-    public string Url { get; set; } = "/login";
-    public string Icon { get; set; } = "ti-link";
-    public string? Hint { get; set; }
-}
-
 public sealed class LandingInfo
 {
     public string Title { get; set; } = "";
@@ -33,13 +25,11 @@ public sealed class LandingInfo
 }
 
 /// <summary>
-/// What the public landing page shows besides the slides (those are managed by administrators, see <c>HomeSlide</c>): quick links and general information cards. Nothing here comes from the database,
-/// so nothing private can leak to a visitor who has not signed in. The built-in texts can be replaced from appsettings: a
-/// <c>Landing</c> section with <c>QuickLinks</c> and <c>Info</c> lists (a list that is present replaces the built-in one).
+/// What the public landing page shows besides the slides (those are managed by administrators, see <c>HomeSlide</c>): general information cards (the links are managed by administrators, see <c>PortalLink</c>). These texts are not in the database. The built-in texts can be replaced from appsettings: a
+/// <c>Landing</c> section with an <c>Info</c> list (a list that is present replaces the built-in one).
 /// </summary>
 public sealed class LandingContent(IConfiguration configuration)
 {
-    public IReadOnlyList<LandingLink> QuickLinks => Read("Landing:QuickLinks", DefaultLinks);
     public IReadOnlyList<LandingInfo> Info => Read("Landing:Info", DefaultInfo);
 
     private List<T> Read<T>(string section, List<T> fallback) where T : class
@@ -47,15 +37,6 @@ public sealed class LandingContent(IConfiguration configuration)
         var items = configuration.GetSection(section).Get<List<T>>();
         return items is { Count: > 0 } ? items : fallback;
     }
-
-    private static readonly List<LandingLink> DefaultLinks =
-    [
-        new() { Title = "ورود به سامانه", Url = "/login", Icon = "ti-login", Hint = "با نام کاربری و رمز عبور" },
-        new() { Title = "ثبت درخواست جدید", Url = "/requests/new", Icon = "ti-file-plus", Hint = "پس از ورود" },
-        new() { Title = "کارتابل تاییدات", Url = "/requests/inbox", Icon = "ti-inbox", Hint = "پس از ورود" },
-        new() { Title = "اعلان‌ها", Url = "/notifications", Icon = "ti-bell", Hint = "پس از ورود" },
-        new() { Title = "پروفایل من", Url = "/my-profile", Icon = "ti-user-circle", Hint = "پس از ورود" },
-    ];
 
     private static readonly List<LandingInfo> DefaultInfo =
     [

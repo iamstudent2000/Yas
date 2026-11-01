@@ -154,6 +154,13 @@ public static class DevelopmentDataSeeder
             await db.SaveChangesAsync(ct);
         }
 
+        // The home page starts with a few quick-access links to pages of this site; an administrator manages them afterwards.
+        if (!await db.PortalLinks.AnyAsync(ct) && !await db.LinkGroups.AnyAsync(ct))
+        {
+            db.PortalLinks.AddRange(PortalLink.StarterQuickLinks());
+            await db.SaveChangesAsync(ct);
+        }
+
         var employeeDefinitions = new[]
         {
             (Code: "EMP-001", Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),

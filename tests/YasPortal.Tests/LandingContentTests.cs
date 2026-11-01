@@ -11,7 +11,6 @@ public sealed class LandingContentTests
     {
         var content = new LandingContent(new ConfigurationBuilder().Build());
 
-        Assert.NotEmpty(content.QuickLinks);
         Assert.NotEmpty(content.Info);
         Assert.All(content.Info, i => Assert.False(string.IsNullOrWhiteSpace(i.Title)));
     }
@@ -23,14 +22,11 @@ public sealed class LandingContentTests
         {
             ["Landing:Info:0:Title"] = "اطلاعیه",
             ["Landing:Info:0:Text"] = "متن",
-            ["Landing:QuickLinks:0:Title"] = "پرتال",
-            ["Landing:QuickLinks:0:Url"] = "/login",
         }).Build();
         var content = new LandingContent(configuration);
 
         var info = Assert.Single(content.Info);
         Assert.Equal("اطلاعیه", info.Title);
         Assert.Equal("ti-info-circle", info.Icon);        // unset fields keep their defaults
-        Assert.Equal("پرتال", Assert.Single(content.QuickLinks).Title);
     }
 }

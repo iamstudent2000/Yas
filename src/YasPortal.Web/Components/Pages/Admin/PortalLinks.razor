@@ -1,0 +1,530 @@
+@page "/admin/links"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Landing
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.AdminLinksView)]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@inject AppState AppState
+
+<PageTitle>پیوندهای صفحه اصلی - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / صفحه اصلی</div>
+            <h1 class="page-title"><i class="ti @Icons.Links"></i> پیوندهای صفحه اصلی</h1>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")پیوند به سایت‌ها و صفحه‌ها، در گروه‌ها و زیرگروه‌ها (تا @LinkGroup.MaxDepth سطح). همه این پیوندها برای همه در صفحه اصلی دیده می‌شود؛ پیوندهای «دسترسی سریع» در ردیف بالای صفحه می‌آیند.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> مشاهده صفحه اصلی</a>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else
+    {
+        <div class="admin-stack">
+            @if (_canManage)
+            {
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                        <p class="muted">برای ساخت زیرگروه، گروه والد را انتخاب کنید.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@LinkGroup.NameMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">گروه والد</label>
+                            <LookupSelect @key="_groupFormKey" Options="ParentOptions" Value="@(_groupParentId?.ToString())" ValueChanged="k => _groupParentId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون والد (گروه اصلی)" /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editingGroupId is null ? "افزودن گروه" : "ذخیره")</button>
+                            @if (_editingGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editingLinkId is null ? Icons.Add : Icons.Edit)"></i> @(_editingLinkId is null ? "افزودن پیوند" : "ویرایش پیوند")</h2>
+                        <p class="muted">آدرس می‌تواند http، https یا ftp باشد (https لازم نیست)، یا فقط نام سرور مثل intranet/app، یا صفحه‌ای از همین سامانه مثل /login.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="http://... یا https://... یا intranet/app" @bind="_linkUrl" maxlength="@PortalLink.UrlMax" /></div>
+                    </div>
+                    <div class="admin-row-grid" style="margin-top:12px">
+                        <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_linkDescription" maxlength="@PortalLink.DescriptionMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">گروه</label>
+                            <LookupSelect @key="_linkFormKey" Options="GroupOptions" Value="@(_linkGroupId?.ToString())" ValueChanged="k => _linkGroupId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون گروه (سایر)" SearchPlaceholder="جستجوی گروه..." /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_linkOrder" /></div>
+                    </div>
+                    <div class="admin-row-grid" style="margin-top:12px">
+                        <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_linkQuick" /> <span>در دسترسی سریع نمایش داده شود</span></label></div>
+                        @if (_linkQuick)
+                        {
+                            <div class="form-field"><label class="form-label">ترتیب در دسترسی سریع</label><input class="form-control" type="number" @bind="_linkQuickOrder" /></div>
+                        }
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveLinkAsync"><i class="ti @Icons.Save"></i> @(_editingLinkId is null ? "افزودن پیوند" : "ذخیره")</button>
+                            @if (_editingLinkId is not null) { <button class="btn btn-secondary" @onclick="ResetLinkForm">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی پیوندها</h2>
+                        <p class="muted">هر پیوند در یک خط: <span dir="ltr">گروه &gt; زیرگروه | عنوان | آدرس | توضیح (اختیاری)</span>. گروه‌های ناموجود ساخته می‌شوند و پیوندهای تکراری (همان آدرس در همان گروه) نادیده گرفته می‌شوند. خطی که با # شروع شود نادیده است.</p>
+                    </div>
+                    <textarea class="form-control" rows="6" dir="rtl" placeholder="سامانه‌های اداری > مالی | سیستم حقوق | http://payroll/app | حقوق و دستمزد&#10;آموزش | سامانه آموزش | https://learn.example.org" @bind="_importText" @bind:event="oninput"></textarea>
+                    <div class="form-actions" style="margin-top:10px">
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="PreviewImport"><i class="ti @Icons.Search"></i> پیش‌نمایش</button>
+                        <button class="btn btn-primary" disabled="@(_busy || _importLines is null || _importLines.Count(x => x.Error is null) == 0)" @onclick="ImportAsync"><i class="ti @Icons.Save"></i> ورود @(_importLines is null ? "" : $"({_importLines.Count(x => x.Error is null)} پیوند)")</button>
+                    </div>
+                    @if (_importLines is not null)
+                    {
+                        @if (_importLines.Count == 0)
+                        {
+                            <p class="muted" style="margin-top:10px">خطی برای ورود پیدا نشد.</p>
+                        }
+                        else
+                        {
+                            <div class="data-table-wrap" style="margin-top:10px">
+                                <table class="data-table data-table-bordered-rows">
+                                    <thead><tr><th>خط</th><th>گروه</th><th>عنوان</th><th>آدرس</th><th>وضعیت</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var line in _importLines)
+                                    {
+                                        <tr>
+                                            <td>@line.LineNumber</td>
+                                            <td>@(line.GroupPath.Count == 0 ? "—" : string.Join(" › ", line.GroupPath))</td>
+                                            <td>@line.Title</td>
+                                            <td dir="ltr">@line.Url</td>
+                                            <td>@if (line.Error is null) { <span class="badge badge-success">درست</span> } else { <span class="badge badge-danger">@line.Error</span> }</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                </section>
+            }
+
+            <section class="card table-card">
+                <div class="card-toolbar">
+                    <div>
+                        <h2 class="section-title" style="margin:0">گروه‌ها</h2>
+                        <p class="muted">خاموش‌کردن یک گروه، همه زیرگروه‌ها و پیوندهای آن را از صفحه اصلی پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
+                    </div>
+                    <span class="badge badge-muted">@_groups.Count گروه</span>
+                </div>
+                @if (_groups.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>گروهی ثبت نشده است</strong></div>
+                }
+                else
+                {
+                    <div class="data-table-wrap">
+                        <table class="data-table data-table-bordered-rows">
+                            <thead><tr><th>گروه</th><th>پیوندها</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                            <tbody>
+                            @foreach (var (group, depth) in FlatGroups())
+                            {
+                                <tr>
+                                    <td style="padding-inline-start:@(12 + depth * 22)px">@(depth > 0 ? "↳ " : "")<strong>@group.Name</strong></td>
+                                    <td>@_links.Count(x => x.GroupId == group.Id)</td>
+                                    <td>@group.SortOrder</td>
+                                    <td><span class="badge @(group.IsActive ? "badge-success" : "badge-muted")">@(group.IsActive ? "فعال" : "خاموش")</span></td>
+                                    @if (_canManage)
+                                    {
+                                        <td class="action-cell">
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                                            @if (_confirmGroupId == group.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="card table-card">
+                <div class="card-toolbar">
+                    <div>
+                        <h2 class="section-title" style="margin:0">پیوندها</h2>
+                        <p class="muted">جستجو در عنوان، آدرس، توضیح و گروه.</p>
+                    </div>
+                    <span class="badge badge-muted">@VisibleLinks.Count از @_links.Count پیوند</span>
+                </div>
+                <div class="admin-row-grid" style="margin-bottom:10px">
+                    <div class="form-field is-grow"><input class="form-control" placeholder="جستجو..." @bind="_search" @bind:event="oninput" /></div>
+                </div>
+                @if (VisibleLinks.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>پیوندی پیدا نشد</strong></div>
+                }
+                else
+                {
+                    <div class="data-table-wrap">
+                        <table class="data-table data-table-bordered-rows">
+                            <thead><tr><th>عنوان</th><th>آدرس</th><th>گروه</th><th>ترتیب</th><th>دسترسی سریع</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                            <tbody>
+                            @foreach (var link in VisibleLinks)
+                            {
+                                <tr>
+                                    <td><strong>@link.Title</strong>@if (link.Description is not null) { <div class="muted">@link.Description</div> }</td>
+                                    <td dir="ltr">@link.Url</td>
+                                    <td>@GroupPath(link.GroupId)</td>
+                                    <td>@link.SortOrder</td>
+                                    <td>@if (link.IsQuickAccess) { <span class="badge badge-info">@link.QuickOrder</span> } else { <span class="muted">—</span> }</td>
+                                    <td><span class="badge @(link.IsActive ? "badge-success" : "badge-muted")">@(link.IsActive ? "فعال" : "خاموش")</span></td>
+                                    @if (_canManage)
+                                    {
+                                        <td class="action-cell">
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditLink(link)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleLinkAsync(link.Id)"><i class="ti @(link.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(link.IsActive ? "خاموش" : "روشن")</button>
+                                            @if (_confirmLinkId == link.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteLinkAsync(link.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmLinkId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmLinkId = link.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _canManage, _busy;
+    private List<LinkGroup> _groups = [];
+    private List<PortalLink> _links = [];
+    private string _search = "";
+    private Guid? _confirmGroupId, _confirmLinkId;
+
+    // group form
+    private Guid? _editingGroupId, _groupParentId;
+    private string _groupName = "";
+    private int _groupOrder;
+    private int _groupFormKey;
+
+    // link form
+    private Guid? _editingLinkId, _linkGroupId;
+    private string _linkTitle = "", _linkUrl = "", _linkDescription = "";
+    private int _linkOrder, _linkQuickOrder;
+    private bool _linkQuick;
+    private int _linkFormKey;
+
+    // import
+    private string _importText = "";
+    private IReadOnlyList<ImportLine>? _importLines;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminLinksManage);
+        await LoadAsync();
+        ResetGroupForm();
+        ResetLinkForm();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _groups = await db.LinkGroups.AsNoTracking().ToListAsync();
+        _links = await db.PortalLinks.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+    }
+
+    private Task<bool> AllowedAsync() => PermissionChecker.HasPermissionAsync(Perm.AdminLinksManage);
+
+    // ---- display helpers ----
+
+    private IEnumerable<(LinkGroup Group, int Depth)> FlatGroups(Guid? parent = null, int depth = 0)
+    {
+        var level = _groups.Where(x => x.ParentId == parent || (parent is null && x.ParentId is Guid p && _groups.All(g => g.Id != p)))
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Name);
+        foreach (var group in level)
+        {
+            yield return (group, depth);
+            if (depth < 8)
+                foreach (var child in FlatGroups(group.Id, depth + 1))
+                    yield return child;
+        }
+    }
+
+    private string GroupPath(Guid? groupId)
+    {
+        if (groupId is null) return "—";
+        var names = new List<string>();
+        var byId = _groups.ToDictionary(x => x.Id);
+        Guid? current = groupId;
+        while (current is Guid id && byId.TryGetValue(id, out var g) && names.Count < 10) { names.Insert(0, g.Name); current = g.ParentId; }
+        return names.Count == 0 ? "—" : string.Join(" › ", names);
+    }
+
+    private IReadOnlyList<(string Key, string Text)> GroupOptions =>
+        FlatGroups().Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).ToList();
+
+    // a group can go under any group that is not itself/below itself and keeps the whole branch within the allowed depth
+    private IReadOnlyList<(string Key, string Text)> ParentOptions =>
+        FlatGroups().Where(x => LinkGroup.CheckParent(_editingGroupId ?? Guid.Empty, x.Group.Id, _groups) is null)
+            .Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).ToList();
+
+    private List<PortalLink> VisibleLinks
+    {
+        get
+        {
+            var q = _search.Trim();
+            return q.Length == 0 ? _links : _links.Where(x => x.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || x.Url.Contains(q, StringComparison.OrdinalIgnoreCase)
+                || (x.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                || GroupPath(x.GroupId).Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+    }
+
+    // ---- groups ----
+
+    private void BeginEditGroup(LinkGroup group)
+    {
+        _editingGroupId = group.Id; _groupName = group.Name; _groupParentId = group.ParentId; _groupOrder = group.SortOrder;
+        _groupFormKey++;
+    }
+
+    private void ResetGroupForm()
+    {
+        _editingGroupId = null; _groupName = ""; _groupParentId = null;
+        _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
+        _groupFormKey++;
+    }
+
+    private async Task SaveGroupAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var all = await db.LinkGroups.ToListAsync();
+            var problem = LinkGroup.CheckParent(_editingGroupId ?? Guid.Empty, _groupParentId, all);
+            if (problem is not null) { AppState.AddToast(problem, ToastLevel.Error); return; }
+            if (_editingGroupId is Guid id)
+            {
+                var group = all.SingleOrDefault(x => x.Id == id);
+                if (group is null) { AppState.AddToast("این گروه دیگر وجود ندارد.", ToastLevel.Error); ResetGroupForm(); await LoadAsync(); return; }
+                group.Update(_groupName, _groupParentId, _groupOrder);
+            }
+            else
+            {
+                db.LinkGroups.Add(new LinkGroup(_groupName, _groupParentId, _groupOrder));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingGroupId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ToastLevel.Success);
+            await LoadAsync();
+            ResetGroupForm();
+        }
+        catch (ArgumentException ex) { AppState.AddToast(ex.ParamName == "name" ? $"نام گروه لازم است و حداکثر {LinkGroup.NameMax} نویسه باشد." : "اطلاعات گروه معتبر نیست.", ToastLevel.Error); }
+        catch (Exception) { AppState.AddToast("ذخیره گروه انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleGroupAsync(Guid id)
+    {
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var group = await db.LinkGroups.SingleOrDefaultAsync(x => x.Id == id);
+        if (group is not null)
+        {
+            if (group.IsActive) group.Deactivate(); else group.Activate();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    private async Task DeleteGroupAsync(Guid id)
+    {
+        _confirmGroupId = null;
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.LinkGroups.AnyAsync(x => x.ParentId == id) || await db.PortalLinks.AnyAsync(x => x.GroupId == id))
+        {
+            AppState.AddToast("این گروه خالی نیست؛ ابتدا زیرگروه‌ها و پیوندهایش را جابه‌جا یا حذف کنید.", ToastLevel.Error);
+            return;
+        }
+        var group = await db.LinkGroups.SingleOrDefaultAsync(x => x.Id == id);
+        if (group is not null)
+        {
+            db.LinkGroups.Remove(group);
+            await db.SaveChangesAsync();
+            AppState.AddToast("گروه حذف شد.", ToastLevel.Success);
+        }
+        if (_editingGroupId == id) ResetGroupForm();
+        await LoadAsync();
+    }
+
+    // ---- links ----
+
+    private void BeginEditLink(PortalLink link)
+    {
+        _editingLinkId = link.Id; _linkTitle = link.Title; _linkUrl = link.Url; _linkDescription = link.Description ?? "";
+        _linkGroupId = link.GroupId; _linkOrder = link.SortOrder; _linkQuick = link.IsQuickAccess; _linkQuickOrder = link.QuickOrder;
+        _linkFormKey++;
+    }
+
+    private void ResetLinkForm()
+    {
+        _editingLinkId = null; _linkTitle = _linkUrl = _linkDescription = ""; _linkGroupId = null; _linkQuick = false;
+        _linkOrder = _links.Count == 0 ? 1 : _links.Max(x => x.SortOrder) + 1;
+        _linkQuickOrder = _links.Count(x => x.IsQuickAccess) + 1;
+        _linkFormKey++;
+    }
+
+    private async Task SaveLinkAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_linkGroupId is Guid gid && !await db.LinkGroups.AnyAsync(x => x.Id == gid))
+            {
+                AppState.AddToast("گروه انتخاب‌شده دیگر وجود ندارد.", ToastLevel.Error);
+                return;
+            }
+            if (_editingLinkId is Guid id)
+            {
+                var link = await db.PortalLinks.SingleOrDefaultAsync(x => x.Id == id);
+                if (link is null) { AppState.AddToast("این پیوند دیگر وجود ندارد.", ToastLevel.Error); ResetLinkForm(); await LoadAsync(); return; }
+                link.Update(_linkTitle, _linkUrl, _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder);
+            }
+            else
+            {
+                db.PortalLinks.Add(new PortalLink(_linkTitle, _linkUrl, _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingLinkId is null ? "پیوند اضافه شد." : "پیوند ذخیره شد.", ToastLevel.Success);
+            await LoadAsync();
+            ResetLinkForm();
+        }
+        catch (ArgumentException ex)
+        {
+            AppState.AddToast(ex.ParamName switch
+            {
+                "title" => $"عنوان لازم است و حداکثر {PortalLink.TitleMax} نویسه باشد.",
+                "url" => "آدرس معتبر نیست: http، https یا ftp، نام سرور (مثل intranet/app) یا صفحه‌ای از همین سامانه (مثل /login).",
+                "description" => $"توضیح حداکثر {PortalLink.DescriptionMax} نویسه باشد.",
+                _ => "اطلاعات پیوند معتبر نیست.",
+            }, ToastLevel.Error);
+        }
+        catch (Exception) { AppState.AddToast("ذخیره پیوند انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleLinkAsync(Guid id)
+    {
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var link = await db.PortalLinks.SingleOrDefaultAsync(x => x.Id == id);
+        if (link is not null)
+        {
+            if (link.IsActive) link.Deactivate(); else link.Activate();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    private async Task DeleteLinkAsync(Guid id)
+    {
+        _confirmLinkId = null;
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var link = await db.PortalLinks.SingleOrDefaultAsync(x => x.Id == id);
+        if (link is not null)
+        {
+            db.PortalLinks.Remove(link);
+            await db.SaveChangesAsync();
+            AppState.AddToast("پیوند حذف شد.", ToastLevel.Success);
+        }
+        if (_editingLinkId == id) ResetLinkForm();
+        await LoadAsync();
+    }
+
+    // ---- bulk import ----
+
+    private void PreviewImport() => _importLines = LinkImportParser.Parse(_importText);
+
+    private async Task ImportAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        var lines = LinkImportParser.Parse(_importText);
+        _importLines = lines;
+        var good = lines.Where(x => x.Error is null).ToList();
+        if (good.Count == 0) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var groups = await db.LinkGroups.ToListAsync();
+            var links = await db.PortalLinks.ToListAsync();
+            var newGroups = 0; var added = 0; var duplicates = 0;
+            var nextGroupOrder = groups.Count == 0 ? 1 : groups.Max(x => x.SortOrder) + 1;
+            var nextLinkOrder = links.Count == 0 ? 1 : links.Max(x => x.SortOrder) + 1;
+
+            foreach (var line in good)
+            {
+                Guid? parent = null;
+                foreach (var name in line.GroupPath)
+                {
+                    var found = groups.FirstOrDefault(x => x.ParentId == parent && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+                    if (found is null)
+                    {
+                        found = new LinkGroup(name, parent, nextGroupOrder++);
+                        db.LinkGroups.Add(found);
+                        groups.Add(found);
+                        newGroups++;
+                    }
+                    parent = found.Id;
+                }
+                if (links.Any(x => x.GroupId == parent && string.Equals(x.Url, line.Url, StringComparison.OrdinalIgnoreCase))) { duplicates++; continue; }
+                var link = new PortalLink(line.Title, line.Url!, line.Description, parent, nextLinkOrder++, false, 0);
+                db.PortalLinks.Add(link);
+                links.Add(link);
+                added++;
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast($"{added} پیوند و {newGroups} گروه جدید اضافه شد" + (duplicates > 0 ? $"؛ {duplicates} پیوند تکراری نادیده گرفته شد." : "."), ToastLevel.Success);
+            _importText = ""; _importLines = null;
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("ورود گروهی انجام نشد؛ چیزی ذخیره نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+}

@@ -2,10 +2,13 @@
 @page "/home"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Landing
 @using YasPortal.Infrastructure.Landing
+@using YasPortal.Web.Components.Shared
 @implements IDisposable
 @inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
+@inject PortalLinkProvider LinkProvider
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
@@ -69,18 +72,23 @@ else
         </section>
         }
 
-        <section class="landing-section">
-            <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
-            <div class="landing-links">
-                @foreach (var link in _links)
-                {
-                    <a class="landing-link" href="@link.Url">
-                        <span class="landing-link-icon"><i class="ti @link.Icon"></i></span>
-                        <span><strong>@link.Title</strong>@if (!string.IsNullOrWhiteSpace(link.Hint)) { <small>@link.Hint</small> }</span>
-                    </a>
-                }
-            </div>
-        </section>
+        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
+        {
+            <LinkMenuBar Tree="_tree" />
+        }
+
+        @if (_tree.QuickAccess.Count > 0)
+        {
+            <section class="landing-quick" aria-label="دسترسی سریع">
+                <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
+                <div class="landing-quick-links">
+                    @foreach (var link in _tree.QuickAccess)
+                    {
+                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
+                    }
+                </div>
+            </section>
+        }
 
         <section class="landing-section">
             <h2 class="landing-heading"><i class="ti ti-info-circle"></i> اطلاعات عمومی</h2>
@@ -113,7 +121,7 @@ else
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
-    private IReadOnlyList<LandingLink> _links = [];
+    private LinkTree _tree = LinkTree.Build([], []);
     private IReadOnlyList<LandingInfo> _info = [];
     private Timer? _timer;
 
@@ -140,7 +148,7 @@ else
             }
         }
         _slides = await SlideProvider.GetSlidesAsync();
-        _links = Content.QuickLinks;
+        _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;
     }
 
