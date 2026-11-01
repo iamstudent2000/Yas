@@ -60,6 +60,7 @@ builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
+builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
 
@@ -172,6 +173,10 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_AuditEntries_ArchivedAtUtc_OccurredAtUtc] ON [dbo].[AuditEntries] ([ArchivedAtUtc], [OccurredAtUtc])');
         IF OBJECT_ID(N'dbo.AuditArchiveSettings', N'U') IS NULL
             CREATE TABLE [dbo].[AuditArchiveSettings] ([Id] int NOT NULL, [AutomaticEnabled] bit NOT NULL, [AfterMonths] int NOT NULL, [LastAutomaticRunAtUtc] datetime2 NULL, [LastAutomaticRunCount] int NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_AuditArchiveSettings] PRIMARY KEY ([Id]));
+        IF OBJECT_ID(N'dbo.HomeSlides', N'U') IS NULL
+            CREATE TABLE [dbo].[HomeSlides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Text] nvarchar(600) NOT NULL, [Icon] nvarchar(50) NOT NULL, [LinkText] nvarchar(100) NULL, [LinkUrl] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [StartsOn] date NULL, [ExpiresOn] date NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlides] PRIMARY KEY ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HomeSlides') AND name = N'IX_HomeSlides_IsActive_SortOrder')
+            EXEC(N'CREATE INDEX [IX_HomeSlides_IsActive_SortOrder] ON [dbo].[HomeSlides] ([IsActive], [SortOrder])');
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }

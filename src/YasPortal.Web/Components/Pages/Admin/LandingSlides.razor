@@ -1,0 +1,255 @@
+@page "/admin/landing-slides"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Landing
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.AdminLandingSlidesView)]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@inject AppState AppState
+
+<PageTitle>اسلایدهای صفحه اصلی - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه / صفحه اصلی</div>
+            <h1 class="page-title"><i class="ti @Icons.LandingSlides"></i> اسلایدهای صفحه اصلی</h1>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")اسلایدهایی که در صفحه اصلی (پیش از ورود) نمایش داده می‌شوند. هر اسلاید می‌تواند تاریخ شروع و انقضا داشته باشد؛ اگر اسلاید فعالی نباشد، اسلاید پیش‌فرض سامانه نمایش داده می‌شود.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> مشاهده صفحه اصلی</a>
+        </div>
+    </div>
+
+    <div class="admin-stack">
+        @if (_canManage)
+        {
+            <section class="card admin-form-row">
+                <div class="admin-form-row-head">
+                    <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن اسلاید" : "ویرایش اسلاید")</h2>
+                    <p class="muted">عنوان و متن اسلاید را بنویسید. پیوند اختیاری است و باید نشانی صفحه‌ای از همین سامانه (مثل /login) یا آدرس http/https باشد.</p>
+                </div>
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_title" maxlength="@HomeSlide.TitleMax" /></div>
+                    <div class="form-field"><label class="form-label">نماد</label>
+                        <LookupSelect Options="HomeSlide.IconChoices" Value="@_icon" ValueChanged="k => _icon = k ?? HomeSlide.IconChoices[0].Key" Placeholder="نماد" /></div>
+                    <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_sortOrder" /></div>
+                </div>
+                <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field is-grow"><label class="form-label">متن</label><textarea class="form-control" rows="2" @bind="_text" maxlength="@HomeSlide.TextMax"></textarea></div>
+                </div>
+                <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field"><label class="form-label">متن پیوند (اختیاری)</label><input class="form-control" @bind="_linkText" maxlength="@HomeSlide.LinkTextMax" /></div>
+                    <div class="form-field is-grow"><label class="form-label">نشانی پیوند (اختیاری)</label><input class="form-control" dir="ltr" placeholder="/login یا https://..." @bind="_linkUrl" maxlength="@HomeSlide.LinkUrlMax" /></div>
+                </div>
+                <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field"><label class="form-label">شروع نمایش (اختیاری)</label>
+                        <PersianDatePicker @key="_formKey" @bind-Value="_startsOn" Placeholder="از همین حالا" /></div>
+                    <div class="form-field"><label class="form-label">انقضا (آخرین روز نمایش، اختیاری)</label>
+                        <PersianDatePicker @key="_formKey" @bind-Value="_expiresOn" Placeholder="بدون انقضا" /></div>
+                    <div class="form-field admin-row-submit"><div class="form-actions">
+                        <button class="btn btn-primary" disabled="@_saving" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "افزودن اسلاید" : "ذخیره")</button>
+                        @if (_editingId is not null)
+                        {
+                            <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                        }
+                    </div></div>
+                </div>
+            </section>
+        }
+
+        <section class="card table-card">
+            <div class="card-toolbar">
+                <div>
+                    <h2 class="section-title" style="margin:0">فهرست اسلایدها</h2>
+                    <p class="muted">به ترتیب نمایش. اسلایدهای منقضی‌شده یا غیرفعال در صفحه اصلی دیده نمی‌شوند.</p>
+                </div>
+                <span class="badge badge-muted">@_slides.Count اسلاید</span>
+            </div>
+            @if (_loading)
+            {
+                <LoadingState />
+            }
+            else if (_slides.Count == 0)
+            {
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.LandingSlides"></i></div><strong>اسلایدی ثبت نشده است</strong><span>اسلاید پیش‌فرض سامانه نمایش داده می‌شود.</span></div>
+            }
+            else
+            {
+                <div class="data-table-wrap">
+                    <table class="data-table data-table-bordered-rows">
+                        <thead><tr><th>ترتیب</th><th>اسلاید</th><th>پیوند</th><th>شروع</th><th>انقضا</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                        <tbody>
+                        @foreach (var slide in _slides)
+                        {
+                            var status = StatusOf(slide);
+                            <tr>
+                                <td>@slide.SortOrder</td>
+                                <td><i class="ti @slide.Icon"></i> <strong>@slide.Title</strong><div class="muted">@slide.Text</div></td>
+                                <td>@if (slide.LinkUrl is not null) { <span dir="ltr">@slide.LinkText → @slide.LinkUrl</span> } else { <span class="muted">—</span> }</td>
+                                <td>@DateText(slide.StartsOn)</td>
+                                <td>@DateText(slide.ExpiresOn)</td>
+                                <td><span class="badge @status.Badge">@status.Text</span></td>
+                                @if (_canManage)
+                                {
+                                    <td class="action-cell">
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(slide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(slide.Id)"><i class="ti @(slide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(slide.IsActive ? "غیرفعال" : "فعال")</button>
+                                        @if (_confirmDeleteId == slide.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(slide.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _confirmDeleteId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => _confirmDeleteId = slide.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private bool _loading = true, _canManage, _saving;
+    private List<HomeSlide> _slides = [];
+    private Guid? _editingId, _confirmDeleteId;
+    private string _title = "", _text = "", _icon = HomeSlide.IconChoices[0].Key, _linkText = "", _linkUrl = "";
+    private int _sortOrder;
+    private DateTime? _startsOn, _expiresOn;
+    private int _formKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage);
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _slides = await db.HomeSlides.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        _sortOrder = _editingId is null ? (_slides.Count == 0 ? 1 : _slides.Max(x => x.SortOrder) + 1) : _sortOrder;
+    }
+
+    private (string Text, string Badge) StatusOf(HomeSlide slide)
+    {
+        var today = DateTime.Now.Date;
+        if (!slide.IsActive) return ("غیرفعال", "badge-muted");
+        if (slide.ExpiresOn is not null && slide.ExpiresOn.Value.Date < today) return ("منقضی‌شده", "badge-muted");
+        if (slide.StartsOn is not null && slide.StartsOn.Value.Date > today) return ("در انتظار شروع", "badge-info");
+        return ("در حال نمایش", "badge-success");
+    }
+
+    private static string DateText(DateTime? date)
+    {
+        if (date is not DateTime d) return "—";
+        var pc = new System.Globalization.PersianCalendar();
+        return $"{pc.GetYear(d):0000}/{pc.GetMonth(d):00}/{pc.GetDayOfMonth(d):00}".Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
+    }
+
+    private void BeginEdit(HomeSlide slide)
+    {
+        _editingId = slide.Id;
+        _title = slide.Title; _text = slide.Text; _icon = slide.Icon;
+        _linkText = slide.LinkText ?? ""; _linkUrl = slide.LinkUrl ?? "";
+        _sortOrder = slide.SortOrder; _startsOn = slide.StartsOn; _expiresOn = slide.ExpiresOn;
+        _formKey++;
+    }
+
+    private async Task CancelEdit()
+    {
+        ResetForm();
+        await LoadAsync();
+    }
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _title = _text = _linkText = _linkUrl = "";
+        _icon = HomeSlide.IconChoices[0].Key;
+        _startsOn = _expiresOn = null;
+        _formKey++;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || !_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
+        _saving = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_editingId is Guid id)
+            {
+                var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+                if (slide is null) { AppState.AddToast("این اسلاید دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                slide.Update(_title, _text, _icon, _linkText, _linkUrl, _sortOrder, _startsOn, _expiresOn);
+            }
+            else
+            {
+                db.HomeSlides.Add(new HomeSlide(_title, _text, _icon, _linkText, _linkUrl, _sortOrder, _startsOn, _expiresOn));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingId is null ? "اسلاید اضافه شد." : "اسلاید ذخیره شد.", ToastLevel.Success);
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            AppState.AddToast(Explain(ex), ToastLevel.Error);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("ذخیره اسلاید انجام نشد.", ToastLevel.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    // The domain's messages are English; the person sees a Persian sentence for the field that failed.
+    private static string Explain(ArgumentException ex) => ex.ParamName switch
+    {
+        "title" => $"عنوان لازم است و حداکثر {HomeSlide.TitleMax} نویسه باشد.",
+        "text" => $"متن حداکثر {HomeSlide.TextMax} نویسه باشد.",
+        "linkText" => "برای پیوند، متن پیوند را هم بنویسید (حداکثر " + HomeSlide.LinkTextMax + " نویسه).",
+        "linkUrl" => "پیوند باید نشانی صفحه‌ای از همین سامانه (مثل /login) یا آدرس http/https باشد.",
+        "expiresOn" => "تاریخ انقضا نمی‌تواند پیش از تاریخ شروع باشد.",
+        _ => "اطلاعات اسلاید معتبر نیست.",
+    };
+
+    private async Task ToggleAsync(Guid id)
+    {
+        if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+        if (slide is null) { await LoadAsync(); return; }
+        if (slide.IsActive) slide.Deactivate(); else slide.Activate();
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDeleteId = null;
+        if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var slide = await db.HomeSlides.SingleOrDefaultAsync(x => x.Id == id);
+        if (slide is not null)
+        {
+            db.HomeSlides.Remove(slide);
+            await db.SaveChangesAsync();
+            AppState.AddToast("اسلاید حذف شد.", ToastLevel.Success);
+        }
+        if (_editingId == id) ResetForm();
+        await LoadAsync();
+    }
+}

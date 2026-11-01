@@ -5,6 +5,7 @@
 @using YasPortal.Infrastructure.Landing
 @implements IDisposable
 @inject LandingContent Content
+@inject HomeSlideProvider SlideProvider
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
@@ -128,7 +129,7 @@ else
                 return;
             }
         }
-        _slides = Content.Slides;
+        _slides = await SlideProvider.GetSlidesAsync();
         _links = Content.QuickLinks;
         _info = Content.Info;
     }
