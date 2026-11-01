@@ -309,7 +309,7 @@ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery
     if (employeeId is not null)
         await audit.WriteAsync(AuditActions.LoggedOut, AuditEntityTypes.Session, employeeId.ToString(), null, employeeId: employeeId, activePositionId: positionId, anonymous: true);
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-    return Results.Redirect("/login");
+    return Results.Redirect("/");   // the public home page; its top bar and buttons lead to the sign-in screen
 });
 
 // Called by SessionGuard (a component mounted in every authenticated page) when it notices, from
