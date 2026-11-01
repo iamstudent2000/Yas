@@ -15,7 +15,11 @@
 
 <PageTitle>یاس پورتال</PageTitle>
 
-@if (!_showLanding)
+@if (!_ready)
+{
+    @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
+}
+else if (!_showLanding)
 {
     <div class="card">
         <h1>خوش آمدید</h1>
@@ -106,7 +110,7 @@ else
 }
 
 @code {
-    private bool _signedIn, _canDashboard, _showLanding = true;
+    private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private IReadOnlyList<LandingLink> _links = [];
@@ -114,6 +118,12 @@ else
     private Timer? _timer;
 
     protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _ready = true; }
+    }
+
+    private async Task LoadAsync()
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _signedIn = user.Identity?.IsAuthenticated == true;
