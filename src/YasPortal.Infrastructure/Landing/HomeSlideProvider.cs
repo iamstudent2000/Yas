@@ -20,7 +20,19 @@ public sealed class HomeSlideProvider(IDbContextFactory<ApplicationDbContext> db
                 .Where(x => x.IsActive && (x.StartsOn == null || x.StartsOn <= day) && (x.ExpiresOn == null || x.ExpiresOn >= day))
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
                 .ToListAsync(ct);
-            return rows.Select(x => new LandingSlide { Title = x.Title, Text = x.Text, Icon = x.Icon, LinkText = x.LinkText, LinkUrl = x.LinkUrl }).ToList();
+            var ids = rows.Select(x => x.Id).ToList();
+            // Only the file's name and size (never its contents) are read here.
+            var files = ids.Count == 0 ? [] : await db.HomeSlideAttachments.AsNoTracking()
+                .Where(a => ids.Contains(a.SlideId)).Select(a => new { a.SlideId, a.FileName, a.SizeBytes }).ToListAsync(ct);
+            return rows.Select(x =>
+            {
+                var file = files.FirstOrDefault(f => f.SlideId == x.Id);
+                return new LandingSlide
+                {
+                    Title = x.Title, Text = x.Text, Icon = x.Icon, LinkText = x.LinkText, LinkUrl = x.LinkUrl,
+                    FileSlideId = file is null ? null : x.Id, FileName = file?.FileName, FileSize = file?.SizeBytes ?? 0,
+                };
+            }).ToList();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

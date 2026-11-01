@@ -177,6 +177,8 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[HomeSlides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Text] nvarchar(600) NOT NULL, [Icon] nvarchar(50) NOT NULL, [LinkText] nvarchar(100) NULL, [LinkUrl] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [StartsOn] date NULL, [ExpiresOn] date NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlides] PRIMARY KEY ([Id]));
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HomeSlides') AND name = N'IX_HomeSlides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_HomeSlides_IsActive_SortOrder] ON [dbo].[HomeSlides] ([IsActive], [SortOrder])');
+        IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
+            CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
@@ -345,6 +347,21 @@ app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<A
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
 
     return Results.Redirect(IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/");
+});
+// Download of a landing slide's attached file. Open to everyone while the slide is shown; for a slide that is not shown (expired,
+// not started, switched off) only people who may see the slide list. Always sent as a download, never rendered by the browser.
+app.MapGet("/landing/files/{slideId:guid}", async (Guid slideId, HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync();
+    var slide = await db.HomeSlides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == slideId);
+    var file = slide is null ? null : await db.HomeSlideAttachments.AsNoTracking().SingleOrDefaultAsync(x => x.SlideId == slideId);
+    if (slide is null || file is null)
+        return Results.NotFound();
+    var canSeeAll = http.User.Identity?.IsAuthenticated == true && http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminLandingSlidesView);
+    if (!slide.IsShownOn(DateTime.Now) && !canSeeAll)
+        return Results.NotFound();
+    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    return Results.File(file.Content, file.ContentType, file.FileName);
 });
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();

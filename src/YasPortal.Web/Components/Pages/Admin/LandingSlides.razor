@@ -1,5 +1,6 @@
 @page "/admin/landing-slides"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Landing
 @using YasPortal.Infrastructure.Persistence
@@ -54,6 +55,15 @@
                     <div class="form-field is-grow"><label class="form-label">نشانی پیوند (اختیاری)</label><input class="form-control" dir="ltr" placeholder="/login یا https://..." @bind="_linkUrl" maxlength="@HomeSlide.LinkUrlMax" /></div>
                 </div>
                 <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field is-grow"><label class="form-label">فایل پیوست (اختیاری، حداکثر @(HomeSlideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                        <InputFile @key="_formKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
+                        @if (_editingId is Guid editId && _files.TryGetValue(editId, out var current))
+                        {
+                            <label class="check-row" style="margin-top:6px"><input type="checkbox" @bind="_removeFile" /> <span>فایل فعلی (@current.Name) @(_file is null ? "حذف شود" : "با فایل انتخاب‌شده جایگزین می‌شود")</span></label>
+                        }
+                        <p class="muted" style="margin:6px 0 0">بازدیدکنندگان می‌توانند فایل را از صفحه اصلی بارگیری کنند، تا زمانی که اسلاید نمایش داده می‌شود. PDF، تصویر، Word، Excel، PowerPoint، متن و ZIP پذیرفته می‌شود.</p></div>
+                </div>
+                <div class="admin-row-grid" style="margin-top:12px">
                     <div class="form-field"><label class="form-label">شروع نمایش (اختیاری)</label>
                         <PersianDatePicker @key="_formKey" @bind-Value="_startsOn" Placeholder="از همین حالا" /></div>
                     <div class="form-field"><label class="form-label">انقضا (آخرین روز نمایش، اختیاری)</label>
@@ -89,7 +99,7 @@
             {
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>اسلاید</th><th>پیوند</th><th>شروع</th><th>انقضا</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                        <thead><tr><th>ترتیب</th><th>اسلاید</th><th>پیوند</th><th>فایل</th><th>شروع</th><th>انقضا</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
                         <tbody>
                         @foreach (var slide in _slides)
                         {
@@ -98,6 +108,7 @@
                                 <td>@slide.SortOrder</td>
                                 <td><i class="ti @slide.Icon"></i> <strong>@slide.Title</strong><div class="muted">@slide.Text</div></td>
                                 <td>@if (slide.LinkUrl is not null) { <span dir="ltr">@slide.LinkText → @slide.LinkUrl</span> } else { <span class="muted">—</span> }</td>
+                                <td>@if (_files.TryGetValue(slide.Id, out var file)) { <a href="/landing/files/@slide.Id" target="_blank" rel="noopener"><i class="ti ti-paperclip"></i> @file.Name</a> } else { <span class="muted">—</span> }</td>
                                 <td>@DateText(slide.StartsOn)</td>
                                 <td>@DateText(slide.ExpiresOn)</td>
                                 <td><span class="badge @status.Badge">@status.Text</span></td>
@@ -135,6 +146,10 @@
     private int _sortOrder;
     private DateTime? _startsOn, _expiresOn;
     private int _formKey;
+    private IBrowserFile? _file;
+    private bool _removeFile;
+    private Dictionary<Guid, (string Name, long Size)> _files = [];
+    private static readonly string _accept = string.Join(",", HomeSlideAttachment.AllowedExtensions);
     private const string KeepOneMessage = "حداقل یک اسلاید معتبر (فعال و در بازه نمایش) باید باقی بماند؛ ابتدا اسلاید معتبر دیگری اضافه کنید.";
 
     // Days left until the last valid slide expires, when every valid slide has an expiry date within the coming week; otherwise null.
@@ -161,6 +176,7 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _slides = await db.HomeSlides.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        _files = (await db.HomeSlideAttachments.AsNoTracking().Select(a => new { a.SlideId, a.FileName, a.SizeBytes }).ToListAsync()).ToDictionary(a => a.SlideId, a => (a.FileName, a.SizeBytes));
         _sortOrder = _editingId is null ? (_slides.Count == 0 ? 1 : _slides.Max(x => x.SortOrder) + 1) : _sortOrder;
     }
 
@@ -186,6 +202,7 @@
         _title = slide.Title; _text = slide.Text; _icon = slide.Icon;
         _linkText = slide.LinkText ?? ""; _linkUrl = slide.LinkUrl ?? "";
         _sortOrder = slide.SortOrder; _startsOn = slide.StartsOn; _expiresOn = slide.ExpiresOn;
+        _file = null; _removeFile = false;
         _formKey++;
     }
 
@@ -201,7 +218,21 @@
         _title = _text = _linkText = _linkUrl = "";
         _icon = HomeSlide.IconChoices[0].Key;
         _startsOn = _expiresOn = null;
+        _file = null; _removeFile = false;
         _formKey++;
+    }
+
+    private void FilePicked(InputFileChangeEventArgs e)
+    {
+        var error = HomeSlideAttachment.Validate(e.File.Name, e.File.Size);
+        if (error is not null)
+        {
+            AppState.AddToast(error, ToastLevel.Error);
+            _file = null;
+            _formKey++;   // clears the picker
+            return;
+        }
+        _file = e.File;
     }
 
     private async Task SaveAsync()
@@ -211,6 +242,7 @@
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
+            var savedId = _editingId ?? Guid.Empty;
             if (_editingId is Guid id)
             {
                 var all = await db.HomeSlides.ToListAsync();
@@ -223,8 +255,11 @@
             }
             else
             {
-                db.HomeSlides.Add(new HomeSlide(_title, _text, _icon, _linkText, _linkUrl, _sortOrder, _startsOn, _expiresOn));
+                var created = new HomeSlide(_title, _text, _icon, _linkText, _linkUrl, _sortOrder, _startsOn, _expiresOn);
+                db.HomeSlides.Add(created);
+                savedId = created.Id;
             }
+            await ApplyFileAsync(db, savedId);
             await db.SaveChangesAsync();
             AppState.AddToast(_editingId is null ? "اسلاید اضافه شد." : "اسلاید ذخیره شد.", ToastLevel.Success);
             ResetForm();
@@ -241,12 +276,31 @@
         finally { _saving = false; }
     }
 
+    // The picked file replaces the slide's file; "remove" (when no new file was picked) deletes it. Saved together with the slide.
+    private async Task ApplyFileAsync(ApplicationDbContext db, Guid slideId)
+    {
+        var existing = _editingId is null ? null : await db.HomeSlideAttachments.SingleOrDefaultAsync(x => x.SlideId == slideId);
+        if (_file is not null)
+        {
+            using var buffer = new MemoryStream();
+            await using (var stream = _file.OpenReadStream(HomeSlideAttachment.MaxBytes))
+                await stream.CopyToAsync(buffer);
+            if (existing is null) db.HomeSlideAttachments.Add(new HomeSlideAttachment(slideId, _file.Name, buffer.ToArray()));
+            else existing.Replace(_file.Name, buffer.ToArray());
+        }
+        else if (_removeFile && existing is not null)
+        {
+            db.HomeSlideAttachments.Remove(existing);
+        }
+    }
+
     // The domain's messages are English; the person sees a Persian sentence for the field that failed.
     private static string Explain(ArgumentException ex) => ex.ParamName switch
     {
         "title" => $"عنوان لازم است و حداکثر {HomeSlide.TitleMax} نویسه باشد.",
         "text" => $"متن حداکثر {HomeSlide.TextMax} نویسه باشد.",
         "linkText" => "برای پیوند، متن پیوند را هم بنویسید (حداکثر " + HomeSlide.LinkTextMax + " نویسه).",
+        "fileName" => ex.Message,   // the attachment's own messages are already Persian
         "linkUrl" => "پیوند باید نشانی صفحه‌ای از همین سامانه (مثل /login) یا آدرس http/https باشد.",
         "expiresOn" => "تاریخ انقضا نمی‌تواند پیش از تاریخ شروع باشد.",
         _ => "اطلاعات اسلاید معتبر نیست.",
@@ -280,6 +334,8 @@
         }
         if (slide is not null)
         {
+            var attachment = await db.HomeSlideAttachments.SingleOrDefaultAsync(x => x.SlideId == id);
+            if (attachment is not null) db.HomeSlideAttachments.Remove(attachment);
             db.HomeSlides.Remove(slide);
             await db.SaveChangesAsync();
             AppState.AddToast("اسلاید حذف شد.", ToastLevel.Success);

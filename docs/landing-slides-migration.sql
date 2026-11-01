@@ -1,6 +1,6 @@
 -- YasPortal: admin-managed slides of the public landing page. Idempotent; safe to run more than once.
 -- RUN THIS BEFORE deploying: the landing page ("/") reads the HomeSlides table (if it cannot, the page shows no slides).
--- Adds the HomeSlides table and the permissions Admin.LandingSlides.View / Admin.LandingSlides.Manage (not granted to anyone: assign them on the access page).
+-- Adds the HomeSlides table, the HomeSlideAttachments table (the optional file of a slide, up to 5 MB, stored in the database) and the permissions Admin.LandingSlides.View / Admin.LandingSlides.Manage (not granted to anyone: assign them on the access page).
 -- The development database creates the table itself at startup and the permission rows from the catalog.
 SET XACT_ABORT ON;
 BEGIN TRAN;
@@ -22,6 +22,17 @@ IF OBJECT_ID(N'dbo.HomeSlides', N'U') IS NULL
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HomeSlides') AND name = N'IX_HomeSlides_IsActive_SortOrder')
     EXEC(N'CREATE INDEX [IX_HomeSlides_IsActive_SortOrder] ON [dbo].[HomeSlides] ([IsActive], [SortOrder])');
+
+IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
+    CREATE TABLE [dbo].[HomeSlideAttachments] (
+        [SlideId] uniqueidentifier NOT NULL,
+        [FileName] nvarchar(200) NOT NULL,
+        [ContentType] nvarchar(150) NOT NULL,
+        [SizeBytes] bigint NOT NULL,
+        [Content] varbinary(max) NOT NULL,
+        [UploadedAtUtc] datetime2 NOT NULL,
+        CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]),
+        CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
 
 -- A fresh table gets the three starter slides (change or delete them on the admin page; the page keeps at least one valid slide).
 IF NOT EXISTS (SELECT 1 FROM HomeSlides)
