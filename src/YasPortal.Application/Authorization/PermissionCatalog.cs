@@ -69,6 +69,8 @@ public static class Perm
     public const string AdminAuditLogManage = "Admin.AuditLog.Manage";
     public const string AdminLandingSlidesView = "Admin.LandingSlides.View";
     public const string AdminLandingSlidesManage = "Admin.LandingSlides.Manage";
+    public const string AdminLinksView = "Admin.Links.View";
+    public const string AdminLinksManage = "Admin.Links.Manage";
     /// <summary>The report of every notification in the system (who sent what to whom, read or not).</summary>
     public const string AdminNotificationsView = "Admin.Notifications.View";
     /// <summary>Remove (and restore) other people's notifications from the all-notifications report. Implies the view permission.</summary>
@@ -176,6 +178,8 @@ public static class PermissionCatalog
             new(Perm.AdminAuditLogView, "مشاهده گزارش رویدادها", "Admin.AuditLog"),
             new(Perm.AdminAuditLogManage, "مدیریت گزارش رویدادها (بایگانی رویدادهای قدیمی)"),
             new(Perm.AdminLandingSlidesView, "مشاهده اسلایدهای صفحه اصلی (فقط خواندنی)"),
+            new(Perm.AdminLinksView, "مشاهده پیوندهای صفحه اصلی (فقط خواندنی)"),
+            new(Perm.AdminLinksManage, "مدیریت پیوندهای صفحه اصلی (گروه‌ها، پیوندها، دسترسی سریع، ورود گروهی)"),
             new(Perm.AdminLandingSlidesManage, "مدیریت اسلایدهای صفحه اصلی (افزودن، ویرایش، حذف، تاریخ انقضا)"),
             new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
             new(Perm.AdminNotificationsManage, "مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)"),

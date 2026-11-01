@@ -61,6 +61,7 @@ builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
+builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
 
@@ -177,6 +178,14 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[HomeSlides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Text] nvarchar(600) NOT NULL, [Icon] nvarchar(50) NOT NULL, [LinkText] nvarchar(100) NULL, [LinkUrl] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [StartsOn] date NULL, [ExpiresOn] date NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlides] PRIMARY KEY ([Id]));
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.HomeSlides') AND name = N'IX_HomeSlides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_HomeSlides_IsActive_SortOrder] ON [dbo].[HomeSlides] ([IsActive], [SortOrder])');
+        IF OBJECT_ID(N'dbo.LinkGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[LinkGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [ParentId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_LinkGroups] PRIMARY KEY ([Id]), CONSTRAINT [FK_LinkGroups_LinkGroups_ParentId] FOREIGN KEY ([ParentId]) REFERENCES [dbo].[LinkGroups] ([Id]));
+        IF OBJECT_ID(N'dbo.PortalLinks', N'U') IS NULL
+            CREATE TABLE [dbo].[PortalLinks] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(150) NOT NULL, [Url] nvarchar(500) NOT NULL, [Description] nvarchar(300) NULL, [GroupId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [IsQuickAccess] bit NOT NULL, [QuickOrder] int NOT NULL, CONSTRAINT [PK_PortalLinks] PRIMARY KEY ([Id]), CONSTRAINT [FK_PortalLinks_LinkGroups_GroupId] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[LinkGroups] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.LinkGroups') AND name = N'IX_LinkGroups_ParentId')
+            EXEC(N'CREATE INDEX [IX_LinkGroups_ParentId] ON [dbo].[LinkGroups] ([ParentId])');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.PortalLinks') AND name = N'IX_PortalLinks_GroupId')
+            EXEC(N'CREATE INDEX [IX_PortalLinks_GroupId] ON [dbo].[PortalLinks] ([GroupId])');
         IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
             CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
         """);

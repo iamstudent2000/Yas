@@ -104,6 +104,9 @@
                     </div>
                 </div>
             }
+            <AuthorizeView Policy="@Perm.AdminLinksView">
+                <NavLink href="/admin/links"><i class="ti @Icons.Links"></i><span>پیوندهای صفحه اصلی</span></NavLink>
+            </AuthorizeView>
             <AuthorizeView Policy="@Perm.AdminLandingSlidesView">
                 <NavLink href="/admin/landing-slides"><i class="ti @Icons.LandingSlides"></i><span>اسلایدهای صفحه اصلی</span></NavLink>
             </AuthorizeView>

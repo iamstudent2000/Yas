@@ -32,3 +32,19 @@
 @keyframes landing-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (max-width:720px){.landing-slide{flex-direction:column;align-items:flex-start;padding:28px 22px 44px}.landing-nav{display:none}}
 @media (prefers-reduced-motion:reduce){.landing-slide{animation:none}}
+
+/* Links: collapsible groups (details/summary, no script) and the search box */
+.landing-search{margin-bottom:12px;max-width:420px}
+.landing-groups{display:flex;flex-direction:column;gap:10px}
+.landing-group{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
+.landing-group>summary{display:flex;align-items:center;gap:8px;padding:12px 14px;cursor:pointer;list-style:none;user-select:none}
+.landing-group>summary::-webkit-details-marker{display:none}
+.landing-group>summary .ti{color:var(--accent)}
+.landing-group[open]>summary{background:var(--accent-soft)}
+.landing-group-body{padding:8px 14px 12px;display:flex;flex-direction:column;gap:8px}
+.landing-group-body .landing-group{margin-top:2px}
+.landing-linklist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:4px 16px}
+.landing-linklist a{display:flex;align-items:flex-start;gap:8px;padding:7px 4px;border-radius:8px;color:var(--text);text-decoration:none}
+.landing-linklist a:hover{background:var(--accent-soft);color:var(--accent-strong)}
+.landing-linklist small{display:block;color:var(--text-muted);margin-top:1px}
+.landing-linklist .ti{color:var(--accent);margin-top:3px}
