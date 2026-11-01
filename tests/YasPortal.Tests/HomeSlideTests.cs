@@ -112,6 +112,74 @@ public sealed class HomeSlideTests
         Assert.All(starter, s => Assert.True(HomeSlide.IconChoices.Any(i => i.Key == s.Icon)));
     }
 
+    [Theory]
+    [InlineData("notice.pdf", 1000, true)]
+    [InlineData("Photo.JPG", 1000, true)]
+    [InlineData("form.docx", 1000, true)]
+    [InlineData("page.html", 1000, false)]
+    [InlineData("logo.svg", 1000, false)]
+    [InlineData("run.exe", 1000, false)]
+    [InlineData("noextension", 1000, false)]
+    [InlineData("empty.pdf", 0, false)]
+    [InlineData("big.pdf", HomeSlideAttachment.MaxBytes + 1, false)]
+    [InlineData("exactly.pdf", HomeSlideAttachment.MaxBytes, true)]
+    public void Attachment_accepts_only_listed_types_and_sizes(string name, long size, bool ok) =>
+        Assert.Equal(ok, HomeSlideAttachment.Validate(name, size) is null);
+
+    [Fact]
+    public void Attachment_keeps_a_clean_name_and_the_matching_content_type()
+    {
+        var attachment = new HomeSlideAttachment(Guid.NewGuid(), @"C:\Users\me\Desktop\اطلاعیه.PDF", [1, 2, 3]);
+        Assert.Equal("اطلاعیه.PDF", attachment.FileName);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.Equal(3, attachment.SizeBytes);
+
+        attachment.Replace("a.png", [9]);
+        Assert.Equal("image/png", attachment.ContentType);
+        Assert.Equal(1, attachment.SizeBytes);
+        Assert.Throws<ArgumentException>(() => attachment.Replace("a.html", [9]));
+        Assert.Throws<ArgumentException>(() => new HomeSlideAttachment(Guid.NewGuid(), "a.exe", [1]));
+    }
+
+    [Fact]
+    public async Task Provider_reports_the_attachment_name_and_size_but_not_its_content()
+    {
+        var (options, provider) = Create();
+        var withFile = Slide("با فایل", 1);
+        var without = Slide("بی‌فایل", 2);
+        await using (var db = new ApplicationDbContext(options))
+        {
+            db.HomeSlides.AddRange(withFile, without);
+            db.HomeSlideAttachments.Add(new HomeSlideAttachment(withFile.Id, "notice.pdf", new byte[2048]));
+            await db.SaveChangesAsync();
+        }
+
+        var slides = await provider.GetSlidesAsync(Today);
+
+        Assert.Equal(withFile.Id, slides[0].FileSlideId);
+        Assert.Equal("notice.pdf", slides[0].FileName);
+        Assert.Equal(2048, slides[0].FileSize);
+        Assert.Null(slides[1].FileSlideId);
+    }
+
+    [Fact]
+    public async Task File_contents_never_reach_the_audit_log()
+    {
+        var (options, _) = Create();
+        var slide = Slide();
+        await using (var db = new ApplicationDbContext(options))
+        {
+            db.HomeSlides.Add(slide);
+            db.HomeSlideAttachments.Add(new HomeSlideAttachment(slide.Id, "secret.pdf", [1, 2, 3, 4]));
+            await db.SaveChangesAsync();
+        }
+
+        await using var check = new ApplicationDbContext(options);
+        var entry = check.AuditEntries.Single(x => x.EntityType == nameof(HomeSlideAttachment));
+        Assert.Contains("secret.pdf", entry.AfterJson);
+        Assert.DoesNotContain("Content\"", entry.AfterJson);
+    }
+
     private static (DbContextOptions<ApplicationDbContext> Options, HomeSlideProvider Provider) Create()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

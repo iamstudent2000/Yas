@@ -54,6 +54,10 @@ else
                         {
                             <a class="btn btn-secondary" href="@slide.LinkUrl">@slide.LinkText</a>
                         }
+                        @if (slide.FileSlideId is Guid fileId)
+                        {
+                            <a class="btn btn-secondary" href="/landing/files/@fileId" download="@slide.FileName" target="_blank" rel="noopener"><i class="ti ti-paperclip"></i> @slide.FileName <small dir="ltr">(@FileSizeText(slide.FileSize))</small></a>
+                        }
                     </div>
                 </div>
             </div>
@@ -153,6 +157,8 @@ else
         if (firstRender && _showLanding && _slides.Count > 1)
             _timer = new Timer(_ => _ = InvokeAsync(() => { Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
     }
+
+    private static string FileSizeText(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";
 
     private void Go(int to)
     {

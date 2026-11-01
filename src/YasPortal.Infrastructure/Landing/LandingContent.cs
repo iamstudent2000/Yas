@@ -11,6 +11,10 @@ public sealed class LandingSlide
     public string Icon { get; set; } = "ti-sparkles";
     public string? LinkText { get; set; }
     public string? LinkUrl { get; set; }
+    /// <summary>The slide's attached file, when it has one (served from <c>/landing/files/{slide id}</c>).</summary>
+    public Guid? FileSlideId { get; set; }
+    public string? FileName { get; set; }
+    public long FileSize { get; set; }
 }
 
 public sealed class LandingLink
