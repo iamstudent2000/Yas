@@ -58,6 +58,7 @@ builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
+builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
 
