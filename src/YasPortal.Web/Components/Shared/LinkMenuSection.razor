@@ -1,26 +1,27 @@
 @using YasPortal.Domain.Landing
-@* One group inside a dropdown of the links menu: its links, then its sub-groups (this component again) under their own headings. *@
-<div class="lm-section @(Depth > 0 ? "is-sub" : "")">
-    @if (Depth > 0)
-    {
-        <div class="lm-section-title"><i class="ti ti-folder"></i> @Node.Name</div>
-    }
-    @if (Node.Links.Count > 0)
-    {
-        <ul class="lm-links">
-            @foreach (var link in Node.Links)
-            {
-                <li><LinkMenuEntry Link="link" /></li>
-            }
-        </ul>
-    }
-    @foreach (var child in Node.Children)
-    {
-        <LinkMenuSection Node="child" Depth="Depth + 1" />
-    }
-</div>
+@* One group in the links menu. The top group is shown open inside its dropdown; a sub-group is a closed heading that opens (and
+   closes) when clicked, so a deep tree stays short. Each level opens on its own. *@
+@if (Depth == 0)
+{
+    <div class="lm-section"><LinkMenuBody Node="Node" Depth="Depth" /></div>
+}
+else
+{
+    <div class="lm-section is-sub @(_expanded ? "is-expanded" : "")">
+        <button type="button" class="lm-sub-toggle" aria-expanded="@(_expanded ? "true" : "false")" @onclick="() => _expanded = !_expanded">
+            <i class="ti ti-chevron-left lm-sub-caret"></i>
+            <i class="ti ti-folder"></i> <span>@Node.Name</span> <span class="lm-count">@Node.TotalLinks</span>
+        </button>
+        @if (_expanded)
+        {
+            <div class="lm-sub-body"><LinkMenuBody Node="Node" Depth="Depth" /></div>
+        }
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
     [Parameter] public int Depth { get; set; }
+
+    private bool _expanded;
 }

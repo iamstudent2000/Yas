@@ -1,0 +1,20 @@
+@using YasPortal.Domain.Landing
+@* The inside of a group of the links menu: its own links, then each sub-group as an openable section. *@
+@if (Node.Links.Count > 0)
+{
+    <ul class="lm-links">
+        @foreach (var link in Node.Links)
+        {
+            <li><LinkMenuEntry Link="link" /></li>
+        }
+    </ul>
+}
+@foreach (var child in Node.Children)
+{
+    <LinkMenuSection @key="child.Id" Node="child" Depth="Depth + 1" />
+}
+
+@code {
+    [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
+    [Parameter] public int Depth { get; set; }
+}
