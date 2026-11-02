@@ -123,4 +123,39 @@ public sealed class PhoneBookTests
         // the group name is not searched here (everything in the group already belongs to it)
         Assert.Empty(PhoneBookTree.FilterContacts(contacts, "مالی"));
     }
+
+    [Fact]
+    public void Import_reads_columns_cleans_numbers_and_reports_each_bad_line()
+    {
+        var lines = PhoneBookImportParser.Parse("""
+            # comment
+            امور مالی | علی رضایی | مدیر مالی | ۲۱۴ | 021-88888888 | | ali@example.ir | طبقه ۲ | کنار آسانسور
+            امور مالی | سارا احمدی | | 215
+            فناوری | بدون شماره | کارشناس
+            | بی‌گروه | | 100
+            امور مالی | ایمیل بد | | 7 | | | a@b
+            فقط یک ستون
+
+            """);
+
+        Assert.Equal(6, lines.Count);
+        var first = lines[0];
+        Assert.Null(first.Error);
+        Assert.Equal("امور مالی", first.Group);
+        Assert.Equal("علی رضایی", first.FullName);
+        Assert.Equal("مدیر مالی", first.JobTitle);
+        Assert.Equal("214", first.Extension);
+        Assert.Equal("021-88888888", first.Phone);
+        Assert.Null(first.Mobile);
+        Assert.Equal("ali@example.ir", first.Email);
+        Assert.Equal("طبقه ۲ | کنار آسانسور", first.Note);   // the note is the last column and keeps its "|"
+        Assert.Null(lines[1].Error);
+        Assert.Equal("215", lines[1].Extension);
+        Assert.Contains("یکی از داخلی", lines[2].Error);
+        Assert.Contains("گروه", lines[3].Error);
+        Assert.Contains("ایمیل", lines[4].Error);
+        Assert.NotNull(lines[5].Error);
+        Assert.Empty(PhoneBookImportParser.Parse(null));
+        Assert.Equal(new[] { 2, 3, 4, 5, 6, 7 }, lines.Select(x => x.LineNumber).ToArray());
+    }
 }

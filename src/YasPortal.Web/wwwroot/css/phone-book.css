@@ -1,47 +1,58 @@
 /* Phone book: the general search, collapsible groups in two columns, the per-group search, and the A4 print layout. */
-.pb{display:flex;flex-direction:column;gap:12px;direction:rtl;text-align:start}
+.pb{display:flex;flex-direction:column;gap:12px;direction:rtl;text-align:start;container:pb / inline-size}
 .pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-.pb-search,.pb-group-search{position:relative;flex:1 1 280px;min-width:0}
-.pb-search>.ti,.pb-group-search>.ti{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
-.pb-search .form-control,.pb-group-search .form-control{width:100%;padding-inline-start:36px}
+.pb-search{position:relative;flex:1 1 280px;min-width:0}
+.pb-search>.ti{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.pb-search .form-control{width:100%;padding-inline-start:36px}
 .pb-toolbar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 
 /* groups: two columns on a wide screen, one on a narrow one; a group is never split between columns */
 .pb-groups{display:block}
-.pb-groups.is-two-columns{column-count:2;column-gap:14px}
 .pb-groups>.pb-group{margin-bottom:14px;break-inside:avoid}
-@media (max-width:900px){.pb-groups.is-two-columns{column-count:1}}
+/* two columns only when the page itself is wide enough (the sidebar is not counted), and then one row per contact */
+@container pb (min-width:900px){
+    .pb-groups.is-two-columns{column-count:2;column-gap:14px}
+    .pb-groups.is-two-columns .pb-contact{flex-wrap:nowrap}
+    .pb-groups.is-two-columns .pb-contact-main{flex:1 1 0}
+}
 
 .pb-group{padding:0;overflow:hidden}
 .pb-group.is-off{opacity:.75}
-.pb-group-head{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 12px}
-.pb-group-toggle{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:start}
+.pb-group-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:4px 10px 4px 12px}
+.pb-group-toggle{display:flex;align-items:center;gap:8px;flex:1 1 150px;min-width:0;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:start}
 .pb-group-toggle:hover{background:var(--accent-soft)}
 .pb-group-toggle strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pb-caret{font-size:14px;transition:transform .15s}
 .is-open>.pb-group-head .pb-caret{transform:rotate(-90deg)}
 .pb-folder{color:var(--accent)}
 .pb-actions{display:flex;flex-wrap:wrap;gap:6px}
-.pb-group-body{padding:4px 14px 14px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border)}
-.pb-group-search{flex:0 0 auto;margin-top:10px}
-.pb-none{margin:4px 0}
+.pb-group-search{position:relative;flex:0 1 210px;min-width:140px}
+.pb-group-search>.ti{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:15px}
+.pb-group-search .form-control{width:100%;padding:6px 10px;padding-inline-start:32px;font-size:.85rem}
+.pb-group-body{padding:0 14px 8px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.pb-none{margin:10px 0 4px}
 
-/* contacts: a name line and a line of number chips */
+/* contacts: everything of one contact on one row (name and job title, then the number chips); it wraps only when the row is too narrow */
 .pb-contacts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.pb-contact{display:flex;flex-direction:column;gap:5px;padding:9px 2px;border-bottom:1px solid var(--border)}
+.pb-contact{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:8px 2px;border-bottom:1px solid var(--border)}
 .pb-contact:last-child{border-bottom:0}
 .pb-contact.is-off{opacity:.65}
-.pb-contact-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
-.pb-contact-nums{display:flex;flex-wrap:wrap;gap:6px}
-.pb-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:8px;background:var(--surface-2);color:var(--text);font-size:.85rem;text-decoration:none}
-.pb-chip small{color:var(--text-muted);font-size:.72rem}
+.pb-contact-main{display:flex;align-items:baseline;gap:4px 10px;flex:1 1 170px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-contact-main>*{flex:0 0 auto}
+.pb-contact-main>.muted{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+/* when the row is tight the email gives way first, then the note, and the job title last */
+.pb-contact-main>.pb-mail{flex:0 30 auto;overflow:hidden;text-overflow:ellipsis}
+.pb-contact-main>.pb-note{flex:0 10 auto;overflow:hidden;text-overflow:ellipsis}
+.pb-contact-nums{display:flex;flex-wrap:wrap;gap:6px;flex:0 0 auto}
+.pb-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:8px;background:var(--surface-2);color:var(--text);font-size:.82rem;white-space:nowrap}
+.pb-chip small{color:var(--text-muted);font-size:.7rem}
 .pb-chip bdi{font-variant-numeric:tabular-nums}
-a.pb-chip{color:var(--accent-strong);background:var(--accent-soft)}
-a.pb-chip:hover{background:var(--accent-soft2)}
-.pb-note{font-size:.8rem}
-.pb-contact-actions{display:flex;flex-wrap:wrap;gap:6px}
+.pb-chip .ti{color:var(--text-muted);font-size:14px}
+.pb-note,.pb-mail{font-size:.78rem}
+.pb-mail .ti{font-size:13px;margin-inline-end:3px;vertical-align:-1px}
+.pb-contact-actions{display:flex;flex-wrap:wrap;gap:6px;flex:0 0 auto}
 
-@media (max-width:720px){.pb-toolbar-actions{width:100%}.pb-group-head{flex-wrap:wrap}.pb-actions{width:100%;padding-bottom:8px}}
+@media (max-width:720px){.pb-toolbar-actions{width:100%}.pb-actions{width:100%;padding-bottom:8px}.pb-group-search{flex:1 1 100%}}
 
 /* A4 print: group headings with name, extension and phone; two columns. The page is A4 with 12mm margins (print.css). */
 @media print{

@@ -76,6 +76,48 @@
                         </div></div>
                     </div>
                 </section>
+
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی مخاطبان</h2>
+                        <p class="muted">هر مخاطب در یک خط: <span dir="ltr">@PhoneBookImportParser.Format</span>. فقط گروه و نام لازم است و دست‌کم یکی از داخلی، تلفن یا موبایل؛ بخش‌های دیگر را می‌توان خالی گذاشت (بین دو | چیزی ننویسید) و بخش‌های انتهایی را حذف کرد. گروه‌های ناموجود ساخته می‌شوند و مخاطب تکراری (همان نام و شماره‌ها در همان گروه) نادیده گرفته می‌شود. خطی که با # شروع شود نادیده است.</p>
+                    </div>
+                    <textarea class="form-control" rows="6" dir="rtl" placeholder="امور مالی | علی رضایی | مدیر مالی | 214 | 021-88888888 | 09121234567 | ali@example.ir | طبقه دوم&#10;پذیرش | میز پذیرش | | 100" @bind="_importText" @bind:event="oninput"></textarea>
+                    <div class="form-actions" style="margin-top:10px">
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="PreviewImport"><i class="ti @Icons.Search"></i> پیش‌نمایش</button>
+                        <button class="btn btn-primary" disabled="@(_busy || _importLines is null || _importLines.Count(x => x.Error is null) == 0)" @onclick="ImportAsync"><i class="ti @Icons.Save"></i> ورود @(_importLines is null ? "" : $"({_importLines.Count(x => x.Error is null)} مخاطب)")</button>
+                    </div>
+                    @if (_importLines is not null)
+                    {
+                        @if (_importLines.Count == 0)
+                        {
+                            <p class="muted" style="margin-top:10px">خطی برای ورود پیدا نشد.</p>
+                        }
+                        else
+                        {
+                            <div class="data-table-wrap" style="margin-top:10px">
+                                <table class="data-table data-table-bordered-rows">
+                                    <thead><tr><th>خط</th><th>گروه</th><th>نام</th><th>سمت</th><th>داخلی</th><th>تلفن</th><th>موبایل</th><th>وضعیت</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var line in _importLines)
+                                    {
+                                        <tr>
+                                            <td>@line.LineNumber</td>
+                                            <td>@line.Group</td>
+                                            <td>@line.FullName</td>
+                                            <td>@(line.JobTitle ?? "—")</td>
+                                            <td dir="ltr">@(line.Extension ?? "—")</td>
+                                            <td dir="ltr">@(line.Phone ?? "—")</td>
+                                            <td dir="ltr">@(line.Mobile ?? "—")</td>
+                                            <td>@if (line.Error is null) { <span class="badge badge-success">درست</span> } else { <span class="badge badge-danger">@line.Error</span> }</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                </section>
             }
 
             <section class="card">
@@ -141,6 +183,10 @@
     private string _fullName = "", _jobTitle = "", _extension = "", _phone = "", _mobile = "", _email = "", _note = "";
     private int _contactOrder;
     private int _contactFormKey;
+
+    // import
+    private string _importText = "";
+    private IReadOnlyList<ContactImportLine>? _importLines;
 
     protected override async Task OnInitializedAsync()
     {
@@ -332,5 +378,60 @@
         }
         if (_editingContactId == id) ResetContactForm();
         await LoadAsync();
+    }
+
+    // ---- bulk import ----
+
+    private void PreviewImport() => _importLines = PhoneBookImportParser.Parse(_importText);
+
+    private async Task ImportAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        var lines = PhoneBookImportParser.Parse(_importText);
+        _importLines = lines;
+        var good = lines.Where(x => x.Error is null).ToList();
+        if (good.Count == 0) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var groups = await db.ContactGroups.ToListAsync();
+            var contacts = await db.Contacts.ToListAsync();
+            var newGroups = 0; var added = 0; var duplicates = 0;
+            var nextGroupOrder = groups.Count == 0 ? 1 : groups.Max(x => x.SortOrder) + 1;
+            var nextContactOrder = contacts.Count == 0 ? 1 : contacts.Max(x => x.SortOrder) + 1;
+
+            foreach (var line in good)
+            {
+                // a group is found by name (digits and the Arabic ي ك are not told apart from the Persian ones)
+                var wanted = PhoneBookText.Normalize(line.Group);
+                var group = groups.FirstOrDefault(x => string.Equals(PhoneBookText.Normalize(x.Name), wanted, StringComparison.OrdinalIgnoreCase));
+                if (group is null)
+                {
+                    group = new ContactGroup(line.Group, nextGroupOrder++);
+                    db.ContactGroups.Add(group);
+                    groups.Add(group);
+                    newGroups++;
+                }
+                if (contacts.Any(x => x.GroupId == group.Id
+                    && string.Equals(PhoneBookText.Normalize(x.FullName), PhoneBookText.Normalize(line.FullName), StringComparison.OrdinalIgnoreCase)
+                    && x.Extension == line.Extension && x.Phone == line.Phone && x.Mobile == line.Mobile))
+                {
+                    duplicates++;
+                    continue;
+                }
+                var contact = new Contact(group.Id, line.FullName, line.JobTitle, line.Extension, line.Phone, line.Mobile, line.Email, line.Note, nextContactOrder++);
+                db.Contacts.Add(contact);
+                contacts.Add(contact);
+                added++;
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast($"{added} مخاطب و {newGroups} گروه جدید اضافه شد" + (duplicates > 0 ? $"؛ {duplicates} مخاطب تکراری نادیده گرفته شد." : "."), ToastLevel.Success);
+            _importText = ""; _importLines = null;
+            await LoadAsync();
+            ResetContactForm();
+        }
+        catch (Exception) { AppState.AddToast("ورود گروهی انجام نشد؛ چیزی ذخیره نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
     }
 }
