@@ -2,7 +2,7 @@
 @* The home page's horizontal links menu: one dropdown per top group (its links and its
    sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
    another is opened or anything outside is clicked. *@
-<nav class="lm" aria-label="پیوندها">
+<nav class="lm" dir="rtl" aria-label="پیوندها">
     @if (_open is not null || Searching)
     {
         <div class="lm-backdrop" @onclick="Close"></div>

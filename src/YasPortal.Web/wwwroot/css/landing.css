@@ -34,7 +34,8 @@
 @media (prefers-reduced-motion:reduce){.landing-slide{animation:none}}
 
 /* Links menu: a horizontal bar under the slides; each group is a dropdown (opened by a click, no script of its own) */
-.lm{position:relative;z-index:20}
+.lm{position:relative;z-index:20;direction:rtl;text-align:start}
+.lm .ti-external-link{display:inline-block;transform:scaleX(-1)}   /* the arrow points up and to the left, as the text runs */
 .lm-backdrop{position:fixed;inset:0;z-index:1;background:transparent}
 .lm-bar{list-style:none;margin:0;padding:3px 6px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;border:1px solid var(--border);border-radius:10px;background:var(--surface);position:relative;z-index:2}
 .lm-item{position:relative}
@@ -65,7 +66,7 @@
 .lm-search{margin-inline-start:auto;display:flex;align-items:center;gap:5px;padding-inline:8px;border:1px solid var(--border);border-radius:8px}
 .lm-search .ti{color:var(--text-muted)}
 .lm-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.9rem;min-width:130px;padding:4px 0}
-@media (max-width:720px){.lm-search{margin-inline-start:0;width:100%}.lm-search input{flex:1}.lm-panel{position:fixed;inset-inline:12px;top:auto;max-width:none}}
+@media (max-width:720px){.lm-search{margin-inline-start:0;width:100%}.lm-search input{flex:1}.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
 
 /* Quick access: its own frame under the links menu */
 .landing-quick{padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
