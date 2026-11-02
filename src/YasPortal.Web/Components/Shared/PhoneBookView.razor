@@ -1,8 +1,19 @@
+@using YasPortal.Domain.Auditing
 @using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Persistence
+@using Microsoft.JSInterop
+@using YasPortal.Web.Services
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AuditEventWriter Audit
 @* The phone book: a general search box, and one collapsible card per group with its own search box. Used by the reading page and,
    with action buttons added through the two fragments, by the admin page. While the general search has text, every group that
-   still has a match is shown open. *@
-<div class="pb" dir="rtl">
+   still has a match is shown open.
+   Printing (reading page): CanPrint shows a print button and prints names, extensions and phones in two columns on A4, grouped;
+   PrintBlocked (visitors, or people without the permission) makes the printed page a short notice instead. Neither flag set
+   (admin page) leaves the browser's normal printing alone. *@
+<div class="pb-root">
+<div class="pb @(CanPrint || PrintBlocked ? "no-print" : "")" dir="rtl">
     <div class="pb-toolbar">
         <div class="pb-search">
             <i class="ti ti-search"></i>
@@ -12,6 +23,10 @@
         <div class="pb-toolbar-actions">
             <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAll"><i class="ti ti-folder-open"></i> باز کردن همه</button>
             <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseAll"><i class="ti ti-folder"></i> بستن همه</button>
+            @if (CanPrint)
+            {
+                <button type="button" class="btn btn-primary btn-sm" @onclick="PrintAsync" disabled="@(Shown.IsEmpty)"><i class="ti ti-printer"></i> چاپ</button>
+            }
             <span class="badge badge-muted">@Shown.TotalContacts از @Tree.TotalContacts مخاطب</span>
         </div>
     </div>
@@ -26,6 +41,7 @@
     }
     else
     {
+        <div class="pb-groups @(TwoColumns ? "is-two-columns" : "")">
         @foreach (var entry in Shown.Groups)
         {
             var group = entry.Group;
@@ -57,31 +73,69 @@
                         }
                         else
                         {
-                            <div class="data-table-wrap">
-                                <table class="data-table data-table-bordered-rows pb-table">
-                                    <thead><tr><th>نام</th><th>سمت / توضیح</th><th>داخلی</th><th>تلفن</th><th>موبایل</th><th>ایمیل</th>@if (ContactActions is not null) { <th>عملیات</th> }</tr></thead>
-                                    <tbody>
-                                    @foreach (var c in contacts)
-                                    {
-                                        <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
-                                            <td><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }</td>
-                                            <td>@c.JobTitle@if (c.Note is not null) { <div class="muted">@c.Note</div> }</td>
-                                            <td dir="ltr" class="pb-num">@Dash(c.Extension)</td>
-                                            <td dir="ltr" class="pb-num">@if (c.Phone is null) { <span class="muted">—</span> } else { <a href="@Tel(c.Phone)">@c.Phone</a> }</td>
-                                            <td dir="ltr" class="pb-num">@if (c.Mobile is null) { <span class="muted">—</span> } else { <a href="@Tel(c.Mobile)">@c.Mobile</a> }</td>
-                                            <td dir="ltr" class="pb-num">@if (c.Email is null) { <span class="muted">—</span> } else { <a href="mailto:@c.Email">@c.Email</a> }</td>
-                                            @if (ContactActions is not null) { <td class="action-cell">@ContactActions(c)</td> }
-                                        </tr>
-                                    }
-                                    </tbody>
-                                </table>
-                            </div>
+                            <ul class="pb-contacts">
+                            @foreach (var c in contacts)
+                            {
+                                <li class="pb-contact @(c.IsActive ? "" : "is-off")" @key="c.Id">
+                                    <div class="pb-contact-main">
+                                        <strong>@c.FullName</strong>
+                                        @if (c.JobTitle is not null) { <span class="muted">@c.JobTitle</span> }
+                                        @if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }
+                                    </div>
+                                    <div class="pb-contact-nums">
+                                        @if (c.Extension is not null) { <span class="pb-chip"><small>داخلی</small><bdi dir="ltr">@c.Extension</bdi></span> }
+                                        @if (c.Phone is not null) { <a class="pb-chip" href="@Tel(c.Phone)"><small>تلفن</small><bdi dir="ltr">@c.Phone</bdi></a> }
+                                        @if (c.Mobile is not null) { <a class="pb-chip" href="@Tel(c.Mobile)"><small>موبایل</small><bdi dir="ltr">@c.Mobile</bdi></a> }
+                                        @if (c.Email is not null) { <a class="pb-chip" href="mailto:@c.Email"><i class="ti ti-mail"></i><bdi dir="ltr">@c.Email</bdi></a> }
+                                    </div>
+                                    @if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }
+                                    @if (ContactActions is not null) { <div class="pb-contact-actions">@ContactActions(c)</div> }
+                                </li>
+                            }
+                            </ul>
                         }
                     </div>
                 }
             </section>
         }
+        </div>
     }
+</div>
+
+@if (CanPrint)
+{
+    <div class="print-only pb-print" dir="rtl">
+        <div class="pb-print-head">
+            <h1>دفترچه تلفن</h1>
+            <span>@PrintNote</span>
+        </div>
+        <div class="pb-print-groups">
+            @foreach (var entry in Shown.Groups.Where(x => x.Contacts.Count > 0))
+            {
+                <section class="pb-print-group">
+                    <h2>@entry.Group.Name</h2>
+                    <table>
+                        <thead><tr><th>نام</th><th>داخلی</th><th>تلفن</th></tr></thead>
+                        <tbody>
+                        @foreach (var c in entry.Contacts)
+                        {
+                            <tr>
+                                <td>@c.FullName@if (c.JobTitle is not null) { <span class="pb-print-sub"> — @c.JobTitle</span> }</td>
+                                <td dir="ltr">@(c.Extension ?? "")</td>
+                                <td dir="ltr">@(c.Phone ?? "")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </section>
+            }
+        </div>
+    </div>
+}
+else if (PrintBlocked)
+{
+    <div class="print-only pb-print" dir="rtl"><p>چاپ دفترچه تلفن برای شما مجاز نیست.</p></div>
+}
 </div>
 
 @code {
@@ -89,24 +143,68 @@
     [Parameter] public string EmptyText { get; set; } = "هنوز مخاطبی ثبت نشده است";
     /// <summary>Buttons shown in a group's header (admin page).</summary>
     [Parameter] public RenderFragment<ContactGroup>? GroupActions { get; set; }
-    /// <summary>Buttons shown at the end of a contact's row (admin page).</summary>
+    /// <summary>Buttons shown with a contact (admin page).</summary>
     [Parameter] public RenderFragment<Contact>? ContactActions { get; set; }
+    /// <summary>Groups side by side in two columns (one column on a narrow screen).</summary>
+    [Parameter] public bool TwoColumns { get; set; } = true;
+    /// <summary>Every group is open when the page first shows.</summary>
+    [Parameter] public bool StartExpanded { get; set; } = true;
+    /// <summary>The person may print: a print button is shown and the printed page is the A4 two-column list.</summary>
+    [Parameter] public bool CanPrint { get; set; }
+    /// <summary>The person may not print: the screen content is left out of a printed page, which says printing is not allowed.</summary>
+    [Parameter] public bool PrintBlocked { get; set; }
 
     private string _query = "";
     private readonly HashSet<Guid> _open = [];
     private readonly Dictionary<Guid, string> _groupQueries = [];
+    private bool _started, _watching;
+    private DotNetObjectReference<PhoneBookView>? _self;
+
+    private string PrintNote =>
+        (Searching ? $"نتیجه جستجوی «{_query.Trim()}» — " : "") + "تاریخ چاپ: " + WorkflowDisplay.ToPersianDate(DateTime.Now);
 
     private bool Searching => !string.IsNullOrWhiteSpace(_query);
     private PhoneBookTree Shown => Tree.Filter(_query);
 
     protected override void OnParametersSet()
     {
-        // A page with a single group shows it open; the person can still close it.
-        if (Tree.Groups.Count == 1 && _open.Count == 0 && !_closedOnce)
-            _open.Add(Tree.Groups[0].Group.Id);
+        if (StartExpanded && !_started && Tree.Groups.Count > 0)
+        {
+            _started = true;
+            OpenAll();
+        }
     }
 
-    private bool _closedOnce;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Watch the browser's print event (button or Ctrl+P) only for people who may print; the first live render, not the prerender.
+        if (CanPrint && !_watching)
+        {
+            try
+            {
+                _self ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("yasWatchPrint", _self);
+                _watching = true;
+            }
+            catch (InvalidOperationException) { /* prerendering: no browser yet; the next render tries again */ }
+            catch (JSDisconnectedException) { }
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("yasPrintPage");
+
+    /// <summary>The browser is about to print: record it in the audit log (the same print is recorded once).</summary>
+    [JSInvokable]
+    public async Task OnBrowserPrint()
+    {
+        if (!CanPrint || !await Audit.ShouldLogAsync("phonebook-print", TimeSpan.FromSeconds(15)))
+            return;
+        var shown = Shown;
+        await Audit.WriteAsync(AuditActions.PhoneBookPrinted, AuditEntityTypes.Report, "phone-book",
+            new { Groups = shown.Groups.Count(x => x.Contacts.Count > 0), Contacts = shown.TotalContacts, Search = Searching ? _query.Trim() : null });
+    }
+
+    private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 
     private void Toggle(Guid id)
     {
@@ -114,11 +212,7 @@
             return; // groups with matches stay open while the general search has text
         if (!_open.Remove(id))
             _open.Add(id);
-        else
-            _closedOnce = true;
     }
-
-    private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 
     private void OpenAll()
     {
@@ -129,7 +223,6 @@
     private void CloseAll()
     {
         _open.Clear();
-        _closedOnce = true;
         _query = "";
     }
 
@@ -141,8 +234,17 @@
             _groupQueries[id] = value;
     }
 
-    private static string Dash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
-
     // tel: links accept digits and a leading plus only
     private static string Tel(string number) => "tel:" + new string(number.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_watching)
+                await JS.InvokeVoidAsync("yasUnwatchPrint");
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or InvalidOperationException or TaskCanceledException) { }
+        _self?.Dispose();
+    }
 }

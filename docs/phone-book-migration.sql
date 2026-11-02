@@ -1,6 +1,7 @@
 -- YasPortal: phone book (ContactGroups, Contacts) and its permissions. Idempotent; safe to run more than once.
 -- Run before deploying the phone book. Permissions are not granted to anyone: assign them on the access page.
---   PhoneBook.Directory.View  - read and search the phone book (/phone-book)
+--   (reading and searching /phone-book needs no permission: it is open to visitors before sign-in)
+--   PhoneBook.Directory.Print - print the phone book (A4, two columns); every print is written to the audit log
 --   Admin.PhoneBook.View / Admin.PhoneBook.Manage - the admin page (/admin/phone-book), read-only / editing
 -- The development database creates the tables itself at startup and the permission rows from the catalog.
 SET XACT_ABORT ON;
@@ -36,7 +37,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Conta
 INSERT INTO Permissions (Id, Code, Name)
 SELECT NEWID(), v.Code, v.Name
 FROM (VALUES
-    (N'PhoneBook.Directory.View', N'مشاهده و جستجو در دفترچه تلفن'),
+    (N'PhoneBook.Directory.Print', N'چاپ دفترچه تلفن (نام، داخلی و تلفن در دو ستون A4)'),
     (N'Admin.PhoneBook.View', N'مشاهده مدیریت دفترچه تلفن (فقط خواندنی)'),
     (N'Admin.PhoneBook.Manage', N'مدیریت دفترچه تلفن (گروه‌ها و مخاطبان)')
 ) AS v(Code, Name)
