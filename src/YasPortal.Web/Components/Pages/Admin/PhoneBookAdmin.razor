@@ -1,0 +1,336 @@
+@page "/admin/phone-book"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.AdminPhoneBookView)]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@inject AppState AppState
+@inject IJSRuntime JS
+
+<PageTitle>مدیریت دفترچه تلفن - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه</div>
+            <h1 class="page-title"><i class="ti @Icons.PhoneBook"></i> مدیریت دفترچه تلفن</h1>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")گروه‌ها و مخاطبان دفترچه تلفن. مخاطبان مستقل از کاربران سامانه‌اند: می‌توانند افراد بیرونی، پذیرش یا هر شماره دیگری باشند. هر مخاطب باید دست‌کم یکی از داخلی، تلفن یا موبایل را داشته باشد.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/phone-book"><i class="ti @Icons.PhoneBook"></i> مشاهده دفترچه تلفن</a>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else
+    {
+        <div class="admin-stack">
+            @if (_canManage)
+            {
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                        <p class="muted">مثلاً یک واحد، یک ساختمان یا «مراکز بیرونی».</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@ContactGroup.NameMax" /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editingGroupId is null ? "افزودن گروه" : "ذخیره")</button>
+                            @if (_editingGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "افزودن مخاطب" : "ویرایش مخاطب")</h2>
+                        <p class="muted">شماره‌ها را با ارقام فارسی یا انگلیسی بنویسید؛ هر دو جستجو می‌شوند.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">گروه</label>
+                            <LookupSelect @key="_contactFormKey" Options="GroupOptions" Value="@(_contactGroupId?.ToString())" ValueChanged="k => _contactGroupId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب گروه" SearchPlaceholder="جستجوی گروه..." /></div>
+                        <div class="form-field is-grow"><label class="form-label">نام و نام خانوادگی / عنوان</label><input class="form-control" @bind="_fullName" maxlength="@Contact.NameMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">سمت (اختیاری)</label><input class="form-control" @bind="_jobTitle" maxlength="@Contact.TitleMax" /></div>
+                    </div>
+                    <div class="admin-row-grid" style="margin-top:12px">
+                        <div class="form-field"><label class="form-label">داخلی</label><input class="form-control" dir="ltr" @bind="_extension" maxlength="@Contact.NumberMax" /></div>
+                        <div class="form-field"><label class="form-label">تلفن</label><input class="form-control" dir="ltr" @bind="_phone" maxlength="@Contact.NumberMax" /></div>
+                        <div class="form-field"><label class="form-label">موبایل</label><input class="form-control" dir="ltr" @bind="_mobile" maxlength="@Contact.NumberMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">ایمیل (اختیاری)</label><input class="form-control" dir="ltr" @bind="_email" maxlength="@Contact.EmailMax" /></div>
+                    </div>
+                    <div class="admin-row-grid" style="margin-top:12px">
+                        <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@Contact.NoteMax" /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_contactOrder" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveContactAsync"><i class="ti @Icons.Save"></i> @(_editingContactId is null ? "افزودن مخاطب" : "ذخیره")</button>
+                            @if (_editingContactId is not null) { <button class="btn btn-secondary" @onclick="ResetContactForm">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+            }
+
+            <section class="card">
+                <div class="card-toolbar">
+                    <div>
+                        <h2 class="section-title" style="margin:0">گروه‌ها و مخاطبان</h2>
+                        <p class="muted">خاموش‌کردن یک گروه یا مخاطب آن را از دفترچه تلفن کاربران پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
+                    </div>
+                </div>
+                <PhoneBookView Tree="_tree" EmptyText="هنوز گروهی ثبت نشده است">
+                    <GroupActions Context="group">
+                        @if (_canManage)
+                        {
+                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroupAsync(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                            @if (_confirmGroupId == group.Id)
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                            }
+                        }
+                    </GroupActions>
+                    <ContactActions Context="contact">
+                        @if (_canManage)
+                        {
+                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditContactAsync(contact)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleContactAsync(contact.Id)"><i class="ti @(contact.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(contact.IsActive ? "خاموش" : "روشن")</button>
+                            @if (_confirmContactId == contact.Id)
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteContactAsync(contact.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmContactId = null">انصراف</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmContactId = contact.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                            }
+                        }
+                    </ContactActions>
+                </PhoneBookView>
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _canManage, _busy;
+    private List<ContactGroup> _groups = [];
+    private List<Contact> _contacts = [];
+    private PhoneBookTree _tree = new();
+    private Guid? _confirmGroupId, _confirmContactId;
+
+    // group form
+    private Guid? _editingGroupId;
+    private string _groupName = "";
+    private int _groupOrder;
+
+    // contact form
+    private Guid? _editingContactId, _contactGroupId;
+    private string _fullName = "", _jobTitle = "", _extension = "", _phone = "", _mobile = "", _email = "", _note = "";
+    private int _contactOrder;
+    private int _contactFormKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPhoneBookManage);
+        await LoadAsync();
+        ResetGroupForm();
+        ResetContactForm();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _groups = await db.ContactGroups.AsNoTracking().ToListAsync();
+        _contacts = await db.Contacts.AsNoTracking().ToListAsync();
+        _tree = PhoneBookTree.Build(_groups, _contacts, includeInactive: true);
+    }
+
+    private Task<bool> AllowedAsync() => PermissionChecker.HasPermissionAsync(Perm.AdminPhoneBookManage);
+
+    private IReadOnlyList<(string Key, string Text)> GroupOptions =>
+        _tree.Groups.Select(x => (x.Group.Id.ToString(), x.Group.Name)).ToList();
+
+    private ValueTask ToTopAsync() => JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+
+    // ---- groups ----
+
+    private async Task BeginEditGroupAsync(ContactGroup group)
+    {
+        _editingGroupId = group.Id; _groupName = group.Name; _groupOrder = group.SortOrder;
+        await ToTopAsync();
+    }
+
+    private void ResetGroupForm()
+    {
+        _editingGroupId = null; _groupName = "";
+        _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
+    }
+
+    private async Task SaveGroupAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_editingGroupId is Guid id)
+            {
+                var group = await db.ContactGroups.SingleOrDefaultAsync(x => x.Id == id);
+                if (group is null) { AppState.AddToast("این گروه دیگر وجود ندارد.", ToastLevel.Error); ResetGroupForm(); await LoadAsync(); return; }
+                group.Update(_groupName, _groupOrder);
+            }
+            else
+            {
+                db.ContactGroups.Add(new ContactGroup(_groupName, _groupOrder));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingGroupId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ToastLevel.Success);
+            await LoadAsync();
+            ResetGroupForm();
+        }
+        catch (ArgumentException) { AppState.AddToast($"نام گروه لازم است و حداکثر {ContactGroup.NameMax} نویسه باشد.", ToastLevel.Error); }
+        catch (Exception) { AppState.AddToast("ذخیره گروه انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleGroupAsync(Guid id)
+    {
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var group = await db.ContactGroups.SingleOrDefaultAsync(x => x.Id == id);
+        if (group is not null)
+        {
+            if (group.IsActive) group.Deactivate(); else group.Activate();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    private async Task DeleteGroupAsync(Guid id)
+    {
+        _confirmGroupId = null;
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.Contacts.AnyAsync(x => x.GroupId == id))
+        {
+            AppState.AddToast("این گروه خالی نیست؛ ابتدا مخاطبانش را جابه‌جا یا حذف کنید.", ToastLevel.Error);
+            return;
+        }
+        var group = await db.ContactGroups.SingleOrDefaultAsync(x => x.Id == id);
+        if (group is not null)
+        {
+            db.ContactGroups.Remove(group);
+            await db.SaveChangesAsync();
+            AppState.AddToast("گروه حذف شد.", ToastLevel.Success);
+        }
+        if (_editingGroupId == id) ResetGroupForm();
+        await LoadAsync();
+    }
+
+    // ---- contacts ----
+
+    private async Task BeginEditContactAsync(Contact c)
+    {
+        _editingContactId = c.Id; _contactGroupId = c.GroupId; _fullName = c.FullName; _jobTitle = c.JobTitle ?? "";
+        _extension = c.Extension ?? ""; _phone = c.Phone ?? ""; _mobile = c.Mobile ?? ""; _email = c.Email ?? ""; _note = c.Note ?? "";
+        _contactOrder = c.SortOrder;
+        _contactFormKey++;
+        await ToTopAsync();
+    }
+
+    private void ResetContactForm()
+    {
+        // The chosen group is kept for the next contact, which makes typing a whole group quick.
+        _editingContactId = null; _fullName = _jobTitle = _extension = _phone = _mobile = _email = _note = "";
+        _contactOrder = _contacts.Count == 0 ? 1 : _contacts.Max(x => x.SortOrder) + 1;
+        _contactFormKey++;
+    }
+
+    private async Task SaveContactAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        if (_contactGroupId is not Guid groupId) { AppState.AddToast("گروه را انتخاب کنید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (!await db.ContactGroups.AnyAsync(x => x.Id == groupId))
+            {
+                AppState.AddToast("گروه انتخاب‌شده دیگر وجود ندارد.", ToastLevel.Error);
+                return;
+            }
+            if (_editingContactId is Guid id)
+            {
+                var contact = await db.Contacts.SingleOrDefaultAsync(x => x.Id == id);
+                if (contact is null) { AppState.AddToast("این مخاطب دیگر وجود ندارد.", ToastLevel.Error); ResetContactForm(); await LoadAsync(); return; }
+                contact.Update(groupId, _fullName, _jobTitle, _extension, _phone, _mobile, _email, _note, _contactOrder);
+            }
+            else
+            {
+                db.Contacts.Add(new Contact(groupId, _fullName, _jobTitle, _extension, _phone, _mobile, _email, _note, _contactOrder));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingContactId is null ? "مخاطب اضافه شد." : "مخاطب ذخیره شد.", ToastLevel.Success);
+            await LoadAsync();
+            ResetContactForm();
+        }
+        catch (ArgumentException ex)
+        {
+            AppState.AddToast(ex.ParamName switch
+            {
+                "fullName" => $"نام لازم است و حداکثر {Contact.NameMax} نویسه باشد.",
+                "jobTitle" => $"سمت حداکثر {Contact.TitleMax} نویسه باشد.",
+                "number" => "دست‌کم یکی از داخلی، تلفن یا موبایل لازم است.",
+                "extension" or "phone" or "mobile" => "شماره فقط می‌تواند ارقام و + - ( ) . / # * داشته باشد و حداکثر " + Contact.NumberMax + " نویسه باشد.",
+                "email" => "ایمیل معتبر نیست.",
+                "note" => $"توضیح حداکثر {Contact.NoteMax} نویسه باشد.",
+                _ => "اطلاعات مخاطب معتبر نیست.",
+            }, ToastLevel.Error);
+        }
+        catch (Exception) { AppState.AddToast("ذخیره مخاطب انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleContactAsync(Guid id)
+    {
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var contact = await db.Contacts.SingleOrDefaultAsync(x => x.Id == id);
+        if (contact is not null)
+        {
+            if (contact.IsActive) contact.Deactivate(); else contact.Activate();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    private async Task DeleteContactAsync(Guid id)
+    {
+        _confirmContactId = null;
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var contact = await db.Contacts.SingleOrDefaultAsync(x => x.Id == id);
+        if (contact is not null)
+        {
+            db.Contacts.Remove(contact);
+            await db.SaveChangesAsync();
+            AppState.AddToast("مخاطب حذف شد.", ToastLevel.Success);
+        }
+        if (_editingContactId == id) ResetContactForm();
+        await LoadAsync();
+    }
+}

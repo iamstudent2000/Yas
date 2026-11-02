@@ -1,0 +1,25 @@
+/* Phone book: the general search, collapsible groups, and the per-group search. */
+.pb{display:flex;flex-direction:column;gap:12px;direction:rtl;text-align:start}
+.pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pb-search,.pb-group-search{position:relative;flex:1 1 280px;min-width:0}
+.pb-search>.ti,.pb-group-search>.ti{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.pb-search .form-control,.pb-group-search .form-control{width:100%;padding-inline-start:36px}
+.pb-toolbar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pb-group{padding:0;overflow:hidden}
+.pb-group.is-off{opacity:.75}
+.pb-group-head{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 12px}
+.pb-group-toggle{display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:start}
+.pb-group-toggle:hover{background:var(--accent-soft)}
+.pb-group-toggle strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-caret{font-size:14px;transition:transform .15s}
+.is-open>.pb-group-head .pb-caret{transform:rotate(-90deg)}
+.pb-folder{color:var(--accent)}
+.pb-actions{display:flex;flex-wrap:wrap;gap:6px}
+.pb-group-body{padding:4px 14px 14px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border)}
+.pb-group-search{flex:0 0 auto;margin-top:10px;max-width:420px}
+.pb-none{margin:4px 0}
+.pb-table td.pb-num{white-space:nowrap;text-align:start}
+.pb-table td.pb-num a{color:var(--accent-strong);text-decoration:none}
+.pb-table td.pb-num a:hover{text-decoration:underline}
+.pb-table tr.is-off{opacity:.65}
+@media (max-width:720px){.pb-toolbar-actions{width:100%}.pb-group-head{flex-wrap:wrap}.pb-actions{width:100%;padding-bottom:8px}}

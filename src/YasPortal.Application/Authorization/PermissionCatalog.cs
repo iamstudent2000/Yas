@@ -71,6 +71,10 @@ public static class Perm
     public const string AdminLandingSlidesManage = "Admin.LandingSlides.Manage";
     public const string AdminLinksView = "Admin.Links.View";
     public const string AdminLinksManage = "Admin.Links.Manage";
+    /// <summary>Read the phone book (the page for everyone who may look numbers up).</summary>
+    public const string PhoneBookDirectoryView = "PhoneBook.Directory.View";
+    public const string AdminPhoneBookView = "Admin.PhoneBook.View";
+    public const string AdminPhoneBookManage = "Admin.PhoneBook.Manage";
     /// <summary>The report of every notification in the system (who sent what to whom, read or not).</summary>
     public const string AdminNotificationsView = "Admin.Notifications.View";
     /// <summary>Remove (and restore) other people's notifications from the all-notifications report. Implies the view permission.</summary>
@@ -181,6 +185,9 @@ public static class PermissionCatalog
             new(Perm.AdminLinksView, "مشاهده پیوندهای صفحه اصلی (فقط خواندنی)"),
             new(Perm.AdminLinksManage, "مدیریت پیوندهای صفحه اصلی (گروه‌ها، پیوندها، دسترسی سریع، ورود گروهی)"),
             new(Perm.AdminLandingSlidesManage, "مدیریت اسلایدهای صفحه اصلی (افزودن، ویرایش، حذف، تاریخ انقضا)"),
+            new(Perm.PhoneBookDirectoryView, "مشاهده و جستجو در دفترچه تلفن"),
+            new(Perm.AdminPhoneBookView, "مشاهده مدیریت دفترچه تلفن (فقط خواندنی)"),
+            new(Perm.AdminPhoneBookManage, "مدیریت دفترچه تلفن (گروه‌ها و مخاطبان)"),
             new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
             new(Perm.AdminNotificationsManage, "مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)"),
         };

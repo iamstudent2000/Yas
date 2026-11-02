@@ -1,0 +1,148 @@
+@using YasPortal.Domain.PhoneBook
+@* The phone book: a general search box, and one collapsible card per group with its own search box. Used by the reading page and,
+   with action buttons added through the two fragments, by the admin page. While the general search has text, every group that
+   still has a match is shown open. *@
+<div class="pb" dir="rtl">
+    <div class="pb-toolbar">
+        <div class="pb-search">
+            <i class="ti ti-search"></i>
+            <input class="form-control" type="search" placeholder="جستجو در همه گروه‌ها: نام، سمت، داخلی، تلفن، موبایل، ایمیل..."
+                   value="@_query" @oninput="OnGeneralQuery" aria-label="جستجوی کلی" />
+        </div>
+        <div class="pb-toolbar-actions">
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAll"><i class="ti ti-folder-open"></i> باز کردن همه</button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseAll"><i class="ti ti-folder"></i> بستن همه</button>
+            <span class="badge badge-muted">@Shown.TotalContacts از @Tree.TotalContacts مخاطب</span>
+        </div>
+    </div>
+
+    @if (Tree.IsEmpty)
+    {
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-address-book"></i></div><strong>@EmptyText</strong></div>
+    }
+    else if (Shown.IsEmpty)
+    {
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-search"></i></div><strong>موردی پیدا نشد</strong><p class="muted">عبارت دیگری را جستجو کنید.</p></div>
+    }
+    else
+    {
+        @foreach (var entry in Shown.Groups)
+        {
+            var group = entry.Group;
+            var open = Searching || _open.Contains(group.Id);
+            var groupQuery = _groupQueries.GetValueOrDefault(group.Id, "");
+            var contacts = PhoneBookTree.FilterContacts(entry.Contacts, groupQuery);
+            <section class="pb-group card @(open ? "is-open" : "") @(group.IsActive ? "" : "is-off")" @key="group.Id">
+                <div class="pb-group-head">
+                    <button type="button" class="pb-group-toggle" aria-expanded="@(open ? "true" : "false")" @onclick="() => Toggle(group.Id)">
+                        <i class="ti ti-chevron-left pb-caret"></i>
+                        <i class="ti @(open ? "ti-folder-open" : "ti-folder") pb-folder"></i>
+                        <strong>@group.Name</strong>
+                        <span class="badge badge-muted">@(groupQuery.Length > 0 && open ? $"{contacts.Count} از {entry.Contacts.Count}" : entry.Contacts.Count.ToString())</span>
+                        @if (!group.IsActive) { <span class="badge badge-warning">خاموش</span> }
+                    </button>
+                    @if (GroupActions is not null) { <div class="pb-actions">@GroupActions(group)</div> }
+                </div>
+                @if (open)
+                {
+                    <div class="pb-group-body">
+                        <div class="pb-group-search">
+                            <i class="ti ti-search"></i>
+                            <input class="form-control" type="search" placeholder="جستجو در «@group.Name»..." value="@groupQuery"
+                                   @oninput="e => SetGroupQuery(group.Id, e.Value?.ToString())" aria-label="@("جستجو در " + group.Name)" />
+                        </div>
+                        @if (contacts.Count == 0)
+                        {
+                            <p class="muted pb-none">@(entry.Contacts.Count == 0 ? "مخاطبی در این گروه نیست." : "مخاطبی با این عبارت پیدا نشد.")</p>
+                        }
+                        else
+                        {
+                            <div class="data-table-wrap">
+                                <table class="data-table data-table-bordered-rows pb-table">
+                                    <thead><tr><th>نام</th><th>سمت / توضیح</th><th>داخلی</th><th>تلفن</th><th>موبایل</th><th>ایمیل</th>@if (ContactActions is not null) { <th>عملیات</th> }</tr></thead>
+                                    <tbody>
+                                    @foreach (var c in contacts)
+                                    {
+                                        <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
+                                            <td><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }</td>
+                                            <td>@c.JobTitle@if (c.Note is not null) { <div class="muted">@c.Note</div> }</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Extension)</td>
+                                            <td dir="ltr" class="pb-num">@if (c.Phone is null) { <span class="muted">—</span> } else { <a href="@Tel(c.Phone)">@c.Phone</a> }</td>
+                                            <td dir="ltr" class="pb-num">@if (c.Mobile is null) { <span class="muted">—</span> } else { <a href="@Tel(c.Mobile)">@c.Mobile</a> }</td>
+                                            <td dir="ltr" class="pb-num">@if (c.Email is null) { <span class="muted">—</span> } else { <a href="mailto:@c.Email">@c.Email</a> }</td>
+                                            @if (ContactActions is not null) { <td class="action-cell">@ContactActions(c)</td> }
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PhoneBookTree Tree { get; set; } = new();
+    [Parameter] public string EmptyText { get; set; } = "هنوز مخاطبی ثبت نشده است";
+    /// <summary>Buttons shown in a group's header (admin page).</summary>
+    [Parameter] public RenderFragment<ContactGroup>? GroupActions { get; set; }
+    /// <summary>Buttons shown at the end of a contact's row (admin page).</summary>
+    [Parameter] public RenderFragment<Contact>? ContactActions { get; set; }
+
+    private string _query = "";
+    private readonly HashSet<Guid> _open = [];
+    private readonly Dictionary<Guid, string> _groupQueries = [];
+
+    private bool Searching => !string.IsNullOrWhiteSpace(_query);
+    private PhoneBookTree Shown => Tree.Filter(_query);
+
+    protected override void OnParametersSet()
+    {
+        // A page with a single group shows it open; the person can still close it.
+        if (Tree.Groups.Count == 1 && _open.Count == 0 && !_closedOnce)
+            _open.Add(Tree.Groups[0].Group.Id);
+    }
+
+    private bool _closedOnce;
+
+    private void Toggle(Guid id)
+    {
+        if (Searching)
+            return; // groups with matches stay open while the general search has text
+        if (!_open.Remove(id))
+            _open.Add(id);
+        else
+            _closedOnce = true;
+    }
+
+    private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
+
+    private void OpenAll()
+    {
+        foreach (var g in Tree.Groups)
+            _open.Add(g.Group.Id);
+    }
+
+    private void CloseAll()
+    {
+        _open.Clear();
+        _closedOnce = true;
+        _query = "";
+    }
+
+    private void SetGroupQuery(Guid id, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            _groupQueries.Remove(id);
+        else
+            _groupQueries[id] = value;
+    }
+
+    private static string Dash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
+
+    // tel: links accept digits and a leading plus only
+    private static string Tel(string number) => "tel:" + new string(number.Where(c => char.IsDigit(c) || c == '+').ToArray());
+}
