@@ -2,7 +2,7 @@
 @* The home page's horizontal links menu: one dropdown per top group (its links and its
    sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
    another is opened or anything outside is clicked. *@
-<nav class="lm" aria-label="پیوندها">
+<nav class="lm" dir="rtl" aria-label="پیوندها">
     @if (_open is not null || Searching)
     {
         <div class="lm-backdrop" @onclick="Close"></div>
@@ -30,7 +30,7 @@
                 </button>
                 @if (_open == OtherKey)
                 {
-                    <div class="lm-panel is-flipped"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
+                    <div class="lm-panel @(Flip(Tree.Groups.Count) ? "is-flipped" : "")"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
                 }
             </li>
         }
@@ -72,7 +72,14 @@
     private bool Searching => _query.Trim().Length > 0;
 
     // The last dropdowns sit on the far side of the bar, so they open towards the middle instead of off the screen.
-    private bool Flip(int index) => index >= (Tree.Groups.Count + 1) / 2;
+    // The bar is right-to-left: item 0 is at the right edge. A panel normally opens from the button's right edge and grows to the
+    // left (under the bar). Only the last few buttons, at the left end of a crowded bar, would run past the left edge, so only
+    // those open from their left edge and grow to the right. In a short bar nothing is flipped, so no panel leaves the bar.
+    private bool Flip(int index)
+    {
+        var total = Tree.Groups.Count + (Tree.Ungrouped.Count > 0 ? 1 : 0);
+        return total > 4 && index >= total - 3;
+    }
 
     private void Toggle(string key)
     {
