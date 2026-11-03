@@ -396,7 +396,7 @@
     private static readonly IReadOnlyList<(string Key, string Text)> _sourceOptions = [("archived", "بایگانی‌شده"), ("all", "همه (جاری و بایگانی‌شده)")];
     private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = new[] { AuditActions.Created, AuditActions.Updated, AuditActions.Deleted }.Concat(AuditActions.Events).Select(a => (a, GetActionText(a))).ToList();
     private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
-    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","AuditArchiveSetting","HomeSlide","HomeSlideAttachment","LinkGroup","PortalLink","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
+    private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","AuditArchiveSetting","HomeSlide","HomeSlideAttachment","LinkGroup","PortalLink","ContactGroup","Contact","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","Notification","Session","Report","Access","AuditEntry"];
     /// <summary>Single-key rows store the id as "Id=guid"; explicit events store the bare guid. Accepts both.</summary>
     private static bool TryParseEntityGuid(string? entityId, out Guid id)
     {
@@ -498,7 +498,7 @@
         AuditActions.PasswordChanged=>"تغییر رمز عبور",AuditActions.PasswordReset=>"بازنشانی رمز عبور",
         AuditActions.ReportExported=>"دریافت خروجی",AuditActions.AccessDenied=>"دسترسی ردشده",
         AuditActions.Searched=>"جستجو",AuditActions.PageViewed=>"مشاهده صفحه",AuditActions.RequestViewed=>"مشاهده درخواست",
-        AuditActions.RequestPdfDownloaded=>"دریافت PDF درخواست",AuditActions.RequestFormPrinted=>"چاپ فرم درخواست",
+        AuditActions.RequestPdfDownloaded=>"دریافت PDF درخواست",AuditActions.RequestFormPrinted=>"چاپ فرم درخواست",AuditActions.PhoneBookPrinted=>"چاپ دفترچه تلفن",
         AuditActions.NotificationSent=>"ارسال اعلان",AuditActions.NotificationRetracted=>"بازپس‌گیری اعلان",
         AuditActions.NotificationRemoved=>"حذف اعلان",AuditActions.NotificationRestored=>"بازگردانی اعلان",
         AuditActions.NotificationsViewed=>"مشاهده فهرست اعلان‌ها",AuditActions.NotificationRead=>"خواندن اعلان",
@@ -514,7 +514,7 @@
         AuditActions.LoggedOut or AuditActions.SessionEnded=>Icons.LogOut,AuditActions.PositionSwitched=>Icons.SwitchPosition,
         AuditActions.PasswordChanged or AuditActions.PasswordReset=>Icons.ChangePassword,AuditActions.ReportExported=>Icons.ExportData,
         AuditActions.Searched=>Icons.Search,AuditActions.PageViewed or AuditActions.RequestViewed=>Icons.Details,
-        AuditActions.RequestPdfDownloaded=>Icons.Pdf,AuditActions.RequestFormPrinted=>Icons.Print,
+        AuditActions.RequestPdfDownloaded=>Icons.Pdf,AuditActions.RequestFormPrinted or AuditActions.PhoneBookPrinted=>Icons.Print,
         AuditActions.NotificationSent=>Icons.Send,AuditActions.NotificationRetracted=>Icons.Retract,
         AuditActions.NotificationRemoved=>Icons.Delete,AuditActions.NotificationRestored=>Icons.RestoreNotification,
         AuditActions.NotificationsViewed or AuditActions.AuditEntryViewed=>Icons.Details,
@@ -522,7 +522,7 @@
         AuditActions.NotificationRead or AuditActions.NotificationsMarkedRead=>Icons.ConfirmAll,
         _=>Icons.Edit};
     private static string GetEntityText(string e)=>e switch{"Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",
-        "PasswordPolicy"=>"سیاست رمز عبور","AuditArchiveSetting"=>"روش بایگانی رویدادها","HomeSlide"=>"اسلاید صفحه اصلی","HomeSlideAttachment"=>"فایل پیوست اسلاید","LinkGroup"=>"گروه پیوندها","PortalLink"=>"پیوند صفحه اصلی","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
+        "PasswordPolicy"=>"سیاست رمز عبور","AuditArchiveSetting"=>"روش بایگانی رویدادها","HomeSlide"=>"اسلاید صفحه اصلی","HomeSlideAttachment"=>"فایل پیوست اسلاید","LinkGroup"=>"گروه پیوندها","PortalLink"=>"پیوند صفحه اصلی","ContactGroup"=>"گروه دفترچه تلفن","Contact"=>"مخاطب دفترچه تلفن","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
         AuditEntityTypes.Session=>"نشست",AuditEntityTypes.Report=>"گزارش / فهرست",AuditEntityTypes.Access=>"دسترسی",AuditEntityTypes.Notification=>"اعلان",AuditEntityTypes.AuditRecord=>"رویداد ثبت‌شده",_=>e};
     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");

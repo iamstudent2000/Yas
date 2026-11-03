@@ -1,0 +1,59 @@
+/* Phone book: the general search, collapsible groups in two columns, the per-group search, and the A4 print layout. */
+.pb{display:flex;flex-direction:column;gap:12px;direction:rtl;text-align:start;container:pb / inline-size}
+.pb-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pb-search{position:relative;flex:1 1 280px;min-width:0}
+.pb-search>.ti{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.pb-search .form-control{width:100%;padding-inline-start:36px}
+.pb-toolbar-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+
+/* groups: two columns on a wide screen, one on a narrow one; a group is never split between columns */
+.pb-groups{display:block}
+.pb-groups>.pb-group{margin-bottom:14px;break-inside:avoid}
+/* two columns only when the page itself is wide enough (the sidebar is not counted) */
+@container pb (min-width:1000px){
+    .pb-groups.is-two-columns{column-count:2;column-gap:14px}
+}
+
+.pb-group{padding:0;overflow:hidden}
+.pb-group.is-off{opacity:.75}
+.pb-group-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:4px 10px 4px 12px}
+.pb-group-toggle{display:flex;align-items:center;gap:8px;flex:1 1 150px;min-width:0;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer;text-align:start}
+.pb-group-toggle:hover{background:var(--accent-soft)}
+.pb-group-toggle strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pb-caret{font-size:14px;transition:transform .15s}
+.is-open>.pb-group-head .pb-caret{transform:rotate(-90deg)}
+.pb-folder{color:var(--accent)}
+.pb-actions{display:flex;flex-wrap:wrap;gap:6px}
+.pb-group-search{position:relative;flex:0 1 210px;min-width:140px}
+.pb-group-search>.ti{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:15px}
+.pb-group-search .form-control{width:100%;padding:6px 10px;padding-inline-start:32px;font-size:.85rem}
+.pb-group-body{padding:0 0 4px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.pb-none{margin:10px 0 4px}
+
+/* contacts: a sortable table per group, one row per contact */
+.pb-table{table-layout:auto;width:100%;min-width:0}
+.pb-table th,.pb-table td{padding:7px 9px;font-size:.84rem}
+.pb-table td.pb-num{white-space:nowrap;text-align:start;font-variant-numeric:tabular-nums}
+.pb-table td.pb-mail{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.pb-table tr.is-off{opacity:.65}
+.pb-table .sortable-th{white-space:nowrap}
+.pb-note{font-size:.76rem}
+
+@media (max-width:720px){.pb-toolbar-actions{width:100%}.pb-actions{width:100%;padding-bottom:8px}.pb-group-search{flex:1 1 100%}}
+
+/* A4 print: group headings with name, extension and phone; two columns. The page is A4 with 12mm margins (print.css). */
+@media print{
+    .pb-print{font-size:10pt;line-height:1.35;color:#000}
+    .pb-print-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 6mm;padding-bottom:2mm;border-bottom:1.5px solid #000}
+    .pb-print-head h1{margin:0;font-size:16pt}
+    .pb-print-head span{font-size:9pt}
+    .pb-print-groups{column-count:2;column-gap:8mm;column-rule:1px solid #bbb}
+    .pb-print-group{margin:0 0 4mm}
+    .pb-print-group h2{margin:0;padding:1mm 2mm;font-size:10.5pt;background:#e6e6e6 !important;border:1px solid #888;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .pb-print-group table{width:100%;border-collapse:collapse;font-size:9.5pt}
+    .pb-print-group th{padding:.6mm 1.5mm;font-size:8pt;font-weight:600;color:#444;text-align:start;border-bottom:1px solid #888;background:transparent !important}
+    .pb-print-group td{padding:.8mm 1.5mm;border-bottom:1px solid #ddd;text-align:start;vertical-align:top}
+    .pb-print-group td:nth-child(2),.pb-print-group td:nth-child(3){white-space:nowrap;text-align:left;width:1%}
+    .pb-print-group tr{break-inside:avoid}
+    .pb-print-sub{color:#444;font-size:8.5pt}
+}

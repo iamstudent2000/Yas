@@ -1,0 +1,275 @@
+@using YasPortal.Domain.Auditing
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Persistence
+@using Microsoft.JSInterop
+@using YasPortal.Web.Services
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AuditEventWriter Audit
+@* The phone book: a general search box, and one collapsible card per group with its own search box. Used by the reading page and,
+   with action buttons added through the two fragments, by the admin page. While the general search has text, every group that
+   still has a match is shown open.
+   Printing (reading page): CanPrint shows a print button and prints names, extensions and phones in two columns on A4, grouped;
+   PrintBlocked (visitors, or people without the permission) makes the printed page a short notice instead. Neither flag set
+   (admin page) leaves the browser's normal printing alone. *@
+<div class="pb-root">
+<div class="pb @(CanPrint || PrintBlocked ? "no-print" : "")" dir="rtl">
+    <div class="pb-toolbar">
+        <div class="pb-search">
+            <i class="ti ti-search"></i>
+            <input class="form-control" type="search" placeholder="جستجو در همه گروه‌ها: نام، سمت، داخلی، تلفن، موبایل، ایمیل..."
+                   value="@_query" @oninput="OnGeneralQuery" aria-label="جستجوی کلی" />
+        </div>
+        <div class="pb-toolbar-actions">
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAll"><i class="ti ti-folder-open"></i> باز کردن همه</button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseAll"><i class="ti ti-folder"></i> بستن همه</button>
+            @if (CanPrint)
+            {
+                <button type="button" class="btn btn-primary btn-sm" @onclick="PrintAsync" disabled="@(Shown.IsEmpty)"><i class="ti ti-printer"></i> چاپ</button>
+            }
+            <span class="badge badge-muted">@Shown.TotalContacts از @Tree.TotalContacts مخاطب</span>
+        </div>
+    </div>
+
+    @if (Tree.IsEmpty)
+    {
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-address-book"></i></div><strong>@EmptyText</strong></div>
+    }
+    else if (Shown.IsEmpty)
+    {
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-search"></i></div><strong>موردی پیدا نشد</strong><p class="muted">عبارت دیگری را جستجو کنید.</p></div>
+    }
+    else
+    {
+        <div class="pb-groups @(TwoColumns ? "is-two-columns" : "")">
+        @foreach (var entry in Shown.Groups)
+        {
+            var group = entry.Group;
+            var open = Searching || _open.Contains(group.Id);
+            var groupQuery = _groupQueries.GetValueOrDefault(group.Id, "");
+            var contacts = PhoneBookTree.FilterContacts(entry.Contacts, groupQuery);
+            <section class="pb-group card @(open ? "is-open" : "") @(group.IsActive ? "" : "is-off")" @key="group.Id">
+                <div class="pb-group-head">
+                    <button type="button" class="pb-group-toggle" aria-expanded="@(open ? "true" : "false")" @onclick="() => Toggle(group.Id)">
+                        <i class="ti ti-chevron-left pb-caret"></i>
+                        <i class="ti @(open ? "ti-folder-open" : "ti-folder") pb-folder"></i>
+                        <strong>@group.Name</strong>
+                        <span class="badge badge-muted">@(groupQuery.Length > 0 && open ? $"{contacts.Count} از {entry.Contacts.Count}" : entry.Contacts.Count.ToString())</span>
+                        @if (!group.IsActive) { <span class="badge badge-warning">خاموش</span> }
+                    </button>
+                    @if (open)
+                    {
+                        <div class="pb-group-search">
+                            <i class="ti ti-search"></i>
+                            <input class="form-control" type="search" placeholder="جستجو در گروه..." value="@groupQuery"
+                                   @oninput="e => SetGroupQuery(group.Id, e.Value?.ToString())" aria-label="@("جستجو در " + group.Name)" />
+                        </div>
+                    }
+                    @if (GroupActions is not null) { <div class="pb-actions">@GroupActions(group)</div> }
+                </div>
+                @if (open)
+                {
+                    <div class="pb-group-body">
+                        @if (contacts.Count == 0)
+                        {
+                            <p class="muted pb-none">@(entry.Contacts.Count == 0 ? "مخاطبی در این گروه نیست." : "مخاطبی با این عبارت پیدا نشد.")</p>
+                        }
+                        else
+                        {
+                            var sort = _sorts.GetValueOrDefault(group.Id);
+                            var rows = ContactSorter.Sort(contacts, sort.Key, sort.Descending);
+                            <div class="data-table-wrap">
+                                <table class="data-table pb-table">
+                                    <thead><tr>
+                                        <SortableHeader Text="نام" Column="@nameof(ContactSortKey.Name)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="سمت" Column="@nameof(ContactSortKey.JobTitle)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="داخلی" Column="@nameof(ContactSortKey.Extension)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="تلفن" Column="@nameof(ContactSortKey.Phone)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="موبایل" Column="@nameof(ContactSortKey.Mobile)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="ایمیل" Column="@nameof(ContactSortKey.Email)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        @if (ContactActions is not null) { <th>عملیات</th> }
+                                    </tr></thead>
+                                    <tbody>
+                                    @foreach (var c in rows)
+                                    {
+                                        <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
+                                            <td class="pb-name"><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }@if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }</td>
+                                            <td>@c.JobTitle</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Extension)</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Phone)</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Mobile)</td>
+                                            <td dir="ltr" class="pb-mail" title="@c.Email">@Dash(c.Email)</td>
+                                            @if (ContactActions is not null) { <td class="action-cell">@ContactActions(c)</td> }
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+        }
+        </div>
+    }
+</div>
+
+@if (CanPrint)
+{
+    <div class="print-only pb-print" dir="rtl">
+        <div class="pb-print-head">
+            <h1>دفترچه تلفن</h1>
+            <span>@PrintNote</span>
+        </div>
+        <div class="pb-print-groups">
+            @foreach (var entry in Shown.Groups.Where(x => x.Contacts.Count > 0))
+            {
+                <section class="pb-print-group">
+                    <h2>@entry.Group.Name</h2>
+                    <table>
+                        <thead><tr><th>نام</th><th>داخلی</th><th>تلفن</th></tr></thead>
+                        <tbody>
+                        @foreach (var c in entry.Contacts)
+                        {
+                            <tr>
+                                <td>@c.FullName@if (c.JobTitle is not null) { <span class="pb-print-sub"> — @c.JobTitle</span> }</td>
+                                <td dir="ltr">@(c.Extension ?? "")</td>
+                                <td dir="ltr">@(c.Phone ?? "")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </section>
+            }
+        </div>
+    </div>
+}
+else if (PrintBlocked)
+{
+    <div class="print-only pb-print" dir="rtl"><p>چاپ دفترچه تلفن برای شما مجاز نیست.</p></div>
+}
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PhoneBookTree Tree { get; set; } = new();
+    [Parameter] public string EmptyText { get; set; } = "هنوز مخاطبی ثبت نشده است";
+    /// <summary>Buttons shown in a group's header (admin page).</summary>
+    [Parameter] public RenderFragment<ContactGroup>? GroupActions { get; set; }
+    /// <summary>Buttons shown with a contact (admin page).</summary>
+    [Parameter] public RenderFragment<Contact>? ContactActions { get; set; }
+    /// <summary>Groups side by side in two columns (one column on a narrow screen).</summary>
+    [Parameter] public bool TwoColumns { get; set; } = true;
+    /// <summary>Every group is open when the page first shows.</summary>
+    [Parameter] public bool StartExpanded { get; set; } = true;
+    /// <summary>The person may print: a print button is shown and the printed page is the A4 two-column list.</summary>
+    [Parameter] public bool CanPrint { get; set; }
+    /// <summary>The person may not print: the screen content is left out of a printed page, which says printing is not allowed.</summary>
+    [Parameter] public bool PrintBlocked { get; set; }
+
+    private string _query = "";
+    private readonly HashSet<Guid> _open = [];
+    private readonly Dictionary<Guid, string> _groupQueries = [];
+    private readonly Dictionary<Guid, (ContactSortKey Key, bool Descending)> _sorts = [];
+    private bool _started, _watching;
+    private DotNetObjectReference<PhoneBookView>? _self;
+
+    private string PrintNote =>
+        (Searching ? $"نتیجه جستجوی «{_query.Trim()}» — " : "") + "تاریخ چاپ: " + WorkflowDisplay.ToPersianDate(DateTime.Now);
+
+    private bool Searching => !string.IsNullOrWhiteSpace(_query);
+    private PhoneBookTree Shown => Tree.Filter(_query);
+
+    protected override void OnParametersSet()
+    {
+        if (StartExpanded && !_started && Tree.Groups.Count > 0)
+        {
+            _started = true;
+            OpenAll();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Watch the browser's print event (button or Ctrl+P) only for people who may print; the first live render, not the prerender.
+        if (CanPrint && !_watching)
+        {
+            try
+            {
+                _self ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("yasWatchPrint", _self);
+                _watching = true;
+            }
+            catch (InvalidOperationException) { /* prerendering: no browser yet; the next render tries again */ }
+            catch (JSDisconnectedException) { }
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("yasPrintPage");
+
+    /// <summary>The browser is about to print: record it in the audit log (the same print is recorded once).</summary>
+    [JSInvokable]
+    public async Task OnBrowserPrint()
+    {
+        if (!CanPrint || !await Audit.ShouldLogAsync("phonebook-print", TimeSpan.FromSeconds(15)))
+            return;
+        var shown = Shown;
+        await Audit.WriteAsync(AuditActions.PhoneBookPrinted, AuditEntityTypes.Report, "phone-book",
+            new { Groups = shown.Groups.Count(x => x.Contacts.Count > 0), Contacts = shown.TotalContacts, Search = Searching ? _query.Trim() : null });
+    }
+
+    private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
+
+    private void Toggle(Guid id)
+    {
+        if (Searching)
+            return; // groups with matches stay open while the general search has text
+        if (!_open.Remove(id))
+            _open.Add(id);
+    }
+
+    private void OpenAll()
+    {
+        foreach (var g in Tree.Groups)
+            _open.Add(g.Group.Id);
+    }
+
+    private void CloseAll()
+    {
+        _open.Clear();
+        _query = "";
+    }
+
+    // A header click on a group: first ascending, then descending, then back to the administrator's order. Each group sorts on its own.
+    private void SortBy(Guid groupId, string column)
+    {
+        var key = ContactSorter.Parse(column);
+        var current = _sorts.GetValueOrDefault(groupId);
+        if (key == ContactSortKey.Default || current.Key != key)
+            _sorts[groupId] = (key, false);
+        else if (!current.Descending)
+            _sorts[groupId] = (key, true);
+        else
+            _sorts.Remove(groupId);
+    }
+
+    private static string Dash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
+
+    private void SetGroupQuery(Guid id, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            _groupQueries.Remove(id);
+        else
+            _groupQueries[id] = value;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_watching)
+                await JS.InvokeVoidAsync("yasUnwatchPrint");
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or InvalidOperationException or TaskCanceledException) { }
+        _self?.Dispose();
+    }
+}

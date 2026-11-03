@@ -136,6 +136,10 @@ public static class Icons
     public const string AuditLog = "ti-file-search";
     public const string LandingSlides = "ti-presentation";
     public const string Links = "ti-link";
+    public const string PhoneBook = "ti-address-book";
+    public const string Phone = "ti-phone";
+    public const string Mobile = "ti-device-mobile";
+    public const string Mail = "ti-mail";
     public const string Delegation = "ti-user-share";
     public const string DelegationGiven = "ti-transfer-out";
     public const string DelegationReceived = "ti-transfer-in";

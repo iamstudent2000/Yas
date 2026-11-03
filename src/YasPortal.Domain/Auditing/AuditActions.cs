@@ -24,6 +24,7 @@ public static class AuditActions
     public const string RequestViewed = "RequestViewed";
     public const string RequestPdfDownloaded = "RequestPdfDownloaded";
     public const string RequestFormPrinted = "RequestFormPrinted";
+    public const string PhoneBookPrinted = "PhoneBookPrinted";
     public const string NotificationSent = "NotificationSent";
     public const string NotificationRetracted = "NotificationRetracted";
     public const string NotificationRemoved = "NotificationRemoved";
@@ -39,7 +40,7 @@ public static class AuditActions
     [
         LoginSucceeded, LoginFailed, LoggedOut, PositionSwitched, SessionEnded,
         PasswordChanged, PasswordReset, ReportExported, Searched, PageViewed, AccessDenied,
-        RequestViewed, RequestPdfDownloaded, RequestFormPrinted,
+        RequestViewed, RequestPdfDownloaded, RequestFormPrinted, PhoneBookPrinted,
         NotificationSent, NotificationRetracted, NotificationRemoved, NotificationRestored,
         NotificationsViewed, NotificationRead, NotificationsMarkedRead, AuditEntryViewed, AuditArchived,
     ];

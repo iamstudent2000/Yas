@@ -14,6 +14,7 @@ using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
 using YasPortal.Infrastructure.Landing;
+using YasPortal.Infrastructure.PhoneBook;
 using YasPortal.Infrastructure.Persistence;
 using YasPortal.Web.Services;
 
@@ -62,6 +63,7 @@ builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<PortalLinkProvider>();
+builder.Services.AddScoped<PhoneBookProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
 
@@ -182,6 +184,12 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[LinkGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [ParentId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_LinkGroups] PRIMARY KEY ([Id]), CONSTRAINT [FK_LinkGroups_LinkGroups_ParentId] FOREIGN KEY ([ParentId]) REFERENCES [dbo].[LinkGroups] ([Id]));
         IF OBJECT_ID(N'dbo.PortalLinks', N'U') IS NULL
             CREATE TABLE [dbo].[PortalLinks] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(150) NOT NULL, [Url] nvarchar(500) NOT NULL, [Description] nvarchar(300) NULL, [GroupId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [IsQuickAccess] bit NOT NULL, [QuickOrder] int NOT NULL, CONSTRAINT [PK_PortalLinks] PRIMARY KEY ([Id]), CONSTRAINT [FK_PortalLinks_LinkGroups_GroupId] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[LinkGroups] ([Id]));
+        IF OBJECT_ID(N'dbo.ContactGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[ContactGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_ContactGroups] PRIMARY KEY ([Id]));
+        IF OBJECT_ID(N'dbo.Contacts', N'U') IS NULL
+            CREATE TABLE [dbo].[Contacts] ([Id] uniqueidentifier NOT NULL, [GroupId] uniqueidentifier NOT NULL, [FullName] nvarchar(150) NOT NULL, [JobTitle] nvarchar(150) NULL, [Extension] nvarchar(30) NULL, [Phone] nvarchar(30) NULL, [Mobile] nvarchar(30) NULL, [Email] nvarchar(150) NULL, [Note] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_Contacts] PRIMARY KEY ([Id]), CONSTRAINT [FK_Contacts_ContactGroups_GroupId] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[ContactGroups] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Contacts') AND name = N'IX_Contacts_GroupId')
+            EXEC(N'CREATE INDEX [IX_Contacts_GroupId] ON [dbo].[Contacts] ([GroupId])');
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.LinkGroups') AND name = N'IX_LinkGroups_ParentId')
             EXEC(N'CREATE INDEX [IX_LinkGroups_ParentId] ON [dbo].[LinkGroups] ([ParentId])');
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.PortalLinks') AND name = N'IX_PortalLinks_GroupId')

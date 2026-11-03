@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Landing;
+using YasPortal.Domain.PhoneBook;
 using YasPortal.Domain.Authorization;
 using YasPortal.Domain.Delegations;
 using YasPortal.Domain.Notifications;
@@ -36,6 +37,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<HomeSlideAttachment> HomeSlideAttachments => Set<HomeSlideAttachment>();
     public DbSet<LinkGroup> LinkGroups => Set<LinkGroup>();
     public DbSet<PortalLink> PortalLinks => Set<PortalLink>();
+    public DbSet<ContactGroup> ContactGroups => Set<ContactGroup>();
+    public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -249,6 +252,20 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); });
         modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.Property(x => x.AvatarKey).HasMaxLength(Employee.AvatarKeyMaxLength); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
         modelBuilder.Entity<LinkGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(LinkGroup.NameMax).IsRequired(); e.HasIndex(x => x.ParentId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<ContactGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(ContactGroup.NameMax).IsRequired(); });
+        modelBuilder.Entity<Contact>(e =>
+        {
+            e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever();
+            e.Property(x => x.FullName).HasMaxLength(Contact.NameMax).IsRequired();
+            e.Property(x => x.JobTitle).HasMaxLength(Contact.TitleMax);
+            e.Property(x => x.Extension).HasMaxLength(Contact.NumberMax);
+            e.Property(x => x.Phone).HasMaxLength(Contact.NumberMax);
+            e.Property(x => x.Mobile).HasMaxLength(Contact.NumberMax);
+            e.Property(x => x.Email).HasMaxLength(Contact.EmailMax);
+            e.Property(x => x.Note).HasMaxLength(Contact.NoteMax);
+            e.HasIndex(x => x.GroupId);
+            e.HasOne<ContactGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<PortalLink>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(PortalLink.TitleMax).IsRequired(); e.Property(x => x.Url).HasMaxLength(PortalLink.UrlMax).IsRequired(); e.Property(x => x.Description).HasMaxLength(PortalLink.DescriptionMax); e.HasIndex(x => x.GroupId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<HomeSlideAttachment>(e => { e.HasKey(x => x.SlideId); e.Property(x => x.SlideId).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(HomeSlideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<HomeSlide>().WithOne().HasForeignKey<HomeSlideAttachment>(x => x.SlideId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<HomeSlide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeSlide.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeSlide.TextMax).IsRequired(); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.LinkText).HasMaxLength(HomeSlide.LinkTextMax); e.Property(x => x.LinkUrl).HasMaxLength(HomeSlide.LinkUrlMax); e.Property(x => x.StartsOn).HasColumnType("date"); e.Property(x => x.ExpiresOn).HasColumnType("date"); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });

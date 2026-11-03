@@ -1,0 +1,42 @@
+@page "/phone-book"
+@using Microsoft.AspNetCore.Authorization
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.PhoneBook
+@using YasPortal.Web.Components.Shared
+@attribute [AllowAnonymous]
+@inject PhoneBookProvider Provider
+@inject IPermissionChecker PermissionChecker
+@* Open to everyone, also before sign-in. Printing needs the PhoneBook.Directory.Print permission (and a signed-in person). *@
+
+<PageTitle>دفترچه تلفن - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header no-print">
+        <div>
+            <div class="page-kicker">دسترسی سریع</div>
+            <h1 class="page-title"><i class="ti @Icons.PhoneBook"></i> دفترچه تلفن</h1>
+            <p class="page-subtitle">شماره‌های داخلی و تماس. در همه گروه‌ها جستجو کنید یا در هر گروه جداگانه بگردید.</p>
+        </div>
+    </div>
+
+    @if (_tree is null)
+    {
+        <LoadingState />
+    }
+    else
+    {
+        <PhoneBookView Tree="_tree" CanPrint="_canPrint" PrintBlocked="!_canPrint" />
+    }
+</div>
+
+@code {
+    private PhoneBookTree? _tree;
+    private bool _canPrint;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // HasPermissionAsync is false for a visitor who has not signed in
+        _canPrint = await PermissionChecker.HasPermissionAsync(Perm.PhoneBookDirectoryPrint);
+        _tree = await Provider.GetTreeAsync();
+    }
+}
