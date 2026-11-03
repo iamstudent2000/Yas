@@ -196,6 +196,14 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_PortalLinks_GroupId] ON [dbo].[PortalLinks] ([GroupId])');
         IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
             CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
+        IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
+            CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [Direction] int NOT NULL, [RelatedPermissionCode] nvarchar(150) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
+            EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
+        IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NULL
+            CREATE TABLE [dbo].[GuideBlocks] ([Id] uniqueidentifier NOT NULL, [GuideId] uniqueidentifier NOT NULL, [SortOrder] int NOT NULL, [Kind] int NOT NULL, [Text] nvarchar(4000) NOT NULL, [Direction] int NULL, [Align] int NOT NULL, [Size] int NOT NULL, [Tone] int NOT NULL, [Bold] bit NOT NULL, [Italic] bit NOT NULL, CONSTRAINT [PK_GuideBlocks] PRIMARY KEY ([Id]), CONSTRAINT [FK_GuideBlocks_UserGuides_GuideId] FOREIGN KEY ([GuideId]) REFERENCES [dbo].[UserGuides] ([Id]) ON DELETE CASCADE);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GuideBlocks') AND name = N'IX_GuideBlocks_GuideId_SortOrder')
+            EXEC(N'CREATE INDEX [IX_GuideBlocks_GuideId_SortOrder] ON [dbo].[GuideBlocks] ([GuideId], [SortOrder])');
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }

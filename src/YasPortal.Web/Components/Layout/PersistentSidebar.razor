@@ -40,6 +40,7 @@
                             <NavLink href="/my-profile"><i class="ti @Icons.Profile"></i><span>پروفایل من</span></NavLink>
                         </AuthorizeView>
                         <NavLink href="/phone-book"><i class="ti @Icons.PhoneBook"></i><span>دفترچه تلفن</span></NavLink>
+                        <NavLink href="/guides"><i class="ti @Icons.Guide"></i><span>راهنمای کاربری</span></NavLink>
                         <NavLink href="/settings/appearance"><i class="ti @Icons.Appearance"></i><span>ظاهر برنامه</span></NavLink>
                         <AuthorizeView Context="myPositionsAuth">
                             <Authorized>
@@ -107,6 +108,9 @@
             }
             <AuthorizeView Policy="@Perm.AdminLinksView">
                 <NavLink href="/admin/links"><i class="ti @Icons.Links"></i><span>پیوندهای صفحه اصلی</span></NavLink>
+            </AuthorizeView>
+            <AuthorizeView Policy="@Perm.AdminGuidesView">
+                <NavLink href="/admin/guides"><i class="ti @Icons.Guide"></i><span>مدیریت راهنماهای کاربری</span></NavLink>
             </AuthorizeView>
             <AuthorizeView Policy="@Perm.AdminPhoneBookView">
                 <NavLink href="/admin/phone-book"><i class="ti @Icons.PhoneBook"></i><span>مدیریت دفترچه تلفن</span></NavLink>

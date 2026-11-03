@@ -1,0 +1,51 @@
+@using YasPortal.Domain.Guides
+@* Draws the blocks of a guide. Text is always written out as plain text (Blazor encodes it), never as HTML.
+   A block without its own direction takes the direction of the guide. *@
+<div class="guide-body" dir="@DirAttr(Direction)">
+    @foreach (var block in Blocks)
+    {
+        var dir = DirAttr(block.Direction ?? Direction);
+        switch (block.Kind)
+        {
+            case GuideBlockKind.Heading:
+                <h2 class="@Classes(block, "guide-heading")" dir="@dir">@block.Text</h2>
+                break;
+            case GuideBlockKind.Subheading:
+                <h3 class="@Classes(block, "guide-subheading")" dir="@dir">@block.Text</h3>
+                break;
+            case GuideBlockKind.List:
+                <ul class="@Classes(block, "guide-list")" dir="@dir">
+                    @foreach (var line in block.Lines())
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+                break;
+            case GuideBlockKind.Note:
+                <div class="@Classes(block, "guide-note")" dir="@dir"><i class="ti @NoteIcon(block.Tone)"></i><div>@block.Text</div></div>
+                break;
+            default:
+                <p class="@Classes(block, "guide-paragraph")" dir="@dir">@block.Text</p>
+                break;
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<GuideBlock> Blocks { get; set; } = [];
+    [Parameter] public GuideDirection Direction { get; set; } = GuideDirection.Rtl;
+
+    public static string DirAttr(GuideDirection direction) => direction == GuideDirection.Ltr ? "ltr" : "rtl";
+
+    private static string Classes(GuideBlock block, string baseClass) =>
+        $"{baseClass} guide-align-{block.Align.ToString().ToLowerInvariant()} guide-size-{block.Size.ToString().ToLowerInvariant()} guide-tone-{block.Tone.ToString().ToLowerInvariant()}"
+        + (block.Bold ? " guide-bold" : "") + (block.Italic ? " guide-italic" : "");
+
+    private static string NoteIcon(GuideTone tone) => tone switch
+    {
+        GuideTone.Warning => Icons.Warning,
+        GuideTone.Danger => Icons.Alert,
+        GuideTone.Success => Icons.Confirm,
+        _ => Icons.Info,
+    };
+}

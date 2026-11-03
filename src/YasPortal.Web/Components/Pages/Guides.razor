@@ -1,0 +1,80 @@
+@page "/guides"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Guides
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@attribute [Authorize]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@* Every signed-in person may open this page. A guide that names a related permission is listed only for people who hold it. *@
+
+<PageTitle>راهنمای کاربری - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">حساب کاربری</div>
+            <h1 class="page-title"><i class="ti @Icons.Guide"></i> راهنمای کاربری</h1>
+            <p class="page-subtitle">راهنماهایی که مدیر سامانه برای کار با یاس پورتال نوشته است.</p>
+        </div>
+        <div class="form-actions">
+            <AuthorizeView Policy="@Perm.AdminGuidesView">
+                <a class="btn btn-secondary" href="/admin/guides"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_guides.Count == 0)
+    {
+        <section class="card">
+            <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>هنوز راهنمایی منتشر نشده است</strong><span>هر راهنمایی که برای شما در دسترس باشد در همین‌جا فهرست می‌شود.</span></div>
+        </section>
+    }
+    else
+    {
+        <div class="guide-grid">
+            @foreach (var guide in _guides)
+            {
+                <a class="guide-card" href="/guides/@guide.Id" dir="@GuideBlocks.DirAttr(guide.Direction)">
+                    <span class="guide-card-icon"><i class="ti @Icons.Guide"></i></span>
+                    <strong>@guide.Title</strong>
+                    @if (guide.Summary is not null)
+                    {
+                        <span class="guide-card-summary">@guide.Summary</span>
+                    }
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private List<UserGuide> _guides = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var active = await db.UserGuides.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+
+            // One permission check per distinct code, not per guide.
+            var held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var code in active.Select(x => x.RelatedPermissionCode).Where(x => x is not null).Distinct(StringComparer.OrdinalIgnoreCase))
+                if (await PermissionChecker.HasPermissionAsync(code!)) held.Add(code!);
+
+            _guides = active.Where(x => x.IsReadableBy(held.Contains)).ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _guides = [];
+        }
+        _loading = false;
+    }
+}

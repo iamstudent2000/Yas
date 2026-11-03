@@ -1,0 +1,87 @@
+@page "/guides/{Id:guid}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Guides
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@attribute [Authorize]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@* A guide that is off, or that names a permission the reader lacks, looks exactly like a guide that does not exist.
+   Holders of Admin.Guides.View may open any guide (to preview it). *@
+
+@if (_loading)
+{
+    <div class="admin-page" dir="rtl"><LoadingState /></div>
+}
+else if (_guide is null)
+{
+    <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="راهنما پیدا نشد"
+                Message="این راهنما وجود ندارد یا برای شما در دسترس نیست.">
+        <a class="btn btn-primary" href="/guides"><i class="ti @Icons.Guide"></i> همه راهنماها</a>
+    </StatusPage>
+}
+else
+{
+    <PageTitle>@_guide.Title - راهنمای کاربری</PageTitle>
+    <div class="admin-page" dir="rtl">
+        <div class="page-header no-print">
+            <div>
+                <div class="page-kicker">راهنمای کاربری</div>
+                <h1 class="page-title" dir="@GuideBlocks.DirAttr(_guide.Direction)"><i class="ti @Icons.Guide"></i> @_guide.Title</h1>
+                @if (!_guide.IsActive)
+                {
+                    <p class="page-subtitle"><span class="badge badge-muted">غیرفعال</span> این راهنما برای دیگران دیده نمی‌شود؛ شما فقط برای پیش‌نمایش آن را می‌بینید.</p>
+                }
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="window.print()"><i class="ti @Icons.Print"></i> چاپ</button>
+                <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Back"></i> همه راهنماها</a>
+            </div>
+        </div>
+
+        <article class="card guide-article">
+            @if (_guide.Summary is not null)
+            {
+                <p class="guide-summary" dir="@GuideBlocks.DirAttr(_guide.Direction)">@_guide.Summary</p>
+            }
+            <GuideBlocks Blocks="_blocks" Direction="_guide.Direction" />
+        </article>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private UserGuide? _guide;
+    private List<GuideBlock> _blocks = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _guide = null;
+        _blocks = [];
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var guide = await db.UserGuides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == Id);
+            if (guide is not null)
+            {
+                var previewer = await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
+                var holdsRelated = guide.RelatedPermissionCode is null || await PermissionChecker.HasPermissionAsync(guide.RelatedPermissionCode);
+
+                if (previewer || guide.IsReadableBy(_ => holdsRelated))
+                {
+                    _guide = guide;
+                    _blocks = await db.GuideBlocks.AsNoTracking().Where(x => x.GuideId == Id).OrderBy(x => x.SortOrder).ToListAsync();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _guide = null;
+        }
+        _loading = false;
+    }
+}

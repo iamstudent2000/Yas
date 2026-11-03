@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
+using YasPortal.Domain.Guides;
 using YasPortal.Domain.Landing;
 using YasPortal.Domain.PhoneBook;
 using YasPortal.Domain.Authorization;
@@ -39,6 +40,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<PortalLink> PortalLinks => Set<PortalLink>();
     public DbSet<ContactGroup> ContactGroups => Set<ContactGroup>();
     public DbSet<Contact> Contacts => Set<Contact>();
+    public DbSet<UserGuide> UserGuides => Set<UserGuide>();
+    public DbSet<GuideBlock> GuideBlocks => Set<GuideBlock>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -252,6 +255,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<Organization>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Name).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Name).HasMaxLength(200).IsRequired(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); });
         modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.Property(x => x.AvatarKey).HasMaxLength(Employee.AvatarKeyMaxLength); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
         modelBuilder.Entity<LinkGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(LinkGroup.NameMax).IsRequired(); e.HasIndex(x => x.ParentId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<UserGuide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(UserGuide.TitleMax).IsRequired(); e.Property(x => x.Summary).HasMaxLength(UserGuide.SummaryMax); e.Property(x => x.RelatedPermissionCode).HasMaxLength(UserGuide.PermissionMax); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
+        modelBuilder.Entity<GuideBlock>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Text).HasMaxLength(GuideBlock.TextMax).IsRequired(); e.HasIndex(x => new { x.GuideId, x.SortOrder }); e.HasOne<UserGuide>().WithMany().HasForeignKey(x => x.GuideId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<ContactGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(ContactGroup.NameMax).IsRequired(); });
         modelBuilder.Entity<Contact>(e =>
         {

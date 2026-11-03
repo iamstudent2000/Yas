@@ -79,6 +79,10 @@ public static class Perm
     public const string AdminNotificationsView = "Admin.Notifications.View";
     /// <summary>Remove (and restore) other people's notifications from the all-notifications report. Implies the view permission.</summary>
     public const string AdminNotificationsManage = "Admin.Notifications.Manage";
+    /// <summary>See the user guides in the admin list, including guides that are off or limited to a permission (read-only).</summary>
+    public const string AdminGuidesView = "Admin.Guides.View";
+    /// <summary>Write, edit, switch off and delete user guides. Implies the view permission.</summary>
+    public const string AdminGuidesManage = "Admin.Guides.Manage";
 
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>
@@ -190,6 +194,8 @@ public static class PermissionCatalog
             new(Perm.AdminPhoneBookManage, "مدیریت دفترچه تلفن (گروه‌ها و مخاطبان)"),
             new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
             new(Perm.AdminNotificationsManage, "مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)"),
+            new(Perm.AdminGuidesView, "مشاهده مدیریت راهنماهای کاربری (فقط خواندنی)"),
+            new(Perm.AdminGuidesManage, "مدیریت راهنماهای کاربری (نوشتن، ویرایش، غیرفعال‌کردن و حذف)"),
         };
 
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));
