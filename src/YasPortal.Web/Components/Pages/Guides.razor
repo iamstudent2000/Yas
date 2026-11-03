@@ -1,24 +1,28 @@
 @page "/guides"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Guides
-@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Infrastructure.Guides
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize]
-@inject IDbContextFactory<ApplicationDbContext> DbFactory
-@inject IPermissionChecker PermissionChecker
-@* Every signed-in person may open this page. A guide that names a related permission is listed only for people who hold it. *@
+@attribute [AllowAnonymous]
+@inject GuideProvider Provider
+@inject AuthenticationStateProvider AuthState
+@* Open to everyone, also before sign-in. A visitor sees only the guides marked public; a signed-in person sees all active guides. *@
 
 <PageTitle>راهنمای کاربری - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
     <div class="page-header">
         <div>
-            <div class="page-kicker">حساب کاربری</div>
+            <div class="page-kicker">راهنما</div>
             <h1 class="page-title"><i class="ti @Icons.Guide"></i> راهنمای کاربری</h1>
-            <p class="page-subtitle">راهنماهایی که مدیر سامانه برای کار با یاس پورتال نوشته است.</p>
+            <p class="page-subtitle">راهنماهای کار با یاس پورتال که مدیر سامانه نوشته است.@(_signedIn ? "" : " برای دیدن راهنماهای ویژه کاربران، وارد شوید.")</p>
         </div>
         <div class="form-actions">
+            @if (!_signedIn)
+            {
+                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+            }
             <AuthorizeView Policy="@Perm.AdminGuidesView">
                 <a class="btn btn-secondary" href="/admin/guides"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
             </AuthorizeView>
@@ -40,12 +44,16 @@
         <div class="guide-grid">
             @foreach (var guide in _guides)
             {
-                <a class="guide-card" href="/guides/@guide.Id" dir="@GuideBlocks.DirAttr(guide.Direction)">
+                <a class="guide-card" href="/guides/@guide.Id">
                     <span class="guide-card-icon"><i class="ti @Icons.Guide"></i></span>
                     <strong>@guide.Title</strong>
                     @if (guide.Summary is not null)
                     {
                         <span class="guide-card-summary">@guide.Summary</span>
+                    }
+                    @if (_signedIn && guide.Visibility == GuideVisibility.Public)
+                    {
+                        <span><span class="badge badge-muted">عمومی</span></span>
                     }
                 </a>
             }
@@ -54,27 +62,13 @@
 </div>
 
 @code {
-    private bool _loading = true;
-    private List<UserGuide> _guides = [];
+    private bool _loading = true, _signedIn;
+    private IReadOnlyList<GuideListItem> _guides = [];
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var active = await db.UserGuides.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
-
-            // One permission check per distinct code, not per guide.
-            var held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var code in active.Select(x => x.RelatedPermissionCode).Where(x => x is not null).Distinct(StringComparer.OrdinalIgnoreCase))
-                if (await PermissionChecker.HasPermissionAsync(code!)) held.Add(code!);
-
-            _guides = active.Where(x => x.IsReadableBy(held.Contains)).ToList();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _guides = [];
-        }
+        _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        _guides = await Provider.ListAsync(_signedIn);
         _loading = false;
     }
 }

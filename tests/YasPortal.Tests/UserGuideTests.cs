@@ -6,72 +6,67 @@ namespace YasPortal.Tests;
 
 public sealed class UserGuideTests
 {
-    private static UserGuide G(string title = "راهنما", string? permission = null, GuideDirection dir = GuideDirection.Rtl) =>
-        new(title, null, dir, permission, 1);
-
-    private static GuideBlock B(string text = "متن", GuideBlockKind kind = GuideBlockKind.Paragraph, GuideDirection? dir = null) =>
-        new(Guid.NewGuid(), 1, kind, text, dir, GuideAlign.Start, GuideSize.Normal, GuideTone.Default, false, false);
+    private static UserGuide G(string title = "راهنما", string html = "<p>متن</p>", GuideVisibility visibility = GuideVisibility.SignedIn) =>
+        new(title, null, html, visibility, 1);
 
     [Fact]
-    public void Guide_needs_a_title_and_limits_summary_and_permission_length()
+    public void Guide_needs_a_title_and_limits_title_and_summary()
     {
         Assert.Throws<ArgumentException>(() => G("  "));
         Assert.Throws<ArgumentException>(() => G(new string('x', UserGuide.TitleMax + 1)));
-        Assert.Throws<ArgumentException>(() => new UserGuide("t", new string('x', UserGuide.SummaryMax + 1), GuideDirection.Rtl, null, 1));
-        Assert.Throws<ArgumentException>(() => G(permission: new string('x', UserGuide.PermissionMax + 1)));
-        Assert.Null(G(permission: "  ").RelatedPermissionCode);
+        var ex = Assert.Throws<ArgumentException>(() => new UserGuide("t", new string('x', UserGuide.SummaryMax + 1), "<p>a</p>", GuideVisibility.Public, 1));
+        Assert.Equal("summary", ex.ParamName);
+        Assert.Null(new UserGuide("t", "   ", "<p>a</p>", GuideVisibility.Public, 1).Summary);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("<p><br></p>")]
+    [InlineData("<p>&nbsp;</p><p> </p>")]
+    public void Guide_without_visible_text_is_rejected(string html)
+    {
+        var ex = Assert.Throws<ArgumentException>(() => G(html: html));
+        Assert.Equal("contentHtml", ex.ParamName);
     }
 
     [Fact]
-    public void Guide_without_a_permission_is_readable_by_everyone_while_active()
+    public void Guide_content_is_limited_in_length()
+    {
+        Assert.Throws<ArgumentException>(() => G(html: "<p>" + new string('x', UserGuide.ContentMax) + "</p>"));
+        Assert.Equal("<p>متن</p>", G(html: "  <p>متن</p>  ").ContentHtml);
+    }
+
+    [Fact]
+    public void Guide_rejects_an_unknown_visibility()
+    {
+        Assert.Throws<ArgumentException>(() => G(visibility: (GuideVisibility)9));
+    }
+
+    [Theory]
+    [InlineData(GuideVisibility.Public, true, true, true)]
+    [InlineData(GuideVisibility.Public, false, true, true)]
+    [InlineData(GuideVisibility.SignedIn, true, true, true)]
+    [InlineData(GuideVisibility.SignedIn, false, true, false)]
+    [InlineData(GuideVisibility.Public, true, false, false)]
+    [InlineData(GuideVisibility.SignedIn, true, false, false)]
+    public void Readability_depends_on_visibility_sign_in_and_being_active(GuideVisibility visibility, bool signedIn, bool active, bool expected)
+    {
+        var guide = G(visibility: visibility);
+        if (!active) guide.Deactivate();
+        Assert.Equal(expected, guide.IsReadableBy(signedIn));
+    }
+
+    [Fact]
+    public void Update_changes_the_guide_and_keeps_its_identity()
     {
         var guide = G();
-        Assert.True(guide.IsReadableBy(_ => false));
-        guide.Deactivate();
-        Assert.False(guide.IsReadableBy(_ => true));
-        guide.Activate();
-        Assert.True(guide.IsReadableBy(_ => false));
-    }
-
-    [Fact]
-    public void Guide_with_a_permission_is_readable_only_by_its_holders()
-    {
-        var guide = G(permission: Perm.RequestsOwnCreate);
-        Assert.True(guide.IsReadableBy(code => code == Perm.RequestsOwnCreate));
-        Assert.False(guide.IsReadableBy(code => code == Perm.RequestsOwnView));
-    }
-
-    [Fact]
-    public void Block_text_is_required_trimmed_and_limited()
-    {
-        Assert.Throws<ArgumentException>(() => B("   "));
-        Assert.Throws<ArgumentException>(() => B(new string('x', GuideBlock.TextMax + 1)));
-        Assert.Equal("a\nb", B("  a\r\nb  ").Text);
-    }
-
-    [Fact]
-    public void Block_rejects_unknown_style_values()
-    {
-        var b = B();
-        Assert.Throws<ArgumentException>(() => b.Set((GuideBlockKind)99, "x", null, GuideAlign.Start, GuideSize.Normal, GuideTone.Default, false, false));
-        Assert.Throws<ArgumentException>(() => b.Set(GuideBlockKind.Paragraph, "x", (GuideDirection)9, GuideAlign.Start, GuideSize.Normal, GuideTone.Default, false, false));
-        Assert.Throws<ArgumentException>(() => b.Set(GuideBlockKind.Paragraph, "x", null, (GuideAlign)9, GuideSize.Normal, GuideTone.Default, false, false));
-        Assert.Throws<ArgumentException>(() => b.Set(GuideBlockKind.Paragraph, "x", null, GuideAlign.Start, (GuideSize)9, GuideTone.Default, false, false));
-        Assert.Throws<ArgumentException>(() => b.Set(GuideBlockKind.Paragraph, "x", null, GuideAlign.Start, GuideSize.Normal, (GuideTone)9, false, false));
-    }
-
-    [Fact]
-    public void Block_keeps_its_own_direction_or_none()
-    {
-        Assert.Null(B().Direction);
-        Assert.Equal(GuideDirection.Ltr, B(dir: GuideDirection.Ltr).Direction);
-    }
-
-    [Fact]
-    public void List_block_gives_one_item_per_non_empty_line()
-    {
-        var b = B("اول\n\n  دوم  \nسوم", GuideBlockKind.List);
-        Assert.Equal(["اول", "دوم", "سوم"], b.Lines());
+        var id = guide.Id;
+        guide.Update("عنوان جدید", "خلاصه", "<h2>الف</h2>", GuideVisibility.Public, 5);
+        Assert.Equal(id, guide.Id);
+        Assert.Equal("عنوان جدید", guide.Title);
+        Assert.Equal(GuideVisibility.Public, guide.Visibility);
+        Assert.Equal(5, guide.SortOrder);
     }
 
     [Fact]

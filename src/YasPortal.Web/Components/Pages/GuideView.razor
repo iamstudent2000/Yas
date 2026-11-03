@@ -1,14 +1,15 @@
 @page "/guides/{Id:guid}"
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Guides
-@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Infrastructure.Guides
 @using YasPortal.Web.Components.Shared
-@attribute [Authorize]
-@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@attribute [AllowAnonymous]
+@inject GuideProvider Provider
+@inject AuthenticationStateProvider AuthState
 @inject IPermissionChecker PermissionChecker
-@* A guide that is off, or that names a permission the reader lacks, looks exactly like a guide that does not exist.
-   Holders of Admin.Guides.View may open any guide (to preview it). *@
+@* Open to everyone, also before sign-in, but a visitor can open only a public guide. A guide that is off, or is for signed-in people
+   only, looks exactly like a guide that does not exist. Holders of Admin.Guides.View may open any guide (to preview it). *@
 
 @if (_loading)
 {
@@ -17,7 +18,11 @@
 else if (_guide is null)
 {
     <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="راهنما پیدا نشد"
-                Message="این راهنما وجود ندارد یا برای شما در دسترس نیست.">
+                Message="@(_signedIn ? "این راهنما وجود ندارد یا برای شما در دسترس نیست." : "این راهنما وجود ندارد یا فقط برای کاربران واردشده است.")">
+        @if (!_signedIn)
+        {
+            <a class="btn btn-secondary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+        }
         <a class="btn btn-primary" href="/guides"><i class="ti @Icons.Guide"></i> همه راهنماها</a>
     </StatusPage>
 }
@@ -28,7 +33,7 @@ else
         <div class="page-header no-print">
             <div>
                 <div class="page-kicker">راهنمای کاربری</div>
-                <h1 class="page-title" dir="@GuideBlocks.DirAttr(_guide.Direction)"><i class="ti @Icons.Guide"></i> @_guide.Title</h1>
+                <h1 class="page-title"><i class="ti @Icons.Guide"></i> @_guide.Title</h1>
                 @if (!_guide.IsActive)
                 {
                     <p class="page-subtitle"><span class="badge badge-muted">غیرفعال</span> این راهنما برای دیگران دیده نمی‌شود؛ شما فقط برای پیش‌نمایش آن را می‌بینید.</p>
@@ -43,9 +48,9 @@ else
         <article class="card guide-article">
             @if (_guide.Summary is not null)
             {
-                <p class="guide-summary" dir="@GuideBlocks.DirAttr(_guide.Direction)">@_guide.Summary</p>
+                <p class="guide-summary">@_guide.Summary</p>
             }
-            <GuideBlocks Blocks="_blocks" Direction="_guide.Direction" />
+            <div class="guide-html" dir="rtl">@((MarkupString)_html)</div>
         </article>
     </div>
 }
@@ -53,35 +58,18 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    private bool _loading = true;
+    private bool _loading = true, _signedIn;
     private UserGuide? _guide;
-    private List<GuideBlock> _blocks = [];
+    private string _html = "";
 
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
-        _guide = null;
-        _blocks = [];
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var guide = await db.UserGuides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == Id);
-            if (guide is not null)
-            {
-                var previewer = await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
-                var holdsRelated = guide.RelatedPermissionCode is null || await PermissionChecker.HasPermissionAsync(guide.RelatedPermissionCode);
-
-                if (previewer || guide.IsReadableBy(_ => holdsRelated))
-                {
-                    _guide = guide;
-                    _blocks = await db.GuideBlocks.AsNoTracking().Where(x => x.GuideId == Id).OrderBy(x => x.SortOrder).ToListAsync();
-                }
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _guide = null;
-        }
+        _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        var canPreview = _signedIn && await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
+        _guide = await Provider.GetAsync(Id, _signedIn, canPreview);
+        // cleaned again here (it was also cleaned when saved): this text is shown to people who are not signed in
+        _html = _guide is null ? "" : GuideHtmlSanitizer.Sanitize(_guide.ContentHtml);
         _loading = false;
     }
 }

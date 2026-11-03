@@ -1,13 +1,17 @@
 @page "/admin/guides"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @using YasPortal.Domain.Guides
+@using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.AdminGuidesView)]
+@implements IAsyncDisposable
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
+@inject IJSRuntime JS
 @inject AppState AppState
 
 <PageTitle>مدیریت راهنماهای کاربری - یاس پورتال</PageTitle>
@@ -17,7 +21,7 @@
         <div>
             <div class="page-kicker">مدیریت سامانه</div>
             <h1 class="page-title"><i class="ti @Icons.Guide"></i> راهنماهای کاربری</h1>
-            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")راهنماها را خودتان بنویسید: هر راهنما از چند بلوک (پاراگراف، عنوان، فهرست، یادداشت) ساخته می‌شود و هر بلوک جهت و سبک نوشتار خودش را دارد. همه کاربران واردشده راهنماهای فعال را می‌بینند، مگر راهنمایی که به یک مجوز وابسته باشد.</p>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")راهنما را مثل یک سند ساده بنویسید و قالب‌بندی کنید (عنوان، فهرست، رنگ، تراز، راست‌به‌چپ یا چپ‌به‌راست). برای هر راهنما مشخص کنید پیش از ورود هم دیده شود یا فقط پس از ورود.</p>
         </div>
         <div class="form-actions">
             <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Details"></i> مشاهده راهنماها</a>
@@ -30,96 +34,37 @@
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
                     <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</h2>
-                    <p class="muted">عنوان و جهت کلی راهنما را بنویسید، سپس بلوک‌های متن را اضافه کنید. جهت هر بلوک را می‌توان جداگانه تغییر داد (مثلاً یک جمله‌ی انگلیسی در میان متن فارسی).</p>
+                    <p class="muted">عنوان را بنویسید و متن راهنما را در ویرایشگر زیر تایپ کنید. نوار بالای ویرایشگر برای عنوان، پررنگ‌کردن، فهرست، رنگ، تراز، جهت متن و پیوند است.</p>
                 </div>
                 <div class="admin-row-grid">
                     <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_title" maxlength="@UserGuide.TitleMax" /></div>
-                    <div class="form-field"><label class="form-label">جهت راهنما</label>
-                        <select class="form-control" @bind="_direction">
-                            <option value="@GuideDirection.Rtl">راست‌به‌چپ</option>
-                            <option value="@GuideDirection.Ltr">چپ‌به‌راست</option>
+                    <div class="form-field"><label class="form-label">نمایش برای</label>
+                        <select class="form-control" @bind="_visibility">
+                            <option value="@GuideVisibility.SignedIn">فقط پس از ورود</option>
+                            <option value="@GuideVisibility.Public">عمومی (پیش از ورود هم)</option>
                         </select></div>
                     <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_sortOrder" /></div>
                 </div>
+                @if (_visibility == GuideVisibility.Public)
+                {
+                    <p class="muted" style="margin:8px 0 0"><i class="ti @Icons.Warning"></i> هر کسی که به این سامانه دسترسی شبکه‌ای داشته باشد، بدون ورود این راهنما را می‌بیند؛ مطلب غیرعمومی در آن ننویسید.</p>
+                }
                 <div class="admin-row-grid" style="margin-top:12px">
-                    <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
-                    <div class="form-field is-grow"><label class="form-label">مجوز مرتبط (اختیاری)</label>
-                        <LookupSelect Options="_permissionOptions" Value="@_permission" ValueChanged="k => _permission = k" Placeholder="همه کاربران واردشده" />
-                        <p class="muted" style="margin:6px 0 0">اگر مجوزی انتخاب شود، فقط کسانی که آن مجوز را دارند این راهنما را می‌بینند.</p></div>
+                    <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری، زیر عنوان در فهرست نمایش داده می‌شود)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
                 </div>
 
-                <div class="guide-blocks-editor">
-                    <h3 class="section-title" style="margin:0">متن راهنما <span class="badge badge-muted">@_drafts.Count بلوک</span></h3>
-                    @for (var i = 0; i < _drafts.Count; i++)
+                <div style="margin-top:12px">
+                    <label class="form-label">متن راهنما</label>
+                    <div @key="_formKey" @ref="_host" class="guide-editor-host"></div>
+                    @if (_editorFailed)
                     {
-                        var index = i;
-                        var draft = _drafts[index];
-                        <div class="guide-block-edit" @key="draft">
-                            <div class="guide-block-edit-head">
-                                <strong>بلوک @(index + 1)</strong>
-                                <div class="form-actions">
-                                    <button type="button" class="btn btn-secondary btn-sm" title="بالا" disabled="@(index == 0)" @onclick="() => Move(index, -1)"><i class="ti @Icons.MoveUp"></i></button>
-                                    <button type="button" class="btn btn-secondary btn-sm" title="پایین" disabled="@(index == _drafts.Count - 1)" @onclick="() => Move(index, 1)"><i class="ti @Icons.MoveDown"></i></button>
-                                    <button type="button" class="btn btn-danger btn-sm" title="حذف بلوک" @onclick="() => RemoveBlock(index)"><i class="ti @Icons.Delete"></i></button>
-                                </div>
-                            </div>
-                            <textarea class="form-control" rows="@(draft.Kind is GuideBlockKind.Heading or GuideBlockKind.Subheading ? 1 : 3)" dir="@GuideBlocks.DirAttr(draft.Direction ?? _direction)"
-                                      placeholder="@(draft.Kind == GuideBlockKind.List ? "هر خط یک مورد فهرست است" : "متن بلوک")" @bind="draft.Text" @bind:event="oninput" maxlength="@GuideBlock.TextMax"></textarea>
-                            <div class="guide-block-opts">
-                                <div class="form-field"><label class="form-label">نوع</label>
-                                    <select class="form-control" @bind="draft.Kind">
-                                        <option value="@GuideBlockKind.Paragraph">پاراگراف</option>
-                                        <option value="@GuideBlockKind.Heading">عنوان بخش</option>
-                                        <option value="@GuideBlockKind.Subheading">زیرعنوان</option>
-                                        <option value="@GuideBlockKind.List">فهرست</option>
-                                        <option value="@GuideBlockKind.Note">کادر یادداشت</option>
-                                    </select></div>
-                                <div class="form-field"><label class="form-label">جهت</label>
-                                    <select class="form-control" @bind="draft.Direction">
-                                        <option value="">مانند راهنما</option>
-                                        <option value="@GuideDirection.Rtl">راست‌به‌چپ</option>
-                                        <option value="@GuideDirection.Ltr">چپ‌به‌راست</option>
-                                    </select></div>
-                                <div class="form-field"><label class="form-label">تراز</label>
-                                    <select class="form-control" @bind="draft.Align">
-                                        <option value="@GuideAlign.Start">ابتدا</option>
-                                        <option value="@GuideAlign.Center">وسط</option>
-                                        <option value="@GuideAlign.End">انتها</option>
-                                        <option value="@GuideAlign.Justify">تراز دوطرفه</option>
-                                    </select></div>
-                                <div class="form-field"><label class="form-label">اندازه</label>
-                                    <select class="form-control" @bind="draft.Size">
-                                        <option value="@GuideSize.Normal">معمولی</option>
-                                        <option value="@GuideSize.Small">کوچک</option>
-                                        <option value="@GuideSize.Large">بزرگ</option>
-                                    </select></div>
-                                <div class="form-field"><label class="form-label">رنگ</label>
-                                    <select class="form-control" @bind="draft.Tone">
-                                        <option value="@GuideTone.Default">پیش‌فرض</option>
-                                        <option value="@GuideTone.Accent">آبی</option>
-                                        <option value="@GuideTone.Success">سبز</option>
-                                        <option value="@GuideTone.Warning">نارنجی</option>
-                                        <option value="@GuideTone.Danger">قرمز</option>
-                                        <option value="@GuideTone.Muted">خاکستری</option>
-                                    </select></div>
-                                <label class="check-row"><input type="checkbox" @bind="draft.Bold" /> <span>ضخیم</span></label>
-                                <label class="check-row"><input type="checkbox" @bind="draft.Italic" /> <span>کج</span></label>
-                            </div>
-                        </div>
-                    }
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" disabled="@(_drafts.Count >= UserGuide.MaxBlocks)" @onclick="AddBlock"><i class="ti @Icons.Add"></i> افزودن بلوک</button>
-                        <button type="button" class="btn btn-secondary" @onclick="() => _showPreview = !_showPreview"><i class="ti @Icons.Details"></i> @(_showPreview ? "بستن پیش‌نمایش" : "پیش‌نمایش")</button>
-                    </div>
-                    @if (_showPreview)
-                    {
-                        <div class="guide-preview"><GuideBlocks Blocks="PreviewBlocks()" Direction="_direction" /></div>
+                        <p class="muted" style="color:var(--danger,#b42318)"><i class="ti @Icons.Alert"></i> ویرایشگر بارگذاری نشد. صفحه را دوباره باز کنید.</p>
                     }
                 </div>
 
                 <div class="admin-row-grid" style="margin-top:14px">
                     <div class="form-field admin-row-submit"><div class="form-actions">
-                        <button class="btn btn-primary" disabled="@_saving" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "افزودن راهنما" : "ذخیره")</button>
+                        <button class="btn btn-primary" disabled="@(_saving || _editorFailed)" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "افزودن راهنما" : "ذخیره")</button>
                         @if (_editingId is not null)
                         {
                             <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
@@ -149,23 +94,21 @@
             {
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>جهت</th><th>دسترسی</th><th>بلوک‌ها</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
+                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
                         <tbody>
                         @foreach (var guide in _guides)
                         {
                             <tr>
                                 <td>@guide.SortOrder</td>
-                                <td dir="@GuideBlocks.DirAttr(guide.Direction)"><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
-                                <td>@(guide.Direction == GuideDirection.Ltr ? "چپ‌به‌راست" : "راست‌به‌چپ")</td>
-                                <td>@if (guide.RelatedPermissionCode is null) { <span class="muted">همه کاربران</span> } else { <span class="badge badge-info" title="@guide.RelatedPermissionCode"><i class="ti @Icons.Permission"></i> @PermissionName(guide.RelatedPermissionCode)</span> }</td>
-                                <td>@(_blockCounts.TryGetValue(guide.Id, out var count) ? count : 0)</td>
+                                <td><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
+                                <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
                                 <td><span class="badge @(guide.IsActive ? "badge-success" : "badge-muted")">@(guide.IsActive ? "فعال" : "غیرفعال")</span></td>
                                 <td>@guide.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                 <td class="action-cell">
                                     <a class="btn btn-secondary btn-sm" href="/guides/@guide.Id"><i class="ti @Icons.Details"></i> مشاهده</a>
                                     @if (_canManage)
                                     {
-                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditAsync(guide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(guide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                         <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(guide.Id)"><i class="ti @(guide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(guide.IsActive ? "غیرفعال" : "فعال")</button>
                                         @if (_confirmDeleteId == guide.Id)
                                         {
@@ -189,30 +132,17 @@
 </div>
 
 @code {
-    private sealed class BlockDraft
-    {
-        public GuideBlockKind Kind { get; set; } = GuideBlockKind.Paragraph;
-        public string Text { get; set; } = "";
-        public GuideDirection? Direction { get; set; }
-        public GuideAlign Align { get; set; } = GuideAlign.Start;
-        public GuideSize Size { get; set; } = GuideSize.Normal;
-        public GuideTone Tone { get; set; } = GuideTone.Default;
-        public bool Bold { get; set; }
-        public bool Italic { get; set; }
-    }
+    private const string EditorModule = "./js/guide-editor.js?v=20261103-1";
 
-    private static readonly IReadOnlyList<(string Key, string Text)> _permissionOptions =
-        PermissionCatalog.All.OrderBy(x => x.Code, StringComparer.Ordinal).Select(x => (x.Code, $"{x.Name} — {x.Code}")).ToList();
-
-    private bool _loading = true, _canManage, _saving, _showPreview;
+    private bool _loading = true, _canManage, _saving, _editorFailed;
     private List<UserGuide> _guides = [];
-    private Dictionary<Guid, int> _blockCounts = [];
     private Guid? _editingId, _confirmDeleteId;
-    private string _title = "", _summary = "";
-    private string? _permission;
-    private GuideDirection _direction = GuideDirection.Rtl;
-    private int _sortOrder;
-    private List<BlockDraft> _drafts = [new()];
+    private string _title = "", _summary = "", _initialHtml = "";
+    private GuideVisibility _visibility = GuideVisibility.SignedIn;
+    private int _sortOrder, _formKey;
+    private bool _initEditor = true;
+    private ElementReference _host;
+    private IJSObjectReference? _module;
 
     protected override async Task OnInitializedAsync()
     {
@@ -221,51 +151,41 @@
         _loading = false;
     }
 
+    // The editor is built in the browser once its element exists (and again for every new element: a new guide, or a guide picked for editing).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_initEditor || !_canManage) return;
+        _initEditor = false;
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", EditorModule);
+            await _module.InvokeVoidAsync("init", _host, _initialHtml, "متن راهنما را اینجا بنویسید...");
+            _editorFailed = false;
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            _editorFailed = true;
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException)
+        {
+            // the circuit is gone; nothing to show
+        }
+    }
+
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _guides = await db.UserGuides.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
-        _blockCounts = (await db.GuideBlocks.AsNoTracking().GroupBy(x => x.GuideId).Select(g => new { g.Key, Count = g.Count() }).ToListAsync()).ToDictionary(x => x.Key, x => x.Count);
         if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
     }
 
-    private static string PermissionName(string code) =>
-        PermissionCatalog.All.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase))?.Name ?? code;
-
-    private void AddBlock()
+    private void BeginEdit(UserGuide guide)
     {
-        if (_drafts.Count < UserGuide.MaxBlocks) _drafts.Add(new BlockDraft());
-    }
-
-    private void RemoveBlock(int index)
-    {
-        if (index < 0 || index >= _drafts.Count) return;
-        _drafts.RemoveAt(index);
-        if (_drafts.Count == 0) _drafts.Add(new BlockDraft());
-    }
-
-    private void Move(int index, int delta)
-    {
-        var target = index + delta;
-        if (index < 0 || index >= _drafts.Count || target < 0 || target >= _drafts.Count) return;
-        (_drafts[index], _drafts[target]) = (_drafts[target], _drafts[index]);
-    }
-
-    // The preview draws only the blocks that already have text, so a half-written block never breaks it.
-    private IReadOnlyList<GuideBlock> PreviewBlocks() =>
-        _drafts.Where(x => !string.IsNullOrWhiteSpace(x.Text))
-            .Select(x => new GuideBlock(Guid.Empty, 0, x.Kind, x.Text, x.Direction, x.Align, x.Size, x.Tone, x.Bold, x.Italic))
-            .ToList();
-
-    private async Task BeginEditAsync(UserGuide guide)
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var blocks = await db.GuideBlocks.AsNoTracking().Where(x => x.GuideId == guide.Id).OrderBy(x => x.SortOrder).ToListAsync();
         _editingId = guide.Id;
-        _title = guide.Title; _summary = guide.Summary ?? ""; _direction = guide.Direction; _permission = guide.RelatedPermissionCode; _sortOrder = guide.SortOrder;
-        _drafts = blocks.Select(b => new BlockDraft { Kind = b.Kind, Text = b.Text, Direction = b.Direction, Align = b.Align, Size = b.Size, Tone = b.Tone, Bold = b.Bold, Italic = b.Italic }).ToList();
-        if (_drafts.Count == 0) _drafts.Add(new BlockDraft());
-        _showPreview = false;
+        _title = guide.Title; _summary = guide.Summary ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
+        _initialHtml = GuideHtmlSanitizer.Sanitize(guide.ContentHtml);
+        _formKey++; _initEditor = true;
     }
 
     private async Task CancelEdit()
@@ -277,44 +197,32 @@
     private void ResetForm()
     {
         _editingId = null;
-        _title = _summary = "";
-        _permission = null;
-        _direction = GuideDirection.Rtl;
-        _drafts = [new BlockDraft()];
-        _showPreview = false;
+        _title = _summary = _initialHtml = "";
+        _visibility = GuideVisibility.SignedIn;
+        _formKey++; _initEditor = true;
     }
 
     private async Task SaveAsync()
     {
-        if (_saving || !_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage)) return;
-
-        var filled = _drafts.Where(x => !string.IsNullOrWhiteSpace(x.Text)).ToList();
-        if (filled.Count == 0) { AppState.AddToast("حداقل یک بلوک با متن لازم است.", ToastLevel.Error); return; }
-        if (_permission is not null && !PermissionCatalog.Codes.Contains(_permission, StringComparer.OrdinalIgnoreCase))
-        { AppState.AddToast("مجوز انتخاب‌شده در سامانه وجود ندارد.", ToastLevel.Error); return; }
-
+        if (_saving || _module is null || !_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage)) return;
         _saving = true;
         try
         {
+            // The text comes from the browser, so it is cleaned here before anything is stored.
+            var html = GuideHtmlSanitizer.Sanitize(await _module.InvokeAsync<string>("getHtml", _host));
+            if (!UserGuide.HasText(html)) { AppState.AddToast("متن راهنما را بنویسید.", ToastLevel.Error); return; }
+
             await using var db = await DbFactory.CreateDbContextAsync();
-            UserGuide guide;
             if (_editingId is Guid id)
             {
-                var existing = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
-                if (existing is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
-                guide = existing;
-                guide.Update(_title, _summary, _direction, _permission, _sortOrder);
-                db.GuideBlocks.RemoveRange(await db.GuideBlocks.Where(x => x.GuideId == id).ToListAsync());
+                var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+                if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                guide.Update(_title, _summary, html, _visibility, _sortOrder);
             }
             else
             {
-                guide = new UserGuide(_title, _summary, _direction, _permission, _sortOrder);
-                db.UserGuides.Add(guide);
+                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder));
             }
-
-            var order = 1;
-            foreach (var d in filled)
-                db.GuideBlocks.Add(new GuideBlock(guide.Id, order++, d.Kind, d.Text, d.Direction, d.Align, d.Size, d.Tone, d.Bold, d.Italic));
 
             await db.SaveChangesAsync();
             AppState.AddToast(_editingId is null ? "راهنما اضافه شد." : "راهنما ذخیره شد.", ToastLevel.Success);
@@ -325,7 +233,11 @@
         {
             AppState.AddToast(Explain(ex), ToastLevel.Error);
         }
-        catch (Exception)
+        catch (JSException)
+        {
+            AppState.AddToast("خواندن متن از ویرایشگر انجام نشد. دوباره تلاش کنید.", ToastLevel.Error);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not JSDisconnectedException)
         {
             AppState.AddToast("ذخیره راهنما انجام نشد.", ToastLevel.Error);
         }
@@ -337,8 +249,7 @@
     {
         "title" => $"عنوان لازم است و حداکثر {UserGuide.TitleMax} نویسه باشد.",
         "summary" => $"خلاصه حداکثر {UserGuide.SummaryMax} نویسه باشد.",
-        "text" => $"متن هر بلوک لازم است و حداکثر {GuideBlock.TextMax} نویسه باشد.",
-        "relatedPermissionCode" => "مجوز مرتبط معتبر نیست.",
+        "contentHtml" => "متن راهنما لازم است و نباید بیش از حد طولانی باشد؛ آن را به چند راهنما تقسیم کنید.",
         _ => "اطلاعات راهنما معتبر نیست.",
     };
 
@@ -364,11 +275,18 @@
         var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
         if (guide is not null)
         {
-            db.UserGuides.Remove(guide);   // its blocks go with it (cascade)
+            db.UserGuides.Remove(guide);
             await db.SaveChangesAsync();
             AppState.AddToast("راهنما حذف شد.", ToastLevel.Success);
         }
         if (_editingId == id) ResetForm();
         await LoadAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try { await _module.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
     }
 }

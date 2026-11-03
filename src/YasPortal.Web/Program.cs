@@ -13,6 +13,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
+using YasPortal.Infrastructure.Guides;
 using YasPortal.Infrastructure.Landing;
 using YasPortal.Infrastructure.PhoneBook;
 using YasPortal.Infrastructure.Persistence;
@@ -27,7 +28,9 @@ var builder = WebApplication.CreateBuilder(args);
 // local function that closes over it, regardless of when that lambda actually runs.
 const string LastValidatedClaimType = "yas_last_validated_utc";
 
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents()
+    // A guide's text travels from the editor to the server in one message; the 32 KB default is too small for a long guide.
+    .AddHubOptions(options => options.MaximumReceiveMessageSize = 1024 * 1024);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
     options.Cookie.Name = "YasPortal.Auth";
@@ -62,6 +65,7 @@ builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
+builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
@@ -196,14 +200,15 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_PortalLinks_GroupId] ON [dbo].[PortalLinks] ([GroupId])');
         IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
             CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
+        IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NOT NULL DROP TABLE [dbo].[GuideBlocks];
         IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
-            CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [Direction] int NOT NULL, [RelatedPermissionCode] nvarchar(150) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));
+            CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [ContentHtml] nvarchar(max) NOT NULL, [Visibility] int NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));
+        IF COL_LENGTH(N'dbo.UserGuides', N'Direction') IS NOT NULL ALTER TABLE [dbo].[UserGuides] DROP COLUMN [Direction];
+        IF COL_LENGTH(N'dbo.UserGuides', N'RelatedPermissionCode') IS NOT NULL ALTER TABLE [dbo].[UserGuides] DROP COLUMN [RelatedPermissionCode];
+        IF COL_LENGTH(N'dbo.UserGuides', N'ContentHtml') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [ContentHtml] nvarchar(max) NOT NULL CONSTRAINT [DF_UserGuides_ContentHtml] DEFAULT N'';
+        IF COL_LENGTH(N'dbo.UserGuides', N'Visibility') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [Visibility] int NOT NULL CONSTRAINT [DF_UserGuides_Visibility] DEFAULT 1;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
-        IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NULL
-            CREATE TABLE [dbo].[GuideBlocks] ([Id] uniqueidentifier NOT NULL, [GuideId] uniqueidentifier NOT NULL, [SortOrder] int NOT NULL, [Kind] int NOT NULL, [Text] nvarchar(4000) NOT NULL, [Direction] int NULL, [Align] int NOT NULL, [Size] int NOT NULL, [Tone] int NOT NULL, [Bold] bit NOT NULL, [Italic] bit NOT NULL, CONSTRAINT [PK_GuideBlocks] PRIMARY KEY ([Id]), CONSTRAINT [FK_GuideBlocks_UserGuides_GuideId] FOREIGN KEY ([GuideId]) REFERENCES [dbo].[UserGuides] ([Id]) ON DELETE CASCADE);
-        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GuideBlocks') AND name = N'IX_GuideBlocks_GuideId_SortOrder')
-            EXEC(N'CREATE INDEX [IX_GuideBlocks_GuideId_SortOrder] ON [dbo].[GuideBlocks] ([GuideId], [SortOrder])');
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
