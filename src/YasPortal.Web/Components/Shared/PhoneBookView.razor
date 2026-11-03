@@ -76,26 +76,35 @@
                         }
                         else
                         {
-                            <ul class="pb-contacts">
-                            @foreach (var c in contacts)
-                            {
-                                <li class="pb-contact @(c.IsActive ? "" : "is-off")" @key="c.Id">
-                                    <div class="pb-contact-main" title="@(string.Join(" — ", new[] { c.FullName, c.JobTitle, c.Email, c.Note }.Where(x => !string.IsNullOrEmpty(x))))">
-                                        <strong>@c.FullName</strong>
-                                        @if (c.JobTitle is not null) { <span class="muted">@c.JobTitle</span> }
-                                        @if (c.Email is not null) { <span class="muted pb-mail"><i class="ti ti-mail"></i><bdi dir="ltr">@c.Email</bdi></span> }
-                                        @if (c.Note is not null) { <span class="muted pb-note">(@c.Note)</span> }
-                                        @if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }
-                                    </div>
-                                    <div class="pb-contact-nums">
-                                        @if (c.Extension is not null) { <span class="pb-chip"><small>داخلی</small><bdi dir="ltr">@c.Extension</bdi></span> }
-                                        @if (c.Phone is not null) { <span class="pb-chip"><small>تلفن</small><bdi dir="ltr">@c.Phone</bdi></span> }
-                                        @if (c.Mobile is not null) { <span class="pb-chip"><small>موبایل</small><bdi dir="ltr">@c.Mobile</bdi></span> }
-                                    </div>
-                                    @if (ContactActions is not null) { <div class="pb-contact-actions">@ContactActions(c)</div> }
-                                </li>
-                            }
-                            </ul>
+                            var sort = _sorts.GetValueOrDefault(group.Id);
+                            var rows = ContactSorter.Sort(contacts, sort.Key, sort.Descending);
+                            <div class="data-table-wrap">
+                                <table class="data-table pb-table">
+                                    <thead><tr>
+                                        <SortableHeader Text="نام" Column="@nameof(ContactSortKey.Name)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="سمت" Column="@nameof(ContactSortKey.JobTitle)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="داخلی" Column="@nameof(ContactSortKey.Extension)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="تلفن" Column="@nameof(ContactSortKey.Phone)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="موبایل" Column="@nameof(ContactSortKey.Mobile)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        <SortableHeader Text="ایمیل" Column="@nameof(ContactSortKey.Email)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
+                                        @if (ContactActions is not null) { <th>عملیات</th> }
+                                    </tr></thead>
+                                    <tbody>
+                                    @foreach (var c in rows)
+                                    {
+                                        <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
+                                            <td class="pb-name"><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }@if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }</td>
+                                            <td>@c.JobTitle</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Extension)</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Phone)</td>
+                                            <td dir="ltr" class="pb-num">@Dash(c.Mobile)</td>
+                                            <td dir="ltr" class="pb-mail" title="@c.Email">@Dash(c.Email)</td>
+                                            @if (ContactActions is not null) { <td class="action-cell">@ContactActions(c)</td> }
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
                         }
                     </div>
                 }
@@ -160,6 +169,7 @@ else if (PrintBlocked)
     private string _query = "";
     private readonly HashSet<Guid> _open = [];
     private readonly Dictionary<Guid, string> _groupQueries = [];
+    private readonly Dictionary<Guid, (ContactSortKey Key, bool Descending)> _sorts = [];
     private bool _started, _watching;
     private DotNetObjectReference<PhoneBookView>? _self;
 
@@ -228,6 +238,21 @@ else if (PrintBlocked)
         _open.Clear();
         _query = "";
     }
+
+    // A header click on a group: first ascending, then descending, then back to the administrator's order. Each group sorts on its own.
+    private void SortBy(Guid groupId, string column)
+    {
+        var key = ContactSorter.Parse(column);
+        var current = _sorts.GetValueOrDefault(groupId);
+        if (key == ContactSortKey.Default || current.Key != key)
+            _sorts[groupId] = (key, false);
+        else if (!current.Descending)
+            _sorts[groupId] = (key, true);
+        else
+            _sorts.Remove(groupId);
+    }
+
+    private static string Dash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
 
     private void SetGroupQuery(Guid id, string? value)
     {

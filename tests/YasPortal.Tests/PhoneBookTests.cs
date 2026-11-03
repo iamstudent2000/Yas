@@ -158,4 +158,31 @@ public sealed class PhoneBookTests
         Assert.Empty(PhoneBookImportParser.Parse(null));
         Assert.Equal(new[] { 2, 3, 4, 5, 6, 7 }, lines.Select(x => x.LineNumber).ToArray());
     }
+
+    [Fact]
+    public void Sort_orders_by_column_numbers_as_numbers_and_puts_empty_values_last_either_way()
+    {
+        var g = Guid.NewGuid();
+        var a = C(g, "b", ext: "100"); var b = C(g, "a", ext: "9"); var c = C(g, "c", ext: "10");
+        var none = C(g, "d", ext: null, mobile: "09120000000");
+        var all = new[] { a, b, c, none };
+
+        Assert.Equal(new[] { "a", "b", "c", "d" }, ContactSorter.Sort(all, ContactSortKey.Name, false).Select(x => x.FullName).ToArray());
+        Assert.Equal(new[] { "d", "c", "b", "a" }, ContactSorter.Sort(all, ContactSortKey.Name, true).Select(x => x.FullName).ToArray());
+        Assert.Equal(new[] { "9", "10", "100", null }, ContactSorter.Sort(all, ContactSortKey.Extension, false).Select(x => x.Extension).ToArray());
+        Assert.Equal(new[] { "100", "10", "9", null }, ContactSorter.Sort(all, ContactSortKey.Extension, true).Select(x => x.Extension).ToArray());
+        Assert.Equal(all, ContactSorter.Sort(all, ContactSortKey.Default, true));
+    }
+
+    [Fact]
+    public void Sort_keeps_the_given_order_for_equal_values_and_parses_column_names()
+    {
+        var g = Guid.NewGuid();
+        var x = C(g, "x", title: "same"); var y = C(g, "y", title: "same"); var z = C(g, "z", title: "A");
+        Assert.Equal(new[] { "z", "x", "y" }, ContactSorter.Sort([x, y, z], ContactSortKey.JobTitle, false).Select(i => i.FullName).ToArray());
+        Assert.Equal(ContactSortKey.Mobile, ContactSorter.Parse("mobile"));
+        Assert.Equal(ContactSortKey.Default, ContactSorter.Parse("nonsense"));
+        Assert.Equal(ContactSortKey.Default, ContactSorter.Parse("99"));
+        Assert.Equal(ContactSortKey.Default, ContactSorter.Parse(null));
+    }
 }

@@ -9,11 +9,9 @@
 /* groups: two columns on a wide screen, one on a narrow one; a group is never split between columns */
 .pb-groups{display:block}
 .pb-groups>.pb-group{margin-bottom:14px;break-inside:avoid}
-/* two columns only when the page itself is wide enough (the sidebar is not counted), and then one row per contact */
-@container pb (min-width:900px){
+/* two columns only when the page itself is wide enough (the sidebar is not counted) */
+@container pb (min-width:1000px){
     .pb-groups.is-two-columns{column-count:2;column-gap:14px}
-    .pb-groups.is-two-columns .pb-contact{flex-wrap:nowrap}
-    .pb-groups.is-two-columns .pb-contact-main{flex:1 1 0}
 }
 
 .pb-group{padding:0;overflow:hidden}
@@ -29,28 +27,17 @@
 .pb-group-search{position:relative;flex:0 1 210px;min-width:140px}
 .pb-group-search>.ti{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;font-size:15px}
 .pb-group-search .form-control{width:100%;padding:6px 10px;padding-inline-start:32px;font-size:.85rem}
-.pb-group-body{padding:0 14px 8px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
+.pb-group-body{padding:0 0 4px;display:flex;flex-direction:column;border-top:1px solid var(--border)}
 .pb-none{margin:10px 0 4px}
 
-/* contacts: everything of one contact on one row (name and job title, then the number chips); it wraps only when the row is too narrow */
-.pb-contacts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.pb-contact{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:8px 2px;border-bottom:1px solid var(--border)}
-.pb-contact:last-child{border-bottom:0}
-.pb-contact.is-off{opacity:.65}
-.pb-contact-main{display:flex;align-items:baseline;gap:4px 10px;flex:1 1 170px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pb-contact-main>*{flex:0 0 auto}
-.pb-contact-main>.muted{overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
-/* when the row is tight the email gives way first, then the note, and the job title last */
-.pb-contact-main>.pb-mail{flex:0 30 auto;overflow:hidden;text-overflow:ellipsis}
-.pb-contact-main>.pb-note{flex:0 10 auto;overflow:hidden;text-overflow:ellipsis}
-.pb-contact-nums{display:flex;flex-wrap:wrap;gap:6px;flex:0 0 auto}
-.pb-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:8px;background:var(--surface-2);color:var(--text);font-size:.82rem;white-space:nowrap}
-.pb-chip small{color:var(--text-muted);font-size:.7rem}
-.pb-chip bdi{font-variant-numeric:tabular-nums}
-.pb-chip .ti{color:var(--text-muted);font-size:14px}
-.pb-note,.pb-mail{font-size:.78rem}
-.pb-mail .ti{font-size:13px;margin-inline-end:3px;vertical-align:-1px}
-.pb-contact-actions{display:flex;flex-wrap:wrap;gap:6px;flex:0 0 auto}
+/* contacts: a sortable table per group, one row per contact */
+.pb-table{table-layout:auto;width:100%;min-width:0}
+.pb-table th,.pb-table td{padding:7px 9px;font-size:.84rem}
+.pb-table td.pb-num{white-space:nowrap;text-align:start;font-variant-numeric:tabular-nums}
+.pb-table td.pb-mail{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+.pb-table tr.is-off{opacity:.65}
+.pb-table .sortable-th{white-space:nowrap}
+.pb-note{font-size:.76rem}
 
 @media (max-width:720px){.pb-toolbar-actions{width:100%}.pb-actions{width:100%;padding-bottom:8px}.pb-group-search{flex:1 1 100%}}
 
