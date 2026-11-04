@@ -42,10 +42,10 @@ public sealed class StoreItem
     {
     }
 
-    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal minStock)
+    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0)
     {
         Id = Guid.NewGuid();
-        Update(code, name, categoryId, unit, description, minStock);
+        Update(code, name, categoryId, unit, description, minStock, maxPerRequest);
     }
 
     public Guid Id { get; private set; }
@@ -56,9 +56,11 @@ public sealed class StoreItem
     public string? Description { get; private set; }
     /// <summary>Stock at or below this number is shown as low (0 means "no alert").</summary>
     public decimal MinStock { get; private set; }
+    /// <summary>The most one employee may ask for of this item in a single request (0 means no limit). Enforced when ordering.</summary>
+    public decimal MaxPerRequest { get; private set; }
     public bool IsActive { get; private set; } = true;
 
-    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal minStock)
+    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0)
     {
         code = (code ?? "").Trim();
         name = (name ?? "").Trim();
@@ -70,12 +72,15 @@ public sealed class StoreItem
         if (categoryId == Guid.Empty) throw new ArgumentException("Category is required.", nameof(categoryId));
         if (description is { Length: > DescriptionMax }) throw new ArgumentException($"Description is at most {DescriptionMax} characters.", nameof(description));
         if (minStock < 0) throw new ArgumentException("Minimum stock cannot be negative.", nameof(minStock));
+        if (maxPerRequest < 0 || decimal.Round(maxPerRequest, 3) != maxPerRequest) throw new ArgumentException("Maximum per request cannot be negative (three decimals at most).", nameof(maxPerRequest));
+        if (decimal.Round(minStock, 3) != minStock) throw new ArgumentException("At most three decimals.", nameof(minStock));
         Code = code;
         Name = name;
         CategoryId = categoryId;
         Unit = unit;
         Description = description;
         MinStock = minStock;
+        MaxPerRequest = maxPerRequest;
     }
 
     public void Activate() => IsActive = true;

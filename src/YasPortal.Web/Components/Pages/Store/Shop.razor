@@ -41,7 +41,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th></tr></thead>
+                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th></tr></thead>
                     <tbody>
                         @foreach (var item in _page.Rows)
                         {
@@ -55,6 +55,7 @@
                                     else if (item.IsLow) { <span class="badge badge-warning">کم · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
                                     else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
                                 </td>
+                                <td>@(item.MaxPerRequest == 0 ? "—" : WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) + " " + item.Unit)</td>
                             </tr>
                         }
                     </tbody>

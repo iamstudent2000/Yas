@@ -45,7 +45,7 @@
                             <LookupSelect @key="_formKey" Options="ItemOptions" Value="@(_formItemId?.ToString())" ValueChanged="k => _formItemId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب کالا" SearchPlaceholder="نام یا کد کالا..." /></div>
                         <div class="form-field"><label class="form-label">نوع</label>
                             <LookupSelect @key="_formKey" Options="KindOptions" Value="@(((int)_formKind).ToString())" ValueChanged="k => _formKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : StockMovementKind.Receive" /></div>
-                        <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" type="number" step="0.001" @bind="_formQuantity" /></div>
+                        <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_formQuantity" @bind:event="oninput" /></div>
                         <div class="form-field"><label class="form-label">مرجع (فاکتور، حواله...)</label><input class="form-control" @bind="_formReference" maxlength="@StoreStockMovement.ReferenceMax" /></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح</label><input class="form-control" @bind="_formNote" maxlength="@StoreStockMovement.NoteMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
@@ -142,8 +142,7 @@
 
     private Guid? _formItemId;
     private StockMovementKind _formKind = StockMovementKind.Receive;
-    private decimal _formQuantity;
-    private string _formReference = "", _formNote = "";
+    private string _formQuantity = "", _formReference = "", _formNote = "";
 
     private static string Num(decimal v) => WorkflowDisplay.ToPersianDigits(v.ToString("0.###"));
 
@@ -173,13 +172,14 @@
     {
         if (_busy) return;
         if (_formItemId is null) { AppState.AddToast("کالا را انتخاب کنید.", ToastLevel.Error); return; }
+        if (!StoreNumber.TryParse(_formQuantity, out var quantity) || quantity == 0) { AppState.AddToast("مقدار را به صورت عدد (غیر صفر) وارد کنید.", ToastLevel.Error); return; }
         _busy = true;
         try
         {
-            var result = await Store.RecordMovementAsync(_formItemId.Value, _formKind, _formQuantity, _formReference, _formNote, _employeeId);
+            var result = await Store.RecordMovementAsync(_formItemId.Value, _formKind, quantity, _formReference, _formNote, _employeeId);
             if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت نشد.", ToastLevel.Error); return; }
             AppState.AddToast("گردش انبار ثبت شد.", ToastLevel.Success);
-            _formItemId = null; _formQuantity = 0; _formReference = _formNote = ""; _formKind = StockMovementKind.Receive; _formKey++;
+            _formItemId = null; _formQuantity = ""; _formReference = _formNote = ""; _formKind = StockMovementKind.Receive; _formKey++;
             await LoadAsync();
         }
         catch (Exception) { AppState.AddToast("ثبت گردش انجام نشد.", ToastLevel.Error); }

@@ -21,6 +21,26 @@ public class StoreTests
         Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Cat, "عدد", null, -1));
     }
 
+    [Theory]
+    [InlineData("12", 12)]
+    [InlineData("۱۲٫۵", 12.5)]
+    [InlineData("١٢,٥", 12.5)]
+    [InlineData("  ", 0)]
+    public void Typed_quantities_accept_persian_digits(string text, double expected)
+    {
+        Assert.True(StoreNumber.TryParse(text, out var v));
+        Assert.Equal((decimal)expected, v);
+        Assert.False(StoreNumber.TryParse("abc", out _));
+    }
+
+    [Fact]
+    public void Max_per_request_is_stored_and_validated()
+    {
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, 10);
+        Assert.Equal(10, item.MaxPerRequest);
+        Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Cat, "عدد", null, 0, -1));
+    }
+
     [Fact]
     public void Category_needs_a_name()
     {

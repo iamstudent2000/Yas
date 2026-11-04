@@ -55,7 +55,8 @@
                         <div class="form-field"><label class="form-label">گروه</label>
                             <LookupSelect @key="_formKey" Options="ActiveCategoryOptions" Value="@(_itemCategoryId?.ToString())" ValueChanged="k => _itemCategoryId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب گروه" /></div>
                         <div class="form-field"><label class="form-label">واحد</label><input class="form-control" placeholder="عدد، بسته، جعبه..." @bind="_unit" maxlength="@StoreItem.UnitMax" /></div>
-                        <div class="form-field"><label class="form-label">حداقل موجودی</label><input class="form-control" type="number" step="0.001" min="0" @bind="_minStock" /></div>
+                        <div class="form-field"><label class="form-label">حداقل موجودی</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_minStock" @bind:event="oninput" /></div>
+                        <div class="form-field"><label class="form-label">حداکثر در هر درخواست</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰ = بدون محدودیت" @bind="_maxPerRequest" @bind:event="oninput" /></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
                             <button class="btn btn-primary" disabled="@_busy" @onclick="SaveItemAsync"><i class="ti @Icons.Save"></i> @(_editItemId is null ? "افزودن کالا" : "ذخیره")</button>
@@ -101,13 +102,15 @@
                 </div>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداقل</th><th>حداکثر در درخواست</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
                             @foreach (var i in _items.Rows)
                             {
                                 <tr>
                                     <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
                                     <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))</td>
+                                    <td>@(i.MinStock == 0 ? "—" : WorkflowDisplay.ToPersianDigits(i.MinStock.ToString("0.###")))</td>
+                                    <td>@(i.MaxPerRequest == 0 ? "بدون محدودیت" : WorkflowDisplay.ToPersianDigits(i.MaxPerRequest.ToString("0.###")))</td>
                                     <td>@if (i.IsActive) {<span class="badge badge-success">فعال</span>} else {<span class="badge badge-muted">غیرفعال</span>}</td>
                                     @if (_canManage)
                                     {
@@ -118,7 +121,7 @@
                                     }
                                 </tr>
                             }
-                            @if (_items.Rows.Count == 0) { <tr><td colspan="7" class="muted">کالایی پیدا نشد.</td></tr> }
+                            @if (_items.Rows.Count == 0) { <tr><td colspan="9" class="muted">کالایی پیدا نشد.</td></tr> }
                         </tbody>
                     </table>
                 </div>
@@ -140,7 +143,7 @@
 
     private Guid? _editItemId, _itemCategoryId;
     private string _code = "", _name = "", _unit = "", _description = "";
-    private decimal _minStock;
+    private string _minStock = "", _maxPerRequest = "";
     private int _formKey;
 
     private string _search = "";
@@ -186,18 +189,22 @@
     private Task SaveItemAsync()
     {
         if (_itemCategoryId is null) { AppState.AddToast("گروه کالا را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
-        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, _minStock), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
+        if (!StoreNumber.TryParse(_minStock, out var min) || min < 0) { AppState.AddToast("حداقل موجودی باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        if (!StoreNumber.TryParse(_maxPerRequest, out var max) || max < 0) { AppState.AddToast("حداکثر در هر درخواست باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, min, max), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
     }
 
-    private void ResetItem() { _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _minStock = 0; _formKey++; }
+    private void ResetItem() { _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _minStock = _maxPerRequest = ""; _formKey++; }
 
     private async Task EditItemAsync(StoreItemRow row)
     {
         var item = await Store.GetItemAsync(row.Id);
         if (item is null) { AppState.AddToast("این کالا دیگر وجود ندارد.", ToastLevel.Error); await LoadAsync(); return; }
         _editItemId = item.Id; _code = item.Code; _name = item.Name; _itemCategoryId = item.CategoryId; _unit = item.Unit;
-        _description = item.Description ?? ""; _minStock = item.MinStock; _formKey++;
+        _description = item.Description ?? ""; _minStock = Plain(item.MinStock); _maxPerRequest = Plain(item.MaxPerRequest); _formKey++;
     }
+
+    private static string Plain(decimal v) => v == 0 ? "" : v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     private Task ToggleItemAsync(StoreItemRow i) => RunAsync(() => Store.SetItemActiveAsync(i.Id, !i.IsActive), i.IsActive ? "کالا غیرفعال شد." : "کالا فعال شد.");
 

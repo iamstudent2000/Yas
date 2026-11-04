@@ -4,7 +4,7 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
-public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, decimal MinStock, bool IsActive, decimal Stock)
+public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, decimal MinStock, bool IsActive, decimal Stock, decimal MaxPerRequest = 0)
 {
     /// <summary>Low = an alert level is set and the stock has reached it.</summary>
     public bool IsLow => MinStock > 0 && Stock <= MinStock;
@@ -15,6 +15,27 @@ public sealed record StoreMovementRow(Guid Id, DateTime CreatedAtUtc, Guid ItemI
 public sealed record StorePage<T>(IReadOnlyList<T> Rows, int Total);
 
 /// <summary>The result of a store operation that can fail for a reason the person should read (duplicate code, not enough stock, ...).</summary>
+/// <summary>Reads a quantity typed by a person: Persian and Arabic digits, the Persian decimal point (٫) and a comma are all accepted.</summary>
+public static class StoreNumber
+{
+    public static bool TryParse(string? text, out decimal value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text)) return true;   // an empty box means 0
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in text.Trim())
+        {
+            if (ch is >= '\u06F0' and <= '\u06F9') sb.Append((char)('0' + (ch - '\u06F0')));
+            else if (ch is >= '\u0660' and <= '\u0669') sb.Append((char)('0' + (ch - '\u0660')));
+            else if (ch is '\u066B' or '\u066C' or ',' or '/' or '\u060C') sb.Append(ch == '\u066C' ? "" : ".");
+            else if (ch == '\u2212') sb.Append('-');
+            else sb.Append(ch);
+        }
+        return decimal.TryParse(sb.ToString(), System.Globalization.NumberStyles.AllowLeadingSign | System.Globalization.NumberStyles.AllowDecimalPoint,
+            System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+}
+
 public sealed record StoreResult(bool Ok, string? Error = null)
 {
     public static StoreResult Success { get; } = new(true);
@@ -77,8 +98,9 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public decimal MinStock { get; set; }
         public bool IsActive { get; set; }
         public decimal Stock { get; set; }
+        public decimal MaxPerRequest { get; set; }
 
-        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock);
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock, MaxPerRequest);
     }
 
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
@@ -87,7 +109,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         select new ItemProjection
         {
             Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
-            MinStock = i.MinStock, IsActive = i.IsActive,
+            MinStock = i.MinStock, MaxPerRequest = i.MaxPerRequest, IsActive = i.IsActive,
             Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
         };
 
@@ -120,7 +142,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal minStock, CancellationToken ct = default)
+    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         code = (code ?? "").Trim();
@@ -128,12 +150,12 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه کالا را انتخاب کنید.");
         try
         {
-            if (id is null) db.StoreItems.Add(new StoreItem(code, name, categoryId, unit, description, minStock));
+            if (id is null) db.StoreItems.Add(new StoreItem(code, name, categoryId, unit, description, minStock, maxPerRequest));
             else
             {
                 var item = await db.StoreItems.FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (item is null) return StoreResult.Fail("کالا پیدا نشد.");
-                item.Update(code, name, categoryId, unit, description, minStock);
+                item.Update(code, name, categoryId, unit, description, minStock, maxPerRequest);
             }
         }
         catch (ArgumentException)
