@@ -85,6 +85,14 @@ public static class Perm
     public const string AdminGuidesView = "Admin.Guides.View";
     /// <summary>Write guides and edit, switch off and delete the guides of everyone. Implies the view permission.</summary>
     public const string AdminGuidesManage = "Admin.Guides.Manage";
+    /// <summary>Browse the store catalogue and see what is available.</summary>
+    public const string StoreShopView = "Store.Shop.View";
+    public const string StoreItemsView = "Store.Items.View";
+    /// <summary>Add and edit store categories and items. Implies the view permission.</summary>
+    public const string StoreItemsManage = "Store.Items.Manage";
+    public const string StoreStockView = "Store.Stock.View";
+    /// <summary>Record receipts, issues and count corrections. Implies the view permission.</summary>
+    public const string StoreStockManage = "Store.Stock.Manage";
     /// <summary>Policy (not a permission code): the guides workspace is open to anyone who holds any of the three guide permissions.</summary>
     public const string GuidesWorkspacePolicy = "Guides.Workspace";
 
@@ -120,6 +128,8 @@ public static class PermissionCatalog
     {
         if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
             return PermissionReach.All;
+        if (code.StartsWith("Store.", StringComparison.OrdinalIgnoreCase) && !code.StartsWith("Store.Shop.", StringComparison.OrdinalIgnoreCase))
+            return PermissionReach.All;
         if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
             return PermissionReach.Assigned;
         if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.RequestsTeamCreate or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
@@ -131,6 +141,7 @@ public static class PermissionCatalog
     public static bool ActsOnOthers(string code) =>
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
+        || code is Perm.StoreItemsManage or Perm.StoreStockManage
         || code is Perm.RequestsTeamCreate or Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
 
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
@@ -201,6 +212,12 @@ public static class PermissionCatalog
             new(Perm.GuidesOwnManage, "نوشتن راهنمای کاربری و ویرایش راهنماهای خودم (غیرفعال‌کردن و حذف راهنماهای خودم)"),
             new(Perm.AdminGuidesView, "مشاهده همه راهنماهای کاربری (فقط خواندنی)"),
             new(Perm.AdminGuidesManage, "مدیریت همه راهنماهای کاربری (ویرایش، غیرفعال‌کردن و حذف راهنمای همه نویسنده‌ها)"),
+
+            new(Perm.StoreShopView, "مشاهده فروشگاه (کالاها و موجودی)"),
+            new(Perm.StoreItemsView, "مشاهده مدیریت کالاها (فقط خواندنی)"),
+            new(Perm.StoreItemsManage, "مدیریت کالاها (گروه‌ها و کالاها)"),
+            new(Perm.StoreStockView, "مشاهده موجودی و گردش انبار (فقط خواندنی)"),
+            new(Perm.StoreStockManage, "مدیریت انبار (ورود کالا، خروج و اصلاح موجودی)"),
         };
 
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));

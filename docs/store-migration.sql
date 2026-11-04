@@ -1,0 +1,14 @@
+-- Store (فروشگاه), stage 1: catalogue and stock ledger. Idempotent; safe to run more than once.
+IF OBJECT_ID(N'dbo.StoreCategories', N'U') IS NULL
+    CREATE TABLE [dbo].[StoreCategories] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_StoreCategories] PRIMARY KEY ([Id]));
+IF OBJECT_ID(N'dbo.StoreItems', N'U') IS NULL
+    CREATE TABLE [dbo].[StoreItems] ([Id] uniqueidentifier NOT NULL, [Code] nvarchar(50) NOT NULL, [Name] nvarchar(200) NOT NULL, [CategoryId] uniqueidentifier NOT NULL, [Unit] nvarchar(30) NOT NULL, [Description] nvarchar(500) NULL, [MinStock] decimal(18,3) NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_StoreItems] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreItems_StoreCategories_CategoryId] FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[StoreCategories] ([Id]));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'IX_StoreItems_Code')
+    EXEC(N'CREATE UNIQUE INDEX [IX_StoreItems_Code] ON [dbo].[StoreItems] ([Code])');
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'IX_StoreItems_CategoryId')
+    EXEC(N'CREATE INDEX [IX_StoreItems_CategoryId] ON [dbo].[StoreItems] ([CategoryId])');
+IF OBJECT_ID(N'dbo.StoreStockMovements', N'U') IS NULL
+    CREATE TABLE [dbo].[StoreStockMovements] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [Kind] int NOT NULL, [Delta] decimal(18,3) NOT NULL, [Reference] nvarchar(200) NULL, [Note] nvarchar(300) NULL, [CreatedByEmployeeId] uniqueidentifier NULL, [OrderId] uniqueidentifier NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_StoreStockMovements] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreStockMovements_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreStockMovements') AND name = N'IX_StoreStockMovements_ItemId_CreatedAtUtc')
+    EXEC(N'CREATE INDEX [IX_StoreStockMovements_ItemId_CreatedAtUtc] ON [dbo].[StoreStockMovements] ([ItemId], [CreatedAtUtc])');
+

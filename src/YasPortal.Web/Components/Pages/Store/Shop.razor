@@ -1,0 +1,105 @@
+@page "/store"
+@using Microsoft.AspNetCore.Authorization
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreShopView)]
+@inject StoreService Store
+@inject AppState AppState
+@* The catalogue every signed-in person with Store.Shop.View can browse. Ordering is added in the next stage. *@
+
+<PageTitle>فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Store"></i> فروشگاه</h1>
+            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.</p>
+        </div>
+    </div>
+
+    <section class="card list-filter">
+        <div class="admin-row-grid">
+            <div class="form-field is-grow"><label class="form-label">جستجو</label>
+                <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
+            <div class="form-field"><label class="form-label">گروه</label>
+                <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
+        </div>
+    </section>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_page.Rows.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>کالایی پیدا نشد</strong><span>جستجو یا گروه را تغییر دهید.</span></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in _page.Rows)
+                        {
+                            <tr>
+                                <td dir="ltr" style="text-align:right">@item.Code</td>
+                                <td><strong>@item.Name</strong>@if (item.Description is not null) {<div class="muted">@item.Description</div>}</td>
+                                <td>@item.CategoryName</td>
+                                <td>@item.Unit</td>
+                                <td>
+                                    @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
+                                    else if (item.IsLow) { <span class="badge badge-warning">کم · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
+                                    else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_page.Total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+        </section>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string _search = "";
+    private Guid? _categoryId;
+    private int _pageNo = 1, _pageSize = 20;
+    private StorePage<StoreItemRow> _page = new([], 0);
+    private IReadOnlyList<(string Key, string Text)> CategoryOptions = [];
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CategoryOptions = (await Store.ListCategoriesAsync(false)).Select(c => (c.Id.ToString(), c.Name)).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _cts?.Cancel();
+        var cts = _cts = new CancellationTokenSource();
+        _loading = true;
+        try
+        {
+            _page = await Store.SearchItemsAsync(_search, _categoryId, true, false, _pageNo, _pageSize, cts.Token);
+            _loading = false;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            _loading = false;
+            AppState.AddToast("خواندن فهرست کالاها انجام نشد.", ToastLevel.Error);
+        }
+    }
+
+    private async Task SearchChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task CategoryChangedAsync(string? key) { _categoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}

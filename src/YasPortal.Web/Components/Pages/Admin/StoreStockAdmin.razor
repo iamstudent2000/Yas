@@ -1,0 +1,197 @@
+@page "/admin/store/stock"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreStockView)]
+@inject StoreService Store
+@inject IPermissionChecker PermissionChecker
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+
+<PageTitle>انبار فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Store"></i> انبار فروشگاه</h1>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")موجودی هر کالا مجموع گردش‌های ثبت‌شده آن است. گردش ثبت‌شده ویرایش یا حذف نمی‌شود؛ اشتباه با یک «اصلاح موجودی» جبران می‌شود.</p>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="window.print()"><i class="ti @Icons.Print"></i> چاپ</button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else
+    {
+        <div class="admin-stack">
+            @if (_canManage)
+            {
+                <section class="card admin-form-row no-print">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @Icons.Add"></i> ثبت گردش انبار</h2>
+                        <p class="muted">ورود، خروج و برگشت: مقدار مثبت. اصلاح موجودی: مقدار با علامت (منفی = کم می‌کند). خروج بیش از موجودی ممکن نیست.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">کالا</label>
+                            <LookupSelect @key="_formKey" Options="ItemOptions" Value="@(_formItemId?.ToString())" ValueChanged="k => _formItemId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب کالا" SearchPlaceholder="نام یا کد کالا..." /></div>
+                        <div class="form-field"><label class="form-label">نوع</label>
+                            <LookupSelect @key="_formKey" Options="KindOptions" Value="@(((int)_formKind).ToString())" ValueChanged="k => _formKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : StockMovementKind.Receive" /></div>
+                        <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" type="number" step="0.001" @bind="_formQuantity" /></div>
+                        <div class="form-field"><label class="form-label">مرجع (فاکتور، حواله...)</label><input class="form-control" @bind="_formReference" maxlength="@StoreStockMovement.ReferenceMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">توضیح</label><input class="form-control" @bind="_formNote" maxlength="@StoreStockMovement.NoteMax" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="RecordAsync"><i class="ti @Icons.Save"></i> ثبت</button>
+                        </div></div>
+                    </div>
+                </section>
+            }
+
+            <div class="form-actions no-print">
+                <button class="btn @(_tab == "levels" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTabAsync("levels")'>موجودی کالاها</button>
+                <button class="btn @(_tab == "moves" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTabAsync("moves")'>گردش انبار</button>
+            </div>
+
+            @if (_tab == "levels")
+            {
+                <section class="card">
+                    <h2 class="section-title print-only">موجودی کالاهای فروشگاه</h2>
+                    <div class="admin-row-grid no-print">
+                        <div class="form-field is-grow"><label class="form-label">جستجو</label>
+                            <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
+                        <div class="form-field"><label class="form-label">گروه</label>
+                            <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
+                        <div class="form-field"><label class="form-label">&nbsp;</label>
+                            <label class="check-row"><input type="checkbox" checked="@_lowOnly" @onchange="LowChangedAsync" /> فقط کمبودها</label></div>
+                    </div>
+                    <div class="data-table-wrap">
+                        <table class="data-table">
+                            <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداقل</th><th>وضعیت</th></tr></thead>
+                            <tbody>
+                                @foreach (var i in _levels.Rows)
+                                {
+                                    <tr>
+                                        <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
+                                        <td><strong>@Num(i.Stock)</strong></td><td>@Num(i.MinStock)</td>
+                                        <td>@if (i.Stock <= 0) {<span class="badge badge-danger">ناموجود</span>} else if (i.IsLow) {<span class="badge badge-warning">کمبود</span>} else {<span class="badge badge-success">کافی</span>}</td>
+                                    </tr>
+                                }
+                                @if (_levels.Rows.Count == 0) { <tr><td colspan="7" class="muted">کالایی پیدا نشد.</td></tr> }
+                            </tbody>
+                        </table>
+                    </div>
+                    <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_levels.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+                </section>
+            }
+            else
+            {
+                <section class="card">
+                    <h2 class="section-title print-only">گردش انبار فروشگاه</h2>
+                    <div class="admin-row-grid no-print">
+                        <div class="form-field is-grow"><label class="form-label">کالا</label>
+                            <LookupSelect Options="ItemOptions" Value="@(_moveItemId?.ToString())" ValueChanged="MoveItemChangedAsync" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
+                        <div class="form-field"><label class="form-label">نوع</label>
+                            <LookupSelect Options="KindOptions" Value="@(_moveKind is null ? null : ((int)_moveKind.Value).ToString())" ValueChanged="MoveKindChangedAsync" Placeholder="همه انواع" /></div>
+                    </div>
+                    <div class="data-table-wrap">
+                        <table class="data-table">
+                            <thead><tr><th>زمان</th><th>کالا</th><th>نوع</th><th>مقدار</th><th>مرجع</th><th>توضیح</th><th>ثبت‌کننده</th></tr></thead>
+                            <tbody>
+                                @foreach (var m in _moves.Rows)
+                                {
+                                    <tr>
+                                        <td>@WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc)</td>
+                                        <td>@m.ItemName <span class="muted" dir="ltr">@m.ItemCode</span></td>
+                                        <td>@StoreService.KindLabel(m.Kind)</td>
+                                        <td dir="ltr" style="text-align:right"><strong style="color:@(m.Delta < 0 ? "var(--danger,#d92d20)" : "var(--success,#067647)")">@(m.Delta > 0 ? "+" : "")@Num(m.Delta)</strong> @m.Unit</td>
+                                        <td>@m.Reference</td><td>@m.Note</td><td>@m.CreatedBy</td>
+                                    </tr>
+                                }
+                                @if (_moves.Rows.Count == 0) { <tr><td colspan="7" class="muted">گردشی ثبت نشده است.</td></tr> }
+                            </tbody>
+                        </table>
+                    </div>
+                    <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_moves.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _busy, _canManage;
+    private Guid? _employeeId;
+    private string _tab = "levels", _search = "";
+    private Guid? _categoryId, _moveItemId;
+    private StockMovementKind? _moveKind;
+    private bool _lowOnly;
+    private int _pageNo = 1, _pageSize = 20, _formKey;
+    private StorePage<StoreItemRow> _levels = new([], 0);
+    private StorePage<StoreMovementRow> _moves = new([], 0);
+    private IReadOnlyList<(string Key, string Text)> ItemOptions = [], CategoryOptions = [];
+    private static readonly IReadOnlyList<(string Key, string Text)> KindOptions =
+        Enum.GetValues<StockMovementKind>().Select(k => (((int)k).ToString(), StoreService.KindLabel(k))).ToList();
+
+    private Guid? _formItemId;
+    private StockMovementKind _formKind = StockMovementKind.Receive;
+    private decimal _formQuantity;
+    private string _formReference = "", _formNote = "";
+
+    private static string Num(decimal v) => WorkflowDisplay.ToPersianDigits(v.ToString("0.###"));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await PermissionChecker.HasPermissionAsync(Perm.StoreStockManage);
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        await LoadOptionsAsync();
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadOptionsAsync()
+    {
+        CategoryOptions = (await Store.ListCategoriesAsync(true)).Select(c => (c.Id.ToString(), c.Name)).ToList();
+        ItemOptions = (await Store.AllItemsAsync(null, null, false)).Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _lowOnly, _pageNo, _pageSize);
+        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, null, null, _pageNo, _pageSize);
+    }
+
+    private async Task RecordAsync()
+    {
+        if (_busy) return;
+        if (_formItemId is null) { AppState.AddToast("کالا را انتخاب کنید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            var result = await Store.RecordMovementAsync(_formItemId.Value, _formKind, _formQuantity, _formReference, _formNote, _employeeId);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت نشد.", ToastLevel.Error); return; }
+            AppState.AddToast("گردش انبار ثبت شد.", ToastLevel.Success);
+            _formItemId = null; _formQuantity = 0; _formReference = _formNote = ""; _formKind = StockMovementKind.Receive; _formKey++;
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("ثبت گردش انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task SwitchTabAsync(string tab) { _tab = tab; _pageNo = 1; await LoadAsync(); }
+    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task CategoryChangedAsync(string? k) { _categoryId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task LowChangedAsync(ChangeEventArgs e) { _lowOnly = e.Value is true; _pageNo = 1; await LoadAsync(); }
+    private async Task MoveItemChangedAsync(string? k) { _moveItemId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task MoveKindChangedAsync(string? k) { _moveKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : null; _pageNo = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}

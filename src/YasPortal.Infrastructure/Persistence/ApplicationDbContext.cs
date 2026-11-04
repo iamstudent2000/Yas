@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Guides;
+using YasPortal.Domain.Store;
 using YasPortal.Domain.Landing;
 using YasPortal.Domain.PhoneBook;
 using YasPortal.Domain.Authorization;
@@ -41,6 +42,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<ContactGroup> ContactGroups => Set<ContactGroup>();
     public DbSet<Contact> Contacts => Set<Contact>();
     public DbSet<UserGuide> UserGuides => Set<UserGuide>();
+    public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
+    public DbSet<StoreItem> StoreItems => Set<StoreItem>();
+    public DbSet<StoreStockMovement> StoreStockMovements => Set<StoreStockMovement>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -255,6 +259,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<Employee>(e => { e.HasKey(x => x.Id); e.HasIndex(x => x.Username).IsUnique(); e.HasIndex(x => x.Code).IsUnique(); e.Property(x => x.Code).HasMaxLength(50).IsRequired(); e.Property(x => x.Username).HasMaxLength(256).IsRequired(); e.Property(x => x.FullName).HasMaxLength(256).IsRequired(); e.Property(x => x.PasswordHash).HasMaxLength(512); e.Property(x => x.AvatarKey).HasMaxLength(Employee.AvatarKeyMaxLength); e.HasOne(x => x.Organization).WithMany(x => x.Employees).HasForeignKey(x => x.OrganizationId).OnDelete(DeleteBehavior.Restrict); e.HasOne<Position>().WithMany().HasForeignKey(x => x.LastActivePositionId).OnDelete(DeleteBehavior.SetNull); });
         modelBuilder.Entity<LinkGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(LinkGroup.NameMax).IsRequired(); e.HasIndex(x => x.ParentId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<UserGuide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(UserGuide.TitleMax).IsRequired(); e.Property(x => x.Summary).HasMaxLength(UserGuide.SummaryMax); e.Property(x => x.ContentHtml).IsRequired(); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
+        modelBuilder.Entity<StoreCategory>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(StoreCategory.NameMax).IsRequired(); });
+        modelBuilder.Entity<StoreItem>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Code).HasMaxLength(StoreItem.CodeMax).IsRequired(); e.Property(x => x.Name).HasMaxLength(StoreItem.NameMax).IsRequired(); e.Property(x => x.Unit).HasMaxLength(StoreItem.UnitMax).IsRequired(); e.Property(x => x.Description).HasMaxLength(StoreItem.DescriptionMax); e.Property(x => x.MinStock).HasPrecision(18, 3); e.HasIndex(x => x.Code).IsUnique(); e.HasIndex(x => x.CategoryId); e.HasOne<StoreCategory>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<StoreStockMovement>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Delta).HasPrecision(18, 3); e.Property(x => x.Reference).HasMaxLength(StoreStockMovement.ReferenceMax); e.Property(x => x.Note).HasMaxLength(StoreStockMovement.NoteMax); e.HasIndex(x => new { x.ItemId, x.CreatedAtUtc }); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<ContactGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(ContactGroup.NameMax).IsRequired(); });
         modelBuilder.Entity<Contact>(e =>
         {
