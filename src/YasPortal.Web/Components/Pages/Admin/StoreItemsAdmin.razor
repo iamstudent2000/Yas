@@ -91,6 +91,15 @@
                                         <td><div class="form-actions">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => EditCategory(c)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleCategoryAsync(c)">@(c.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @if (_confirmCategoryId == c.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteCategoryAsync(c.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmCategoryId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmCategoryId = c.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
                                         </div></td>
                                     }
                                 </tr>
@@ -126,6 +135,15 @@
                                         <td><div class="form-actions">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => EditItemAsync(i)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleItemAsync(i)">@(i.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @if (_confirmItemId == i.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteItemAsync(i.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmItemId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmItemId = i.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
                                         </div></td>
                                     }
                                 </tr>
@@ -146,6 +164,7 @@
     private StorePage<StoreItemRow> _items = new([], 0);
     private IReadOnlyList<(string Key, string Text)> ActiveCategoryOptions = [], AllCategoryOptions = [];
 
+    private Guid? _confirmCategoryId, _confirmItemId;
     private Guid? _editCategoryId;
     private string _categoryName = "";
     private int _categoryOrder;
@@ -225,6 +244,9 @@
     private static string WindowText(StoreItemRow i) =>
         i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
         : $"{(i.RequestOpensOn is DateTime o ? "از " + WorkflowDisplay.ToPersianDate(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + WorkflowDisplay.ToPersianDate(c) : "")} ";
+
+    private Task DeleteCategoryAsync(Guid id) { _confirmCategoryId = null; return RunAsync(() => Store.DeleteCategoryAsync(id), "گروه حذف شد."); }
+    private Task DeleteItemAsync(Guid id) { _confirmItemId = null; return RunAsync(() => Store.DeleteItemAsync(id), "کالا حذف شد."); }
 
     private void UnitChanged(string? key) => _unit = key ?? "";
 

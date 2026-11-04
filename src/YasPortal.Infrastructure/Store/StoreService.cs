@@ -82,6 +82,30 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    /// <summary>Deletes a group that has no items. A group with items can only be switched off.</summary>
+    public async Task<StoreResult> DeleteCategoryAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var category = await db.StoreCategories.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (category is null) return StoreResult.Success;
+        if (await db.StoreItems.AnyAsync(x => x.CategoryId == id, ct)) return StoreResult.Fail("این گروه کالا دارد و حذف نمی‌شود؛ ابتدا کالاهای آن را حذف یا به گروه دیگری منتقل کنید، یا گروه را غیرفعال کنید.");
+        db.StoreCategories.Remove(category);
+        await db.SaveChangesAsync(ct);
+        return StoreResult.Success;
+    }
+
+    /// <summary>Deletes an item that never had any stock movement. An item with history stays (the ledger is never rewritten) and can only be switched off.</summary>
+    public async Task<StoreResult> DeleteItemAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var item = await db.StoreItems.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (item is null) return StoreResult.Success;
+        if (await db.StoreStockMovements.AnyAsync(x => x.ItemId == id, ct)) return StoreResult.Fail("این کالا گردش انبار دارد و حذف نمی‌شود (تاریخچه انبار پاک نمی‌شود)؛ آن را غیرفعال کنید.");
+        db.StoreItems.Remove(item);
+        await db.SaveChangesAsync(ct);
+        return StoreResult.Success;
+    }
+
     // ---------- items ----------
 
     // A member-init projection (not a record constructor) so EF can still filter and order on its properties in SQL.
