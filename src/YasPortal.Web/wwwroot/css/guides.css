@@ -14,6 +14,8 @@
 
 /* ---------- how a guide reads (the editor's output, already cleaned on the server) ---------- */
 .guide-html{line-height:2;overflow-wrap:anywhere}
+/* the app turns font-synthesis off, and Vazirmatn has no italic face, so "کج" would not slant at all without this */
+.guide-html,.guide-editor-host .ql-editor{font-synthesis:style weight}
 .guide-html :is(p,h1,h2,h3,h4,ul,ol,blockquote){margin:0 0 12px}
 .guide-html h1{font-size:24px;line-height:1.6;font-weight:800}
 .guide-html h2{font-size:20px;line-height:1.6;font-weight:800;padding-bottom:6px;border-bottom:1px solid var(--border,#e6ebf2)}

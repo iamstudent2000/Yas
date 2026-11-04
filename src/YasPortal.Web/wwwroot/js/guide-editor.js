@@ -72,6 +72,10 @@ export async function init(host, html, placeholder) {
         },
     });
 
+    // The page's admin-ui.js turns every <select> into a search box. Quill builds its colour / heading / align pickers from hidden
+    // selects, so they are marked here (the opt-out admin-ui.js has always honoured), whatever version of that script the browser holds.
+    host.querySelectorAll('select').forEach(el => { el.dataset.searchable = 'false'; });
+
     quill.root.setAttribute('dir', 'rtl');
     quill.root.setAttribute('lang', 'fa');
     const toolbar = host.querySelector('.ql-toolbar');
