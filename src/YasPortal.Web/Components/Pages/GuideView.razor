@@ -1,5 +1,6 @@
 @page "/guides/{Id:guid}"
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Guides
 @using YasPortal.Infrastructure.Guides
@@ -9,7 +10,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject IPermissionChecker PermissionChecker
 @* Open to everyone, also before sign-in, but a visitor can open only a public guide. A guide that is off, or is for signed-in people
-   only, looks exactly like a guide that does not exist. Holders of Admin.Guides.View may open any guide (to preview it). *@
+   only, looks exactly like a guide that does not exist. Holders of Admin.Guides.View may open any guide, and an author their own (to preview it). *@
 
 @if (_loading)
 {
@@ -30,7 +31,7 @@ else
 {
     <PageTitle>@_guide.Title - راهنمای کاربری</PageTitle>
     <div class="admin-page" dir="rtl">
-        <div class="page-header no-print">
+        <div class="page-header">
             <div>
                 <div class="page-kicker">راهنمای کاربری</div>
                 <h1 class="page-title"><i class="ti @Icons.Guide"></i> @_guide.Title</h1>
@@ -65,9 +66,12 @@ else
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
-        _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _signedIn = user.Identity?.IsAuthenticated == true;
         var canPreview = _signedIn && await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
-        _guide = await Provider.GetAsync(Id, _signedIn, canPreview);
+        // a person who may edit their own guides can also open their own guide while it is off
+        Guid? authorId = _signedIn && await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage) && Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        _guide = await Provider.GetAsync(Id, _signedIn, canPreview, authorId);
         // cleaned again here (it was also cleaned when saved): this text is shown to people who are not signed in
         _html = _guide is null ? "" : GuideHtmlSanitizer.Sanitize(_guide.ContentHtml);
         _loading = false;

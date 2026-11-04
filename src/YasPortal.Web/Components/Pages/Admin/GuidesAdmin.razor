@@ -1,5 +1,8 @@
+@page "/guides/manage"
 @page "/admin/guides"
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @using YasPortal.Domain.Guides
@@ -7,21 +10,22 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = Perm.AdminGuidesView)]
+@attribute [Authorize(Policy = Perm.GuidesWorkspacePolicy)]
 @implements IAsyncDisposable
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthState
 @inject AppState AppState
 
-<PageTitle>مدیریت راهنماهای کاربری - یاس پورتال</PageTitle>
+<PageTitle>مدیریت راهنماها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
     <div class="page-header">
         <div>
             <div class="page-kicker">مدیریت سامانه</div>
-            <h1 class="page-title"><i class="ti @Icons.Guide"></i> راهنماهای کاربری</h1>
-            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")راهنما را مثل یک سند ساده بنویسید و قالب‌بندی کنید (عنوان، فهرست، رنگ، تراز، راست‌به‌چپ یا چپ‌به‌راست). برای هر راهنما مشخص کنید پیش از ورود هم دیده شود یا فقط پس از ورود.</p>
+            <h1 class="page-title"><i class="ti @Icons.Guide"></i> مدیریت راهنماها</h1>
+            <p class="page-subtitle">@SubtitleLead راهنما را مثل یک سند ساده بنویسید و قالب‌بندی کنید (عنوان، فهرست، رنگ، تراز، راست‌به‌چپ یا چپ‌به‌راست). برای هر راهنما مشخص کنید پیش از ورود هم دیده شود یا فقط پس از ورود.</p>
         </div>
         <div class="form-actions">
             <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Details"></i> مشاهده راهنماها</a>
@@ -29,7 +33,7 @@
     </div>
 
     <div class="admin-stack">
-        @if (_canManage)
+        @if (_canCreate)
         {
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
@@ -88,25 +92,26 @@
             }
             else if (_guides.Count == 0)
             {
-                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>راهنمایی نوشته نشده است</strong><span>@(_canManage ? "از فرم بالا نخستین راهنما را بنویسید." : "هنوز راهنمایی ثبت نشده است.")</span></div>
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>راهنمایی نوشته نشده است</strong><span>@(_canCreate ? "از فرم بالا نخستین راهنما را بنویسید." : "هنوز راهنمایی ثبت نشده است.")</span></div>
             }
             else
             {
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
+                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
                         <tbody>
                         @foreach (var guide in _guides)
                         {
                             <tr>
                                 <td>@guide.SortOrder</td>
                                 <td><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
+                                <td>@(guide.CreatedByEmployeeId is Guid author && _authors.TryGetValue(author, out var authorName) ? authorName : "—")@if (guide.IsOwnedBy(_employeeId)) { <span class="badge badge-muted">من</span> }</td>
                                 <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
                                 <td><span class="badge @(guide.IsActive ? "badge-success" : "badge-muted")">@(guide.IsActive ? "فعال" : "غیرفعال")</span></td>
                                 <td>@guide.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                 <td class="action-cell">
                                     <a class="btn btn-secondary btn-sm" href="/guides/@guide.Id"><i class="ti @Icons.Details"></i> مشاهده</a>
-                                    @if (_canManage)
+                                    @if (guide.CanBeEditedBy(_canEditAll, _canEditOwn, _employeeId))
                                     {
                                         <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(guide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                         <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(guide.Id)"><i class="ti @(guide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(guide.IsActive ? "غیرفعال" : "فعال")</button>
@@ -134,8 +139,15 @@
 @code {
     private const string EditorModule = "./js/guide-editor.js?v=20261104-1";
 
-    private bool _loading = true, _canManage, _saving, _editorFailed;
+    private bool _loading = true, _canViewAll, _canEditAll, _canEditOwn, _saving, _editorFailed;
+    private Guid? _employeeId;
     private List<UserGuide> _guides = [];
+    private Dictionary<Guid, string> _authors = [];
+
+    // Who may do what: Admin.Guides.View sees every guide; Admin.Guides.Manage edits every guide; Guides.Own.Manage writes new guides
+    // and edits only the ones the person wrote. Someone holding only Guides.Own.Manage sees only their own guides here.
+    private bool _canCreate => _canEditAll || _canEditOwn;
+    private string SubtitleLead => _canCreate ? (_canViewAll ? "" : "فقط راهنماهایی که خودتان نوشته‌اید در این صفحه دیده و ویرایش می‌شوند. ") : "فقط خواندنی. ";
     private Guid? _editingId, _confirmDeleteId;
     private string _title = "", _summary = "", _initialHtml = "";
     private GuideVisibility _visibility = GuideVisibility.SignedIn;
@@ -146,7 +158,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage);
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        _canEditAll = await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage);
+        _canViewAll = _canEditAll || await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
+        _canEditOwn = await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage);
         await LoadAsync();
         _loading = false;
     }
@@ -154,7 +170,7 @@
     // The editor is built in the browser once its element exists (and again for every new element: a new guide, or a guide picked for editing).
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_initEditor || !_canManage) return;
+        if (!_initEditor || !_canCreate) return;
         _initEditor = false;
         try
         {
@@ -176,7 +192,16 @@
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _guides = await db.UserGuides.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        var query = db.UserGuides.AsNoTracking();
+        if (!_canViewAll)
+        {
+            // only their own guides; a person we cannot identify sees none (never the guides that have no recorded author)
+            if (_employeeId is not Guid me) { _guides = []; _authors = []; return; }
+            query = query.Where(x => x.CreatedByEmployeeId == me);
+        }
+        _guides = await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        var authorIds = _guides.Where(x => x.CreatedByEmployeeId != null).Select(x => x.CreatedByEmployeeId!.Value).Distinct().ToList();
+        _authors = authorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => authorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
         if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
     }
 
@@ -204,7 +229,7 @@
 
     private async Task SaveAsync()
     {
-        if (_saving || _module is null || !_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage)) return;
+        if (_saving || _module is null || !_canCreate) return;
         _saving = true;
         try
         {
@@ -217,11 +242,14 @@
             {
                 var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
                 if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                if (!await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
                 guide.Update(_title, _summary, html, _visibility, _sortOrder);
             }
             else
             {
-                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder));
+                // a new guide records who wrote it; without that a person who may edit only their own guides could never edit it again
+                if (!await MayCreateAsync()) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
+                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId));
             }
 
             await db.SaveChangesAsync();
@@ -244,6 +272,15 @@
         finally { _saving = false; }
     }
 
+    private const string NotAllowed = "اجازه‌ی تغییر این راهنما را ندارید.";
+
+    // Checked again at the moment of every change (the permissions may have changed since the page was drawn).
+    private async Task<bool> MayEditAsync(UserGuide guide) =>
+        guide.CanBeEditedBy(await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage), await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage), _employeeId);
+
+    private async Task<bool> MayCreateAsync() =>
+        await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage) || (_employeeId is not null && await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage));
+
     // The domain's messages are English; the person sees a Persian sentence for the field that failed.
     private static string Explain(ArgumentException ex) => ex.ParamName switch
     {
@@ -255,9 +292,9 @@
 
     private async Task ToggleAsync(Guid id)
     {
-        if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage)) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+        if (guide is not null && !await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
         if (guide is not null)
         {
             if (guide.IsActive) guide.Deactivate(); else guide.Activate();
@@ -270,9 +307,9 @@
     private async Task DeleteAsync(Guid id)
     {
         _confirmDeleteId = null;
-        if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage)) return;
         await using var db = await DbFactory.CreateDbContextAsync();
         var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+        if (guide is not null && !await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
         if (guide is not null)
         {
             db.UserGuides.Remove(guide);

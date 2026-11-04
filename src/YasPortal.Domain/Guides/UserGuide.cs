@@ -25,9 +25,10 @@ public sealed partial class UserGuide
     {
     }
 
-    public UserGuide(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder)
+    public UserGuide(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder, Guid? createdByEmployeeId = null)
     {
         Id = Guid.NewGuid();
+        CreatedByEmployeeId = createdByEmployeeId == Guid.Empty ? null : createdByEmployeeId;
         CreatedAtUtc = UpdatedAtUtc = DateTime.UtcNow;
         Update(title, summary, contentHtml, visibility, sortOrder);
     }
@@ -41,6 +42,8 @@ public sealed partial class UserGuide
     public bool IsActive { get; private set; } = true;
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
+    /// <summary>The employee who wrote the guide; empty for a guide written before authors were recorded.</summary>
+    public Guid? CreatedByEmployeeId { get; private set; }
 
     public void Update(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder)
     {
@@ -70,6 +73,14 @@ public sealed partial class UserGuide
 
     /// <summary>True when the guide is on and the reader may see it: a public guide is for everyone, any other only for a signed-in person.</summary>
     public bool IsReadableBy(bool signedIn) => IsActive && (Visibility == GuideVisibility.Public || signedIn);
+
+    public bool IsOwnedBy(Guid? employeeId) => employeeId is Guid id && id != Guid.Empty && CreatedByEmployeeId == id;
+
+    /// <summary>
+    /// True when the person may change the guide: whoever may edit all guides, or whoever may edit their own guides and wrote this one
+    /// (a guide without a recorded author is never "own").
+    /// </summary>
+    public bool CanBeEditedBy(bool canEditAll, bool canEditOwn, Guid? employeeId) => canEditAll || (canEditOwn && IsOwnedBy(employeeId));
 
     /// <summary>True when the HTML holds some visible text (an editor's "empty" content such as &lt;p&gt;&lt;br&gt;&lt;/p&gt; does not count).</summary>
     public static bool HasText(string? html)

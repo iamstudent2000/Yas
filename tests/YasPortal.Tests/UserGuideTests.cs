@@ -70,10 +70,49 @@ public sealed class UserGuideTests
     }
 
     [Fact]
+    public void Guide_records_its_author_and_ignores_an_empty_id()
+    {
+        var me = Guid.NewGuid();
+        Assert.Equal(me, new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, me).CreatedByEmployeeId);
+        Assert.Null(new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, Guid.Empty).CreatedByEmployeeId);
+        Assert.Null(G().CreatedByEmployeeId);
+    }
+
+    [Theory]
+    // canEditAll, canEditOwn, isAuthor, expected
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, false, true)]
+    [InlineData(false, true, true, true)]
+    [InlineData(false, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, false, false)]
+    public void Editing_needs_all_guides_permission_or_own_permission_on_an_own_guide(bool canEditAll, bool canEditOwn, bool isAuthor, bool expected)
+    {
+        var author = Guid.NewGuid();
+        var guide = new UserGuide("t", null, "<p>a</p>", GuideVisibility.SignedIn, 1, author);
+        var caller = isAuthor ? author : Guid.NewGuid();
+        Assert.Equal(expected, guide.CanBeEditedBy(canEditAll, canEditOwn, caller));
+    }
+
+    [Fact]
+    public void A_guide_without_a_recorded_author_is_nobodys_own()
+    {
+        var guide = G();   // no author
+        Assert.False(guide.CanBeEditedBy(false, true, Guid.NewGuid()));
+        Assert.False(guide.CanBeEditedBy(false, true, null));
+        Assert.False(guide.CanBeEditedBy(false, true, Guid.Empty));
+        Assert.True(guide.CanBeEditedBy(true, false, null));
+        Assert.False(guide.IsOwnedBy(null));
+    }
+
+    [Fact]
     public void Guide_permissions_are_in_the_catalog_and_manage_implies_view()
     {
         Assert.Contains(Perm.AdminGuidesView, PermissionCatalog.Codes);
         Assert.Contains(Perm.AdminGuidesManage, PermissionCatalog.Codes);
+        Assert.Contains(Perm.GuidesOwnManage, PermissionCatalog.Codes);
+        Assert.Equal(PermissionReach.Own, PermissionCatalog.ReachOf(Perm.GuidesOwnManage));
+        Assert.Equal(PermissionReach.All, PermissionCatalog.ReachOf(Perm.AdminGuidesManage));
         Assert.Equal(Perm.AdminGuidesManage, Perm.ManageFor(Perm.AdminGuidesView));
     }
 }

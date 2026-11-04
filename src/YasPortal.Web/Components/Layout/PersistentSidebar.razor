@@ -109,8 +109,8 @@
             <AuthorizeView Policy="@Perm.AdminLinksView">
                 <NavLink href="/admin/links"><i class="ti @Icons.Links"></i><span>پیوندهای صفحه اصلی</span></NavLink>
             </AuthorizeView>
-            <AuthorizeView Policy="@Perm.AdminGuidesView">
-                <NavLink href="/admin/guides"><i class="ti @Icons.Guide"></i><span>مدیریت راهنماهای کاربری</span></NavLink>
+            <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
+                <NavLink href="/guides/manage"><i class="ti @Icons.Guide"></i><span>مدیریت راهنماها</span></NavLink>
             </AuthorizeView>
             <AuthorizeView Policy="@Perm.AdminPhoneBookView">
                 <NavLink href="/admin/phone-book"><i class="ti @Icons.PhoneBook"></i><span>مدیریت دفترچه تلفن</span></NavLink>

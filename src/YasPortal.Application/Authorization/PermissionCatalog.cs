@@ -79,10 +79,14 @@ public static class Perm
     public const string AdminNotificationsView = "Admin.Notifications.View";
     /// <summary>Remove (and restore) other people's notifications from the all-notifications report. Implies the view permission.</summary>
     public const string AdminNotificationsManage = "Admin.Notifications.Manage";
-    /// <summary>See the user guides in the admin list, including guides that are off or limited to a permission (read-only).</summary>
+    /// <summary>Write new user guides, and edit, switch off and delete the guides this person wrote. Other people's guides stay untouched.</summary>
+    public const string GuidesOwnManage = "Guides.Own.Manage";
+    /// <summary>See every guide in the guides workspace, also guides that are off (read-only).</summary>
     public const string AdminGuidesView = "Admin.Guides.View";
-    /// <summary>Write, edit, switch off and delete user guides. Implies the view permission.</summary>
+    /// <summary>Write guides and edit, switch off and delete the guides of everyone. Implies the view permission.</summary>
     public const string AdminGuidesManage = "Admin.Guides.Manage";
+    /// <summary>Policy (not a permission code): the guides workspace is open to anyone who holds any of the three guide permissions.</summary>
+    public const string GuidesWorkspacePolicy = "Guides.Workspace";
 
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>
@@ -194,8 +198,9 @@ public static class PermissionCatalog
             new(Perm.AdminPhoneBookManage, "مدیریت دفترچه تلفن (گروه‌ها و مخاطبان)"),
             new(Perm.AdminNotificationsView, "مشاهده گزارش همه اعلان‌ها (فقط خواندنی)"),
             new(Perm.AdminNotificationsManage, "مدیریت اعلان‌ها (حذف و بازگردانی اعلان‌های دیگران)"),
-            new(Perm.AdminGuidesView, "مشاهده مدیریت راهنماهای کاربری (فقط خواندنی)"),
-            new(Perm.AdminGuidesManage, "مدیریت راهنماهای کاربری (نوشتن، ویرایش، غیرفعال‌کردن و حذف)"),
+            new(Perm.GuidesOwnManage, "نوشتن راهنمای کاربری و ویرایش راهنماهای خودم (غیرفعال‌کردن و حذف راهنماهای خودم)"),
+            new(Perm.AdminGuidesView, "مشاهده همه راهنماهای کاربری (فقط خواندنی)"),
+            new(Perm.AdminGuidesManage, "مدیریت همه راهنماهای کاربری (ویرایش، غیرفعال‌کردن و حذف راهنمای همه نویسنده‌ها)"),
         };
 
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));

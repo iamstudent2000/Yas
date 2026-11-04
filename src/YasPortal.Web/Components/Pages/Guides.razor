@@ -23,8 +23,8 @@
             {
                 <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
             }
-            <AuthorizeView Policy="@Perm.AdminGuidesView">
-                <a class="btn btn-secondary" href="/admin/guides"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
+            <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
+                <a class="btn btn-secondary" href="/guides/manage"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
             </AuthorizeView>
         </div>
     </div>

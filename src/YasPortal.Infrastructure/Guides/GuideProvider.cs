@@ -27,14 +27,17 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
         }
     }
 
-    /// <summary>One guide, or null when it does not exist or the reader may not see it. <paramref name="canPreview"/> (an administrator who manages guides) also sees a guide that is off.</summary>
-    public async Task<UserGuide?> GetAsync(Guid id, bool signedIn, bool canPreview, CancellationToken ct = default)
+    /// <summary>
+    /// One guide, or null when it does not exist or the reader may not see it. <paramref name="canPreviewAll"/> (a person who may see every guide in the
+    /// workspace) also sees a guide that is off; <paramref name="authorId"/> (set only for a person who may edit their own guides) also sees their own.
+    /// </summary>
+    public async Task<UserGuide?> GetAsync(Guid id, bool signedIn, bool canPreviewAll, Guid? authorId, CancellationToken ct = default)
     {
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var guide = await db.UserGuides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
-            return guide is not null && (canPreview || guide.IsReadableBy(signedIn)) ? guide : null;
+            return guide is not null && (canPreviewAll || guide.IsReadableBy(signedIn) || guide.IsOwnedBy(authorId)) ? guide : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
