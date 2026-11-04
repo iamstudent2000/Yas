@@ -57,7 +57,7 @@
                         <div class="form-field is-grow"><label class="form-label">نام کالا</label><input class="form-control" @bind="_name" maxlength="@StoreItem.NameMax" /></div>
                         <div class="form-field"><label class="form-label">گروه</label>
                             <LookupSelect @key="_formKey" Options="ActiveCategoryOptions" Value="@(_itemCategoryId?.ToString())" ValueChanged="k => _itemCategoryId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب گروه" /></div>
-                        <div class="form-field"><label class="form-label">واحد</label><LookupSelect @key="_formKey" Options="UnitOptions" Value="@_unit" ValueChanged="k => _unit = k ?? \"\"" Placeholder="انتخاب واحد" /></div>
+                        <div class="form-field"><label class="form-label">واحد</label><LookupSelect @key="_formKey" Options="UnitOptions" Value="@_unit" ValueChanged="UnitChanged" Placeholder="انتخاب واحد" /></div>
                         @if (_editItemId is null)
                         {
                             <div class="form-field"><label class="form-label">موجودی اولیه</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_initialStock" @bind:event="oninput" /></div>
@@ -176,7 +176,7 @@
         _categories = await Store.ListCategoriesAsync(true);
         ActiveCategoryOptions = _categories.Where(c => c.IsActive).Select(c => (c.Id.ToString(), c.Name)).ToList();
         AllCategoryOptions = _categories.Select(c => (c.Id.ToString(), c.IsActive ? c.Name : c.Name + " (غیرفعال)")).ToList();
-        _items = await Store.SearchItemsAsync(_search, _filterCategoryId, false, false, _pageNo, _pageSize);
+        _items = await Store.SearchItemsAsync(_search, _filterCategoryId, false, _pageNo, _pageSize);
     }
 
     private async Task RunAsync(Func<Task<StoreResult>> action, string okMessage, Action? onOk = null)
@@ -225,6 +225,8 @@
     private static string WindowText(StoreItemRow i) =>
         i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
         : $"{(i.RequestOpensOn is DateTime o ? "از " + WorkflowDisplay.ToPersianDate(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + WorkflowDisplay.ToPersianDate(c) : "")} ";
+
+    private void UnitChanged(string? key) => _unit = key ?? "";
 
     private static string Plain(decimal v) => v == 0 ? "" : v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
