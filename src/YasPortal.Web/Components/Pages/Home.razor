@@ -48,10 +48,6 @@ else
                         {
                             <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
                         }
-                        @if (_hasGuides)
-                        {
-                            <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Guide"></i> راهنمای کاربری</a>
-                        }
                         @if (!string.IsNullOrWhiteSpace(slide.LinkText) && !string.IsNullOrWhiteSpace(slide.LinkUrl) && slide.LinkUrl != "/login")
                         {
                             <a class="btn btn-secondary" href="@slide.LinkUrl">@slide.LinkText</a>

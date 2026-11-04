@@ -33,6 +33,8 @@
 
   function searchableSelect(select) {
     if (enhanced.has(select) || select.disabled || select.multiple || select.dataset.searchable === 'false') return;
+    // the rich-text editor (guides) builds its own colour / heading pickers from hidden selects; turning those into search boxes breaks them
+    if (select.closest('.ql-toolbar, .guide-editor-host')) return;
     const options = [...select.options];
     if (options.length < SELECT_MIN_OPTIONS) return;
     const parent = select.parentElement;
