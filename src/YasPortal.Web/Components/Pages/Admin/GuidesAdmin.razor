@@ -1,0 +1,329 @@
+@page "/guides/manage"
+@page "/admin/guides"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using YasPortal.Domain.Guides
+@using YasPortal.Infrastructure.Guides
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.GuidesWorkspacePolicy)]
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+
+<PageTitle>مدیریت راهنماها - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">مدیریت سامانه</div>
+            <h1 class="page-title"><i class="ti @Icons.Guide"></i> مدیریت راهنماها</h1>
+            <p class="page-subtitle">@SubtitleLead راهنما را مثل یک سند ساده بنویسید و قالب‌بندی کنید (عنوان، فهرست، رنگ، تراز، راست‌به‌چپ یا چپ‌به‌راست). برای هر راهنما مشخص کنید پیش از ورود هم دیده شود یا فقط پس از ورود.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Details"></i> مشاهده راهنماها</a>
+        </div>
+    </div>
+
+    <div class="admin-stack">
+        @if (_canCreate)
+        {
+            <section class="card admin-form-row">
+                <div class="admin-form-row-head">
+                    <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</h2>
+                    <p class="muted">عنوان را بنویسید و متن راهنما را در ویرایشگر زیر تایپ کنید. نوار بالای ویرایشگر برای عنوان، پررنگ‌کردن، فهرست، رنگ، تراز، جهت متن و پیوند است.</p>
+                </div>
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_title" maxlength="@UserGuide.TitleMax" /></div>
+                    <div class="form-field"><label class="form-label">نمایش برای</label>
+                        <select class="form-control" @bind="_visibility">
+                            <option value="@GuideVisibility.SignedIn">فقط پس از ورود</option>
+                            <option value="@GuideVisibility.Public">عمومی (پیش از ورود هم)</option>
+                        </select></div>
+                    <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_sortOrder" /></div>
+                </div>
+                @if (_visibility == GuideVisibility.Public)
+                {
+                    <p class="muted" style="margin:8px 0 0"><i class="ti @Icons.Warning"></i> هر کسی که به این سامانه دسترسی شبکه‌ای داشته باشد، بدون ورود این راهنما را می‌بیند؛ مطلب غیرعمومی در آن ننویسید.</p>
+                }
+                <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری، زیر عنوان در فهرست نمایش داده می‌شود)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
+                </div>
+
+                <div style="margin-top:12px">
+                    <label class="form-label">متن راهنما</label>
+                    <div @key="_formKey" @ref="_host" class="guide-editor-host"></div>
+                    @if (_editorFailed)
+                    {
+                        <p class="muted" style="color:var(--danger,#b42318)"><i class="ti @Icons.Alert"></i> ویرایشگر بارگذاری نشد. صفحه را دوباره باز کنید.</p>
+                    }
+                </div>
+
+                <div class="admin-row-grid" style="margin-top:14px">
+                    <div class="form-field admin-row-submit"><div class="form-actions">
+                        <button class="btn btn-primary" disabled="@(_saving || _editorFailed)" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "افزودن راهنما" : "ذخیره")</button>
+                        @if (_editingId is not null)
+                        {
+                            <button class="btn btn-secondary" @onclick="CancelEdit">انصراف</button>
+                        }
+                    </div></div>
+                </div>
+            </section>
+        }
+
+        <section class="card table-card">
+            <div class="card-toolbar">
+                <div>
+                    <h2 class="section-title" style="margin:0">فهرست راهنماها</h2>
+                    <p class="muted">به ترتیب نمایش. راهنمای غیرفعال برای کاربران دیده نمی‌شود.</p>
+                </div>
+                <span class="badge badge-muted">@_guides.Count راهنما</span>
+            </div>
+            @if (_loading)
+            {
+                <LoadingState />
+            }
+            else if (_guides.Count == 0)
+            {
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>راهنمایی نوشته نشده است</strong><span>@(_canCreate ? "از فرم بالا نخستین راهنما را بنویسید." : "هنوز راهنمایی ثبت نشده است.")</span></div>
+            }
+            else
+            {
+                <div class="data-table-wrap">
+                    <table class="data-table data-table-bordered-rows">
+                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
+                        <tbody>
+                        @foreach (var guide in _guides)
+                        {
+                            <tr>
+                                <td>@guide.SortOrder</td>
+                                <td><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
+                                <td>@(guide.CreatedByEmployeeId is Guid author && _authors.TryGetValue(author, out var authorName) ? authorName : "—")@if (guide.IsOwnedBy(_employeeId)) { <span class="badge badge-muted">من</span> }</td>
+                                <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
+                                <td><span class="badge @(guide.IsActive ? "badge-success" : "badge-muted")">@(guide.IsActive ? "فعال" : "غیرفعال")</span></td>
+                                <td>@guide.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                <td class="action-cell">
+                                    <a class="btn btn-secondary btn-sm" href="/guides/@guide.Id"><i class="ti @Icons.Details"></i> مشاهده</a>
+                                    @if (guide.CanBeEditedBy(_canEditAll, _canEditOwn, _employeeId))
+                                    {
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(guide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(guide.Id)"><i class="ti @(guide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(guide.IsActive ? "غیرفعال" : "فعال")</button>
+                                        @if (_confirmDeleteId == guide.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(guide.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _confirmDeleteId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => _confirmDeleteId = guide.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private const string EditorModule = "./js/guide-editor.js?v=20261104-1";
+
+    private bool _loading = true, _canViewAll, _canEditAll, _canEditOwn, _saving, _editorFailed;
+    private Guid? _employeeId;
+    private List<UserGuide> _guides = [];
+    private Dictionary<Guid, string> _authors = [];
+
+    // Who may do what: Admin.Guides.View sees every guide; Admin.Guides.Manage edits every guide; Guides.Own.Manage writes new guides
+    // and edits only the ones the person wrote. Someone holding only Guides.Own.Manage sees only their own guides here.
+    private bool _canCreate => _canEditAll || _canEditOwn;
+    private string SubtitleLead => _canCreate ? (_canViewAll ? "" : "فقط راهنماهایی که خودتان نوشته‌اید در این صفحه دیده و ویرایش می‌شوند. ") : "فقط خواندنی. ";
+    private Guid? _editingId, _confirmDeleteId;
+    private string _title = "", _summary = "", _initialHtml = "";
+    private GuideVisibility _visibility = GuideVisibility.SignedIn;
+    private int _sortOrder, _formKey;
+    private bool _initEditor = true;
+    private ElementReference _host;
+    private IJSObjectReference? _module;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        _canEditAll = await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage);
+        _canViewAll = _canEditAll || await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesView);
+        _canEditOwn = await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage);
+        await LoadAsync();
+        _loading = false;
+    }
+
+    // The editor is built in the browser once its element exists (and again for every new element: a new guide, or a guide picked for editing).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_initEditor || !_canCreate) return;
+        _initEditor = false;
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", EditorModule);
+            await _module.InvokeVoidAsync("init", _host, _initialHtml, "متن راهنما را اینجا بنویسید...");
+            _editorFailed = false;
+        }
+        catch (Exception ex) when (ex is JSException or InvalidOperationException)
+        {
+            _editorFailed = true;
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException)
+        {
+            // the circuit is gone; nothing to show
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var query = db.UserGuides.AsNoTracking();
+        if (!_canViewAll)
+        {
+            // only their own guides; a person we cannot identify sees none (never the guides that have no recorded author)
+            if (_employeeId is not Guid me) { _guides = []; _authors = []; return; }
+            query = query.Where(x => x.CreatedByEmployeeId == me);
+        }
+        _guides = await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        var authorIds = _guides.Where(x => x.CreatedByEmployeeId != null).Select(x => x.CreatedByEmployeeId!.Value).Distinct().ToList();
+        _authors = authorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => authorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
+        if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
+    }
+
+    private void BeginEdit(UserGuide guide)
+    {
+        _editingId = guide.Id;
+        _title = guide.Title; _summary = guide.Summary ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
+        _initialHtml = GuideHtmlSanitizer.Sanitize(guide.ContentHtml);
+        _formKey++; _initEditor = true;
+    }
+
+    private async Task CancelEdit()
+    {
+        ResetForm();
+        await LoadAsync();
+    }
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _title = _summary = _initialHtml = "";
+        _visibility = GuideVisibility.SignedIn;
+        _formKey++; _initEditor = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _module is null || !_canCreate) return;
+        _saving = true;
+        try
+        {
+            // The text comes from the browser, so it is cleaned here before anything is stored.
+            var html = GuideHtmlSanitizer.Sanitize(await _module.InvokeAsync<string>("getHtml", _host));
+            if (!UserGuide.HasText(html)) { AppState.AddToast("متن راهنما را بنویسید.", ToastLevel.Error); return; }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_editingId is Guid id)
+            {
+                var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+                if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                if (!await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
+                guide.Update(_title, _summary, html, _visibility, _sortOrder);
+            }
+            else
+            {
+                // a new guide records who wrote it; without that a person who may edit only their own guides could never edit it again
+                if (!await MayCreateAsync()) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
+                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId));
+            }
+
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingId is null ? "راهنما اضافه شد." : "راهنما ذخیره شد.", ToastLevel.Success);
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            AppState.AddToast(Explain(ex), ToastLevel.Error);
+        }
+        catch (JSException)
+        {
+            AppState.AddToast("خواندن متن از ویرایشگر انجام نشد. دوباره تلاش کنید.", ToastLevel.Error);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not JSDisconnectedException)
+        {
+            AppState.AddToast("ذخیره راهنما انجام نشد.", ToastLevel.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private const string NotAllowed = "اجازه‌ی تغییر این راهنما را ندارید.";
+
+    // Checked again at the moment of every change (the permissions may have changed since the page was drawn).
+    private async Task<bool> MayEditAsync(UserGuide guide) =>
+        guide.CanBeEditedBy(await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage), await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage), _employeeId);
+
+    private async Task<bool> MayCreateAsync() =>
+        await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage) || (_employeeId is not null && await PermissionChecker.HasPermissionAsync(Perm.GuidesOwnManage));
+
+    // The domain's messages are English; the person sees a Persian sentence for the field that failed.
+    private static string Explain(ArgumentException ex) => ex.ParamName switch
+    {
+        "title" => $"عنوان لازم است و حداکثر {UserGuide.TitleMax} نویسه باشد.",
+        "summary" => $"خلاصه حداکثر {UserGuide.SummaryMax} نویسه باشد.",
+        "contentHtml" => "متن راهنما لازم است و نباید بیش از حد طولانی باشد؛ آن را به چند راهنما تقسیم کنید.",
+        _ => "اطلاعات راهنما معتبر نیست.",
+    };
+
+    private async Task ToggleAsync(Guid id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+        if (guide is not null && !await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
+        if (guide is not null)
+        {
+            if (guide.IsActive) guide.Deactivate(); else guide.Activate();
+            guide.Touch();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmDeleteId = null;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
+        if (guide is not null && !await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
+        if (guide is not null)
+        {
+            db.UserGuides.Remove(guide);
+            await db.SaveChangesAsync();
+            AppState.AddToast("راهنما حذف شد.", ToastLevel.Success);
+        }
+        if (_editingId == id) ResetForm();
+        await LoadAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try { await _module.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+    }
+}

@@ -1,0 +1,85 @@
+/* User guides: reader pages, the admin rich-text editor (Quill, /lib/quill) and the shared reading style.
+   Colours come from the theme variables, so dark mode follows. */
+
+/* ---------- list and article ---------- */
+.guide-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.guide-card{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid var(--border,#e6ebf2);border-radius:12px;background:var(--surface,#fff);color:inherit;transition:border-color .14s,transform .14s,box-shadow .14s}
+.guide-card:hover{border-color:var(--accent,#155eef);transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.07)}
+.guide-card-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft,#eef4ff);color:var(--accent,#155eef);font-size:20px}
+.guide-card strong{font-size:14px;line-height:1.6}
+.guide-card .guide-card-summary{color:var(--text-muted,#667085);font-size:12.5px;line-height:1.8}
+
+.guide-article{max-width:860px;margin-inline:auto}
+.guide-article .guide-summary{margin:0 0 14px;color:var(--text-muted,#667085);line-height:1.9}
+
+/* ---------- how a guide reads (the editor's output, already cleaned on the server) ---------- */
+.guide-html{line-height:2;overflow-wrap:anywhere}
+/* the app turns font-synthesis off, and Vazirmatn has no italic face, so "کج" would not slant at all without this */
+.guide-html,.guide-editor-host .ql-editor{font-synthesis:style weight}
+.guide-html :is(p,h1,h2,h3,h4,ul,ol,blockquote){margin:0 0 12px}
+.guide-html h1{font-size:24px;line-height:1.6;font-weight:800}
+.guide-html h2{font-size:20px;line-height:1.6;font-weight:800;padding-bottom:6px;border-bottom:1px solid var(--border,#e6ebf2)}
+.guide-html h3{font-size:16px;line-height:1.7;font-weight:700}
+.guide-html ul,.guide-html ol{padding-inline-start:26px}
+.guide-html blockquote{padding:8px 14px;border-inline-start:4px solid var(--accent,#155eef);background:var(--surface-2,#f8fafc);color:var(--text-muted,#475467);border-radius:8px}
+.guide-html a{color:var(--accent,#155eef);text-decoration:underline}
+.guide-html .ql-direction-rtl{direction:rtl;text-align:right}
+.guide-html .ql-direction-ltr{direction:ltr;text-align:left}
+.guide-html .ql-align-right{text-align:right}
+.guide-html .ql-align-center{text-align:center}
+.guide-html .ql-align-justify{text-align:justify}
+.guide-html .ql-indent-1{padding-inline-start:3em}
+.guide-html .ql-indent-2{padding-inline-start:6em}
+.guide-html .ql-indent-3{padding-inline-start:9em}
+.guide-html .ql-indent-4{padding-inline-start:12em}
+.guide-html .ql-indent-5{padding-inline-start:15em}
+.guide-html .ql-indent-6{padding-inline-start:18em}
+.guide-html .ql-indent-7{padding-inline-start:21em}
+.guide-html .ql-indent-8{padding-inline-start:24em}
+
+/* ---------- editor ---------- */
+.guide-editor-host{margin-top:6px}
+.guide-editor-host .ql-toolbar.ql-snow{border-color:var(--border,#d0d5dd);border-radius:10px 10px 0 0;background:var(--surface-2,#f8fafc);direction:rtl;position:sticky;top:0;z-index:5}
+.guide-editor-host .ql-container.ql-snow{border-color:var(--border,#d0d5dd);border-radius:0 0 10px 10px;background:var(--surface,#fff);color:var(--text,#182230);font-family:inherit;font-size:14px}
+.guide-editor-host .ql-editor{min-height:340px;line-height:2;direction:rtl;text-align:right;font-family:inherit}
+.guide-editor-host .ql-editor.ql-blank::before{right:15px;left:15px;font-style:normal;color:var(--text-muted,#98a2b3)}
+.guide-editor-host .ql-editor .ql-direction-ltr{direction:ltr;text-align:left}
+.guide-editor-host .ql-editor .ql-direction-rtl{direction:rtl;text-align:right}
+.guide-editor-host .ql-editor .ql-align-right{text-align:right}
+.guide-editor-host .ql-editor .ql-align-center{text-align:center}
+.guide-editor-host .ql-editor .ql-align-justify{text-align:justify}
+.guide-editor-host .ql-editor blockquote{border-left:0;border-right:4px solid var(--border,#ccc);margin:8px 0;padding:0 14px 0 0}
+.guide-editor-host .ql-snow .ql-stroke{stroke:var(--text,#444)}
+.guide-editor-host .ql-snow .ql-fill,.guide-editor-host .ql-snow .ql-stroke.ql-fill{fill:var(--text,#444)}
+.guide-editor-host .ql-snow .ql-picker{color:var(--text,#444)}
+.guide-editor-host .ql-snow .ql-picker-options{background:var(--surface,#fff);border-color:var(--border,#ccc)}
+.guide-editor-host .ql-snow .ql-picker-label{padding-left:24px;padding-right:8px}
+.guide-editor-host .ql-snow .ql-picker:not(.ql-color-picker):not(.ql-icon-picker) svg{right:auto;left:0}
+.guide-editor-host .ql-snow .ql-picker.ql-header{width:112px}
+.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-label::before,.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-item::before{content:'پاراگراف'}
+.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="1"]::before,.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="1"]::before{content:'عنوان بزرگ'}
+.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="2"]::before,.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="2"]::before{content:'عنوان متوسط'}
+.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-label[data-value="3"]::before,.guide-editor-host .ql-snow .ql-picker.ql-header .ql-picker-item[data-value="3"]::before{content:'عنوان کوچک'}
+.guide-editor-host .ql-snow .ql-tooltip{direction:rtl;text-align:right;left:auto}
+/* bullets and numbers on the right-hand side (Quill puts them on the left unless a list item is marked rtl) */
+.guide-editor-host .ql-editor ol,.guide-editor-host .ql-editor ul{padding-left:0;padding-right:0}
+.guide-editor-host .ql-editor li:not(.ql-direction-ltr){padding-left:0;padding-right:1.5em}
+.guide-editor-host .ql-editor li:not(.ql-direction-ltr)>.ql-ui:before{margin-left:.3em;margin-right:-1.5em;text-align:left}
+.guide-editor-host .ql-editor p.ql-indent-1:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-1:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-1:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-1:not(.ql-direction-ltr){padding-left:0;padding-right:3em}
+.guide-editor-host .ql-editor li.ql-indent-1:not(.ql-direction-ltr){padding-left:0;padding-right:4.5em}
+.guide-editor-host .ql-editor p.ql-indent-2:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-2:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-2:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-2:not(.ql-direction-ltr){padding-left:0;padding-right:6em}
+.guide-editor-host .ql-editor li.ql-indent-2:not(.ql-direction-ltr){padding-left:0;padding-right:7.5em}
+.guide-editor-host .ql-editor p.ql-indent-3:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-3:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-3:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-3:not(.ql-direction-ltr){padding-left:0;padding-right:9em}
+.guide-editor-host .ql-editor li.ql-indent-3:not(.ql-direction-ltr){padding-left:0;padding-right:10.5em}
+.guide-editor-host .ql-editor p.ql-indent-4:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-4:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-4:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-4:not(.ql-direction-ltr){padding-left:0;padding-right:12em}
+.guide-editor-host .ql-editor li.ql-indent-4:not(.ql-direction-ltr){padding-left:0;padding-right:13.5em}
+.guide-editor-host .ql-editor p.ql-indent-5:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-5:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-5:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-5:not(.ql-direction-ltr){padding-left:0;padding-right:15em}
+.guide-editor-host .ql-editor li.ql-indent-5:not(.ql-direction-ltr){padding-left:0;padding-right:16.5em}
+.guide-editor-host .ql-editor p.ql-indent-6:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-6:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-6:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-6:not(.ql-direction-ltr){padding-left:0;padding-right:18em}
+.guide-editor-host .ql-editor li.ql-indent-6:not(.ql-direction-ltr){padding-left:0;padding-right:19.5em}
+.guide-editor-host .ql-editor p.ql-indent-7:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-7:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-7:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-7:not(.ql-direction-ltr){padding-left:0;padding-right:21em}
+.guide-editor-host .ql-editor li.ql-indent-7:not(.ql-direction-ltr){padding-left:0;padding-right:22.5em}
+.guide-editor-host .ql-editor p.ql-indent-8:not(.ql-direction-ltr),.guide-editor-host .ql-editor h1.ql-indent-8:not(.ql-direction-ltr),.guide-editor-host .ql-editor h2.ql-indent-8:not(.ql-direction-ltr),.guide-editor-host .ql-editor h3.ql-indent-8:not(.ql-direction-ltr){padding-left:0;padding-right:24em}
+.guide-editor-host .ql-editor li.ql-indent-8:not(.ql-direction-ltr){padding-left:0;padding-right:25.5em}
+
+@media print{.guide-article{max-width:none}.guide-html blockquote{break-inside:avoid}}

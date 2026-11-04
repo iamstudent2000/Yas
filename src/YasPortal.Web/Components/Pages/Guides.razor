@@ -1,0 +1,74 @@
+@page "/guides"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Guides
+@using YasPortal.Infrastructure.Guides
+@using YasPortal.Web.Components.Shared
+@attribute [AllowAnonymous]
+@inject GuideProvider Provider
+@inject AuthenticationStateProvider AuthState
+@* Open to everyone, also before sign-in. A visitor sees only the guides marked public; a signed-in person sees all active guides. *@
+
+<PageTitle>راهنمای کاربری - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">راهنما</div>
+            <h1 class="page-title"><i class="ti @Icons.Guide"></i> راهنمای کاربری</h1>
+            <p class="page-subtitle">راهنماهای کار با یاس پورتال که مدیر سامانه نوشته است.@(_signedIn ? "" : " برای دیدن راهنماهای ویژه کاربران، وارد شوید.")</p>
+        </div>
+        <div class="form-actions">
+            @if (!_signedIn)
+            {
+                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+            }
+            <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
+                <a class="btn btn-secondary" href="/guides/manage"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_guides.Count == 0)
+    {
+        <section class="card">
+            <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>هنوز راهنمایی منتشر نشده است</strong><span>هر راهنمایی که برای شما در دسترس باشد در همین‌جا فهرست می‌شود.</span></div>
+        </section>
+    }
+    else
+    {
+        <div class="guide-grid">
+            @foreach (var guide in _guides)
+            {
+                <a class="guide-card" href="/guides/@guide.Id">
+                    <span class="guide-card-icon"><i class="ti @Icons.Guide"></i></span>
+                    <strong>@guide.Title</strong>
+                    @if (guide.Summary is not null)
+                    {
+                        <span class="guide-card-summary">@guide.Summary</span>
+                    }
+                    @if (_signedIn && guide.Visibility == GuideVisibility.Public)
+                    {
+                        <span><span class="badge badge-muted">عمومی</span></span>
+                    }
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _signedIn;
+    private IReadOnlyList<GuideListItem> _guides = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
+        _guides = await Provider.ListAsync(_signedIn);
+        _loading = false;
+    }
+}

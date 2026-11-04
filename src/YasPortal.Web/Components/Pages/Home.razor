@@ -3,12 +3,14 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Landing
+@using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Landing
 @using YasPortal.Web.Components.Shared
 @implements IDisposable
 @inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
+@inject GuideProvider GuideProv
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
@@ -109,16 +111,22 @@ else
                 <strong>منوها و امکانات شما پس از ورود نمایش داده می‌شود</strong>
                 <span>هر کاربر فقط بخش‌هایی را می‌بیند که مجوز آن‌ها را دارد.</span>
             </div>
-            @if (!_signedIn)
-            {
-                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
-            }
+            <div class="form-actions">
+                @if (_hasGuides)
+                {
+                    <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Guide"></i> راهنمای کاربری</a>
+                }
+                @if (!_signedIn)
+                {
+                    <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
+                }
+            </div>
         </section>
     </div>
 }
 
 @code {
-    private bool _ready, _signedIn, _canDashboard, _showLanding = true;
+    private bool _ready, _signedIn, _canDashboard, _showLanding = true, _hasGuides;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private LinkTree _tree = LinkTree.Build([], []);
@@ -147,6 +155,7 @@ else
                 return;
             }
         }
+        _hasGuides = (await GuideProv.ListAsync(_signedIn)).Count > 0;
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;

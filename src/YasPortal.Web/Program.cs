@@ -13,6 +13,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
+using YasPortal.Infrastructure.Guides;
 using YasPortal.Infrastructure.Landing;
 using YasPortal.Infrastructure.PhoneBook;
 using YasPortal.Infrastructure.Persistence;
@@ -27,7 +28,9 @@ var builder = WebApplication.CreateBuilder(args);
 // local function that closes over it, regardless of when that lambda actually runs.
 const string LastValidatedClaimType = "yas_last_validated_utc";
 
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents()
+    // A guide's text travels from the editor to the server in one message; the 32 KB default is too small for a long guide.
+    .AddHubOptions(options => options.MaximumReceiveMessageSize = 1024 * 1024);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
     options.Cookie.Name = "YasPortal.Auth";
@@ -49,6 +52,9 @@ builder.Services.AddAuthorization(options => {
     // The "team" page is open to anyone holding at least one of the two subordinate-history permissions (the page itself shows only the tabs they hold).
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
+    // The guides workspace is open to anyone who holds one of the three guide permissions; the page then limits what each person can see and change.
+    options.AddPolicy(Perm.GuidesWorkspacePolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
+        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.AdminGuidesView or Perm.AdminGuidesManage or Perm.GuidesOwnManage)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
     // Administrators' own notifications (vacant-position alerts) live on /admin/notifications; /notifications is for everyone else.
     options.AddPolicy("AdminOnly", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => ctx.User.HasClaim("yas_is_admin", "True")));
@@ -62,6 +68,7 @@ builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
+builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
@@ -196,6 +203,16 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_PortalLinks_GroupId] ON [dbo].[PortalLinks] ([GroupId])');
         IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
             CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
+        IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NOT NULL DROP TABLE [dbo].[GuideBlocks];
+        IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
+            CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [ContentHtml] nvarchar(max) NOT NULL, [Visibility] int NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, [CreatedByEmployeeId] uniqueidentifier NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));
+        IF COL_LENGTH(N'dbo.UserGuides', N'Direction') IS NOT NULL ALTER TABLE [dbo].[UserGuides] DROP COLUMN [Direction];
+        IF COL_LENGTH(N'dbo.UserGuides', N'RelatedPermissionCode') IS NOT NULL ALTER TABLE [dbo].[UserGuides] DROP COLUMN [RelatedPermissionCode];
+        IF COL_LENGTH(N'dbo.UserGuides', N'ContentHtml') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [ContentHtml] nvarchar(max) NOT NULL CONSTRAINT [DF_UserGuides_ContentHtml] DEFAULT N'';
+        IF COL_LENGTH(N'dbo.UserGuides', N'Visibility') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [Visibility] int NOT NULL CONSTRAINT [DF_UserGuides_Visibility] DEFAULT 1;
+        IF COL_LENGTH(N'dbo.UserGuides', N'CreatedByEmployeeId') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [CreatedByEmployeeId] uniqueidentifier NULL;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
+            EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
         """);
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
