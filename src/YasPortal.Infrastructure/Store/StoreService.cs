@@ -64,11 +64,32 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
 
     // ---------- items ----------
 
-    private static IQueryable<StoreItemRow> ItemRows(ApplicationDbContext db) =>
+    // A member-init projection (not a record constructor) so EF can still filter and order on its properties in SQL.
+    private sealed class ItemProjection
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public Guid CategoryId { get; set; }
+        public string CategoryName { get; set; } = "";
+        public string Unit { get; set; } = "";
+        public string? Description { get; set; }
+        public decimal MinStock { get; set; }
+        public bool IsActive { get; set; }
+        public decimal Stock { get; set; }
+
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock);
+    }
+
+    private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
         from i in db.StoreItems.AsNoTracking()
         join c in db.StoreCategories.AsNoTracking() on i.CategoryId equals c.Id
-        select new StoreItemRow(i.Id, i.Code, i.Name, i.CategoryId, c.Name, i.Unit, i.Description, i.MinStock, i.IsActive,
-            db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m);
+        select new ItemProjection
+        {
+            Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
+            MinStock = i.MinStock, IsActive = i.IsActive,
+            Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
+        };
 
     /// <summary>Items with their current stock. <paramref name="activeOnly"/> hides items and categories that are switched off.</summary>
     public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, bool lowOnly, int page, int pageSize, CancellationToken ct = default)
@@ -86,7 +107,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         var total = await q.CountAsync(ct);
         var rows = await q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name)
             .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        return new StorePage<StoreItemRow>(rows, total);
+        return new StorePage<StoreItemRow>(rows.Select(r => r.ToRow()).ToList(), total);
     }
 
     /// <summary>All items matching the filters with no paging, for printing.</summary>
