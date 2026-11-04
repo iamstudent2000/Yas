@@ -4,11 +4,9 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
-public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, decimal MinStock, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false)
+public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false)
 {
     public StoreRequestWindow WindowOn(DateTime today) => StoreItem.WindowOf(RequestOpensOn, RequestClosesOn, today);
-    /// <summary>Low = an alert level is set and the stock has reached it.</summary>
-    public bool IsLow => MinStock > 0 && Stock <= MinStock;
 }
 
 public sealed record StoreMovementRow(Guid Id, DateTime CreatedAtUtc, Guid ItemId, string ItemCode, string ItemName, string Unit, StockMovementKind Kind, decimal Delta, string? Reference, string? Note, string? CreatedBy);
@@ -96,7 +94,6 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public string CategoryName { get; set; } = "";
         public string Unit { get; set; } = "";
         public string? Description { get; set; }
-        public decimal MinStock { get; set; }
         public bool IsActive { get; set; }
         public decimal Stock { get; set; }
         public decimal MaxPerRequest { get; set; }
@@ -104,7 +101,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public DateTime? RequestClosesOn { get; set; }
         public bool IsLottery { get; set; }
 
-        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery);
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery);
     }
 
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
@@ -113,12 +110,12 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         select new ItemProjection
         {
             Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
-            MinStock = i.MinStock, MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsActive = i.IsActive,
+            MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsActive = i.IsActive,
             Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
         };
 
     /// <summary>Items with their current stock. <paramref name="activeOnly"/> hides items and categories that are switched off.</summary>
-    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, bool lowOnly, int page, int pageSize, CancellationToken ct = default)
+    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, int page, int pageSize, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = ItemRows(db);
@@ -129,7 +126,6 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
             var s = search.Trim();
             q = q.Where(x => x.Name.Contains(s) || x.Code.Contains(s));
         }
-        if (lowOnly) q = q.Where(x => x.MinStock > 0 && x.Stock <= x.MinStock);
         var total = await q.CountAsync(ct);
         var rows = await q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name)
             .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -137,8 +133,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
     }
 
     /// <summary>All items matching the filters with no paging, for printing.</summary>
-    public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(string? search, Guid? categoryId, bool lowOnly, CancellationToken ct = default) =>
-        (await SearchItemsAsync(search, categoryId, false, lowOnly, 1, 100_000, ct)).Rows;
+    public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(string? search, Guid? categoryId, CancellationToken ct = default) =>
+        (await SearchItemsAsync(search, categoryId, false, 1, 100_000, ct)).Rows;
 
     public async Task<StoreItem?> GetItemAsync(Guid id, CancellationToken ct = default)
     {
@@ -146,20 +142,30 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, CancellationToken ct = default)
+    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, decimal initialStock, Guid? byEmployeeId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         code = (code ?? "").Trim();
         if (await db.StoreItems.AnyAsync(x => x.Code == code && x.Id != id, ct)) return StoreResult.Fail("کالایی با این کد وجود دارد.");
         if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه کالا را انتخاب کنید.");
+        unit = (unit ?? "").Trim();
+        if (initialStock < 0 || decimal.Round(initialStock, 3) != initialStock) return StoreResult.Fail("موجودی اولیه باید عدد صفر یا بیشتر باشد.");
+        // a unit outside the list is accepted only when the item already has it (older data)
+        if (!StoreUnits.All.Contains(unit) && !(id is Guid existing && await db.StoreItems.AnyAsync(x => x.Id == existing && x.Unit == unit, ct)))
+            return StoreResult.Fail("واحد را از فهرست انتخاب کنید.");
         try
         {
-            if (id is null) db.StoreItems.Add(new StoreItem(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery));
+            if (id is null)
+            {
+                var created = new StoreItem(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+                db.StoreItems.Add(created);
+                if (initialStock > 0) db.StoreStockMovements.Add(new StoreStockMovement(created.Id, StockMovementKind.Receive, initialStock, "موجودی اولیه", null, byEmployeeId));
+            }
             else
             {
                 var item = await db.StoreItems.FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (item is null) return StoreResult.Fail("کالا پیدا نشد.");
-                item.Update(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+                item.Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
             }
         }
         catch (ArgumentException)

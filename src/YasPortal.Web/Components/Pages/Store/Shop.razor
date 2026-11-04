@@ -53,7 +53,6 @@
                                 <td>@item.Unit</td>
                                 <td>
                                     @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
-                                    else if (item.IsLow) { <span class="badge badge-warning">کم · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
                                     else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
                                 </td>
                                 <td>@(item.MaxPerRequest == 0 ? "—" : WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) + " " + item.Unit)</td>
@@ -98,7 +97,7 @@
         _loading = true;
         try
         {
-            _page = await Store.SearchItemsAsync(_search, _categoryId, true, false, _pageNo, _pageSize, cts.Token);
+            _page = await Store.SearchItemsAsync(_search, _categoryId, true, _pageNo, _pageSize, cts.Token);
             _loading = false;
         }
         catch (OperationCanceledException) { }

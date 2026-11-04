@@ -33,6 +33,13 @@ public sealed class StoreCategory
     public void Deactivate() => IsActive = false;
 }
 
+/// <summary>The units an item can be counted in. A fixed list keeps the same thing from being typed in five different ways.</summary>
+public static class StoreUnits
+{
+    public static IReadOnlyList<string> All { get; } =
+        ["عدد", "بسته", "جعبه", "کارتن", "دسته", "جفت", "ست", "رول", "بطری", "برگ", "کیلوگرم", "گرم", "لیتر", "متر"];
+}
+
 /// <summary>Whether an item can be requested on a given day.</summary>
 public enum StoreRequestWindow
 {
@@ -52,10 +59,10 @@ public sealed class StoreItem
     {
     }
 
-    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
+    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
     {
         Id = Guid.NewGuid();
-        Update(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+        Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
     }
 
     public Guid Id { get; private set; }
@@ -64,8 +71,6 @@ public sealed class StoreItem
     public Guid CategoryId { get; private set; }
     public string Unit { get; private set; } = "";
     public string? Description { get; private set; }
-    /// <summary>Stock at or below this number is shown as low (0 means "no alert").</summary>
-    public decimal MinStock { get; private set; }
     /// <summary>The most one employee may ask for of this item in a single request (0 means no limit). Enforced when ordering.</summary>
     public decimal MaxPerRequest { get; private set; }
     /// <summary>First day (inclusive) on which the item can be requested; empty means "from the start".</summary>
@@ -83,7 +88,7 @@ public sealed class StoreItem
         : closesOn is DateTime c && today.Date > c.Date ? StoreRequestWindow.Closed
         : StoreRequestWindow.Open;
 
-    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
+    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
     {
         code = (code ?? "").Trim();
         name = (name ?? "").Trim();
@@ -94,16 +99,13 @@ public sealed class StoreItem
         if (unit.Length == 0 || unit.Length > UnitMax) throw new ArgumentException($"Unit is required and at most {UnitMax} characters.", nameof(unit));
         if (categoryId == Guid.Empty) throw new ArgumentException("Category is required.", nameof(categoryId));
         if (description is { Length: > DescriptionMax }) throw new ArgumentException($"Description is at most {DescriptionMax} characters.", nameof(description));
-        if (minStock < 0) throw new ArgumentException("Minimum stock cannot be negative.", nameof(minStock));
         if (maxPerRequest < 0 || decimal.Round(maxPerRequest, 3) != maxPerRequest) throw new ArgumentException("Maximum per request cannot be negative (three decimals at most).", nameof(maxPerRequest));
-        if (decimal.Round(minStock, 3) != minStock) throw new ArgumentException("At most three decimals.", nameof(minStock));
         if (requestOpensOn is DateTime o && requestClosesOn is DateTime c && c.Date < o.Date) throw new ArgumentException("The request period ends before it starts.", nameof(requestClosesOn));
         Code = code;
         Name = name;
         CategoryId = categoryId;
         Unit = unit;
         Description = description;
-        MinStock = minStock;
         MaxPerRequest = maxPerRequest;
         RequestOpensOn = requestOpensOn?.Date;
         RequestClosesOn = requestClosesOn?.Date;

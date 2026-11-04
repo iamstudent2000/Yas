@@ -69,22 +69,20 @@
                             <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
                         <div class="form-field"><label class="form-label">گروه</label>
                             <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
-                        <div class="form-field"><label class="form-label">&nbsp;</label>
-                            <label class="check-row"><input type="checkbox" checked="@_lowOnly" @onchange="LowChangedAsync" /> فقط کمبودها</label></div>
                     </div>
                     <div class="data-table-wrap">
                         <table class="data-table">
-                            <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداقل</th><th>وضعیت</th></tr></thead>
+                            <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>وضعیت</th></tr></thead>
                             <tbody>
                                 @foreach (var i in _levels.Rows)
                                 {
                                     <tr>
                                         <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
-                                        <td><strong>@Num(i.Stock)</strong></td><td>@Num(i.MinStock)</td>
-                                        <td>@if (i.Stock <= 0) {<span class="badge badge-danger">ناموجود</span>} else if (i.IsLow) {<span class="badge badge-warning">کمبود</span>} else {<span class="badge badge-success">کافی</span>}</td>
+                                        <td><strong>@Num(i.Stock)</strong></td>
+                                        <td>@if (i.Stock <= 0) {<span class="badge badge-danger">ناموجود</span>} else {<span class="badge badge-success">موجود</span>}</td>
                                     </tr>
                                 }
-                                @if (_levels.Rows.Count == 0) { <tr><td colspan="7" class="muted">کالایی پیدا نشد.</td></tr> }
+                                @if (_levels.Rows.Count == 0) { <tr><td colspan="6" class="muted">کالایی پیدا نشد.</td></tr> }
                             </tbody>
                         </table>
                     </div>
@@ -132,7 +130,6 @@
     private string _tab = "levels", _search = "";
     private Guid? _categoryId, _moveItemId;
     private StockMovementKind? _moveKind;
-    private bool _lowOnly;
     private int _pageNo = 1, _pageSize = 20, _formKey;
     private StorePage<StoreItemRow> _levels = new([], 0);
     private StorePage<StoreMovementRow> _moves = new([], 0);
@@ -159,12 +156,12 @@
     private async Task LoadOptionsAsync()
     {
         CategoryOptions = (await Store.ListCategoriesAsync(true)).Select(c => (c.Id.ToString(), c.Name)).ToList();
-        ItemOptions = (await Store.AllItemsAsync(null, null, false)).Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
+        ItemOptions = (await Store.AllItemsAsync(null, null)).Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
     }
 
     private async Task LoadAsync()
     {
-        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _lowOnly, _pageNo, _pageSize);
+        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _pageNo, _pageSize);
         else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, null, null, _pageNo, _pageSize);
     }
 
@@ -189,7 +186,6 @@
     private async Task SwitchTabAsync(string tab) { _tab = tab; _pageNo = 1; await LoadAsync(); }
     private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
     private async Task CategoryChangedAsync(string? k) { _categoryId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
-    private async Task LowChangedAsync(ChangeEventArgs e) { _lowOnly = e.Value is true; _pageNo = 1; await LoadAsync(); }
     private async Task MoveItemChangedAsync(string? k) { _moveItemId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
     private async Task MoveKindChangedAsync(string? k) { _moveKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : null; _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }

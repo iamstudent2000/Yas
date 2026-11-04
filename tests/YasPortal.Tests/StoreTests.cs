@@ -11,13 +11,13 @@ public class StoreTests
     [Fact]
     public void Item_is_trimmed_and_validated()
     {
-        var item = new StoreItem("  A-1 ", " Pen ", Cat, " عدد ", "  ", 5);
+        var item = new StoreItem("  A-1 ", " Pen ", Cat, " عدد ", "  ");
         Assert.Equal("A-1", item.Code);
         Assert.Equal("Pen", item.Name);
         Assert.Equal("عدد", item.Unit);
         Assert.Null(item.Description);
-        Assert.Throws<ArgumentException>(() => new StoreItem("", "Pen", Cat, "عدد", null, 0));
-        Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Guid.Empty, "عدد", null, 0));
+        Assert.Throws<ArgumentException>(() => new StoreItem("", "Pen", Cat, "عدد", null));
+        Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Guid.Empty, "عدد", null));
         Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Cat, "عدد", null, -1));
     }
 
@@ -36,22 +36,22 @@ public class StoreTests
     [Fact]
     public void Max_per_request_is_stored_and_validated()
     {
-        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, 10);
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 10);
         Assert.Equal(10, item.MaxPerRequest);
-        Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Cat, "عدد", null, 0, -1));
+        Assert.Throws<ArgumentException>(() => new StoreItem("A", "Pen", Cat, "عدد", null, -1));
     }
 
     [Fact]
     public void Request_window_is_checked_by_day_inclusive()
     {
-        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, 0, new DateTime(2026, 11, 10), new DateTime(2026, 11, 20), true);
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 10), new DateTime(2026, 11, 20), true);
         Assert.True(item.IsLottery);
         Assert.Equal(StoreRequestWindow.NotYet, item.WindowOn(new DateTime(2026, 11, 9, 23, 59, 0)));
         Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 10)));
         Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 20, 23, 59, 0)));
         Assert.Equal(StoreRequestWindow.Closed, item.WindowOn(new DateTime(2026, 11, 21)));
-        Assert.Equal(StoreRequestWindow.Open, new StoreItem("B", "Pen", Cat, "عدد", null, 0).WindowOn(DateTime.Today));
-        Assert.Throws<ArgumentException>(() => new StoreItem("C", "Pen", Cat, "عدد", null, 0, 0, new DateTime(2026, 11, 20), new DateTime(2026, 11, 10)));
+        Assert.Equal(StoreRequestWindow.Open, new StoreItem("B", "Pen", Cat, "عدد", null).WindowOn(DateTime.Today));
+        Assert.Throws<ArgumentException>(() => new StoreItem("C", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 20), new DateTime(2026, 11, 10)));
     }
 
     [Fact]
@@ -84,11 +84,10 @@ public class StoreTests
     }
 
     [Fact]
-    public void Low_stock_needs_an_alert_level()
+    public void Units_come_from_a_fixed_list()
     {
-        Assert.False(new StoreItemRow(Guid.NewGuid(), "A", "A", Cat, "C", "u", null, 0, true, 0).IsLow);
-        Assert.True(new StoreItemRow(Guid.NewGuid(), "A", "A", Cat, "C", "u", null, 5, true, 5).IsLow);
-        Assert.False(new StoreItemRow(Guid.NewGuid(), "A", "A", Cat, "C", "u", null, 5, true, 6).IsLow);
+        Assert.Contains("عدد", StoreUnits.All);
+        Assert.Equal(StoreUnits.All.Count, StoreUnits.All.Distinct().Count());
     }
 
     [Fact]
