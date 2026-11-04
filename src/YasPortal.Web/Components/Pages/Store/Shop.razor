@@ -1,5 +1,6 @@
 @page "/store"
 @using Microsoft.AspNetCore.Authorization
+@using YasPortal.Domain.Store
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -41,7 +42,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th></tr></thead>
+                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th><th>درخواست</th></tr></thead>
                     <tbody>
                         @foreach (var item in _page.Rows)
                         {
@@ -56,6 +57,15 @@
                                     else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
                                 </td>
                                 <td>@(item.MaxPerRequest == 0 ? "—" : WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) + " " + item.Unit)</td>
+                                <td>
+                                    @switch (item.WindowOn(DateTime.Now))
+                                    {
+                                        case StoreRequestWindow.Open: <span class="badge badge-success">باز@(item.RequestClosesOn is DateTime c ? " تا " + WorkflowDisplay.ToPersianDate(c) : "")</span> break;
+                                        case StoreRequestWindow.NotYet: <span class="badge badge-muted">از @WorkflowDisplay.ToPersianDate(item.RequestOpensOn!.Value)</span> break;
+                                        default: <span class="badge badge-danger">بسته شد</span> break;
+                                    }
+                                    @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
+                                </td>
                             </tr>
                         }
                     </tbody>

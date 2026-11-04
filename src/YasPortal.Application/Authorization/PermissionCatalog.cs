@@ -87,6 +87,8 @@ public static class Perm
     public const string AdminGuidesManage = "Admin.Guides.Manage";
     /// <summary>Browse the store catalogue and see what is available.</summary>
     public const string StoreShopView = "Store.Shop.View";
+    /// <summary>Make store requests (an order of items from the store). Admins are still kept out of the requester pages.</summary>
+    public const string StoreOrdersCreate = "Store.Orders.Create";
     public const string StoreItemsView = "Store.Items.View";
     /// <summary>Add and edit store categories and items. Implies the view permission.</summary>
     public const string StoreItemsManage = "Store.Items.Manage";
@@ -214,6 +216,7 @@ public static class PermissionCatalog
             new(Perm.AdminGuidesManage, "مدیریت همه راهنماهای کاربری (ویرایش، غیرفعال‌کردن و حذف راهنمای همه نویسنده‌ها)"),
 
             new(Perm.StoreShopView, "مشاهده فروشگاه (کالاها و موجودی)"),
+            new(Perm.StoreOrdersCreate, "ثبت درخواست کالا از فروشگاه (و شرکت در قرعه‌کشی)"),
             new(Perm.StoreItemsView, "مشاهده مدیریت کالاها (فقط خواندنی)"),
             new(Perm.StoreItemsManage, "مدیریت کالاها (گروه‌ها و کالاها)"),
             new(Perm.StoreStockView, "مشاهده موجودی و گردش انبار (فقط خواندنی)"),

@@ -42,6 +42,19 @@ public class StoreTests
     }
 
     [Fact]
+    public void Request_window_is_checked_by_day_inclusive()
+    {
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, 0, new DateTime(2026, 11, 10), new DateTime(2026, 11, 20), true);
+        Assert.True(item.IsLottery);
+        Assert.Equal(StoreRequestWindow.NotYet, item.WindowOn(new DateTime(2026, 11, 9, 23, 59, 0)));
+        Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 10)));
+        Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 20, 23, 59, 0)));
+        Assert.Equal(StoreRequestWindow.Closed, item.WindowOn(new DateTime(2026, 11, 21)));
+        Assert.Equal(StoreRequestWindow.Open, new StoreItem("B", "Pen", Cat, "عدد", null, 0).WindowOn(DateTime.Today));
+        Assert.Throws<ArgumentException>(() => new StoreItem("C", "Pen", Cat, "عدد", null, 0, 0, new DateTime(2026, 11, 20), new DateTime(2026, 11, 10)));
+    }
+
+    [Fact]
     public void Category_needs_a_name()
     {
         Assert.Throws<ArgumentException>(() => new StoreCategory("  ", 0));
@@ -81,7 +94,7 @@ public class StoreTests
     [Fact]
     public void Store_permissions_are_registered_with_the_right_reach()
     {
-        foreach (var code in new[] { Perm.StoreShopView, Perm.StoreItemsView, Perm.StoreItemsManage, Perm.StoreStockView, Perm.StoreStockManage })
+        foreach (var code in new[] { Perm.StoreShopView, Perm.StoreOrdersCreate, Perm.StoreItemsView, Perm.StoreItemsManage, Perm.StoreStockView, Perm.StoreStockManage })
             Assert.Contains(code, PermissionCatalog.Codes);
         Assert.Equal(PermissionReach.Own, PermissionCatalog.ReachOf(Perm.StoreShopView));
         Assert.Equal(PermissionReach.All, PermissionCatalog.ReachOf(Perm.StoreStockManage));

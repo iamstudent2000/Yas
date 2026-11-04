@@ -33,6 +33,16 @@ public sealed class StoreCategory
     public void Deactivate() => IsActive = false;
 }
 
+/// <summary>Whether an item can be requested on a given day.</summary>
+public enum StoreRequestWindow
+{
+    Open,
+    /// <summary>The request period has not started yet.</summary>
+    NotYet,
+    /// <summary>The request period is over.</summary>
+    Closed,
+}
+
 /// <summary>An item the store keeps. Its stock is never stored on the item: it is the sum of its <see cref="StoreStockMovement"/> rows.</summary>
 public sealed class StoreItem
 {
@@ -42,10 +52,10 @@ public sealed class StoreItem
     {
     }
 
-    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0)
+    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
     {
         Id = Guid.NewGuid();
-        Update(code, name, categoryId, unit, description, minStock, maxPerRequest);
+        Update(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
     }
 
     public Guid Id { get; private set; }
@@ -58,9 +68,22 @@ public sealed class StoreItem
     public decimal MinStock { get; private set; }
     /// <summary>The most one employee may ask for of this item in a single request (0 means no limit). Enforced when ordering.</summary>
     public decimal MaxPerRequest { get; private set; }
+    /// <summary>First day (inclusive) on which the item can be requested; empty means "from the start".</summary>
+    public DateTime? RequestOpensOn { get; private set; }
+    /// <summary>Last day (inclusive) on which the item can be requested; empty means "no end".</summary>
+    public DateTime? RequestClosesOn { get; private set; }
+    /// <summary>A lottery item is not handed out first-come: people apply during the period and winners are drawn afterwards.</summary>
+    public bool IsLottery { get; private set; }
     public bool IsActive { get; private set; } = true;
 
-    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0)
+    public StoreRequestWindow WindowOn(DateTime today) => WindowOf(RequestOpensOn, RequestClosesOn, today);
+
+    public static StoreRequestWindow WindowOf(DateTime? opensOn, DateTime? closesOn, DateTime today) =>
+        opensOn is DateTime o && today.Date < o.Date ? StoreRequestWindow.NotYet
+        : closesOn is DateTime c && today.Date > c.Date ? StoreRequestWindow.Closed
+        : StoreRequestWindow.Open;
+
+    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
     {
         code = (code ?? "").Trim();
         name = (name ?? "").Trim();
@@ -74,6 +97,7 @@ public sealed class StoreItem
         if (minStock < 0) throw new ArgumentException("Minimum stock cannot be negative.", nameof(minStock));
         if (maxPerRequest < 0 || decimal.Round(maxPerRequest, 3) != maxPerRequest) throw new ArgumentException("Maximum per request cannot be negative (three decimals at most).", nameof(maxPerRequest));
         if (decimal.Round(minStock, 3) != minStock) throw new ArgumentException("At most three decimals.", nameof(minStock));
+        if (requestOpensOn is DateTime o && requestClosesOn is DateTime c && c.Date < o.Date) throw new ArgumentException("The request period ends before it starts.", nameof(requestClosesOn));
         Code = code;
         Name = name;
         CategoryId = categoryId;
@@ -81,6 +105,9 @@ public sealed class StoreItem
         Description = description;
         MinStock = minStock;
         MaxPerRequest = maxPerRequest;
+        RequestOpensOn = requestOpensOn?.Date;
+        RequestClosesOn = requestClosesOn?.Date;
+        IsLottery = isLottery;
     }
 
     public void Activate() => IsActive = true;

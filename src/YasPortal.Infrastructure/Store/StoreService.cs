@@ -4,8 +4,9 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
-public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, decimal MinStock, bool IsActive, decimal Stock, decimal MaxPerRequest = 0)
+public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, decimal MinStock, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false)
 {
+    public StoreRequestWindow WindowOn(DateTime today) => StoreItem.WindowOf(RequestOpensOn, RequestClosesOn, today);
     /// <summary>Low = an alert level is set and the stock has reached it.</summary>
     public bool IsLow => MinStock > 0 && Stock <= MinStock;
 }
@@ -99,8 +100,11 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public bool IsActive { get; set; }
         public decimal Stock { get; set; }
         public decimal MaxPerRequest { get; set; }
+        public DateTime? RequestOpensOn { get; set; }
+        public DateTime? RequestClosesOn { get; set; }
+        public bool IsLottery { get; set; }
 
-        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock, MaxPerRequest);
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, MinStock, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery);
     }
 
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
@@ -109,7 +113,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         select new ItemProjection
         {
             Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
-            MinStock = i.MinStock, MaxPerRequest = i.MaxPerRequest, IsActive = i.IsActive,
+            MinStock = i.MinStock, MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsActive = i.IsActive,
             Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
         };
 
@@ -142,7 +146,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest, CancellationToken ct = default)
+    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal minStock, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         code = (code ?? "").Trim();
@@ -150,17 +154,17 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه کالا را انتخاب کنید.");
         try
         {
-            if (id is null) db.StoreItems.Add(new StoreItem(code, name, categoryId, unit, description, minStock, maxPerRequest));
+            if (id is null) db.StoreItems.Add(new StoreItem(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery));
             else
             {
                 var item = await db.StoreItems.FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (item is null) return StoreResult.Fail("کالا پیدا نشد.");
-                item.Update(code, name, categoryId, unit, description, minStock, maxPerRequest);
+                item.Update(code, name, categoryId, unit, description, minStock, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
             }
         }
         catch (ArgumentException)
         {
-            return StoreResult.Fail("اطلاعات کالا کامل یا معتبر نیست (کد، نام، واحد و گروه لازم‌اند).");
+            return StoreResult.Fail("اطلاعات کالا کامل یا معتبر نیست (کد، نام، واحد و گروه لازم‌اند و پایان دوره درخواست نباید پیش از شروع آن باشد).");
         }
         await db.SaveChangesAsync(ct);
         return StoreResult.Success;
