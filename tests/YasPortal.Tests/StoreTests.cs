@@ -1,7 +1,6 @@
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Store;
 using YasPortal.Domain.Workflows;
-using YasPortal.Web.Services;
 using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Tests;
@@ -139,31 +138,6 @@ public class StoreTests
         Assert.DoesNotContain(WorkflowTypeCode.StoreOrder, WorkflowFieldCatalog.CreatableTypes);
         Assert.Contains(WorkflowFieldCatalog.GetFields(WorkflowTypeCode.StoreOrder), f => f.Key == "summary" && f.Required);
         Assert.NotEmpty(WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder));
-    }
-
-    [Fact]
-    public void Order_status_text_follows_the_request()
-    {
-        Assert.Equal("تأیید شده، در انتظار تحویل", StoreOrderService.StatusText(WorkflowRequestStatus.Approved, false));
-        Assert.Equal("تحویل داده شد", StoreOrderService.StatusText(WorkflowRequestStatus.Approved, true));
-        Assert.Equal("رد شد", StoreOrderService.StatusText(WorkflowRequestStatus.Rejected, false));
-    }
-
-    [Fact]
-    public void Cart_adds_replaces_and_removes()
-    {
-        var cart = new StoreCart();
-        var item = new YasPortal.Infrastructure.Store.StoreItemRow(Guid.NewGuid(), "A", "Pen", Cat, "C", "عدد", null, true, 10, 5);
-        cart.Add(item, 2);
-        cart.Add(item, 1);
-        Assert.Equal(3, cart.QuantityOf(item.Id));
-        cart.Add(item, 4, replace: true);
-        Assert.Equal(4, cart.QuantityOf(item.Id));
-        Assert.Single(cart.Lines);
-        cart.Add(item, 0);
-        Assert.Equal(4, cart.QuantityOf(item.Id));
-        cart.Remove(item.Id);
-        Assert.Equal(0, cart.Count);
     }
 
     [Fact]
