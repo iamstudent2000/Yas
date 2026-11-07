@@ -9,7 +9,7 @@ namespace YasPortal.Web.Services;
 
 public sealed record StoreOrderLineView(string ItemCode, string ItemName, string Unit, decimal Quantity);
 
-public sealed record StoreOrderRow(Guid Id, Guid RequestId, DateTime CreatedAtUtc, WorkflowRequestStatus Status, DateTime? IssuedAtUtc, string Summary, string? RequesterName = null);
+public sealed record StoreOrderRow(Guid Id, Guid RequestId, DateTime CreatedAtUtc, WorkflowRequestStatus Status, DateTime? IssuedAtUtc, string Summary, string? RequesterName = null, string? IssuedByName = null);
 
 public sealed record StoreOrderDetail(Guid Id, Guid RequestId, Guid EmployeeId, string EmployeeName, string? PositionName, DateTime CreatedAtUtc, WorkflowRequestStatus Status,
     DateTime? IssuedAtUtc, string? IssuedByName, string? Note, string? IssueNote, IReadOnlyList<StoreOrderLineView> Lines)
@@ -103,10 +103,19 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return await PageAsync(db, q, page, pageSize, ct, oldestFirst: true);
     }
 
-    private static async Task<(IReadOnlyList<StoreOrderRow>, int)> PageAsync(ApplicationDbContext db, IQueryable<StoreOrder> q, int page, int pageSize, CancellationToken ct, bool oldestFirst = false)
+    /// <summary>Orders already handed over, newest hand-over first (the storekeeper's history).</summary>
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListIssuedAsync(int page, int pageSize, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc != null);
+        return await PageAsync(db, q, page, pageSize, ct, byIssueDate: true);
+    }
+
+    private static async Task<(IReadOnlyList<StoreOrderRow>, int)> PageAsync(ApplicationDbContext db, IQueryable<StoreOrder> q, int page, int pageSize, CancellationToken ct, bool oldestFirst = false, bool byIssueDate = false)
     {
         var total = await q.CountAsync(ct);
-        var ordered = oldestFirst ? q.OrderBy(o => o.CreatedAtUtc) : q.OrderByDescending(o => o.CreatedAtUtc);
+        var ordered = byIssueDate ? q.OrderByDescending(o => o.IssuedAtUtc)
+            : oldestFirst ? q.OrderBy(o => o.CreatedAtUtc) : q.OrderByDescending(o => o.CreatedAtUtc);
         var rows = await ordered.Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize)
             .Select(o => new
             {
@@ -114,9 +123,10 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
                 Status = db.WorkflowRequests.Where(r => r.Id == o.RequestId).Select(r => r.Status).FirstOrDefault(),
                 Lines = o.Lines.Select(l => new { l.ItemName, l.Unit, l.Quantity }).ToList(),
                 Who = db.Employees.Where(e => e.Id == o.EmployeeId).Select(e => e.FullName).FirstOrDefault(),
+                By = db.Employees.Where(e => e.Id == o.IssuedByEmployeeId).Select(e => e.FullName).FirstOrDefault(),
             }).ToListAsync(ct);
         return (rows.Select(r => new StoreOrderRow(r.Id, r.RequestId, r.CreatedAtUtc, r.Status, r.IssuedAtUtc,
-            string.Join("، ", r.Lines.Select(l => $"{l.ItemName} {l.Quantity:0.###} {l.Unit}")), r.Who)).ToList(), total);
+            string.Join("، ", r.Lines.Select(l => $"{l.ItemName} {l.Quantity:0.###} {l.Unit}")), r.Who, r.By)).ToList(), total);
     }
 
     public async Task<StoreOrderDetail?> GetAsync(Guid orderId, CancellationToken ct = default)

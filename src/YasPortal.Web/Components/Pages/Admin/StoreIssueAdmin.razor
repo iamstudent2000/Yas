@@ -16,8 +16,13 @@
         <div>
             <div class="page-kicker">فروشگاه</div>
             <h1 class="page-title"><i class="ti @Icons.Box"></i> تحویل کالا</h1>
-            <p class="page-subtitle">سفارش‌هایی که تأیید نهایی شده‌اند و کالایشان هنوز تحویل داده نشده است. با «تحویل»، کالاها از موجودی کم می‌شوند.</p>
+            <p class="page-subtitle">سفارش‌های تأییدشده در انتظار تحویل، و تاریخچهٔ تحویل‌ها. با «تحویل»، کالاها از موجودی کم می‌شوند.</p>
         </div>
+    </div>
+
+    <div class="form-actions no-print">
+        <button class="btn @(!_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(false)">در انتظار تحویل</button>
+        <button class="btn @(_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(true)">تاریخچه تحویل</button>
     </div>
 
     @if (_loading)
@@ -26,32 +31,33 @@
     }
     else if (_rows.Count == 0)
     {
-        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>سفارشی در انتظار تحویل نیست</strong></div></section>
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>@(_history ? "هنوز کالایی تحویل داده نشده است" : "سفارشی در انتظار تحویل نیست")</strong></div></section>
     }
     else
     {
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>شماره</th><th>درخواست‌کننده</th><th>تاریخ</th><th>اقلام</th><th></th></tr></thead>
+                    <thead><tr><th>شماره</th><th>درخواست‌کننده</th><th>@(_history ? "تاریخ تحویل" : "تاریخ ثبت")</th><th>اقلام</th>@if (_history) {<th>تحویل‌دهنده</th>}<th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
                             <tr>
                                 <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
                                 <td>@o.RequesterName</td>
-                                <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(_history && o.IssuedAtUtc is DateTime d ? d : o.CreatedAtUtc)</td>
                                 <td>@o.Summary</td>
+                                @if (_history) {<td>@o.IssuedByName</td>}
                                 <td>
                                     <div class="form-actions">
                                         <a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> برگ سفارش</a>
-                                        @if (_confirmId == o.Id)
+                                        @if (!_history && _confirmId == o.Id)
                                         {
                                             <input class="form-control" style="width:180px" placeholder="توضیحات تحویل (اختیاری)" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" />
                                             <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => IssueAsync(o.Id)"><i class="ti @Icons.Save"></i> تأیید تحویل</button>
                                             <button class="btn btn-secondary btn-sm" @onclick="Cancel">انصراف</button>
                                         }
-                                        else
+                                        else if (!_history)
                                         {
                                             <button class="btn btn-primary btn-sm" @onclick="() => StartIssue(o.Id)">تحویل</button>
                                         }
@@ -68,7 +74,7 @@
 </div>
 
 @code {
-    private bool _loading = true, _busy;
+    private bool _loading = true, _busy, _history;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
     private Guid? _confirmId;
@@ -78,9 +84,11 @@
 
     private async Task LoadAsync()
     {
-        (_rows, _total) = await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
+        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
         _loading = false;
     }
+
+    private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _loading = true; await LoadAsync(); }
 
     private void StartIssue(Guid id) { _confirmId = id; _note = ""; }
 
