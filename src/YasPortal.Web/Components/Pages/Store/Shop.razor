@@ -31,6 +31,19 @@
         }
     </div>
 
+    @if (_canOrder)
+    {
+        <section class="card" style="background:var(--accent-soft,#eef4ff)">
+            <strong>چطور کالا بگیرم؟</strong>
+            <ol class="muted" style="margin:6px 0 0;padding-inline-start:22px;line-height:2">
+                <li>کالا را با مقدار دلخواه «افزودن به سبد» کنید (هر کالا سقف مقدار خودش را دارد).</li>
+                <li>در «سبد خرید» مقدارها را بررسی و درخواست را ثبت کنید.</li>
+                <li>مدیر شما درخواست را تأیید می‌کند؛ وضعیت را در «سفارش‌های من» ببینید.</li>
+                <li>پس از تأیید، انباردار کالا را تحویل می‌دهد؛ برگ سفارش را چاپ کنید و همراه ببرید.</li>
+            </ol>
+        </section>
+    }
+
     <section class="card list-filter">
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">جستجو</label>
@@ -125,6 +138,7 @@
     {
         if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
         if (q == 0) q = 1;
+        if (!StoreUnits.IsValidQuantity(item.Unit, q)) { AppState.AddToast(StoreUnits.AllowsFraction(item.Unit) ? "مقدار حداکثر سه رقم اعشار دارد." : $"واحد «{item.Unit}» شمارشی است؛ مقدار باید عدد صحیح باشد.", ToastLevel.Error); return; }
         var total = Cart.QuantityOf(item.Id) + q;
         if (item.MaxPerRequest > 0 && total > item.MaxPerRequest) { AppState.AddToast($"حداکثر «{item.Name}» در هر درخواست {WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###"))} {item.Unit} است.", ToastLevel.Error); return; }
         if (total > item.Stock) { AppState.AddToast($"موجودی «{item.Name}» کافی نیست.", ToastLevel.Error); return; }

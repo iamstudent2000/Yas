@@ -38,6 +38,14 @@ public static class StoreUnits
 {
     public static IReadOnlyList<string> All { get; } =
         ["عدد", "بسته", "جعبه", "کارتن", "دسته", "جفت", "ست", "رول", "بطری", "برگ", "کیلوگرم", "گرم", "لیتر", "متر"];
+
+    private static readonly HashSet<string> Measured = ["کیلوگرم", "گرم", "لیتر", "متر"];
+
+    /// <summary>Things that are counted (عدد, بسته, ...) can only be whole numbers; things that are measured (kg, litre, metre) may have decimals. A unit that is not in the list is not restricted.</summary>
+    public static bool AllowsFraction(string unit) => Measured.Contains(unit) || !All.Contains(unit);
+
+    public static bool IsValidQuantity(string unit, decimal quantity) =>
+        quantity > 0 && decimal.Round(quantity, 3) == quantity && (AllowsFraction(unit) || quantity == decimal.Truncate(quantity));
 }
 
 /// <summary>Whether an item can be requested on a given day.</summary>

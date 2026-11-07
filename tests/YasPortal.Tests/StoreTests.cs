@@ -179,4 +179,14 @@ public class StoreTests
         Assert.Contains(Perm.StoreReportsView, PermissionCatalog.Codes);
         Assert.Equal(PermissionReach.All, PermissionCatalog.ReachOf(Perm.StoreReportsView));
     }
+
+    [Theory]
+    [InlineData("عدد", 5, true)]
+    [InlineData("عدد", 5.5, false)]
+    [InlineData("کیلوگرم", 5.5, true)]
+    [InlineData("کیلوگرم", 5.5555, false)]
+    [InlineData("لیتر", 0, false)]
+    [InlineData("واحد قدیمی", 1.5, true)]
+    public void Counted_units_need_whole_numbers(string unit, double quantity, bool valid) =>
+        Assert.Equal(valid, StoreUnits.IsValidQuantity(unit, (decimal)quantity));
 }

@@ -45,16 +45,28 @@
                     </div>
                     <div class="admin-row-grid">
                         <div class="form-field is-grow"><label class="form-label">کالا</label>
-                            <LookupSelect @key="_formKey" Options="ItemOptions" Value="@(_formItemId?.ToString())" ValueChanged="k => _formItemId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب کالا" SearchPlaceholder="نام یا کد کالا..." /></div>
+                            <LookupSelect @key="_formKey" Options="ItemOptions" Value="@(_formItemId?.ToString())" ValueChanged="SetFormItem" Placeholder="انتخاب کالا" SearchPlaceholder="نام یا کد کالا..." /></div>
                         <div class="form-field"><label class="form-label">نوع</label>
-                            <LookupSelect @key="_formKey" Options="KindOptions" Value="@(((int)_formKind).ToString())" ValueChanged="k => _formKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : StockMovementKind.Receive" /></div>
-                        <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_formQuantity" @bind:event="oninput" /></div>
+                            <LookupSelect @key="_formKey" Options="KindOptions" Value="@(((int)_formKind).ToString())" ValueChanged="SetFormKind" /></div>
+                        <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_formQuantity" @bind:event="oninput" @bind:after="ClearPreview" /></div>
                         <div class="form-field"><label class="form-label">مرجع (فاکتور، حواله...)</label><input class="form-control" @bind="_formReference" maxlength="@StoreStockMovement.ReferenceMax" /></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح</label><input class="form-control" @bind="_formNote" maxlength="@StoreStockMovement.NoteMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
-                            <button class="btn btn-primary" disabled="@_busy" @onclick="RecordAsync"><i class="ti @Icons.Save"></i> ثبت</button>
+                            <button class="btn btn-primary" disabled="@(_busy || _preview is not null)" @onclick="PrepareAsync"><i class="ti @Icons.Save"></i> بررسی و ثبت</button>
                         </div></div>
                     </div>
+                    @if (_preview is not null)
+                    {
+                        <div class="card" style="border-color:var(--accent,#155eef);margin-top:10px">
+                            <p><strong>@_preview.ItemName</strong> — @StoreService.KindLabel(_formKind):
+                                موجودی فعلی <strong>@WorkflowDisplay.ToPersianDigits(_preview.Current.ToString("0.###"))</strong>
+                                ← بعد از ثبت <strong>@WorkflowDisplay.ToPersianDigits(_preview.After.ToString("0.###"))</strong> @_preview.Unit</p>
+                            <div class="form-actions">
+                                <button class="btn btn-primary" disabled="@_busy" @onclick="RecordAsync"><i class="ti @Icons.Save"></i> تأیید و ثبت</button>
+                                <button class="btn btn-secondary" disabled="@_busy" @onclick="() => _preview = null">اصلاح</button>
+                            </div>
+                        </div>
+                    }
                 </section>
             }
 
@@ -190,6 +202,28 @@
         else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize, _moveText);
     }
 
+    private sealed record MovementPreview(string ItemName, string Unit, decimal Current, decimal After);
+    private MovementPreview? _preview;
+
+    private void ClearPreview() => _preview = null;
+    private void SetFormItem(string? k) { _formItemId = Guid.TryParse(k, out var g) ? g : null; _preview = null; }
+    private void SetFormKind(string? k) { _formKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : StockMovementKind.Receive; _preview = null; }
+
+    /// <summary>Shows what the stock will be before anything is written, so a typo (500 instead of 50) is caught by the person, not by a later report.</summary>
+    private async Task PrepareAsync()
+    {
+        if (_busy) return;
+        if (_formItemId is null) { AppState.AddToast("کالا را انتخاب کنید.", ToastLevel.Error); return; }
+        if (!StoreNumber.TryParse(_formQuantity, out var quantity) || quantity == 0) { AppState.AddToast("مقدار را به صورت عدد (غیر صفر) وارد کنید.", ToastLevel.Error); return; }
+        var item = await Store.GetItemAsync(_formItemId.Value);
+        if (item is null) { AppState.AddToast("این کالا دیگر وجود ندارد.", ToastLevel.Error); return; }
+        if (_formKind != StockMovementKind.Adjustment && quantity < 0) { AppState.AddToast("برای ورود، خروج و برگشت مقدار را مثبت وارد کنید؛ برای کم‌کردن موجودی از «اصلاح موجودی» با مقدار منفی استفاده کنید.", ToastLevel.Error); return; }
+        var current = await Store.StockOfAsync(item.Id);
+        var after = current + (_formKind == StockMovementKind.Issue ? -quantity : quantity);
+        if (after < 0) { AppState.AddToast($"موجودی کافی نیست؛ موجودی فعلی {WorkflowDisplay.ToPersianDigits(current.ToString("0.###"))} {item.Unit} است.", ToastLevel.Error); return; }
+        _preview = new MovementPreview(item.Name, item.Unit, current, after);
+    }
+
     private async Task RecordAsync()
     {
         if (_busy) return;
@@ -199,9 +233,9 @@
         try
         {
             var result = await Store.RecordMovementAsync(_formItemId.Value, _formKind, quantity, _formReference, _formNote, _employeeId);
-            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت نشد.", ToastLevel.Error); return; }
+            if (!result.Ok) { _preview = null; AppState.AddToast(result.Error ?? "ثبت نشد.", ToastLevel.Error); return; }
             AppState.AddToast("گردش انبار ثبت شد.", ToastLevel.Success);
-            _formItemId = null; _formQuantity = ""; _formReference = _formNote = ""; _formKind = StockMovementKind.Receive; _formKey++;
+            _preview = null; _formItemId = null; _formQuantity = ""; _formReference = _formNote = ""; _formKind = StockMovementKind.Receive; _formKey++;
             await LoadAsync();
         }
         catch (Exception) { AppState.AddToast("ثبت گردش انجام نشد.", ToastLevel.Error); }

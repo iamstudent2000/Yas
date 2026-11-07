@@ -36,18 +36,30 @@
     }
     else
     {
+        @if (_problems > 0)
+        {
+            <section class="card" style="border-color:var(--danger,#d92d20)"><strong>@WorkflowDisplay.ToPersianDigits(_problems.ToString()) مورد در سبد نیاز به اصلاح دارد.</strong>
+                <span class="muted"> مقدار را اصلاح کنید یا کالا را از سبد حذف کنید؛ تا آن زمان ثبت درخواست ممکن نیست.</span></section>
+        }
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>حداکثر در درخواست</th><th></th></tr></thead>
+                    <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>موجودی</th><th>حداکثر در درخواست</th><th>وضعیت</th><th></th></tr></thead>
                     <tbody>
                         @foreach (var line in Cart.Lines)
                         {
+                            _checks.TryGetValue(line.ItemId, out var check);
                             <tr>
                                 <td><strong>@line.Name</strong> <span class="muted" dir="ltr">@line.Code</span></td>
-                                <td><input class="form-control" style="width:90px" inputmode="decimal" autocomplete="off" value="@WorkflowDisplay.ToPersianDigits(line.Quantity.ToString("0.###"))" @onchange="e => ChangeQuantity(line, e.Value?.ToString())" /></td>
+                                <td><input class="form-control" style="width:90px" inputmode="decimal" autocomplete="off" aria-label="مقدار" value="@WorkflowDisplay.ToPersianDigits(line.Quantity.ToString("0.###"))" @onchange="e => ChangeQuantity(line, e.Value?.ToString())" /></td>
                                 <td>@line.Unit</td>
+                                <td>@(check is null ? "…" : WorkflowDisplay.ToPersianDigits(check.Stock.ToString("0.###")))</td>
                                 <td>@(line.MaxPerRequest == 0 ? "—" : WorkflowDisplay.ToPersianDigits(line.MaxPerRequest.ToString("0.###")))</td>
+                                <td>
+                                    @if (check is null) { <span class="muted">در حال بررسی...</span> }
+                                    else if (check.Problem is null) { <span class="badge badge-success">مشکلی ندارد</span> }
+                                    else { <span style="color:var(--danger,#d92d20)">@check.Problem</span> }
+                                </td>
                                 <td><button class="btn btn-danger btn-sm" @onclick="() => Cart.Remove(line.ItemId)"><i class="ti @Icons.Delete"></i> حذف</button></td>
                             </tr>
                         }
@@ -56,25 +68,62 @@
             </div>
         </section>
 
-        <section class="card admin-form-row">
-            <div class="admin-row-grid">
-                <div class="form-field is-grow"><label class="form-label">توضیحات (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
-                <div class="form-field admin-row-submit"><div class="form-actions">
-                    <button class="btn btn-primary" disabled="@_busy" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> ثبت درخواست</button>
-                    <button class="btn btn-secondary" disabled="@_busy" @onclick="Cart.Clear">خالی‌کردن سبد</button>
-                </div></div>
-            </div>
-        </section>
+        @if (_confirming)
+        {
+            <section class="card" style="border-color:var(--accent,#155eef)">
+                <h2 class="section-title">پیش از ثبت، یک بار دیگر بررسی کنید</h2>
+                <ul>
+                    @foreach (var line in Cart.Lines)
+                    {
+                        <li>@line.Name — <strong>@WorkflowDisplay.ToPersianDigits(line.Quantity.ToString("0.###")) @line.Unit</strong></li>
+                    }
+                </ul>
+                <p class="muted">پس از ثبت، درخواست برای تأیید مسئولان ارسال می‌شود و اقلام آن را نمی‌توان تغییر داد (فقط می‌توانید آن را لغو کنید).</p>
+                <div class="form-actions">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> تأیید و ثبت نهایی</button>
+                    <button class="btn btn-secondary" disabled="@_busy" @onclick="() => _confirming = false">بازگشت به سبد</button>
+                </div>
+            </section>
+        }
+        else
+        {
+            <section class="card admin-form-row">
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">توضیحات (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
+                    <div class="form-field admin-row-submit"><div class="form-actions">
+                        <button class="btn btn-primary" disabled="@(_busy || _problems > 0 || _checks.Count == 0)" @onclick="() => _confirming = true"><i class="ti @Icons.Send"></i> بررسی و ثبت درخواست</button>
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="Cart.Clear">خالی‌کردن سبد</button>
+                    </div></div>
+                </div>
+            </section>
+        }
     }
 </div>
 
 @code {
-    private bool _busy;
+    private bool _busy, _confirming;
     private string _note = "";
+    private IReadOnlyDictionary<Guid, StoreCartCheck> _checks = new Dictionary<Guid, StoreCartCheck>();
+    private int _problems;
 
-    protected override void OnInitialized() => Cart.Changed += OnCartChanged;
+    protected override async Task OnInitializedAsync()
+    {
+        Cart.Changed += OnCartChanged;
+        await RefreshAsync();
+    }
 
-    private void OnCartChanged() => _ = InvokeAsync(StateHasChanged);
+    private void OnCartChanged() => _ = InvokeAsync(async () => { _confirming = false; await RefreshAsync(); StateHasChanged(); });
+
+    /// <summary>Asks the server how each line stands right now (stock, request period, maximum), so the person sees problems before sending.</summary>
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _checks = Cart.Count == 0 ? new Dictionary<Guid, StoreCartCheck>() : await Orders.CheckAsync(Cart.Lines.Select(l => (l.ItemId, l.Quantity)).ToList(), DateTime.Now);
+            _problems = _checks.Values.Count(c => c.Problem is not null);
+        }
+        catch (Exception) { AppState.AddToast("بررسی سبد انجام نشد؛ صفحه را دوباره باز کنید.", ToastLevel.Error); }
+    }
 
     public void Dispose() => Cart.Changed -= OnCartChanged;
 
@@ -100,12 +149,12 @@
         try
         {
             var result = await Orders.PlaceAsync(emp, pos, Cart.Lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now);
-            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); return; }
+            if (!result.Ok) { _confirming = false; AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); await RefreshAsync(); return; }
             Cart.Clear();
             AppState.AddToast("درخواست کالا ثبت شد و برای تأیید ارسال شد.", ToastLevel.Success);
             Navigation.NavigateTo("/store/orders");
         }
-        catch (Exception) { AppState.AddToast("ثبت درخواست انجام نشد.", ToastLevel.Error); }
+        catch (Exception) { AppState.AddToast("ثبت درخواست انجام نشد. اگر تکرار شد، با مدیر سامانه تماس بگیرید.", ToastLevel.Error); }
         finally { _busy = false; }
     }
 }

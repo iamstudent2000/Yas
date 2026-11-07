@@ -17,6 +17,9 @@ public sealed record StoreOrderDetail(Guid Id, Guid RequestId, Guid EmployeeId, 
     public string Number => Id.ToString("N")[..8].ToUpperInvariant();
 }
 
+/// <summary>How one cart line stands right now: what is wrong with it (null = nothing) and the current stock.</summary>
+public sealed record StoreCartCheck(string? Problem, decimal Stock);
+
 public sealed record StorePlaceResult(bool Ok, string? Error = null, Guid? OrderId = null);
 
 /// <summary>
@@ -39,6 +42,44 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     public static string Summarize(IEnumerable<StoreOrderLineView> lines) =>
         string.Join("\n", lines.Select(l => $"• {l.ItemName} ({l.ItemCode}) — {l.Quantity:0.###} {l.Unit}"));
 
+    /// <summary>The one place the ordering rules live: the cart page shows these messages before sending, and sending checks them again. Returns null when the line is fine.</summary>
+    private static string? Validate(StoreItem? item, bool categoryActive, decimal quantity, decimal available, DateTime today)
+    {
+        if (item is null || !item.IsListed || !categoryActive) return "این کالا دیگر در فروشگاه نیست؛ آن را از سبد حذف کنید.";
+        var name = $"«{item.Name}»";
+        if (quantity <= 0) return $"مقدار {name} باید بیشتر از صفر باشد.";
+        if (decimal.Round(quantity, 3) != quantity) return $"مقدار {name} حداکثر سه رقم اعشار دارد.";
+        if (!StoreUnits.AllowsFraction(item.Unit) && quantity != decimal.Truncate(quantity)) return $"واحد «{item.Unit}» شمارشی است؛ مقدار {name} باید عدد صحیح باشد.";
+        switch (item.WindowOn(today))
+        {
+            case StoreRequestWindow.NotYet: return $"دوره درخواست {name} هنوز شروع نشده است.";
+            case StoreRequestWindow.Closed: return $"دوره درخواست {name} پایان یافته است.";
+        }
+        if (item.IsLottery) return $"{name} با قرعه‌کشی توزیع می‌شود و از سبد خرید قابل سفارش نیست.";
+        if (item.MaxPerRequest > 0 && quantity > item.MaxPerRequest) return $"حداکثر مقدار {name} در هر درخواست {item.MaxPerRequest:0.###} {item.Unit} است.";
+        if (quantity > available) return $"موجودی {name} کافی نیست (موجودی: {available:0.###} {item.Unit}).";
+        return null;
+    }
+
+    /// <summary>Checks every cart line as it would be checked when sending, so the person sees what to fix before pressing send. Key = item id; a missing key means the line is fine.</summary>
+    public async Task<IReadOnlyDictionary<Guid, StoreCartCheck>> CheckAsync(IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var ids = wanted.Select(x => x.ItemId).ToList();
+        var items = await db.StoreItems.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        var activeCategories = await db.StoreCategories.AsNoTracking().Where(c => c.IsActive).Select(c => c.Id).ToListAsync(ct);
+        var stock = await db.StoreStockMovements.Where(m => ids.Contains(m.ItemId)).GroupBy(m => m.ItemId)
+            .Select(g => new { g.Key, Sum = g.Sum(m => m.Delta) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var result = new Dictionary<Guid, StoreCartCheck>();
+        foreach (var (itemId, quantity) in wanted)
+        {
+            var item = items.FirstOrDefault(x => x.Id == itemId);
+            var available = stock.GetValueOrDefault(itemId);
+            result[itemId] = new StoreCartCheck(Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, available, today), available);
+        }
+        return result;
+    }
+
     /// <summary>Checks the lines against the catalogue (active item, request period open today, not a lottery item, per-request maximum, stock) and sends the order for approval.</summary>
     public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
     {
@@ -56,20 +97,17 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         foreach (var (itemId, quantity) in wanted)
         {
             var item = items.FirstOrDefault(x => x.Id == itemId);
-            if (item is null || !item.IsListed || !activeCategories.Contains(item.CategoryId)) return new(false, "یکی از کالاهای سبد دیگر در فروشگاه نیست؛ آن را از سبد حذف کنید.");
-            var name = $"«{item.Name}»";
-            if (quantity <= 0 || decimal.Round(quantity, 3) != quantity) return new(false, $"مقدار {name} باید عددی مثبت با حداکثر سه رقم اعشار باشد.");
-            switch (item.WindowOn(today))
-            {
-                case StoreRequestWindow.NotYet: return new(false, $"دوره درخواست {name} هنوز شروع نشده است.");
-                case StoreRequestWindow.Closed: return new(false, $"دوره درخواست {name} پایان یافته است.");
-            }
-            if (item.IsLottery) return new(false, $"{name} با قرعه‌کشی توزیع می‌شود و از سبد خرید قابل سفارش نیست.");
-            if (item.MaxPerRequest > 0 && quantity > item.MaxPerRequest) return new(false, $"حداکثر مقدار {name} در هر درخواست {item.MaxPerRequest:0.###} {item.Unit} است.");
-            var available = stock.GetValueOrDefault(itemId);
-            if (quantity > available) return new(false, $"موجودی {name} کافی نیست (موجودی: {available:0.###} {item.Unit}).");
-            lines.Add(new StoreOrderLine(item.Id, item.Code, item.Name, item.Unit, quantity));
+            var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today);
+            if (problem is not null) return new(false, problem);
+            lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity));
         }
+
+        // a double click (or a second tab) must not send the same order twice: refuse an identical order sent in the last two minutes
+        var since = DateTime.UtcNow.AddMinutes(-2);
+        var recent = await db.StoreOrders.AsNoTracking().Include(o => o.Lines).Where(o => o.EmployeeId == employeeId && o.CreatedAtUtc >= since).ToListAsync(ct);
+        var signature = string.Join("|", lines.OrderBy(l => l.ItemId).Select(l => $"{l.ItemId}:{l.Quantity}"));
+        if (recent.Any(o => string.Join("|", o.Lines.OrderBy(l => l.ItemId).Select(l => $"{l.ItemId}:{l.Quantity}")) == signature))
+            return new(false, "همین سفارش چند لحظه پیش ثبت شده است. فهرست «سفارش‌های من» را ببینید.");
 
         var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, positionId, ct);
         if (!resolved.Success) return new(false, resolved.Error);

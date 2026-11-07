@@ -311,6 +311,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         var item = await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == itemId, ct);
         if (item is null) return StoreResult.Fail("کالا پیدا نشد.");
         if (!item.IsActive && movement.Delta > 0 && kind == StockMovementKind.Receive) return StoreResult.Fail("این کالا غیرفعال است.");
+        if (!StoreUnits.AllowsFraction(item.Unit) && quantity != decimal.Truncate(quantity))
+            return StoreResult.Fail($"واحد «{item.Unit}» شمارشی است و مقدار باید عدد صحیح باشد (مثلاً ۵، نه ۵٫۵).");
 
         await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
         if (movement.Delta < 0)
