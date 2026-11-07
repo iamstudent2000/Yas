@@ -1,11 +1,15 @@
 @page "/store"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Store
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.StoreShopView)]
 @inject StoreService Store
+@inject StoreCart Cart
+@inject IPermissionChecker PermissionChecker
+@inject AuthenticationStateProvider AuthState
 @inject AppState AppState
 @* The catalogue every signed-in person with Store.Shop.View can browse. Ordering is added in the next stage. *@
 
@@ -16,8 +20,15 @@
         <div>
             <div class="page-kicker">فروشگاه</div>
             <h1 class="page-title"><i class="ti @Icons.Store"></i> فروشگاه</h1>
-            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.</p>
+            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.@(_canOrder ? " برای درخواست، کالا را به سبد اضافه کنید." : "")</p>
         </div>
+        @if (_canOrder)
+        {
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/store/orders"><i class="ti @Icons.Box"></i> سفارش‌های من</a>
+                <a class="btn btn-primary" href="/store/cart"><i class="ti @Icons.Store"></i> سبد خرید@(Cart.Count > 0 ? " (" + WorkflowDisplay.ToPersianDigits(Cart.Count.ToString()) + ")" : "")</a>
+            </div>
+        }
     </div>
 
     <section class="card list-filter">
@@ -42,7 +53,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th><th>درخواست</th></tr></thead>
+                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th><th>درخواست</th>@if (_canOrder) {<th>سبد</th>}</tr></thead>
                     <tbody>
                         @foreach (var item in _page.Rows)
                         {
@@ -65,6 +76,19 @@
                                     }
                                     @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
                                 </td>
+                                @if (_canOrder)
+                                {
+                                    <td>
+                                        @if (CanAdd(item))
+                                        {
+                                            <div class="form-actions">
+                                                <input class="form-control" style="width:80px" inputmode="decimal" autocomplete="off" placeholder="۱" value="@QtyText(item.Id)" @onchange="e => _qty[item.Id] = e.Value?.ToString() ?? """ />
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن</button>
+                                            </div>
+                                        }
+                                        else if (item.IsLottery) { <span class="muted">با قرعه‌کشی</span> }
+                                    </td>
+                                }
                             </tr>
                         }
                     </tbody>
@@ -83,9 +107,32 @@
     private StorePage<StoreItemRow> _page = new([], 0);
     private IReadOnlyList<(string Key, string Text)> CategoryOptions = [];
     private CancellationTokenSource? _cts;
+    private bool _canOrder;
+    private readonly Dictionary<Guid, string> _qty = [];
+
+    private void SetQty(Guid id, string? text) => _qty[id] = text ?? "";
+
+    private string QtyText(Guid id) => _qty.TryGetValue(id, out var v) ? v : "";
+
+    private bool CanAdd(StoreItemRow item) => !item.IsLottery && item.Stock > 0 && item.WindowOn(DateTime.Now) == StoreRequestWindow.Open;
+
+    private void AddToCart(StoreItemRow item)
+    {
+        if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        var total = Cart.QuantityOf(item.Id) + q;
+        if (item.MaxPerRequest > 0 && total > item.MaxPerRequest) { AppState.AddToast($"حداکثر «{item.Name}» در هر درخواست {WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###"))} {item.Unit} است.", ToastLevel.Error); return; }
+        if (total > item.Stock) { AppState.AddToast($"موجودی «{item.Name}» کافی نیست.", ToastLevel.Error); return; }
+        Cart.Add(item, q);
+        _qty.Remove(item.Id);
+        AppState.AddToast("به سبد اضافه شد.", ToastLevel.Success);
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        // admins are kept out of the requester pages, so they do not get the cart either
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _canOrder = !user.HasClaim("yas_is_admin", "True") && await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersCreate);
         CategoryOptions = (await Store.ListCategoriesAsync(false)).Select(c => (c.Id.ToString(), c.Name)).ToList();
         await LoadAsync();
     }

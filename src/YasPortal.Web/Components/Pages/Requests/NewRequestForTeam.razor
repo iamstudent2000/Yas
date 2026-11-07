@@ -57,7 +57,7 @@
             <section class="card">
                 <h2 class="section-title">نوع درخواست</h2>
                 <div class="request-type-grid">
-                    @foreach (var type in WorkflowFieldCatalog.AllTypes)
+                    @foreach (var type in WorkflowFieldCatalog.CreatableTypes)
                     {
                         <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
                             <span class="request-type-card-icon"><i class="ti @WorkflowDisplay.IconFor(type)"></i></span>

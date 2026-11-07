@@ -1,0 +1,92 @@
+@page "/store/orders"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreOrdersCreate)]
+@attribute [Authorize(Policy = "NonAdmin")]
+@inject StoreOrderService Orders
+@inject AuthenticationStateProvider AuthState
+@* The person's own store orders. Listed by employee, so an order sent while acting in one position is still here under another. *@
+
+<PageTitle>سفارش‌های من در فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Box"></i> سفارش‌های من</h1>
+            <p class="page-subtitle">درخواست‌های کالای شما، در هر سمتی که ثبت شده باشند. مراحل تأیید را در «درخواست‌های من» ببینید.</p>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/requests/mine"><i class="ti @Icons.MyRequests"></i> درخواست‌های من</a>
+            <a class="btn btn-primary" href="/store"><i class="ti @Icons.Store"></i> فروشگاه</a>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_rows.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>هنوز سفارشی ثبت نکرده‌اید</strong><span>از صفحه فروشگاه کالا به سبد اضافه کنید.</span></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>شماره</th><th>تاریخ</th><th>اقلام</th><th>وضعیت</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var o in _rows)
+                        {
+                            <tr>
+                                <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
+                                <td>@o.Summary</td>
+                                <td><span class="badge @BadgeFor(o)">@StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null)</span></td>
+                                <td><a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> جزئیات و چاپ</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+        </section>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private Guid? _employeeId;
+    private int _pageNo = 1, _pageSize = 20, _total;
+    private IReadOnlyList<StoreOrderRow> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        if (_employeeId is Guid id) (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize);
+        _loading = false;
+    }
+
+    private static string BadgeFor(StoreOrderRow o) => o.Status switch
+    {
+        WorkflowRequestStatus.Approved => o.IssuedAtUtc is null ? "badge-info" : "badge-success",
+        WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled => "badge-danger",
+        WorkflowRequestStatus.ReturnedToRequester => "badge-warning",
+        _ => "badge-muted",
+    };
+
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}

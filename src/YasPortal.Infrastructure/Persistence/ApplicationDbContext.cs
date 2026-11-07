@@ -45,6 +45,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<StoreItem> StoreItems => Set<StoreItem>();
     public DbSet<StoreStockMovement> StoreStockMovements => Set<StoreStockMovement>();
+    public DbSet<StoreOrder> StoreOrders => Set<StoreOrder>();
+    public DbSet<StoreOrderLine> StoreOrderLines => Set<StoreOrderLine>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -262,6 +264,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<StoreCategory>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(StoreCategory.NameMax).IsRequired(); });
         modelBuilder.Entity<StoreItem>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Code).HasMaxLength(StoreItem.CodeMax).IsRequired(); e.Property(x => x.Name).HasMaxLength(StoreItem.NameMax).IsRequired(); e.Property(x => x.Unit).HasMaxLength(StoreItem.UnitMax).IsRequired(); e.Property(x => x.Description).HasMaxLength(StoreItem.DescriptionMax); e.Property(x => x.MaxPerRequest).HasPrecision(18, 3); e.Property(x => x.RequestOpensOn).HasColumnType("date"); e.Property(x => x.RequestClosesOn).HasColumnType("date"); e.HasIndex(x => x.Code).IsUnique(); e.HasIndex(x => x.CategoryId); e.HasOne<StoreCategory>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<StoreStockMovement>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Delta).HasPrecision(18, 3); e.Property(x => x.Reference).HasMaxLength(StoreStockMovement.ReferenceMax); e.Property(x => x.Note).HasMaxLength(StoreStockMovement.NoteMax); e.HasIndex(x => new { x.ItemId, x.CreatedAtUtc }); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<StoreOrder>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Note).HasMaxLength(StoreOrder.NoteMax); e.Property(x => x.IssueNote).HasMaxLength(StoreOrder.NoteMax); e.HasIndex(x => x.RequestId).IsUnique(); e.HasIndex(x => new { x.EmployeeId, x.CreatedAtUtc }); e.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowRequest>().WithMany().HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<StoreOrderLine>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.ItemCode).HasMaxLength(StoreItem.CodeMax).IsRequired(); e.Property(x => x.ItemName).HasMaxLength(StoreItem.NameMax).IsRequired(); e.Property(x => x.Unit).HasMaxLength(StoreItem.UnitMax).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 3); e.HasIndex(x => x.OrderId); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<ContactGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(ContactGroup.NameMax).IsRequired(); });
         modelBuilder.Entity<Contact>(e =>
         {

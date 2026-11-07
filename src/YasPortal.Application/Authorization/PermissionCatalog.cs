@@ -89,6 +89,8 @@ public static class Perm
     public const string StoreShopView = "Store.Shop.View";
     /// <summary>Make store requests (an order of items from the store). Admins are still kept out of the requester pages.</summary>
     public const string StoreOrdersCreate = "Store.Orders.Create";
+    /// <summary>Hand approved store orders to the requester (this takes the goods out of stock).</summary>
+    public const string StoreOrdersIssue = "Store.Orders.Issue";
     public const string StoreItemsView = "Store.Items.View";
     /// <summary>Add and edit store categories and items. Implies the view permission.</summary>
     public const string StoreItemsManage = "Store.Items.Manage";
@@ -130,7 +132,7 @@ public static class PermissionCatalog
     {
         if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
             return PermissionReach.All;
-        if (code.StartsWith("Store.", StringComparison.OrdinalIgnoreCase) && !code.StartsWith("Store.Shop.", StringComparison.OrdinalIgnoreCase))
+        if (code.StartsWith("Store.", StringComparison.OrdinalIgnoreCase) && code is not (Perm.StoreShopView or Perm.StoreOrdersCreate))
             return PermissionReach.All;
         if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
             return PermissionReach.Assigned;
@@ -143,7 +145,7 @@ public static class PermissionCatalog
     public static bool ActsOnOthers(string code) =>
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
-        || code is Perm.StoreItemsManage or Perm.StoreStockManage
+        || code is Perm.StoreItemsManage or Perm.StoreStockManage or Perm.StoreOrdersIssue
         || code is Perm.RequestsTeamCreate or Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
 
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
@@ -217,6 +219,7 @@ public static class PermissionCatalog
 
             new(Perm.StoreShopView, "مشاهده فروشگاه (کالاها و موجودی)"),
             new(Perm.StoreOrdersCreate, "ثبت درخواست کالا از فروشگاه (و شرکت در قرعه‌کشی)"),
+            new(Perm.StoreOrdersIssue, "تحویل کالای سفارش‌های تأییدشده فروشگاه (کسر از موجودی)"),
             new(Perm.StoreItemsView, "مشاهده مدیریت کالاها (فقط خواندنی)"),
             new(Perm.StoreItemsManage, "مدیریت کالاها (گروه‌ها و کالاها)"),
             new(Perm.StoreStockView, "مشاهده موجودی و گردش انبار (فقط خواندنی)"),

@@ -1,5 +1,7 @@
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Store;
+using YasPortal.Domain.Workflows;
+using YasPortal.Web.Services;
 using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Tests;
@@ -100,5 +102,76 @@ public class StoreTests
         Assert.True(PermissionCatalog.ActsOnOthers(Perm.StoreItemsManage));
         Assert.False(PermissionCatalog.ActsOnOthers(Perm.StoreShopView));
         Assert.Equal(Perm.StoreStockManage, Perm.ManageFor(Perm.StoreStockView));
+    }
+
+    private static StoreOrderLine Line(decimal q = 1) => new(Guid.NewGuid(), "A-1", "Pen", "عدد", q);
+
+    [Fact]
+    public void Order_belongs_to_the_person_and_needs_lines()
+    {
+        var employee = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), "  note ", [Line(2), Line(3)]);
+        Assert.Equal(employee, order.EmployeeId);
+        Assert.Equal("note", order.Note);
+        Assert.Equal(2, order.Lines.Count);
+        Assert.All(order.Lines, l => Assert.Equal(order.Id, l.OrderId));
+        Assert.Throws<ArgumentException>(() => new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, []));
+        var one = Line();
+        Assert.Throws<ArgumentException>(() => new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [one, new StoreOrderLine(one.ItemId, "A", "A", "عدد", 1)]));
+        Assert.Throws<ArgumentException>(() => new StoreOrderLine(Guid.NewGuid(), "A", "A", "عدد", 0));
+    }
+
+    [Fact]
+    public void Order_can_be_handed_over_only_once()
+    {
+        var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Line()]);
+        Assert.False(order.IsIssued);
+        order.MarkIssued(Guid.NewGuid(), " ok ");
+        Assert.True(order.IsIssued);
+        Assert.Equal("ok", order.IssueNote);
+        Assert.Throws<InvalidOperationException>(() => order.MarkIssued(Guid.NewGuid(), null));
+    }
+
+    [Fact]
+    public void Store_order_is_a_workflow_type_but_not_creatable_from_generic_forms()
+    {
+        Assert.Contains(WorkflowTypeCode.StoreOrder, WorkflowFieldCatalog.AllTypes);
+        Assert.DoesNotContain(WorkflowTypeCode.StoreOrder, WorkflowFieldCatalog.CreatableTypes);
+        Assert.Contains(WorkflowFieldCatalog.GetFields(WorkflowTypeCode.StoreOrder), f => f.Key == "summary" && f.Required);
+        Assert.NotEmpty(WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder));
+    }
+
+    [Fact]
+    public void Order_status_text_follows_the_request()
+    {
+        Assert.Equal("تأیید شده، در انتظار تحویل", StoreOrderService.StatusText(WorkflowRequestStatus.Approved, false));
+        Assert.Equal("تحویل داده شد", StoreOrderService.StatusText(WorkflowRequestStatus.Approved, true));
+        Assert.Equal("رد شد", StoreOrderService.StatusText(WorkflowRequestStatus.Rejected, false));
+    }
+
+    [Fact]
+    public void Cart_adds_replaces_and_removes()
+    {
+        var cart = new StoreCart();
+        var item = new YasPortal.Infrastructure.Store.StoreItemRow(Guid.NewGuid(), "A", "Pen", Cat, "C", "عدد", null, true, 10, 5);
+        cart.Add(item, 2);
+        cart.Add(item, 1);
+        Assert.Equal(3, cart.QuantityOf(item.Id));
+        cart.Add(item, 4, replace: true);
+        Assert.Equal(4, cart.QuantityOf(item.Id));
+        Assert.Single(cart.Lines);
+        cart.Add(item, 0);
+        Assert.Equal(4, cart.QuantityOf(item.Id));
+        cart.Remove(item.Id);
+        Assert.Equal(0, cart.Count);
+    }
+
+    [Fact]
+    public void Order_permissions_have_the_right_reach()
+    {
+        Assert.Equal(PermissionReach.Own, PermissionCatalog.ReachOf(Perm.StoreOrdersCreate));
+        Assert.Equal(PermissionReach.All, PermissionCatalog.ReachOf(Perm.StoreOrdersIssue));
+        Assert.True(PermissionCatalog.ActsOnOthers(Perm.StoreOrdersIssue));
+        Assert.Contains(Perm.StoreOrdersIssue, PermissionCatalog.Codes);
     }
 }

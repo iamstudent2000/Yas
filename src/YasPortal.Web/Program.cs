@@ -87,6 +87,8 @@ builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>(
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<StoreOrderService>();
+builder.Services.AddScoped<StoreCart>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<RequestReportBuilder>();
@@ -222,6 +224,16 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[StoreStockMovements] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [Kind] int NOT NULL, [Delta] decimal(18,3) NOT NULL, [Reference] nvarchar(200) NULL, [Note] nvarchar(300) NULL, [CreatedByEmployeeId] uniqueidentifier NULL, [OrderId] uniqueidentifier NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_StoreStockMovements] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreStockMovements_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreStockMovements') AND name = N'IX_StoreStockMovements_ItemId_CreatedAtUtc')
             EXEC(N'CREATE INDEX [IX_StoreStockMovements_ItemId_CreatedAtUtc] ON [dbo].[StoreStockMovements] ([ItemId], [CreatedAtUtc])');
+        IF OBJECT_ID(N'dbo.StoreOrders', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreOrders] ([Id] uniqueidentifier NOT NULL, [RequestId] uniqueidentifier NOT NULL, [EmployeeId] uniqueidentifier NOT NULL, [PositionId] uniqueidentifier NOT NULL, [Note] nvarchar(500) NULL, [CreatedAtUtc] datetime2 NOT NULL, [IssuedAtUtc] datetime2 NULL, [IssuedByEmployeeId] uniqueidentifier NULL, [IssueNote] nvarchar(500) NULL, CONSTRAINT [PK_StoreOrders] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreOrders_WorkflowRequests_RequestId] FOREIGN KEY ([RequestId]) REFERENCES [dbo].[WorkflowRequests] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrders') AND name = N'IX_StoreOrders_RequestId')
+            EXEC(N'CREATE UNIQUE INDEX [IX_StoreOrders_RequestId] ON [dbo].[StoreOrders] ([RequestId])');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrders') AND name = N'IX_StoreOrders_EmployeeId_CreatedAtUtc')
+            EXEC(N'CREATE INDEX [IX_StoreOrders_EmployeeId_CreatedAtUtc] ON [dbo].[StoreOrders] ([EmployeeId], [CreatedAtUtc])');
+        IF OBJECT_ID(N'dbo.StoreOrderLines', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreOrderLines] ([Id] uniqueidentifier NOT NULL, [OrderId] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [ItemCode] nvarchar(50) NOT NULL, [ItemName] nvarchar(200) NOT NULL, [Unit] nvarchar(30) NOT NULL, [Quantity] decimal(18,3) NOT NULL, CONSTRAINT [PK_StoreOrderLines] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreOrderLines_StoreOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [dbo].[StoreOrders] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_StoreOrderLines_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrderLines') AND name = N'IX_StoreOrderLines_OrderId')
+            EXEC(N'CREATE INDEX [IX_StoreOrderLines_OrderId] ON [dbo].[StoreOrderLines] ([OrderId])');
         IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NOT NULL DROP TABLE [dbo].[GuideBlocks];
         IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
             CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [ContentHtml] nvarchar(max) NOT NULL, [Visibility] int NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, [CreatedByEmployeeId] uniqueidentifier NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));

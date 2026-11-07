@@ -1,0 +1,89 @@
+@page "/store/orders/{Id:guid}"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize]
+@inject StoreOrderService Orders
+@inject AuthenticationStateProvider AuthState
+@inject IPermissionChecker PermissionChecker
+@* One order, printable as a hand-over slip. Only its owner and a storekeeper (Store.Orders.Issue) can open it; anyone else sees "not found". *@
+
+@if (_loading)
+{
+    <div class="admin-page" dir="rtl"><LoadingState /></div>
+}
+else if (_order is null)
+{
+    <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="سفارش پیدا نشد" Message="این سفارش وجود ندارد یا برای شما در دسترس نیست.">
+        <a class="btn btn-primary" href="/store"><i class="ti @Icons.Store"></i> فروشگاه</a>
+    </StatusPage>
+}
+else
+{
+    <PageTitle>سفارش @_order.Number - فروشگاه</PageTitle>
+    <div class="admin-page" dir="rtl">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">فروشگاه</div>
+                <h1 class="page-title"><i class="ti @Icons.Box"></i> برگ سفارش کالا @_order.Number</h1>
+                <p class="page-subtitle"><span class="badge badge-muted">@StoreOrderService.StatusText(_order.Status, _order.IssuedAtUtc is not null)</span></p>
+            </div>
+            <div class="form-actions no-print">
+                <button type="button" class="btn btn-secondary" onclick="window.print()"><i class="ti @Icons.Print"></i> چاپ</button>
+                <a class="btn btn-secondary" href="@(_isOwner ? "/store/orders" : "/admin/store/issue")"><i class="ti @Icons.Back"></i> بازگشت</a>
+            </div>
+        </div>
+
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <tbody>
+                        <tr><th>درخواست‌کننده</th><td>@_order.EmployeeName</td><th>سمت هنگام ثبت</th><td>@(_order.PositionName ?? "—")</td></tr>
+                        <tr><th>تاریخ ثبت</th><td>@WorkflowDisplay.ToPersianDateTime(_order.CreatedAtUtc)</td><th>تاریخ تحویل</th><td>@(_order.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "—")</td></tr>
+                        <tr><th>تحویل‌دهنده</th><td>@(_order.IssuedByName ?? "—")</td><th>شماره</th><td dir="ltr" style="text-align:right">@_order.Number</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <h2 class="section-title" style="margin-top:14px">اقلام</h2>
+            <div class="data-table-wrap">
+                <table class="data-table data-table-bordered-rows">
+                    <thead><tr><th>#</th><th>کد</th><th>کالا</th><th>مقدار</th><th>واحد</th></tr></thead>
+                    <tbody>
+                        @{ var n = 0; }
+                        @foreach (var l in _order.Lines)
+                        {
+                            <tr><td>@WorkflowDisplay.ToPersianDigits((++n).ToString())</td><td dir="ltr" style="text-align:right">@l.ItemCode</td><td>@l.ItemName</td><td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###"))</td><td>@l.Unit</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_order.Note is not null) {<p><strong>توضیحات درخواست‌کننده:</strong> @_order.Note</p>}
+            @if (_order.IssueNote is not null) {<p><strong>توضیحات تحویل:</strong> @_order.IssueNote</p>}
+            <div class="form-actions" style="margin-top:28px;justify-content:space-between">
+                <span>امضای تحویل‌دهنده: ..............................</span>
+                <span>امضای تحویل‌گیرنده: ..............................</span>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true, _isOwner;
+    private StoreOrderDetail? _order;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        var me = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : (Guid?)null;
+        var order = await Orders.GetAsync(Id);
+        _isOwner = order is not null && me == order.EmployeeId;
+        var storekeeper = await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersIssue);
+        _order = order is not null && (_isOwner || storekeeper) ? order : null;
+        _loading = false;
+    }
+}
