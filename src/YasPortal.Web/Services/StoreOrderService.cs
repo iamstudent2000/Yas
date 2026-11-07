@@ -104,10 +104,17 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>Orders already handed over, newest hand-over first (the storekeeper's history).</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListIssuedAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListIssuedAsync(int page, int pageSize, string? search = null, DateTime? issuedFromUtc = null, DateTime? issuedToUtcExclusive = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc != null);
+        if (issuedFromUtc is DateTime from) q = q.Where(o => o.IssuedAtUtc >= from);
+        if (issuedToUtcExclusive is DateTime to) q = q.Where(o => o.IssuedAtUtc < to);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(o => db.Employees.Any(e => e.Id == o.EmployeeId && e.FullName.Contains(s)) || o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
+        }
         return await PageAsync(db, q, page, pageSize, ct, byIssueDate: true);
     }
 

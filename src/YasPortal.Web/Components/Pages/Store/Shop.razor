@@ -11,7 +11,7 @@
 @inject IPermissionChecker PermissionChecker
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
-@* The catalogue every signed-in person with Store.Shop.View can browse. Ordering is added in the next stage. *@
+@* The catalogue every signed-in person with Store.Shop.View can browse. People who may order also get the cart. *@
 
 <PageTitle>فروشگاه - یاس پورتال</PageTitle>
 
@@ -35,8 +35,14 @@
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">جستجو</label>
                 <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
-            <div class="form-field"><label class="form-label">گروه</label>
-                <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
+            <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_inStockOnly" @onchange="InStockChangedAsync" /> فقط کالاهای موجود</label></div>
+        </div>
+        <div class="store-chips" role="group" aria-label="گروه کالا">
+            <button type="button" class="store-chip @(_categoryId is null ? "is-active" : "")" @onclick="() => CategoryChangedAsync(null)">همه</button>
+            @foreach (var c in _categories)
+            {
+                <button type="button" class="store-chip @(_categoryId == c.Id ? "is-active" : "")" @onclick="() => CategoryChangedAsync(c.Id.ToString())">@c.Name</button>
+            }
         </div>
     </section>
 
@@ -50,52 +56,50 @@
     }
     else
     {
-        <section class="card">
-            <div class="data-table-wrap">
-                <table class="data-table">
-                    <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در هر درخواست</th><th>درخواست</th>@if (_canOrder) {<th>سبد</th>}</tr></thead>
-                    <tbody>
-                        @foreach (var item in _page.Rows)
+        <div class="store-grid">
+            @foreach (var item in _page.Rows)
+            {
+                var window = item.WindowOn(DateTime.Now);
+                <article class="store-card @(item.Stock <= 0 ? "is-out" : "")">
+                    <div class="store-card-top">
+                        <span class="store-card-icon"><i class="ti @Icons.Box"></i></span>
+                        <div class="store-card-title">
+                            <strong>@item.Name</strong>
+                            <span class="store-card-meta">@item.CategoryName · <span dir="ltr">@item.Code</span></span>
+                        </div>
+                    </div>
+                    @if (item.Description is not null) {<p class="store-card-desc">@item.Description</p>}
+                    <div class="store-card-badges">
+                        @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
+                        else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###")) @item.Unit</span> }
+                        @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
+                        @switch (window)
                         {
-                            <tr>
-                                <td dir="ltr" style="text-align:right">@item.Code</td>
-                                <td><strong>@item.Name</strong>@if (item.Description is not null) {<div class="muted">@item.Description</div>}</td>
-                                <td>@item.CategoryName</td>
-                                <td>@item.Unit</td>
-                                <td>
-                                    @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
-                                    else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###"))</span> }
-                                </td>
-                                <td>@(item.MaxPerRequest == 0 ? "—" : WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) + " " + item.Unit)</td>
-                                <td>
-                                    @switch (item.WindowOn(DateTime.Now))
-                                    {
-                                        case StoreRequestWindow.Open: <span class="badge badge-success">باز@(item.RequestClosesOn is DateTime c ? " تا " + WorkflowDisplay.ToPersianDate(c) : "")</span> break;
-                                        case StoreRequestWindow.NotYet: <span class="badge badge-muted">از @WorkflowDisplay.ToPersianDate(item.RequestOpensOn!.Value)</span> break;
-                                        default: <span class="badge badge-danger">بسته شد</span> break;
-                                    }
-                                    @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
-                                </td>
-                                @if (_canOrder)
-                                {
-                                    <td>
-                                        @if (CanAdd(item))
-                                        {
-                                            <div class="form-actions">
-                                                <input class="form-control" style="width:80px" inputmode="decimal" autocomplete="off" placeholder="۱" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
-                                                <button class="btn btn-secondary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن</button>
-                                            </div>
-                                        }
-                                        else if (item.IsLottery) { <span class="muted">با قرعه‌کشی</span> }
-                                    </td>
-                                }
-                            </tr>
+                            case StoreRequestWindow.NotYet: <span class="badge badge-muted">درخواست از @WorkflowDisplay.ToPersianDate(item.RequestOpensOn!.Value)</span> break;
+                            case StoreRequestWindow.Closed: <span class="badge badge-danger">دوره درخواست بسته شد</span> break;
+                            default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @WorkflowDisplay.ToPersianDate(closes)</span> } break;
                         }
-                    </tbody>
-                </table>
-            </div>
-            <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_page.Total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
-        </section>
+                    </div>
+                    @if (item.MaxPerRequest > 0)
+                    {
+                        <dl class="store-card-facts"><dt>حداکثر در هر درخواست</dt><dd>@WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) @item.Unit</dd></dl>
+                    }
+                    @if (_canOrder)
+                    {
+                        <div class="store-card-buy">
+                            @if (CanAdd(item))
+                            {
+                                <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
+                                <button class="btn btn-primary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن به سبد</button>
+                                @if (Cart.QuantityOf(item.Id) > 0) {<span class="muted">در سبد: @WorkflowDisplay.ToPersianDigits(Cart.QuantityOf(item.Id).ToString("0.###"))</span>}
+                            }
+                            else if (item.IsLottery) { <span class="muted">این کالا با قرعه‌کشی توزیع می‌شود.</span> }
+                        </div>
+                    }
+                </article>
+            }
+        </div>
+        <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_page.Total" Busy="_loading" PageSizes="@(new[] { 12, 24, 48, 96 })" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
     }
 </div>
 
@@ -103,9 +107,10 @@
     private bool _loading = true;
     private string _search = "";
     private Guid? _categoryId;
-    private int _pageNo = 1, _pageSize = 20;
+    private int _pageNo = 1, _pageSize = 24;
     private StorePage<StoreItemRow> _page = new([], 0);
-    private IReadOnlyList<(string Key, string Text)> CategoryOptions = [];
+    private IReadOnlyList<StoreCategory> _categories = [];
+    private bool _inStockOnly;
     private CancellationTokenSource? _cts;
     private bool _canOrder;
     private readonly Dictionary<Guid, string> _qty = [];
@@ -133,7 +138,7 @@
         // admins are kept out of the requester pages, so they do not get the cart either
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _canOrder = !user.HasClaim("yas_is_admin", "True") && await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersCreate);
-        CategoryOptions = (await Store.ListCategoriesAsync(false)).Select(c => (c.Id.ToString(), c.Name)).ToList();
+        _categories = await Store.ListCategoriesAsync(false);
         await LoadAsync();
     }
 
@@ -144,7 +149,7 @@
         _loading = true;
         try
         {
-            _page = await Store.SearchItemsAsync(_search, _categoryId, true, _pageNo, _pageSize, cts.Token);
+            _page = await Store.SearchItemsAsync(_search, _categoryId, true, _pageNo, _pageSize, _inStockOnly ? true : null, cts.Token);
             _loading = false;
         }
         catch (OperationCanceledException) { }
@@ -155,6 +160,7 @@
         }
     }
 
+    private async Task InStockChangedAsync(ChangeEventArgs e) { _inStockOnly = e.Value is true; _pageNo = 1; await LoadAsync(); }
     private async Task SearchChangedAsync() { _pageNo = 1; await LoadAsync(); }
     private async Task CategoryChangedAsync(string? key) { _categoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }

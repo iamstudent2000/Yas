@@ -1,0 +1,21 @@
+@page "/admin/store"
+@using Microsoft.AspNetCore.Authorization
+@using YasPortal.Web.Components.Shared
+@attribute [Authorize]
+@inject IPermissionChecker PermissionChecker
+@inject NavigationManager Navigation
+@* One entry for the store admin area: it opens the first tab the person may use. *@
+
+<div class="admin-page" dir="rtl"><LoadingState /></div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        string? target =
+            await PermissionChecker.HasPermissionAsync(Perm.StoreItemsView) ? "/admin/store/items"
+            : await PermissionChecker.HasPermissionAsync(Perm.StoreStockView) ? "/admin/store/stock"
+            : await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersIssue) ? "/admin/store/issue"
+            : null;
+        Navigation.NavigateTo(target ?? "/access-denied", replace: true);
+    }
+}

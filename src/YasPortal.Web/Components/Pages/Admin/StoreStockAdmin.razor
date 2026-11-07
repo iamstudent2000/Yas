@@ -15,6 +15,7 @@
 <PageTitle>انبار فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
     <div class="page-header">
         <div>
             <div class="page-kicker">فروشگاه</div>
@@ -69,6 +70,8 @@
                             <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
                         <div class="form-field"><label class="form-label">گروه</label>
                             <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
+                        <div class="form-field"><label class="form-label">موجودی</label>
+                            <LookupSelect Options="StockOptions" Value="@_stockFilter" ValueChanged="StockFilterChangedAsync" Placeholder="همه" /></div>
                     </div>
                     <div class="data-table-wrap">
                         <table class="data-table">
@@ -98,6 +101,8 @@
                             <LookupSelect Options="ItemOptions" Value="@(_moveItemId?.ToString())" ValueChanged="MoveItemChangedAsync" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
                         <div class="form-field"><label class="form-label">نوع</label>
                             <LookupSelect Options="KindOptions" Value="@(_moveKind is null ? null : ((int)_moveKind.Value).ToString())" ValueChanged="MoveKindChangedAsync" Placeholder="همه انواع" /></div>
+                        <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveFrom" ValueChanged="MoveFromChangedAsync" Placeholder="تاریخ" /></div>
+                        <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveTo" ValueChanged="MoveToChangedAsync" Placeholder="تاریخ" /></div>
                     </div>
                     <div class="data-table-wrap">
                         <table class="data-table">
@@ -130,6 +135,10 @@
     private string _tab = "levels", _search = "";
     private Guid? _categoryId, _moveItemId;
     private StockMovementKind? _moveKind;
+    private DateTime? _moveFrom, _moveTo;
+    private string? _stockFilter;
+    private int _dateKey;
+    private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "فقط موجود"), ("out", "فقط ناموجود")];
     private int _pageNo = 1, _pageSize = 20, _formKey;
     private StorePage<StoreItemRow> _levels = new([], 0);
     private StorePage<StoreMovementRow> _moves = new([], 0);
@@ -161,8 +170,8 @@
 
     private async Task LoadAsync()
     {
-        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _pageNo, _pageSize);
-        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, null, null, _pageNo, _pageSize);
+        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _pageNo, _pageSize, _stockFilter switch { "in" => true, "out" => false, _ => null });
+        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize);
     }
 
     private async Task RecordAsync()
@@ -187,6 +196,9 @@
     private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
     private async Task CategoryChangedAsync(string? k) { _categoryId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
     private async Task MoveItemChangedAsync(string? k) { _moveItemId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task StockFilterChangedAsync(string? k) { _stockFilter = string.IsNullOrEmpty(k) ? null : k; _pageNo = 1; await LoadAsync(); }
+    private async Task MoveFromChangedAsync(DateTime? d) { _moveFrom = d; _pageNo = 1; await LoadAsync(); }
+    private async Task MoveToChangedAsync(DateTime? d) { _moveTo = d; _pageNo = 1; await LoadAsync(); }
     private async Task MoveKindChangedAsync(string? k) { _moveKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : null; _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }

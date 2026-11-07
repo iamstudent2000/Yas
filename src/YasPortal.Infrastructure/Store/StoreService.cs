@@ -139,7 +139,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         };
 
     /// <summary>Items with their current stock. <paramref name="activeOnly"/> hides items and categories that are switched off.</summary>
-    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, int page, int pageSize, CancellationToken ct = default)
+    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, int page, int pageSize, bool? inStock = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = ItemRows(db);
@@ -150,6 +150,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
             var s = search.Trim();
             q = q.Where(x => x.Name.Contains(s) || x.Code.Contains(s));
         }
+        if (inStock is true) q = q.Where(x => x.Stock > 0);
+        else if (inStock is false) q = q.Where(x => x.Stock <= 0);
         var total = await q.CountAsync(ct);
         var rows = await q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name)
             .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(ct);
@@ -158,7 +160,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
 
     /// <summary>All items matching the filters with no paging, for printing.</summary>
     public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(string? search, Guid? categoryId, CancellationToken ct = default) =>
-        (await SearchItemsAsync(search, categoryId, false, 1, 100_000, ct)).Rows;
+        (await SearchItemsAsync(search, categoryId, false, 1, 100_000, ct: ct)).Rows;
 
     public async Task<StoreItem?> GetItemAsync(Guid id, CancellationToken ct = default)
     {

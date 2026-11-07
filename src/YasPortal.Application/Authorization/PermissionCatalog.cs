@@ -99,6 +99,8 @@ public static class Perm
     public const string StoreStockManage = "Store.Stock.Manage";
     /// <summary>Policy (not a permission code): the guides workspace is open to anyone who holds any of the three guide permissions.</summary>
     public const string GuidesWorkspacePolicy = "Guides.Workspace";
+    /// <summary>Policy (not a permission code): the store admin area is open to anyone who holds any store admin permission.</summary>
+    public const string StoreAdminPolicy = "Store.Admin";
 
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>

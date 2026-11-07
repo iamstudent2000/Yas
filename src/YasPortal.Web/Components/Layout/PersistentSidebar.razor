@@ -115,14 +115,8 @@
             <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
                 <NavLink href="/guides/manage"><i class="ti @Icons.Guide"></i><span>مدیریت راهنماها</span></NavLink>
             </AuthorizeView>
-            <AuthorizeView Policy="@Perm.StoreItemsView">
-                <NavLink href="/admin/store/items"><i class="ti @Icons.Box"></i><span>مدیریت کالاهای فروشگاه</span></NavLink>
-            </AuthorizeView>
-            <AuthorizeView Policy="@Perm.StoreOrdersIssue">
-                <NavLink href="/admin/store/issue"><i class="ti @Icons.Box"></i><span>تحویل کالای فروشگاه</span></NavLink>
-            </AuthorizeView>
-            <AuthorizeView Policy="@Perm.StoreStockView">
-                <NavLink href="/admin/store/stock"><i class="ti @Icons.Store"></i><span>انبار فروشگاه</span></NavLink>
+            <AuthorizeView Policy="@Perm.StoreAdminPolicy">
+                <NavLink href="/admin/store"><i class="ti @Icons.Store"></i><span>مدیریت فروشگاه</span></NavLink>
             </AuthorizeView>
             <AuthorizeView Policy="@Perm.AdminPhoneBookView">
                 <NavLink href="/admin/phone-book"><i class="ti @Icons.PhoneBook"></i><span>مدیریت دفترچه تلفن</span></NavLink>

@@ -12,6 +12,7 @@
 <PageTitle>تحویل کالا - فروشگاه</PageTitle>
 
 <div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
     <div class="page-header">
         <div>
             <div class="page-kicker">فروشگاه</div>
@@ -24,6 +25,18 @@
         <button class="btn @(!_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(false)">در انتظار تحویل</button>
         <button class="btn @(_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(true)">تاریخچه تحویل</button>
     </div>
+
+    @if (_history)
+    {
+        <section class="card list-filter no-print">
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
+                    <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
+                <div class="form-field"><label class="form-label">تحویل از تاریخ</label><PersianDatePicker Value="_from" ValueChanged="FromChangedAsync" Placeholder="تاریخ" /></div>
+                <div class="form-field"><label class="form-label">تحویل تا تاریخ</label><PersianDatePicker Value="_to" ValueChanged="ToChangedAsync" Placeholder="تاریخ" /></div>
+            </div>
+        </section>
+    }
 
     @if (_loading)
     {
@@ -75,6 +88,8 @@
 
 @code {
     private bool _loading = true, _busy, _history;
+    private string _search = "";
+    private DateTime? _from, _to;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
     private Guid? _confirmId;
@@ -84,10 +99,13 @@
 
     private async Task LoadAsync()
     {
-        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
+        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime()) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
         _loading = false;
     }
 
+    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task FromChangedAsync(DateTime? d) { _from = d; _pageNo = 1; await LoadAsync(); }
+    private async Task ToChangedAsync(DateTime? d) { _to = d; _pageNo = 1; await LoadAsync(); }
     private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _loading = true; await LoadAsync(); }
 
     private void StartIssue(Guid id) { _confirmId = id; _note = ""; }

@@ -54,6 +54,8 @@ builder.Services.AddAuthorization(options => {
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     // The guides workspace is open to anyone who holds one of the three guide permissions; the page then limits what each person can see and change.
+    options.AddPolicy(Perm.StoreAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
+        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.StoreItemsView or Perm.StoreItemsManage or Perm.StoreStockView or Perm.StoreStockManage or Perm.StoreOrdersIssue)));
     options.AddPolicy(Perm.GuidesWorkspacePolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.AdminGuidesView or Perm.AdminGuidesManage or Perm.GuidesOwnManage)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
