@@ -1,0 +1,115 @@
+@page "/admin/store/reports"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreReportsView)]
+@inject StoreReportService Reports
+@inject IJSRuntime JS
+@inject AppState AppState
+
+<PageTitle>گزارش‌های فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.AuditLog"></i> گزارش‌های فروشگاه</h1>
+            <p class="page-subtitle">گزارش را انتخاب کنید؛ جدول را می‌توانید چاپ کنید یا به‌صورت فایل CSV (باز شدن در اکسل) بگیرید.</p>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" disabled="@(_table is null || _table.Rows.Count == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV</button>
+            <button type="button" class="btn btn-secondary" onclick="window.print()"><i class="ti @Icons.Print"></i> چاپ</button>
+        </div>
+    </div>
+
+    <section class="card list-filter no-print">
+        <div class="store-chips" role="group" aria-label="نوع گزارش">
+            @foreach (var kind in StoreReportService.Kinds)
+            {
+                <button type="button" class="store-chip @(_key == kind.Key ? "is-active" : "")" @onclick="() => SelectAsync(kind.Key)">@kind.Name</button>
+            }
+        </div>
+        @if (Current.UsesDates || Current.UsesDays)
+        {
+            <div class="admin-row-grid" style="margin-top:12px">
+                @if (Current.UsesDates)
+                {
+                    <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_key" Value="_from" ValueChanged="FromChangedAsync" Placeholder="تاریخ" /></div>
+                    <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_key" Value="_to" ValueChanged="ToChangedAsync" Placeholder="تاریخ" /></div>
+                }
+                @if (Current.UsesDays)
+                {
+                    <div class="form-field"><label class="form-label">بدون گردش در</label>
+                        <LookupSelect Options="DayOptions" Value="@_days.ToString()" ValueChanged="DaysChangedAsync" Placeholder="انتخاب" /></div>
+                }
+            </div>
+        }
+    </section>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_table is not null)
+    {
+        <section class="card">
+            <h2 class="section-title">@_table.Title</h2>
+            <p class="muted">@_table.Description</p>
+            @if (_table.Rows.Count == 0)
+            {
+                <div class="empty-state"><strong>برای این گزارش داده‌ای نیست</strong></div>
+            }
+            else
+            {
+                <div class="data-table-wrap">
+                    <table class="data-table data-table-bordered-rows">
+                        <thead><tr>@foreach (var h in _table.Headers) {<th>@h</th>}</tr></thead>
+                        <tbody>
+                            @foreach (var row in _table.Rows)
+                            {
+                                <tr>@foreach (var cell in row) {<td>@WorkflowDisplay.ToPersianDigits(cell)</td>}</tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="muted">@WorkflowDisplay.ToPersianDigits(_table.Rows.Count.ToString()) ردیف</p>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string _key = "categories";
+    private DateTime? _from, _to;
+    private int _days = 90;
+    private StoreReportTable? _table;
+    private static readonly IReadOnlyList<(string Key, string Text)> DayOptions = [("30", "۳۰ روز"), ("60", "۶۰ روز"), ("90", "۹۰ روز"), ("180", "۱۸۰ روز"), ("365", "یک سال")];
+
+    private (string Key, string Name, bool UsesDates, bool UsesDays) Current => StoreReportService.Kinds.First(k => k.Key == _key);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _table = await Reports.BuildAsync(_key, _from, _to, _days); }
+        catch (Exception) { AppState.AddToast("ساخت گزارش انجام نشد.", ToastLevel.Error); }
+        finally { _loading = false; }
+    }
+
+    private async Task SelectAsync(string key) { _key = key; await LoadAsync(); }
+    private async Task FromChangedAsync(DateTime? d) { _from = d; await LoadAsync(); }
+    private async Task ToChangedAsync(DateTime? d) { _to = d; await LoadAsync(); }
+    private async Task DaysChangedAsync(string? k) { _days = int.TryParse(k, out var d) ? d : 90; await LoadAsync(); }
+
+    private async Task ExportAsync()
+    {
+        if (_table is null) return;
+        var bytes = StoreCsv.Build(_table.Headers, _table.Rows);
+        await JS.InvokeVoidAsync("yasDownloadFile", $"store-{_key}-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", bytes);
+    }
+}

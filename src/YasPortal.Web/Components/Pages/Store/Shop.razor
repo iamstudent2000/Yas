@@ -35,7 +35,7 @@
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">جستجو</label>
                 <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
-            <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_inStockOnly" @onchange="InStockChangedAsync" /> فقط کالاهای موجود</label></div>
+            <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_inStockOnly" @onchange="InStockChangedAsync" /> فقط قابل درخواست (موجود و در دوره درخواست)</label></div>
         </div>
         <div class="store-chips" role="group" aria-label="گروه کالا">
             <button type="button" class="store-chip @(_categoryId is null ? "is-active" : "")" @onclick="() => CategoryChangedAsync(null)">همه</button>
@@ -149,7 +149,7 @@
         _loading = true;
         try
         {
-            _page = await Store.SearchItemsAsync(_search, _categoryId, true, _pageNo, _pageSize, _inStockOnly ? true : null, cts.Token);
+            _page = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, Active = true, Visible = true, ActiveCategoriesOnly = true, RequestableOn = _inStockOnly ? DateTime.Today : null }, _pageNo, _pageSize, cts.Token);
             _loading = false;
         }
         catch (OperationCanceledException) { }

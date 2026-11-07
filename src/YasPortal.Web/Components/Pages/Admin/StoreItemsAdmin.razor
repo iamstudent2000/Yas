@@ -1,6 +1,7 @@
 @page "/admin/store/items"
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Store
 @using YasPortal.Infrastructure.Store
@@ -11,6 +12,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
+@inject IJSRuntime JS
 
 <PageTitle>مدیریت کالاهای فروشگاه - یاس پورتال</PageTitle>
 
@@ -118,22 +120,48 @@
                         <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
                     <div class="form-field"><label class="form-label">گروه</label>
                         <LookupSelect Options="AllCategoryOptions" Value="@(_filterCategoryId?.ToString())" ValueChanged="FilterCategoryAsync" Placeholder="همه گروه‌ها" /></div>
+                    <div class="form-field"><label class="form-label">وضعیت</label>
+                        <LookupSelect Options="ActiveOptions" Value="@_activeF" ValueChanged="k => SetFilterAsync(() => _activeF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">نمایش در فروشگاه</label>
+                        <LookupSelect Options="VisibleOptions" Value="@_visibleF" ValueChanged="k => SetFilterAsync(() => _visibleF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">موجودی</label>
+                        <LookupSelect Options="StockOptions" Value="@_stockF" ValueChanged="k => SetFilterAsync(() => _stockF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">دوره درخواست</label>
+                        <LookupSelect Options="WindowOptions" Value="@_windowF" ValueChanged="k => SetFilterAsync(() => _windowF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">نوع توزیع</label>
+                        <LookupSelect Options="LotteryOptions" Value="@_lotteryF" ValueChanged="k => SetFilterAsync(() => _lotteryF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">مرتب‌سازی</label>
+                        <LookupSelect Options="SortOptions" Value="@_sort" ValueChanged="k => SortChangedAsync(k)" Placeholder="گروه" /></div>
+                    <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_sortDesc" @onchange="e => SetFilterAsync(() => _sortDesc = e.Value is true)" /> نزولی</label></div>
+                </div>
+                <div class="form-actions" style="margin:10px 0">
+                    <button class="btn btn-secondary btn-sm" disabled="@(_items.Total == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="ClearFiltersAsync">پاک‌کردن فیلترها</button>
+                    @if (_canManage)
+                    {
+                        <span class="muted">انتخاب‌شده: @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString())</span>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(true)"><i class="ti @Icons.Eye"></i> نمایش در فروشگاه</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(false)"><i class="ti @Icons.EyeOff"></i> پنهان‌کردن از فروشگاه</button>
+                    }
                 </div>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در درخواست</th><th>دوره درخواست</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در درخواست</th><th>دوره درخواست</th><th>وضعیت</th><th>در فروشگاه</th>@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
                             @foreach (var i in _items.Rows)
                             {
                                 <tr>
+                                    @if (_canManage) {<td><input type="checkbox" aria-label="انتخاب" checked="@_selected.Contains(i.Id)" @onchange="e => ToggleSelect(i.Id, e.Value is true)" /></td>}
                                     <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
                                     <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))</td>
                                     <td>@(i.MaxPerRequest == 0 ? "بدون محدودیت" : WorkflowDisplay.ToPersianDigits(i.MaxPerRequest.ToString("0.###")))</td>
                                     <td>@WindowText(i)@if (i.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}</td>
                                     <td>@if (i.IsActive) {<span class="badge badge-success">فعال</span>} else {<span class="badge badge-muted">غیرفعال</span>}</td>
+                                    <td>@if (i.IsVisible) {<span class="badge badge-success">نمایش</span>} else {<span class="badge badge-muted">پنهان</span>}</td>
                                     @if (_canManage)
                                     {
                                         <td><div class="form-actions">
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => SetVisibleBulkAsync(!i.IsVisible, i.Id)"><i class="ti @(i.IsVisible ? Icons.EyeOff : Icons.Eye)"></i> @(i.IsVisible ? "پنهان" : "نمایش")</button>
                                             <button class="btn btn-secondary btn-sm" @onclick="() => EditItemAsync(i)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleItemAsync(i)">@(i.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
                                             @if (_confirmItemId == i.Id)
@@ -149,7 +177,7 @@
                                     }
                                 </tr>
                             }
-                            @if (_items.Rows.Count == 0) { <tr><td colspan="9" class="muted">کالایی پیدا نشد.</td></tr> }
+                            @if (_items.Rows.Count == 0) { <tr><td colspan="11" class="muted">کالایی پیدا نشد.</td></tr> }
                         </tbody>
                     </table>
                 </div>
@@ -181,6 +209,59 @@
 
     private string _search = "";
     private Guid? _filterCategoryId;
+    private string? _activeF, _visibleF, _stockF, _windowF, _lotteryF, _sort = "category";
+    private bool _sortDesc;
+    private readonly HashSet<Guid> _selected = [];
+    private static readonly IReadOnlyList<(string Key, string Text)> ActiveOptions = [("on", "فعال"), ("off", "غیرفعال")];
+    private static readonly IReadOnlyList<(string Key, string Text)> VisibleOptions = [("shown", "نمایش داده می‌شود"), ("hidden", "پنهان")];
+    private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "موجود"), ("out", "ناموجود")];
+    private static readonly IReadOnlyList<(string Key, string Text)> WindowOptions = [("always", "همیشه باز"), ("open", "هم‌اکنون باز"), ("notyet", "هنوز شروع نشده"), ("closed", "بسته‌شده")];
+    private static readonly IReadOnlyList<(string Key, string Text)> LotteryOptions = [("yes", "قرعه‌کشی"), ("no", "بدون قرعه‌کشی")];
+    private static readonly IReadOnlyList<(string Key, string Text)> SortOptions = [("category", "گروه"), ("name", "نام"), ("code", "کد"), ("stock", "موجودی")];
+
+    private static string? Blank(string? k) => string.IsNullOrEmpty(k) ? null : k;
+
+    private StoreItemFilter BuildFilter() => new()
+    {
+        Search = _search, CategoryId = _filterCategoryId, Sort = _sort, Descending = _sortDesc,
+        Active = _activeF switch { "on" => true, "off" => false, _ => null },
+        Visible = _visibleF switch { "shown" => true, "hidden" => false, _ => null },
+        InStock = _stockF switch { "in" => true, "out" => false, _ => null },
+        Lottery = _lotteryF switch { "yes" => true, "no" => false, _ => null },
+        Window = _windowF switch { "always" => StoreWindowFilter.Always, "open" => StoreWindowFilter.Open, "notyet" => StoreWindowFilter.NotYet, "closed" => StoreWindowFilter.Closed, _ => StoreWindowFilter.Any },
+    };
+
+    private Task SortChangedAsync(string? k) => SetFilterAsync(() => _sort = Blank(k) ?? "category");
+
+    private async Task SetFilterAsync(Action set) { set(); _pageNo = 1; await LoadAsync(); }
+
+    private async Task ClearFiltersAsync()
+    {
+        _search = ""; _filterCategoryId = null; _activeF = _visibleF = _stockF = _windowF = _lotteryF = null; _sort = "category"; _sortDesc = false; _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private void ToggleSelect(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
+
+    private void SelectPage(bool on) { foreach (var r in _items.Rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
+
+    /// <summary>Shows or hides one item (when <paramref name="only"/> is given) or every selected item.</summary>
+    private async Task SetVisibleBulkAsync(bool visible, Guid? only = null)
+    {
+        var ids = only is Guid one ? new List<Guid> { one } : _selected.ToList();
+        await RunAsync(() => Store.SetItemsVisibleAsync(ids, visible), visible ? "کالاها در فروشگاه نمایش داده می‌شوند." : "کالاها از فروشگاه پنهان شدند.", () => { if (only is null) _selected.Clear(); });
+    }
+
+    private async Task ExportAsync()
+    {
+        var rows = await Store.AllItemsAsync(BuildFilter());
+        var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
+            rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                i.MaxPerRequest == 0 ? "" : i.MaxPerRequest.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                i.RequestOpensOn is DateTime o ? WorkflowDisplay.ToPersianDate(o) : "", i.RequestClosesOn is DateTime c ? WorkflowDisplay.ToPersianDate(c) : "",
+                i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
+        await JS.InvokeVoidAsync("yasDownloadFile", $"store-items-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+    }
     private int _pageNo = 1, _pageSize = 20;
 
     protected override async Task OnInitializedAsync()
@@ -196,7 +277,7 @@
         _categories = await Store.ListCategoriesAsync(true);
         ActiveCategoryOptions = _categories.Where(c => c.IsActive).Select(c => (c.Id.ToString(), c.Name)).ToList();
         AllCategoryOptions = _categories.Select(c => (c.Id.ToString(), c.IsActive ? c.Name : c.Name + " (غیرفعال)")).ToList();
-        _items = await Store.SearchItemsAsync(_search, _filterCategoryId, false, _pageNo, _pageSize);
+        _items = await Store.SearchItemsAsync(BuildFilter(), _pageNo, _pageSize);
     }
 
     private async Task RunAsync(Func<Task<StoreResult>> action, string okMessage, Action? onOk = null)

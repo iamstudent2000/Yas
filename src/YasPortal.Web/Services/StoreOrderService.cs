@@ -56,7 +56,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         foreach (var (itemId, quantity) in wanted)
         {
             var item = items.FirstOrDefault(x => x.Id == itemId);
-            if (item is null || !item.IsActive || !activeCategories.Contains(item.CategoryId)) return new(false, "یکی از کالاهای سبد دیگر در فروشگاه نیست؛ آن را از سبد حذف کنید.");
+            if (item is null || !item.IsListed || !activeCategories.Contains(item.CategoryId)) return new(false, "یکی از کالاهای سبد دیگر در فروشگاه نیست؛ آن را از سبد حذف کنید.");
             var name = $"«{item.Name}»";
             if (quantity <= 0 || decimal.Round(quantity, 3) != quantity) return new(false, $"مقدار {name} باید عددی مثبت با حداکثر سه رقم اعشار باشد.");
             switch (item.WindowOn(today))

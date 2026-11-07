@@ -148,4 +148,35 @@ public class StoreTests
         Assert.True(PermissionCatalog.ActsOnOthers(Perm.StoreOrdersIssue));
         Assert.Contains(Perm.StoreOrdersIssue, PermissionCatalog.Codes);
     }
+
+    [Fact]
+    public void Item_is_listed_only_when_active_and_visible()
+    {
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null);
+        Assert.True(item.IsListed);
+        item.SetVisible(false);
+        Assert.False(item.IsListed);
+        item.SetVisible(true);
+        item.Deactivate();
+        Assert.False(item.IsListed);
+    }
+
+    [Fact]
+    public void Csv_quotes_cells_and_defuses_formulas()
+    {
+        Assert.Equal("a", StoreCsv.Cell("a"));
+        Assert.Equal("\"a,b\"", StoreCsv.Cell("a,b"));
+        Assert.Equal("\"say \"\"hi\"\"\"", StoreCsv.Cell("say \"hi\""));
+        Assert.Equal("'=SUM(A1)", StoreCsv.Cell("=SUM(A1)"));
+        Assert.Equal("-3", StoreCsv.Cell("-3"));
+        var bytes = StoreCsv.Build(["h1", "h2"], [["x", "y"]]);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Take(3).ToArray());
+    }
+
+    [Fact]
+    public void Reports_permission_is_registered_with_all_reach()
+    {
+        Assert.Contains(Perm.StoreReportsView, PermissionCatalog.Codes);
+        Assert.Equal(PermissionReach.All, PermissionCatalog.ReachOf(Perm.StoreReportsView));
+    }
 }

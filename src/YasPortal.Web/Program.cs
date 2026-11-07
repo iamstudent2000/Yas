@@ -55,7 +55,7 @@ builder.Services.AddAuthorization(options => {
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     // The guides workspace is open to anyone who holds one of the three guide permissions; the page then limits what each person can see and change.
     options.AddPolicy(Perm.StoreAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
-        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.StoreItemsView or Perm.StoreItemsManage or Perm.StoreStockView or Perm.StoreStockManage or Perm.StoreOrdersIssue)));
+        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.StoreItemsView or Perm.StoreItemsManage or Perm.StoreStockView or Perm.StoreStockManage or Perm.StoreOrdersIssue or Perm.StoreReportsView)));
     options.AddPolicy(Perm.GuidesWorkspacePolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.AdminGuidesView or Perm.AdminGuidesManage or Perm.GuidesOwnManage)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
@@ -90,6 +90,7 @@ builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<StoreOrderService>();
+builder.Services.AddScoped<StoreReportService>();
 builder.Services.AddScoped<StoreCart>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DashboardService>();
@@ -222,6 +223,7 @@ if (app.Environment.IsDevelopment())
         IF COL_LENGTH(N'dbo.StoreItems', N'RequestOpensOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestOpensOn] date NULL;
         IF COL_LENGTH(N'dbo.StoreItems', N'RequestClosesOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestClosesOn] date NULL;
         IF COL_LENGTH(N'dbo.StoreItems', N'IsLottery') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsLottery] bit NOT NULL CONSTRAINT [DF_StoreItems_IsLottery] DEFAULT 0;
+        IF COL_LENGTH(N'dbo.StoreItems', N'IsVisible') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsVisible] bit NOT NULL CONSTRAINT [DF_StoreItems_IsVisible] DEFAULT 1;
         IF OBJECT_ID(N'dbo.StoreStockMovements', N'U') IS NULL
             CREATE TABLE [dbo].[StoreStockMovements] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [Kind] int NOT NULL, [Delta] decimal(18,3) NOT NULL, [Reference] nvarchar(200) NULL, [Note] nvarchar(300) NULL, [CreatedByEmployeeId] uniqueidentifier NULL, [OrderId] uniqueidentifier NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_StoreStockMovements] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreStockMovements_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreStockMovements') AND name = N'IX_StoreStockMovements_ItemId_CreatedAtUtc')

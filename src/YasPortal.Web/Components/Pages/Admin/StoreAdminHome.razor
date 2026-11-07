@@ -15,6 +15,7 @@
             await PermissionChecker.HasPermissionAsync(Perm.StoreItemsView) ? "/admin/store/items"
             : await PermissionChecker.HasPermissionAsync(Perm.StoreStockView) ? "/admin/store/stock"
             : await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersIssue) ? "/admin/store/issue"
+            : await PermissionChecker.HasPermissionAsync(Perm.StoreReportsView) ? "/admin/store/reports"
             : null;
         Navigation.NavigateTo(target ?? "/access-denied", replace: true);
     }

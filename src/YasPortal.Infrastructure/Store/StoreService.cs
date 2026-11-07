@@ -4,12 +4,36 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
-public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false)
+public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false, bool IsVisible = true)
 {
     public StoreRequestWindow WindowOn(DateTime today) => StoreItem.WindowOf(RequestOpensOn, RequestClosesOn, today);
 }
 
 public sealed record StoreMovementRow(Guid Id, DateTime CreatedAtUtc, Guid ItemId, string ItemCode, string ItemName, string Unit, StockMovementKind Kind, decimal Delta, string? Reference, string? Note, string? CreatedBy);
+
+public enum StoreWindowFilter { Any, Always, Open, NotYet, Closed }
+
+/// <summary>The filters of the item lists. A value left empty does not filter.</summary>
+public sealed class StoreItemFilter
+{
+    public string? Search { get; set; }
+    public Guid? CategoryId { get; set; }
+    public bool? Active { get; set; }
+    /// <summary>Hide items whose group is switched off.</summary>
+    public bool ActiveCategoriesOnly { get; set; }
+    public bool? InStock { get; set; }
+    public bool? Lottery { get; set; }
+    /// <summary>Shown in the shop (true) or hidden by the admin (false).</summary>
+    public bool? Visible { get; set; }
+    public StoreWindowFilter Window { get; set; }
+    /// <summary>Only items that can be put in a cart on this day: in stock, not a lottery item, request period open.</summary>
+    public DateTime? RequestableOn { get; set; }
+    /// <summary>The day "open", "not yet" and "closed" are judged on.</summary>
+    public DateTime Today { get; set; } = DateTime.Today;
+    /// <summary>name, code, stock or category (default).</summary>
+    public string? Sort { get; set; }
+    public bool Descending { get; set; }
+}
 
 public sealed record StorePage<T>(IReadOnlyList<T> Rows, int Total);
 
@@ -124,8 +148,9 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public DateTime? RequestOpensOn { get; set; }
         public DateTime? RequestClosesOn { get; set; }
         public bool IsLottery { get; set; }
+        public bool IsVisible { get; set; }
 
-        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery);
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery, IsVisible);
     }
 
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
@@ -134,29 +159,70 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         select new ItemProjection
         {
             Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
-            MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsActive = i.IsActive,
+            MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsVisible = i.IsVisible, IsActive = i.IsActive,
             Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
         };
 
     /// <summary>Items with their current stock. <paramref name="activeOnly"/> hides items and categories that are switched off.</summary>
-    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, int page, int pageSize, bool? inStock = null, CancellationToken ct = default)
+    public Task<StorePage<StoreItemRow>> SearchItemsAsync(string? search, Guid? categoryId, bool activeOnly, int page, int pageSize, bool? inStock = null, CancellationToken ct = default) =>
+        SearchItemsAsync(new StoreItemFilter { Search = search, CategoryId = categoryId, Active = activeOnly ? true : null, Visible = activeOnly ? true : null, ActiveCategoriesOnly = activeOnly, InStock = inStock }, page, pageSize, ct);
+
+    /// <summary>Items matching every filter that is set, in the chosen order (default: group, then name).</summary>
+    public async Task<StorePage<StoreItemRow>> SearchItemsAsync(StoreItemFilter f, int page, int pageSize, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var q = ItemRows(db);
-        if (activeOnly) q = q.Where(x => x.IsActive && db.StoreCategories.Any(c => c.Id == x.CategoryId && c.IsActive));
-        if (categoryId is Guid cid) q = q.Where(x => x.CategoryId == cid);
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = search.Trim();
-            q = q.Where(x => x.Name.Contains(s) || x.Code.Contains(s));
-        }
-        if (inStock is true) q = q.Where(x => x.Stock > 0);
-        else if (inStock is false) q = q.Where(x => x.Stock <= 0);
+        var q = ApplyFilter(db, ItemRows(db), f);
         var total = await q.CountAsync(ct);
-        var rows = await q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name)
-            .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var ordered = Order(q, f.Sort, f.Descending);
+        var rows = await ordered.Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         return new StorePage<StoreItemRow>(rows.Select(r => r.ToRow()).ToList(), total);
     }
+
+    /// <summary>Every item matching the filter, no paging (for exports and reports).</summary>
+    public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(StoreItemFilter f, CancellationToken ct = default) =>
+        (await SearchItemsAsync(f, 1, 100_000, ct)).Rows;
+
+    private static IQueryable<ItemProjection> ApplyFilter(ApplicationDbContext db, IQueryable<ItemProjection> q, StoreItemFilter f)
+    {
+        if (f.Active is bool active) q = q.Where(x => x.IsActive == active);
+        if (f.ActiveCategoriesOnly) q = q.Where(x => db.StoreCategories.Any(c => c.Id == x.CategoryId && c.IsActive));
+        if (f.CategoryId is Guid cid) q = q.Where(x => x.CategoryId == cid);
+        if (!string.IsNullOrWhiteSpace(f.Search))
+        {
+            var s = f.Search.Trim();
+            q = q.Where(x => x.Name.Contains(s) || x.Code.Contains(s));
+        }
+        if (f.InStock is true) q = q.Where(x => x.Stock > 0);
+        else if (f.InStock is false) q = q.Where(x => x.Stock <= 0);
+        if (f.Lottery is bool lottery) q = q.Where(x => x.IsLottery == lottery);
+        if (f.Visible is bool visible) q = q.Where(x => x.IsVisible == visible);
+        var today = f.Today.Date;
+        if (f.RequestableOn is DateTime on)
+        {
+            var day = on.Date;
+            q = q.Where(x => x.Stock > 0 && !x.IsLottery && (x.RequestOpensOn == null || x.RequestOpensOn <= day) && (x.RequestClosesOn == null || x.RequestClosesOn >= day));
+        }
+        switch (f.Window)
+        {
+            case StoreWindowFilter.Always: q = q.Where(x => x.RequestOpensOn == null && x.RequestClosesOn == null); break;
+            case StoreWindowFilter.Open: q = q.Where(x => (x.RequestOpensOn == null || x.RequestOpensOn <= today) && (x.RequestClosesOn == null || x.RequestClosesOn >= today)); break;
+            case StoreWindowFilter.NotYet: q = q.Where(x => x.RequestOpensOn != null && x.RequestOpensOn > today); break;
+            case StoreWindowFilter.Closed: q = q.Where(x => x.RequestClosesOn != null && x.RequestClosesOn < today); break;
+        }
+        return q;
+    }
+
+    private static IOrderedQueryable<ItemProjection> Order(IQueryable<ItemProjection> q, string? sort, bool desc) => (sort, desc) switch
+    {
+        ("name", false) => q.OrderBy(x => x.Name),
+        ("name", true) => q.OrderByDescending(x => x.Name),
+        ("code", false) => q.OrderBy(x => x.Code),
+        ("code", true) => q.OrderByDescending(x => x.Code),
+        ("stock", false) => q.OrderBy(x => x.Stock).ThenBy(x => x.Name),
+        ("stock", true) => q.OrderByDescending(x => x.Stock).ThenBy(x => x.Name),
+        (_, true) => q.OrderByDescending(x => x.CategoryName).ThenBy(x => x.Name),
+        _ => q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name),
+    };
 
     /// <summary>All items matching the filters with no paging, for printing.</summary>
     public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(string? search, Guid? categoryId, CancellationToken ct = default) =>
@@ -198,6 +264,17 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         {
             return StoreResult.Fail("اطلاعات کالا کامل یا معتبر نیست (کد، نام، واحد و گروه لازم‌اند و پایان دوره درخواست نباید پیش از شروع آن باشد).");
         }
+        await db.SaveChangesAsync(ct);
+        return StoreResult.Success;
+    }
+
+    /// <summary>Shows or hides several items in the shop at once. Hidden items stay in the admin lists and keep their stock.</summary>
+    public async Task<StoreResult> SetItemsVisibleAsync(IReadOnlyCollection<Guid> ids, bool visible, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return StoreResult.Fail("هیچ کالایی انتخاب نشده است.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var items = await db.StoreItems.Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        foreach (var item in items) item.SetVisible(visible);
         await db.SaveChangesAsync(ct);
         return StoreResult.Success;
     }
@@ -247,7 +324,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
-    public async Task<StorePage<StoreMovementRow>> SearchMovementsAsync(Guid? itemId, StockMovementKind? kind, DateTime? fromUtc, DateTime? toUtcExclusive, int page, int pageSize, CancellationToken ct = default)
+    public async Task<StorePage<StoreMovementRow>> SearchMovementsAsync(Guid? itemId, StockMovementKind? kind, DateTime? fromUtc, DateTime? toUtcExclusive, int page, int pageSize, string? text = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = from m in db.StoreStockMovements.AsNoTracking()
@@ -257,6 +334,11 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         if (kind is StockMovementKind k) q = q.Where(x => x.m.Kind == k);
         if (fromUtc is DateTime f) q = q.Where(x => x.m.CreatedAtUtc >= f);
         if (toUtcExclusive is DateTime t) q = q.Where(x => x.m.CreatedAtUtc < t);
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            var s = text.Trim();
+            q = q.Where(x => (x.m.Reference != null && x.m.Reference.Contains(s)) || (x.m.Note != null && x.m.Note.Contains(s)));
+        }
         var total = await q.CountAsync(ct);
         var rows = await q.OrderByDescending(x => x.m.CreatedAtUtc)
             .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize)

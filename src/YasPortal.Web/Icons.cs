@@ -25,6 +25,8 @@ public static class Icons
     public const string Send = "ti-send";
     public const string Print = "ti-printer";
     public const string ExportData = "ti-file-export";
+    public const string Eye = "ti-eye";
+    public const string EyeOff = "ti-eye-off";
     public const string ExportSteps = "ti-file-spreadsheet";
     public const string Pdf = "ti-file-type-pdf";
 

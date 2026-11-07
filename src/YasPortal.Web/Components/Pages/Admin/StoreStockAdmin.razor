@@ -1,6 +1,7 @@
 @page "/admin/store/stock"
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Store
 @using YasPortal.Infrastructure.Store
@@ -11,6 +12,7 @@
 @inject IPermissionChecker PermissionChecker
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
+@inject IJSRuntime JS
 
 <PageTitle>انبار فروشگاه - یاس پورتال</PageTitle>
 
@@ -101,9 +103,12 @@
                             <LookupSelect Options="ItemOptions" Value="@(_moveItemId?.ToString())" ValueChanged="MoveItemChangedAsync" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
                         <div class="form-field"><label class="form-label">نوع</label>
                             <LookupSelect Options="KindOptions" Value="@(_moveKind is null ? null : ((int)_moveKind.Value).ToString())" ValueChanged="MoveKindChangedAsync" Placeholder="همه انواع" /></div>
+                        <div class="form-field"><label class="form-label">جستجو در مرجع و توضیح</label>
+                            <input class="form-control" placeholder="شماره فاکتور، حواله، سفارش..." @bind="_moveText" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
                         <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveFrom" ValueChanged="MoveFromChangedAsync" Placeholder="تاریخ" /></div>
                         <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveTo" ValueChanged="MoveToChangedAsync" Placeholder="تاریخ" /></div>
                     </div>
+                    <div class="form-actions no-print" style="margin:8px 0"><button class="btn btn-secondary btn-sm" disabled="@(_moves.Total == 0)" @onclick="ExportMovesAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button></div>
                     <div class="data-table-wrap">
                         <table class="data-table">
                             <thead><tr><th>زمان</th><th>کالا</th><th>نوع</th><th>مقدار</th><th>مرجع</th><th>توضیح</th><th>ثبت‌کننده</th></tr></thead>
@@ -136,6 +141,17 @@
     private Guid? _categoryId, _moveItemId;
     private StockMovementKind? _moveKind;
     private DateTime? _moveFrom, _moveTo;
+    private string _moveText = "";
+
+    private async Task ExportMovesAsync()
+    {
+        var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText);
+        var csv = StoreCsv.Build(["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"],
+            all.Rows.Select(m => (IReadOnlyList<string>)[WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc), m.ItemCode, m.ItemName, StoreService.KindLabel(m.Kind),
+                m.Delta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), m.Unit, m.Reference ?? "", m.Note ?? "", m.CreatedBy ?? ""]));
+        await JS.InvokeVoidAsync("yasDownloadFile", $"store-movements-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+        if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
+    }
     private string? _stockFilter;
     private int _dateKey;
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "فقط موجود"), ("out", "فقط ناموجود")];
@@ -171,7 +187,7 @@
     private async Task LoadAsync()
     {
         if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _pageNo, _pageSize, _stockFilter switch { "in" => true, "out" => false, _ => null });
-        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize);
+        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize, _moveText);
     }
 
     private async Task RecordAsync()

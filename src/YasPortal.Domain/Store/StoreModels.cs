@@ -80,6 +80,11 @@ public sealed class StoreItem
     /// <summary>A lottery item is not handed out first-come: people apply during the period and winners are drawn afterwards.</summary>
     public bool IsLottery { get; private set; }
     public bool IsActive { get; private set; } = true;
+    /// <summary>Whether people can see the item in the shop. An item that is hidden (or switched off) cannot be requested, but the store still keeps its stock and history.</summary>
+    public bool IsVisible { get; private set; } = true;
+
+    /// <summary>True when the shop shows the item: it is on and the admin has chosen to show it.</summary>
+    public bool IsListed => IsActive && IsVisible;
 
     public StoreRequestWindow WindowOn(DateTime today) => WindowOf(RequestOpensOn, RequestClosesOn, today);
 
@@ -114,6 +119,7 @@ public sealed class StoreItem
 
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
+    public void SetVisible(bool visible) => IsVisible = visible;
 }
 
 public enum StockMovementKind
