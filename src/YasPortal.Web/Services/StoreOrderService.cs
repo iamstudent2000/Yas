@@ -81,6 +81,65 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return result;
     }
 
+    private async Task<(List<StoreOrderLine>? Lines, string? Error)> BuildLinesAsync(ApplicationDbContext db, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, CancellationToken ct)
+    {
+        var ids = wanted.Select(x => x.ItemId).ToList();
+        var items = await db.StoreItems.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync(ct);
+        var activeCategories = await db.StoreCategories.AsNoTracking().Where(c => c.IsActive).Select(c => c.Id).ToListAsync(ct);
+        var stock = await db.StoreStockMovements.Where(m => ids.Contains(m.ItemId)).GroupBy(m => m.ItemId)
+            .Select(g => new { g.Key, Sum = g.Sum(m => m.Delta) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
+        var lines = new List<StoreOrderLine>();
+        foreach (var (itemId, quantity) in wanted)
+        {
+            var item = items.FirstOrDefault(x => x.Id == itemId);
+            var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today);
+            if (problem is not null) return (null, problem);
+            lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity));
+        }
+        return (lines, null);
+    }
+
+    /// <summary>The id of the order that belongs to an approval request (the request lists know the request id), or null.</summary>
+    public async Task<Guid?> OrderIdOfRequestAsync(Guid requestId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.StoreOrders.AsNoTracking().Where(o => o.RequestId == requestId).Select(o => (Guid?)o.Id).FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Sends an order that an approver returned for correction again, with the corrected items. The approval chain is worked out again from
+    /// the position the order was first sent from (that is organizational), while the order stays the person's own.
+    /// </summary>
+    public async Task<StorePlaceResult> ResubmitAsync(Guid requestId, Guid employeeId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
+    {
+        if (wanted.Count == 0) return new(false, "سفارش باید دست‌کم یک کالا داشته باشد؛ اگر دیگر نیازی ندارید، درخواست را لغو کنید.");
+        if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var request = await db.WorkflowRequests.Include(x => x.Steps)
+            .FirstOrDefaultAsync(x => x.Id == requestId && x.RequesterEmployeeId == employeeId && x.WorkflowType == WorkflowTypeCode.StoreOrder, ct);
+        if (request is null) return new(false, "سفارش پیدا نشد.");
+        if (request.Status != WorkflowRequestStatus.ReturnedToRequester) return new(false, "این سفارش دیگر در وضعیت بازگشتی نیست.");
+        var order = await db.StoreOrders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.RequestId == requestId, ct);
+        if (order is null || order.IsIssued) return new(false, "سفارش پیدا نشد.");
+
+        var (lines, error) = await BuildLinesAsync(db, wanted, today, ct);
+        if (lines is null) return new(false, error);
+        var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, request.RequesterPositionId, ct);
+        if (!resolved.Success) return new(false, resolved.Error);
+
+        var fields = new Dictionary<string, string?> { ["summary"] = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity))) };
+        if (!string.IsNullOrWhiteSpace(note)) fields["note"] = note.Trim();
+
+        db.StoreOrderLines.RemoveRange(order.Lines.ToList());
+        order.ReplaceLines(note, lines);
+        request.Resubmit(JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList());
+        await notifications.StageAsync(db, request, WorkflowNotificationEvent.Resubmitted, ct);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return new(false, "وضعیت سفارش هم‌زمان تغییر کرد؛ صفحه را دوباره باز کنید."); }
+        return new(true, null, order.Id);
+    }
+
     /// <summary>Checks the lines against the catalogue (active item, request period open today, not a lottery item, per-request maximum, stock) and sends the order for approval.</summary>
     public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
     {
@@ -88,20 +147,8 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var ids = wanted.Select(x => x.ItemId).ToList();
-        var items = await db.StoreItems.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync(ct);
-        var activeCategories = await db.StoreCategories.AsNoTracking().Where(c => c.IsActive).Select(c => c.Id).ToListAsync(ct);
-        var stock = await db.StoreStockMovements.Where(m => ids.Contains(m.ItemId)).GroupBy(m => m.ItemId)
-            .Select(g => new { g.Key, Sum = g.Sum(m => m.Delta) }).ToDictionaryAsync(x => x.Key, x => x.Sum, ct);
-
-        var lines = new List<StoreOrderLine>();
-        foreach (var (itemId, quantity) in wanted)
-        {
-            var item = items.FirstOrDefault(x => x.Id == itemId);
-            var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today);
-            if (problem is not null) return new(false, problem);
-            lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity));
-        }
+        var (lines, error) = await BuildLinesAsync(db, wanted, today, ct);
+        if (lines is null) return new(false, error);
 
         // a double click (or a second tab) must not send the same order twice: refuse an identical order sent in the last two minutes
         var since = DateTime.UtcNow.AddMinutes(-2);

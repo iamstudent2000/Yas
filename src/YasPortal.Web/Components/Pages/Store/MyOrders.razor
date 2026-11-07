@@ -48,7 +48,13 @@
                                 <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
                                 <td>@o.Summary</td>
                                 <td><span class="badge @BadgeFor(o)">@StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null)</span></td>
-                                <td><a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> جزئیات و چاپ</a></td>
+                                <td><div class="form-actions">
+                                    @if (o.Status == WorkflowRequestStatus.ReturnedToRequester && o.IssuedAtUtc is null)
+                                    {
+                                        <a class="btn btn-primary btn-sm" href="/store/orders/edit/@o.RequestId"><i class="ti @Icons.Edit"></i> ویرایش و ارسال مجدد</a>
+                                    }
+                                    <a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> جزئیات و چاپ</a>
+                                </div></td>
                             </tr>
                         }
                     </tbody>

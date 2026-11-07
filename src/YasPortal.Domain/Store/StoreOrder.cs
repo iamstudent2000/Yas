@@ -50,6 +50,20 @@ public sealed class StoreOrder
 
     public bool IsIssued => IssuedAtUtc is not null;
 
+    /// <summary>Replaces the items (and the note) of an order that came back for correction. The same rules as a new order: at least one line, an item once.</summary>
+    public void ReplaceLines(string? note, IEnumerable<StoreOrderLine> lines)
+    {
+        if (IsIssued) throw new InvalidOperationException("An order that was handed over cannot be changed.");
+        note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (note is { Length: > NoteMax }) throw new ArgumentException($"Note is at most {NoteMax} characters.", nameof(note));
+        var list = lines?.ToList() ?? [];
+        if (list.Count == 0) throw new ArgumentException("An order needs at least one line.", nameof(lines));
+        if (list.Select(x => x.ItemId).Distinct().Count() != list.Count) throw new ArgumentException("An item can appear once.", nameof(lines));
+        Note = note;
+        Lines.Clear();
+        foreach (var line in list) { line.Attach(Id); Lines.Add(line); }
+    }
+
     public void MarkIssued(Guid byEmployeeId, string? note)
     {
         if (IsIssued) throw new InvalidOperationException("The order was already handed over.");
