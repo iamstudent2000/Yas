@@ -82,7 +82,7 @@
                                         @if (CanAdd(item))
                                         {
                                             <div class="form-actions">
-                                                <input class="form-control" style="width:80px" inputmode="decimal" autocomplete="off" placeholder="۱" value="@QtyText(item.Id)" @onchange="e => _qty[item.Id] = e.Value?.ToString() ?? """ />
+                                                <input class="form-control" style="width:80px" inputmode="decimal" autocomplete="off" placeholder="۱" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
                                                 <button class="btn btn-secondary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن</button>
                                             </div>
                                         }
