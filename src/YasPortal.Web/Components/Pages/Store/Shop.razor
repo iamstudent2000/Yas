@@ -48,7 +48,6 @@
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">جستجو</label>
                 <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
-            <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_inStockOnly" @onchange="InStockChangedAsync" /> فقط قابل درخواست (موجود و در دوره درخواست)</label></div>
         </div>
         <div class="store-chips" role="group" aria-label="گروه کالا">
             <button type="button" class="store-chip @(_categoryId is null ? "is-active" : "")" @onclick="() => CategoryChangedAsync(null)">همه</button>
@@ -123,7 +122,6 @@
     private int _pageNo = 1, _pageSize = 24;
     private StorePage<StoreItemRow> _page = new([], 0);
     private IReadOnlyList<StoreCategory> _categories = [];
-    private bool _inStockOnly;
     private CancellationTokenSource? _cts;
     private bool _canOrder;
     private readonly Dictionary<Guid, string> _qty = [];
@@ -163,7 +161,7 @@
         _loading = true;
         try
         {
-            _page = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, Active = true, Visible = true, ActiveCategoriesOnly = true, RequestableOn = _inStockOnly ? DateTime.Today : null }, _pageNo, _pageSize, cts.Token);
+            _page = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, Active = true, Visible = true, ActiveCategoriesOnly = true }, _pageNo, _pageSize, cts.Token);
             _loading = false;
         }
         catch (OperationCanceledException) { }
@@ -174,7 +172,6 @@
         }
     }
 
-    private async Task InStockChangedAsync(ChangeEventArgs e) { _inStockOnly = e.Value is true; _pageNo = 1; await LoadAsync(); }
     private async Task SearchChangedAsync() { _pageNo = 1; await LoadAsync(); }
     private async Task CategoryChangedAsync(string? key) { _categoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }

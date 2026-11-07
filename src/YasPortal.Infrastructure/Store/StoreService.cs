@@ -279,6 +279,26 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    public async Task<StoreResult> SetItemsActiveAsync(IReadOnlyCollection<Guid> ids, bool active, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return StoreResult.Fail("هیچ کالایی انتخاب نشده است.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        foreach (var item in await db.StoreItems.Where(x => ids.Contains(x.Id)).ToListAsync(ct)) { if (active) item.Activate(); else item.Deactivate(); }
+        await db.SaveChangesAsync(ct);
+        return StoreResult.Success;
+    }
+
+    public async Task<StoreResult> MoveItemsToCategoryAsync(IReadOnlyCollection<Guid> ids, Guid categoryId, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return StoreResult.Fail("هیچ کالایی انتخاب نشده است.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه مقصد را انتخاب کنید.");
+        foreach (var item in await db.StoreItems.Where(x => ids.Contains(x.Id)).ToListAsync(ct))
+            item.Update(item.Code, item.Name, categoryId, item.Unit, item.Description, item.MaxPerRequest, item.RequestOpensOn, item.RequestClosesOn, item.IsLottery);
+        await db.SaveChangesAsync(ct);
+        return StoreResult.Success;
+    }
+
     public async Task<StoreResult> SetItemActiveAsync(Guid id, bool active, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

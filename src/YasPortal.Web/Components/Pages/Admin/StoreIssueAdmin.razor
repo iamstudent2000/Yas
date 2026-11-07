@@ -38,6 +38,40 @@
         </section>
     }
 
+    @if (!_history && _rows.Count > 0)
+    {
+        <section class="card list-filter no-print">
+            <div class="admin-row-grid">
+                <div class="form-field"><label class="form-label">انتخاب‌شده</label><strong>@WorkflowDisplay.ToPersianDigits(_selected.Count.ToString()) سفارش</strong></div>
+                <div class="form-field is-grow"><label class="form-label">توضیحات تحویل (اختیاری، برای همهٔ انتخاب‌شده‌ها)</label>
+                    <input class="form-control" @bind="_bulkNote" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    @if (_confirmBulk)
+                    {
+                        <button class="btn btn-primary" disabled="@_busy" @onclick="IssueSelectedAsync"><i class="ti @Icons.Save"></i> تأیید تحویل @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString()) سفارش</button>
+                        <button class="btn btn-secondary" @onclick="() => _confirmBulk = false">انصراف</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary" disabled="@(_busy || _selected.Count == 0)" @onclick="() => _confirmBulk = true"><i class="ti @Icons.Save"></i> تحویل انتخاب‌شده‌ها</button>
+                        <button class="btn btn-secondary" disabled="@(_busy || _rows.Count == 0)" @onclick="SelectAllPending">انتخاب همه</button>
+                    }
+                </div></div>
+            </div>
+        </section>
+    }
+
+    @if (_bulkReport.Count > 0)
+    {
+        <section class="card">
+            <h2 class="section-title">نتیجه تحویل گروهی</h2>
+            <ul>
+                @foreach (var line in _bulkReport) {<li>@line</li>}
+            </ul>
+            <button class="btn btn-secondary btn-sm" @onclick="() => _bulkReport = []">بستن</button>
+        </section>
+    }
+
     @if (_loading)
     {
         <LoadingState />
@@ -51,11 +85,12 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>شماره</th><th>درخواست‌کننده</th><th>@(_history ? "تاریخ تحویل" : "تاریخ ثبت")</th><th>اقلام</th>@if (_history) {<th>تحویل‌دهنده</th>}<th></th></tr></thead>
+                    <thead><tr>@if (!_history) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>شماره</th><th>درخواست‌کننده</th><th>@(_history ? "تاریخ تحویل" : "تاریخ ثبت")</th><th>اقلام</th>@if (_history) {<th>تحویل‌دهنده</th>}<th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
                             <tr>
+                                @if (!_history) {<td><input type="checkbox" aria-label="انتخاب" checked="@_selected.Contains(o.Id)" @onchange="e => ToggleSelect(o.Id, e.Value is true)" /></td>}
                                 <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
                                 <td>@o.RequesterName</td>
                                 <td>@WorkflowDisplay.ToPersianDateTime(_history && o.IssuedAtUtc is DateTime d ? d : o.CreatedAtUtc)</td>
@@ -106,7 +141,45 @@
     private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
     private async Task FromChangedAsync(DateTime? d) { _from = d; _pageNo = 1; await LoadAsync(); }
     private async Task ToChangedAsync(DateTime? d) { _to = d; _pageNo = 1; await LoadAsync(); }
-    private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _loading = true; await LoadAsync(); }
+    private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
+
+    private readonly HashSet<Guid> _selected = [];
+    private string _bulkNote = "";
+    private bool _confirmBulk;
+    private IReadOnlyList<string> _bulkReport = [];
+
+    private void ToggleSelect(Guid id, bool on) { _confirmBulk = false; if (on) _selected.Add(id); else _selected.Remove(id); }
+    private void SelectPage(bool on) { _confirmBulk = false; foreach (var r in _rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
+
+    /// <summary>Selects every order waiting for hand-over, not only the ones on this page.</summary>
+    private async Task SelectAllPending()
+    {
+        var all = await Orders.ListPendingIssueAsync(1, 1000);
+        foreach (var r in all.Rows) _selected.Add(r.Id);
+    }
+
+    private async Task IssueSelectedAsync()
+    {
+        if (_busy || _selected.Count == 0) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            // oldest orders first, so when stock runs short the people who asked first are served first
+            var all = await Orders.ListPendingIssueAsync(1, 1000);
+            var ids = all.Rows.Where(r => _selected.Contains(r.Id)).Select(r => r.Id).ToList();
+            var results = await Orders.IssueManyAsync(ids, me, _bulkNote);
+            var byId = all.Rows.ToDictionary(r => r.Id);
+            var done = results.Count(r => r.Result.Ok);
+            _bulkReport = results.Select(r => $"{(r.Result.Ok ? "✔" : "✘")} سفارش {r.OrderId.ToString("N")[..8].ToUpperInvariant()} ({byId[r.OrderId].RequesterName}): {(r.Result.Ok ? "تحویل داده شد" : r.Result.Error)}").ToList();
+            AppState.AddToast($"{WorkflowDisplay.ToPersianDigits(done.ToString())} سفارش از {WorkflowDisplay.ToPersianDigits(results.Count.ToString())} تحویل داده شد.", done == results.Count ? ToastLevel.Success : ToastLevel.Warning);
+            _selected.Clear(); _bulkNote = ""; _confirmBulk = false;
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("تحویل گروهی انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
 
     private void StartIssue(Guid id) { _confirmId = id; _note = ""; }
 

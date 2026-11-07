@@ -142,6 +142,10 @@
                         <span class="muted">انتخاب‌شده: @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString())</span>
                         <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(true)"><i class="ti @Icons.Eye"></i> نمایش در فروشگاه</button>
                         <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(false)"><i class="ti @Icons.EyeOff"></i> پنهان‌کردن از فروشگاه</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetActiveBulkAsync(true)">فعال‌کردن</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetActiveBulkAsync(false)">غیرفعال‌کردن</button>
+                        <span style="min-width:180px;display:inline-block"><LookupSelect Options="ActiveCategoryOptions" Value="@(_moveTo?.ToString())" ValueChanged="k => _moveTo = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتقال به گروه..." /></span>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0 || _moveTo is null)" @onclick="MoveBulkAsync">انتقال</button>
                     }
                 </div>
                 <div class="data-table-wrap">
@@ -250,6 +254,21 @@
     {
         var ids = only is Guid one ? new List<Guid> { one } : _selected.ToList();
         await RunAsync(() => Store.SetItemsVisibleAsync(ids, visible), visible ? "کالاها در فروشگاه نمایش داده می‌شوند." : "کالاها از فروشگاه پنهان شدند.", () => { if (only is null) _selected.Clear(); });
+    }
+
+    private Guid? _moveTo;
+
+    private async Task SetActiveBulkAsync(bool active)
+    {
+        var ids = _selected.ToList();
+        await RunAsync(() => Store.SetItemsActiveAsync(ids, active), active ? "کالاهای انتخاب‌شده فعال شدند." : "کالاهای انتخاب‌شده غیرفعال شدند.", _selected.Clear);
+    }
+
+    private async Task MoveBulkAsync()
+    {
+        if (_moveTo is not Guid category) return;
+        var ids = _selected.ToList();
+        await RunAsync(() => Store.MoveItemsToCategoryAsync(ids, category), "کالاهای انتخاب‌شده به گروه جدید منتقل شدند.", () => { _selected.Clear(); _moveTo = null; });
     }
 
     private async Task ExportAsync()

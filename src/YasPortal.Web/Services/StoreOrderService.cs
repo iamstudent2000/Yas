@@ -188,6 +188,22 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>
+    /// Hands over several orders. Each order is its own all-or-nothing step: one that cannot be issued (not enough stock, already handed over)
+    /// does not stop the others, and the result says what happened to each.
+    /// </summary>
+    public async Task<IReadOnlyList<(Guid OrderId, StoreResult Result)>> IssueManyAsync(IReadOnlyList<Guid> orderIds, Guid byEmployeeId, string? note, CancellationToken ct = default)
+    {
+        var results = new List<(Guid, StoreResult)>();
+        // oldest first, so when stock runs short the people who asked first are served first
+        foreach (var id in orderIds.Distinct())
+        {
+            try { results.Add((id, await IssueAsync(id, byEmployeeId, note, ct))); }
+            catch (Exception) { results.Add((id, StoreResult.Fail("تحویل این سفارش انجام نشد."))); }
+        }
+        return results;
+    }
+
+    /// <summary>
     /// Hands an approved order over: one Issue movement per line and the order is closed. Nothing is written unless every line is in stock;
     /// the stock check and the writes share one serializable transaction.
     /// </summary>
