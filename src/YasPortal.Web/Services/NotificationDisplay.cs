@@ -18,6 +18,8 @@ public static class NotificationDisplay
         NotificationKind.RequestCreatedForYou => "ثبت درخواست برای شما",
         NotificationKind.VacantPosition => "سمت خالی",
         NotificationKind.Manual => "پیام دستی",
+        NotificationKind.StoreOrderReady => "سفارش فروشگاه در انتظار تحویل",
+        NotificationKind.StoreOrderIssued => "تحویل کالای فروشگاه",
         _ => kind.ToString(),
     };
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using YasPortal.Domain.Notifications;
 using YasPortal.Domain.Store;
 using YasPortal.Domain.Workflows;
 using YasPortal.Infrastructure.Persistence;
@@ -227,6 +228,8 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var reference = "سفارش " + order.Id.ToString("N")[..8].ToUpperInvariant();
         foreach (var line in order.Lines)
             db.StoreStockMovements.Add(new StoreStockMovement(line.ItemId, StockMovementKind.Issue, line.Quantity, reference, null, byEmployeeId, order.Id));
+        db.Notifications.Add(new Notification(order.EmployeeId, NotificationKind.StoreOrderIssued, order.RequestId, WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder),
+            $"کالاهای سفارش {order.Id.ToString("N")[..8].ToUpperInvariant()} تحویل داده شد.", $"/store/orders/{order.Id}"));
         try { order.MarkIssued(byEmployeeId, note); }
         catch (ArgumentException) { return StoreResult.Fail($"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد."); }
         await db.SaveChangesAsync(ct);
