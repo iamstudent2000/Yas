@@ -329,6 +329,10 @@
         if (string.IsNullOrWhiteSpace(_unit)) { AppState.AddToast("واحد را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_initialStock, out var initial) || initial < 0) { AppState.AddToast("موجودی اولیه باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_maxPerRequest, out var max) || max < 0) { AppState.AddToast("حداکثر در هر درخواست باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        if (_opensOn is null && !string.IsNullOrWhiteSpace(_opensTime)) { AppState.AddToast("برای ساعت شروع، تاریخ شروع را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if (_closesOn is null && !string.IsNullOrWhiteSpace(_closesTime)) { AppState.AddToast("برای ساعت پایان، تاریخ پایان را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if ((!string.IsNullOrWhiteSpace(_opensTime) && !StoreWhen.TryParseTime(_opensTime, out _)) || (!string.IsNullOrWhiteSpace(_closesTime) && !StoreWhen.TryParseTime(_closesTime, out _)))
+        { AppState.AddToast("ساعت را به شکل ۰۹:۳۰ وارد کنید.", ToastLevel.Error); return Task.CompletedTask; }
         return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, StoreWhen.Combine(_opensOn, _opensTime, TimeSpan.Zero), StoreWhen.Combine(_closesOn, _closesTime, new TimeSpan(23, 59, 0)), _isLottery, _editItemId is null ? initial : 0, _employeeId), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
     }
 
@@ -347,7 +351,7 @@
 
     private static string WindowText(StoreItemRow i) =>
         i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
-        : $"{(i.RequestOpensOn is DateTime o ? "از " + StoreWhen.Format(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + WorkflowDisplay.ToPersianDate(c) : "")} ";
+        : $"{(i.RequestOpensOn is DateTime o ? "از " + StoreWhen.Format(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + StoreWhen.Format(c) : "")} ";
 
     private Task DeleteCategoryAsync(Guid id) { _confirmCategoryId = null; return RunAsync(() => Store.DeleteCategoryAsync(id), "گروه حذف شد."); }
     private Task DeleteItemAsync(Guid id) { _confirmItemId = null; return RunAsync(() => Store.DeleteItemAsync(id), "کالا حذف شد."); }
