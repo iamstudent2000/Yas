@@ -60,6 +60,10 @@
             <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
 
             <WorkflowFieldsForm Type="_selectedType" Values="_values" />
+            @if (WorkflowFieldCatalog.SupportsAttachments(_selectedType))
+            {
+                <RequestAttachmentPicker Files="_files" />
+            }
 
             <div class="form-actions">
                 <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
@@ -85,6 +89,7 @@
     private Guid? _requesterPositionId;
     private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
     private Dictionary<string, string?> _values = [];
+    private List<PendingAttachment> _files = [];
     private bool _submitting;
 
     protected override async Task OnInitializedAsync()
@@ -106,6 +111,7 @@
     {
         _selectedType = type;
         _values = [];
+        _files = [];
     }
 
     private async Task Submit()
@@ -144,6 +150,8 @@
 
             await using var db = await DbFactory.CreateDbContextAsync();
             db.WorkflowRequests.Add(request);
+            if (WorkflowFieldCatalog.SupportsAttachments(_selectedType))
+                RequestAttachmentService.Stage(db, request.Id, employeeId, _files);
             await NotificationSvc.StageAsync(db, request, WorkflowNotificationEvent.Submitted);
             await db.SaveChangesAsync();
 

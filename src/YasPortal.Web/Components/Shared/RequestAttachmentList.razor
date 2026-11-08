@@ -1,0 +1,41 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+@inject RequestAttachmentService Attachments
+
+@* The files attached to a request, as download links. Shown only for types that accept attachments. *@
+@if (_files.Count > 0)
+{
+    <div class="field-summary">
+        <p class="round-heading"><i class="ti @Icons.Attachment"></i> پیوست‌ها</p>
+        @foreach (var file in _files)
+        {
+            <div class="field-summary-item">
+                <span>@SizeText(file.SizeBytes)</span>
+                <strong><a href="/requests/files/@file.Id" download="@file.FileName">@file.FileName</a></strong>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
+
+    private IReadOnlyList<AttachmentInfo> _files = [];
+    private Guid _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!WorkflowFieldCatalog.SupportsAttachments(Request.WorkflowType))
+        {
+            _files = [];
+            return;
+        }
+        if (_loadedFor == Request.Id)
+            return;
+        _files = await Attachments.ListAsync(Request.Id);
+        _loadedFor = Request.Id;
+    }
+
+    private static string SizeText(long bytes) =>
+        WorkflowDisplay.ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
+}

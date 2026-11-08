@@ -64,6 +64,7 @@
                                 <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                                 <RequestNowLine Request="item.Request" ShowWaitingFor="false" />
                             </span>
+                            <HelpdeskSlaBadge Request="item.Request" />
                             <span class="admin-pill"><i class="ti @Icons.WorkflowStep"></i> @item.CurrentStep.Name</span>
                             @if (item.IsDelegated)
                             {

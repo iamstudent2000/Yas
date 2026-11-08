@@ -13,6 +13,7 @@ public static class Icons
     public const string ConfirmAll = "ti-checks";
     public const string Save = "ti-device-floppy";
     public const string Delete = "ti-trash";
+    public const string Attachment = "ti-paperclip";
     public const string Search = "ti-search";
     public const string SearchEmpty = "ti-search-off";
     public const string Filter = "ti-filter";

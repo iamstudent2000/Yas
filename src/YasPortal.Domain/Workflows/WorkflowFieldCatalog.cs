@@ -61,9 +61,17 @@ public static class WorkflowFieldCatalog
             }),
             [WorkflowTypeCode.Helpdesk] = ("درخواست پشتیبانی", new[]
             {
+                // Part 1 — requester.
                 new WorkflowFieldDefinition("subject", "موضوع", WorkflowFieldType.Text, true),
+                new WorkflowFieldDefinition("category", "دسته‌بندی", WorkflowFieldType.Select, true, new[] { "سخت‌افزار", "نرم‌افزار", "شبکه و اینترنت", "حساب کاربری و رمز عبور", "چاپگر و اسکنر", "ایمیل", "سایر" }),
                 new WorkflowFieldDefinition("priority", "اولویت", WorkflowFieldType.Select, true, new[] { "کم", "متوسط", "زیاد", "بحرانی" }),
+                new WorkflowFieldDefinition("affectedSystem", "سامانه یا دستگاه مرتبط", WorkflowFieldType.Text, false),
+                new WorkflowFieldDefinition("location", "محل (ساختمان/اتاق)", WorkflowFieldType.Text, false),
+                new WorkflowFieldDefinition("contactPhone", "شماره تماس/داخلی", WorkflowFieldType.Text, false),
                 new WorkflowFieldDefinition("description", "شرح مشکل", WorkflowFieldType.TextArea, true),
+                // Part 2 — support action, filled at the workflow step an admin assigns it to (the support handler's step).
+                new WorkflowFieldDefinition("resolution", "شرح اقدام انجام‌شده", WorkflowFieldType.TextArea, true, Part: 2),
+                new WorkflowFieldDefinition("timeSpentMinutes", "زمان صرف‌شده (دقیقه)", WorkflowFieldType.Number, false, Part: 2),
             }),
             [WorkflowTypeCode.VehicleRequest] = ("درخواست خودرو", new[]
             {
@@ -102,6 +110,11 @@ public static class WorkflowFieldCatalog
     private static readonly IReadOnlyDictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>> MultiPartCatalog =
         new Dictionary<WorkflowTypeCode, IReadOnlyList<WorkflowPartDefinition>>
         {
+            [WorkflowTypeCode.Helpdesk] = new[]
+            {
+                new WorkflowPartDefinition(1, "اطلاعات درخواست"),
+                new WorkflowPartDefinition(2, "اقدام پشتیبانی"),
+            },
             [WorkflowTypeCode.VehicleRequest] = new[]
             {
                 new WorkflowPartDefinition(1, "اطلاعات سفر"),
@@ -126,6 +139,9 @@ public static class WorkflowFieldCatalog
         MultiPartCatalog.TryGetValue(type, out var parts) ? parts : SinglePart;
 
     public static bool IsMultiPart(WorkflowTypeCode type) => GetParts(type).Count > 1;
+
+    /// <summary>Whether the requester can attach files when submitting this type (see <see cref="WorkflowRequestAttachment"/>).</summary>
+    public static bool SupportsAttachments(WorkflowTypeCode type) => type == WorkflowTypeCode.Helpdesk;
 
     /// <summary>
     /// The part (2 or later) a step is set to fill, or null when it fills nothing or the number is

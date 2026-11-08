@@ -201,7 +201,10 @@ public sealed class HelpdeskFormDesign : SimpleRequestFormDesign
     public override WorkflowTypeCode Type => WorkflowTypeCode.Helpdesk;
     public override string Title => "فرم درخواست پشتیبانی";
     protected override IReadOnlyList<FormSection> Sections { get; } =
-        [new("اطلاعات درخواست پشتیبانی", 2, ["subject", "priority"], ["description"])];
+        [
+            new("اطلاعات درخواست پشتیبانی", 3, ["subject", "category", "priority", "affectedSystem", "location", "contactPhone"], ["description"]),
+            new("اقدام پشتیبانی", 2, ["timeSpentMinutes"], ["resolution"]),
+        ];
 }
 
 public sealed class WorkReportFormDesign : SimpleRequestFormDesign

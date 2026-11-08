@@ -84,7 +84,7 @@ Default seed paths:
 | Purchase | direct manager → finance |
 | Access | direct manager → مدیر سامانه |
 | Loan | direct manager → finance → HR |
-| Helpdesk | مدیر سامانه |
+| Helpdesk | مدیر سامانه (fills part 2, the support action, before approving) |
 | Work Report | direct manager |
 
 Pages:
@@ -95,6 +95,8 @@ Pages:
 | `/requests/mine` | `Requests.View` |
 | `/requests/inbox` | `Requests.View` (actions gated by `Requests.Approve` / `Reject` / `ReturnToRequester` / `ReturnToPreviousStep`) |
 | `/admin/workflows` | `Admin.Workflows` |
+
+Helpdesk specifics: part 1 has category, priority, affected system, location and contact phone besides subject and description; part 2 (شرح اقدام انجام‌شده, time spent) is filled by the handler's step, so approving means "resolved". Pending helpdesk requests show a badge with the priority and the time left or overdue (`HelpdeskSla`: کم ۷۲، متوسط ۲۴، زیاد ۸، بحرانی ۴ clock hours from the current round's submission). Requesters can attach up to 3 files (5 MB each) at submission (`WorkflowRequestAttachment`, downloads at `/requests/files/{id}` only for people who may see the request). Production SQL: `docs/helpdesk-improvements-migration.sql`.
 
 A manager-level step with nobody that far up the tree clamps to the highest ancestor that exists, or is skipped if the requester has no manager at all.
 

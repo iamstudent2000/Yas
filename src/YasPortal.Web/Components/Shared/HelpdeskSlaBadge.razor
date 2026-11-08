@@ -1,0 +1,30 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+
+@* Priority and time left (or overdue) for a helpdesk request that is still waiting. Nothing for any other request. *@
+@if (_sla is not null)
+{
+    <span class="badge @Css()" title="مهلت پاسخ‌گویی بر اساس اولویت: @WorkflowDisplay.ToPersianDateTime(_sla.DueAtUtc)">
+        <i class="ti @(_sla.IsOverdue ? Icons.Alert : Icons.Age)"></i>
+        اولویت @_sla.Priority · @RemainingText()
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
+
+    private HelpdeskSlaStatus? _sla;
+
+    protected override void OnParametersSet() => _sla = HelpdeskSla.For(Request, DateTime.UtcNow);
+
+    private string Css() => _sla!.IsOverdue ? "badge-danger" : _sla.Remaining < TimeSpan.FromHours(2) ? "badge-warning" : "badge-muted";
+
+    private string RemainingText()
+    {
+        var span = _sla!.Remaining.Duration();
+        var text = span.TotalHours >= 24
+            ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
+            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه" : $"{Math.Max(1, span.Minutes)} دقیقه";
+        return WorkflowDisplay.ToPersianDigits(_sla.IsOverdue ? $"{text} تاخیر" : $"{text} تا مهلت");
+    }
+}

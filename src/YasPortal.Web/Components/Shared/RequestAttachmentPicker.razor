@@ -1,0 +1,72 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+@inject AppState AppState
+
+@* Choose up to a few files to send with a new request. The files stay in memory in the page's list until the request is submitted. *@
+<div class="form-field is-wide attachment-picker">
+    <label class="form-label">
+        <i class="ti @Icons.Attachment"></i> پیوست (اختیاری، حداکثر @ToPersianDigits(WorkflowRequestAttachment.MaxFilesPerRequest.ToString()) فایل، هر کدام تا @ToPersianDigits((WorkflowRequestAttachment.MaxBytes / (1024 * 1024)).ToString()) مگابایت)
+    </label>
+    @if (Files.Count < WorkflowRequestAttachment.MaxFilesPerRequest)
+    {
+        <InputFile @key="_inputKey" class="form-control" accept="@_accept" multiple OnChange="PickedAsync" />
+    }
+    @if (Files.Count > 0)
+    {
+        <ul class="attachment-list">
+            @foreach (var file in Files)
+            {
+                <li>
+                    <i class="ti @Icons.Attachment"></i>
+                    <span>@file.Name</span>
+                    <small>@SizeText(file.Content.LongLength)</small>
+                    <button type="button" class="btn btn-secondary btn-sm" title="حذف پیوست" @onclick="() => Files.Remove(file)"><i class="ti @Icons.Delete"></i></button>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private static readonly string _accept = string.Join(",", WorkflowRequestAttachment.AllowedExtensions);
+    private int _inputKey;
+
+    /// <summary>The page's own list; the picker adds to and removes from it.</summary>
+    [Parameter, EditorRequired] public List<PendingAttachment> Files { get; set; } = [];
+
+    private async Task PickedAsync(InputFileChangeEventArgs e)
+    {
+        var room = WorkflowRequestAttachment.MaxFilesPerRequest - Files.Count;
+        // One more than the room, so picking too many is noticed instead of silently dropping the extras.
+        var picked = e.GetMultipleFiles(WorkflowRequestAttachment.MaxFilesPerRequest + 1);
+        if (picked.Count > room)
+            AppState.AddToast($"حداکثر {ToPersianDigits(WorkflowRequestAttachment.MaxFilesPerRequest.ToString())} فایل می‌توان پیوست کرد.", ToastLevel.Error);
+
+        foreach (var file in picked.Take(room))
+        {
+            var error = WorkflowRequestAttachment.Validate(file.Name, file.Size);
+            if (error is not null)
+            {
+                AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error);
+                continue;
+            }
+            try
+            {
+                using var buffer = new MemoryStream();
+                await using (var stream = file.OpenReadStream(WorkflowRequestAttachment.MaxBytes))
+                    await stream.CopyToAsync(buffer);
+                Files.Add(new PendingAttachment(WorkflowRequestAttachment.CleanName(file.Name), buffer.ToArray()));
+            }
+            catch (IOException)
+            {
+                AppState.AddToast($"{file.Name}: خواندن فایل ممکن نشد.", ToastLevel.Error);
+            }
+        }
+        _inputKey++;   // a fresh input, so the same file can be picked again after removing it
+    }
+
+    private static string SizeText(long bytes) =>
+        ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
+
+    private static string ToPersianDigits(string value) => WorkflowDisplay.ToPersianDigits(value);
+}

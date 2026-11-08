@@ -231,7 +231,7 @@ public static class DevelopmentDataSeeder
             (Order: 2, Name: "تایید مالی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["کارشناس مالی"].Id, FillsPart: (int?)null),
             (Order: 3, Name: "تایید نهایی منابع انسانی", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id, FillsPart: (int?)null));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.Helpdesk, ct,
-            (Order: 1, Name: "ارجاع به مدیر سامانه", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id, FillsPart: (int?)null));
+            (Order: 1, Name: "رسیدگی پشتیبانی (مدیر سامانه)", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر سامانه"].Id, FillsPart: (int?)2));
         await EnsureWorkflowSteps(db, WorkflowTypeCode.WorkReport, ct,
             (Order: 1, Name: "مشاهده مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null));
         // Vehicle request is multi-part: step 1 fills part 2 (تخصیص خودرو), step 2 fills part 3 (ثبت حراست). An admin can change this in /admin/workflows.

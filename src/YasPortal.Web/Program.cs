@@ -88,6 +88,7 @@ builder.Services.AddScoped<IPermissionChecker>(sp => sp.GetRequiredService<Permi
 builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
+builder.Services.AddScoped<RequestAttachmentService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<StoreOrderService>();
 builder.Services.AddScoped<StoreReportService>();
@@ -198,6 +199,12 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[LinkGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [ParentId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_LinkGroups] PRIMARY KEY ([Id]), CONSTRAINT [FK_LinkGroups_LinkGroups_ParentId] FOREIGN KEY ([ParentId]) REFERENCES [dbo].[LinkGroups] ([Id]));
         IF OBJECT_ID(N'dbo.PortalLinks', N'U') IS NULL
             CREATE TABLE [dbo].[PortalLinks] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(150) NOT NULL, [Url] nvarchar(500) NOT NULL, [Description] nvarchar(300) NULL, [GroupId] uniqueidentifier NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [IsQuickAccess] bit NOT NULL, [QuickOrder] int NOT NULL, CONSTRAINT [PK_PortalLinks] PRIMARY KEY ([Id]), CONSTRAINT [FK_PortalLinks_LinkGroups_GroupId] FOREIGN KEY ([GroupId]) REFERENCES [dbo].[LinkGroups] ([Id]));
+        IF OBJECT_ID(N'dbo.WorkflowRequestAttachments', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[WorkflowRequestAttachments] ([Id] uniqueidentifier NOT NULL, [RequestId] uniqueidentifier NOT NULL, [UploadedByEmployeeId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_WorkflowRequestAttachments] PRIMARY KEY ([Id]), CONSTRAINT [FK_WorkflowRequestAttachments_WorkflowRequests_RequestId] FOREIGN KEY ([RequestId]) REFERENCES [dbo].[WorkflowRequests] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_WorkflowRequestAttachments_Employees_UploadedByEmployeeId] FOREIGN KEY ([UploadedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id]));
+            CREATE INDEX [IX_WorkflowRequestAttachments_RequestId] ON [dbo].[WorkflowRequestAttachments] ([RequestId]);
+        END;
+        EXEC(N'IF NOT EXISTS (SELECT 1 FROM [dbo].[WorkflowStepDefinitions] WHERE [WorkflowType] = N''Helpdesk'' AND [FillsPart] = 2) UPDATE d SET d.[FillsPart] = 2 FROM [dbo].[WorkflowStepDefinitions] d WHERE d.[WorkflowType] = N''Helpdesk'' AND d.[Order] = (SELECT MAX(x.[Order]) FROM [dbo].[WorkflowStepDefinitions] x WHERE x.[WorkflowType] = N''Helpdesk'') AND (SELECT COUNT(*) FROM [dbo].[WorkflowStepDefinitions] y WHERE y.[WorkflowType] = N''Helpdesk'' AND y.[Order] = d.[Order]) = 1');
         IF OBJECT_ID(N'dbo.ContactGroups', N'U') IS NULL
             CREATE TABLE [dbo].[ContactGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_ContactGroups] PRIMARY KEY ([Id]));
         IF OBJECT_ID(N'dbo.Contacts', N'U') IS NULL
@@ -446,6 +453,16 @@ app.MapGet("/landing/files/{slideId:guid}", async (Guid slideId, HttpContext htt
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
 });
+// Download of a file attached to a request. Only people who may see the request get it (see RequestAttachmentService); everyone else
+// gets the same 404 as for a missing file. Always sent as a download, never rendered by the browser.
+app.MapGet("/requests/files/{id:guid}", async (Guid id, HttpContext http, RequestAttachmentService attachments) =>
+{
+    var file = await attachments.GetForDownloadAsync(id, http.User);
+    if (file is null)
+        return Results.NotFound();
+    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    return Results.File(file.Content, file.ContentType, file.FileName);
+}).RequireAuthorization();
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
 
