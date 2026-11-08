@@ -386,7 +386,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             : await db.Notifications.AsNoTracking().Where(x => x.SenderEmployeeId == senderId && singleKeys.Contains(x.BatchId ?? x.Id))
                 .Join(db.Employees.AsNoTracking(), n => n.RecipientEmployeeId, e => e.Id, (n, e) => new { Key = n.BatchId ?? n.Id, e.FullName })
                 .ToDictionaryAsync(x => x.Key, x => x.FullName, ct);
-        return (rows.Select(g => new SentGroup(g.Key, g.Message, g.CreatedAtUtc, g.Total, g.Read, g.Removed,
+        return (rows.Select(g => new SentGroup(g.Key, g.Message ?? string.Empty, g.CreatedAtUtc, g.Total, g.Read, g.Removed,
             g.Total == 1 && names.TryGetValue(g.Key, out var name) ? name : null, g.AudienceLabel)).ToList(), total);
     }
 

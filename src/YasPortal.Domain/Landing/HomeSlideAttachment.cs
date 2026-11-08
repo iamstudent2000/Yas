@@ -34,7 +34,7 @@ public sealed class HomeSlideAttachment
         if (error is not null)
             throw new ArgumentException(error, nameof(fileName));
         SlideId = slideId;
-        Replace(fileName, content);
+        Replace(fileName, content ?? []);
     }
 
     /// <summary>Swaps the stored file for another one (same checks as when attaching).</summary>

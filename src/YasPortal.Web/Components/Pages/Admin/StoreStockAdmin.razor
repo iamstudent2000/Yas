@@ -117,8 +117,8 @@
                             <LookupSelect Options="KindOptions" Value="@(_moveKind is null ? null : ((int)_moveKind.Value).ToString())" ValueChanged="MoveKindChangedAsync" Placeholder="همه انواع" /></div>
                         <div class="form-field"><label class="form-label">جستجو در مرجع و توضیح</label>
                             <input class="form-control" placeholder="شماره فاکتور، حواله، سفارش..." @bind="_moveText" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
-                        <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveFrom" ValueChanged="MoveFromChangedAsync" Placeholder="تاریخ" /></div>
-                        <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_dateKey" Value="_moveTo" ValueChanged="MoveToChangedAsync" Placeholder="تاریخ" /></div>
+                        <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_moveFrom" ValueChanged="MoveFromChangedAsync" Placeholder="تاریخ" /></div>
+                        <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_moveTo" ValueChanged="MoveToChangedAsync" Placeholder="تاریخ" /></div>
                     </div>
                     <div class="form-actions no-print" style="margin:8px 0"><button class="btn btn-secondary btn-sm" disabled="@(_moves.Total == 0)" @onclick="ExportMovesAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button></div>
                     <div class="data-table-wrap">
@@ -165,7 +165,6 @@
         if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
     }
     private string? _stockFilter;
-    private int _dateKey;
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "فقط موجود"), ("out", "فقط ناموجود")];
     private int _pageNo = 1, _pageSize = 20, _formKey;
     private StorePage<StoreItemRow> _levels = new([], 0);

@@ -60,7 +60,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
             foreach (var file in new[] { "Vazirmatn-Regular.ttf", "Vazirmatn-Bold.ttf" })
             {
                 using var stream = File.OpenRead(Path.Combine(folder, file));
-                FontManager.RegisterFont(stream);
+                FontManager.RegisterFontFromStream(stream);
             }
             _initialized = true;
         }

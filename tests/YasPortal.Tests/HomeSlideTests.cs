@@ -109,7 +109,7 @@ public sealed class HomeSlideTests
         var starter = HomeSlide.StarterSet();
         Assert.True(starter.Count >= 1);
         Assert.True(HomeSlide.HasValid(starter, Today));
-        Assert.All(starter, s => Assert.True(HomeSlide.IconChoices.Any(i => i.Key == s.Icon)));
+        Assert.All(starter, s => Assert.Contains(HomeSlide.IconChoices, i => i.Key == s.Icon));
     }
 
     [Theory]
