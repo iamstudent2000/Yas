@@ -1,3 +1,4 @@
+using Xunit;
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Store;
 using YasPortal.Domain.Workflows;

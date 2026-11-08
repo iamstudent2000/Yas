@@ -6,10 +6,9 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <ProjectReference Include="..\YasPortal.Application\YasPortal.Application.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.0" />
     <!-- cleans the HTML of user guides (public pages show it to people who are not signed in) -->
     <PackageReference Include="HtmlSanitizer" Version="9.*" />
   </ItemGroup>
