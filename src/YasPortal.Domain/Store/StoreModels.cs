@@ -97,9 +97,12 @@ public sealed class StoreItem
     public StoreRequestWindow WindowOn(DateTime today) => WindowOf(RequestOpensOn, RequestClosesOn, today);
 
     public static StoreRequestWindow WindowOf(DateTime? opensOn, DateTime? closesOn, DateTime today) =>
-        opensOn is DateTime o && today.Date < o.Date ? StoreRequestWindow.NotYet
-        : closesOn is DateTime c && today.Date > c.Date ? StoreRequestWindow.Closed
+        opensOn is DateTime o && today < o ? StoreRequestWindow.NotYet
+        : closesOn is DateTime c && today > c ? StoreRequestWindow.Closed
         : StoreRequestWindow.Open;
+
+    /// <summary>The period is kept to the minute (local time).</summary>
+    private static DateTime? ToMinute(DateTime? d) => d is DateTime v ? new DateTime(v.Year, v.Month, v.Day, v.Hour, v.Minute, 0, DateTimeKind.Unspecified) : null;
 
     public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
     {
@@ -113,15 +116,15 @@ public sealed class StoreItem
         if (categoryId == Guid.Empty) throw new ArgumentException("Category is required.", nameof(categoryId));
         if (description is { Length: > DescriptionMax }) throw new ArgumentException($"Description is at most {DescriptionMax} characters.", nameof(description));
         if (maxPerRequest < 0 || decimal.Round(maxPerRequest, 3) != maxPerRequest) throw new ArgumentException("Maximum per request cannot be negative (three decimals at most).", nameof(maxPerRequest));
-        if (requestOpensOn is DateTime o && requestClosesOn is DateTime c && c.Date < o.Date) throw new ArgumentException("The request period ends before it starts.", nameof(requestClosesOn));
+        if (ToMinute(requestOpensOn) is DateTime o && ToMinute(requestClosesOn) is DateTime c && c < o) throw new ArgumentException("The request period ends before it starts.", nameof(requestClosesOn));
         Code = code;
         Name = name;
         CategoryId = categoryId;
         Unit = unit;
         Description = description;
         MaxPerRequest = maxPerRequest;
-        RequestOpensOn = requestOpensOn?.Date;
-        RequestClosesOn = requestClosesOn?.Date;
+        RequestOpensOn = ToMinute(requestOpensOn);
+        RequestClosesOn = ToMinute(requestClosesOn);
         IsLottery = isLottery;
     }
 

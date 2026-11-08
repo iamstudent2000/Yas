@@ -109,6 +109,16 @@
                                         {
                                             <button class="btn btn-primary btn-sm" @onclick="() => StartIssue(o.Id)">تحویل</button>
                                         }
+                                        else if (_undoId == o.Id)
+                                        {
+                                            <input class="form-control" style="width:200px" placeholder="دلیل برگشت تحویل (الزامی)" @bind="_undoReason" maxlength="300" />
+                                            <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => UndoAsync(o.Id)"><i class="ti @Icons.Save"></i> تأیید برگشت</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _undoId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => StartUndo(o.Id)">برگشت تحویل</button>
+                                        }
                                     </div>
                                 </td>
                             </tr>
@@ -127,7 +137,27 @@
     private DateTime? _from, _to;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
-    private Guid? _confirmId;
+    private Guid? _confirmId, _undoId;
+    private string _undoReason = "";
+    private void StartUndo(Guid id) { _undoId = id; _undoReason = ""; }
+
+    private async Task UndoAsync(Guid id)
+    {
+        if (_busy) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            var result = await Orders.UndoIssueAsync(id, me, _undoReason);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "برگشت تحویل انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast("تحویل برگشت خورد: کالاها به موجودی برگشتند و سفارش دوباره در انتظار تحویل است.", ToastLevel.Success);
+            _undoId = null; _undoReason = "";
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("برگشت تحویل انجام نشد؛ چیزی تغییر نکرد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
     private string _note = "";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();

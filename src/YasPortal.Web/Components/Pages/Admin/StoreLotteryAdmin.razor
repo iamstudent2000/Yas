@@ -42,7 +42,7 @@
                         {
                             <tr>
                                 <td><strong>@i.Name</strong> <span class="muted" dir="ltr">@i.Code</span></td>
-                                <td>@(i.ClosesOn is DateTime c ? WorkflowDisplay.ToPersianDate(c) : "—")</td>
+                                <td>@(i.ClosesOn is DateTime c ? StoreWhen.Format(c) : "—")</td>
                                 <td>@WorkflowDisplay.ToPersianDigits(i.Applicants.ToString()) نفر</td>
                                 <td>@WorkflowDisplay.ToPersianDigits(i.TotalQuantity.ToString("0.###")) @i.Unit</td>
                                 <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###")) @i.Unit</td>
@@ -99,7 +99,7 @@
 
     private async Task LoadAsync()
     {
-        try { _items = await Lottery.WaitingItemsAsync(DateTime.Today); }
+        try { _items = await Lottery.WaitingItemsAsync(DateTime.Now); }
         catch (Exception) { AppState.AddToast("خواندن فهرست قرعه‌کشی‌ها انجام نشد.", ToastLevel.Error); }
         _loading = false;
     }
@@ -124,7 +124,7 @@
         _busy = true;
         try
         {
-            var result = await Lottery.DrawAsync(item.ItemId, me, DateTime.Today);
+            var result = await Lottery.DrawAsync(item.ItemId, me, DateTime.Now);
             _confirmId = null;
             if (!result.Ok) { AppState.AddToast(result.Error ?? "قرعه‌کشی انجام نشد.", ToastLevel.Error); return; }
             AppState.AddToast($"قرعه‌کشی انجام شد: {WorkflowDisplay.ToPersianDigits(result.Winners.ToString())} برنده، {WorkflowDisplay.ToPersianDigits(result.Losers.ToString())} نفر برنده نشدند. همه مطلع شدند.", ToastLevel.Success);

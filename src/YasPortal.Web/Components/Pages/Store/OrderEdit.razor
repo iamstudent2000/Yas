@@ -137,7 +137,7 @@ else
             foreach (var l in _order!.Lines)
                 if (items.TryGetValue(l.ItemCode, out var item)) _lines.Add(new EditLine { ItemId = item.Id, Code = l.ItemCode, Name = l.ItemName, Unit = l.Unit, Quantity = l.Quantity });
             _note = _order.Note ?? "";
-            _catalogue = await Store.AllItemsAsync(new StoreItemFilter { Active = true, Visible = true, ActiveCategoriesOnly = true, RequestableOn = DateTime.Today });
+            _catalogue = await Store.AllItemsAsync(new StoreItemFilter { Active = true, Visible = true, ActiveCategoriesOnly = true, RequestableOn = DateTime.Now });
             ItemOptions = _catalogue.Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
             await RefreshAsync();
         }

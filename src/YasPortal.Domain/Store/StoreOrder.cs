@@ -64,6 +64,15 @@ public sealed class StoreOrder
         foreach (var line in list) { line.Attach(Id); Lines.Add(line); }
     }
 
+    /// <summary>Takes a hand-over back (the goods returned to the store). The order is approved and waiting again; the stock side is a Return movement written by the service.</summary>
+    public void UndoIssue()
+    {
+        if (!IsIssued) throw new InvalidOperationException("The order was not handed over.");
+        IssuedAtUtc = null;
+        IssuedByEmployeeId = null;
+        IssueNote = null;
+    }
+
     public void MarkIssued(Guid byEmployeeId, string? note)
     {
         if (IsIssued) throw new InvalidOperationException("The order was already handed over.");

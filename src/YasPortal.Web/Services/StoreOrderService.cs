@@ -261,6 +261,31 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>
+    /// Undoes a hand-over (wrong order, goods brought back): one Return movement per line puts the quantities back into stock and the order waits
+    /// for hand-over again. The ledger is never edited; the original Issue rows stay and the Return rows cancel them. A reason is required.
+    /// </summary>
+    public async Task<StoreResult> UndoIssueAsync(Guid orderId, Guid byEmployeeId, string? reason, CancellationToken ct = default)
+    {
+        reason = reason?.Trim();
+        if (string.IsNullOrEmpty(reason)) return StoreResult.Fail("دلیل برگشت تحویل را بنویسید.");
+        if (reason.Length > StoreStockMovement.NoteMax) return StoreResult.Fail($"دلیل حداکثر {StoreStockMovement.NoteMax} نویسه باشد.");
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+        var order = await db.StoreOrders.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == orderId, ct);
+        if (order is null) return StoreResult.Fail("سفارش پیدا نشد.");
+        if (!order.IsIssued) return StoreResult.Fail("این سفارش تحویل داده نشده یا قبلاً برگشت خورده است.");
+        var number = order.Id.ToString("N")[..8].ToUpperInvariant();
+        foreach (var line in order.Lines)
+            db.StoreStockMovements.Add(new StoreStockMovement(line.ItemId, StockMovementKind.Return, line.Quantity, "برگشت تحویل سفارش " + number, reason, byEmployeeId, order.Id));
+        order.UndoIssue();
+        db.Notifications.Add(new Notification(order.EmployeeId, NotificationKind.StoreOrderIssued, order.RequestId, WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder),
+            $"تحویل کالاهای سفارش {number} برگشت خورد و سفارش دوباره منتظر تحویل است. دلیل: {reason}", $"/store/orders/{order.Id}"));
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return StoreResult.Success;
+    }
+
+    /// <summary>
     /// Hands an approved order over: one Issue movement per line and the order is closed. Nothing is written unless every line is in stock;
     /// the stock check and the writes share one serializable transaction.
     /// </summary>

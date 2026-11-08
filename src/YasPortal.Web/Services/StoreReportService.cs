@@ -65,10 +65,10 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
     private async Task<StoreReportTable> IssuedAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var q = db.StoreStockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Issue);
+        var q = db.StoreStockMovements.AsNoTracking().Where(m => m.Kind == StockMovementKind.Issue || (m.Kind == StockMovementKind.Return && m.OrderId != null)); // a hand-over that was undone nets out
         if (fromUtc is DateTime f) q = q.Where(m => m.CreatedAtUtc >= f);
         if (toUtc is DateTime t) q = q.Where(m => m.CreatedAtUtc < t);
-        var groups = await q.GroupBy(m => m.ItemId).Select(g => new { g.Key, Qty = -g.Sum(m => m.Delta), Times = g.Count() }).ToListAsync(ct);
+        var groups = await q.GroupBy(m => m.ItemId).Select(g => new { g.Key, Qty = -g.Sum(m => m.Delta), Times = g.Count(m => m.Kind == StockMovementKind.Issue) }).ToListAsync(ct);
         var items = (await store.AllItemsAsync(new StoreItemFilter(), ct)).ToDictionary(i => i.Id);
         var rows = groups.Where(g => items.ContainsKey(g.Key)).OrderByDescending(g => g.Qty)
             .Select(g => { var i = items[g.Key]; return (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, Num(g.Qty), g.Times.ToString()]; }).ToList();

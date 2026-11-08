@@ -43,14 +43,20 @@ public class StoreTests
     }
 
     [Fact]
-    public void Request_window_is_checked_by_day_inclusive()
+    public void Request_window_is_checked_to_the_minute()
     {
-        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 10), new DateTime(2026, 11, 20), true);
+        var item = new StoreItem("A", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 10), new DateTime(2026, 11, 20, 23, 59, 0), true);
         Assert.True(item.IsLottery);
         Assert.Equal(StoreRequestWindow.NotYet, item.WindowOn(new DateTime(2026, 11, 9, 23, 59, 0)));
         Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 10)));
         Assert.Equal(StoreRequestWindow.Open, item.WindowOn(new DateTime(2026, 11, 20, 23, 59, 0)));
         Assert.Equal(StoreRequestWindow.Closed, item.WindowOn(new DateTime(2026, 11, 21)));
+        var timed = new StoreItem("T", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 10, 9, 30, 0), new DateTime(2026, 11, 10, 17, 0, 0), true);
+        Assert.Equal(StoreRequestWindow.NotYet, timed.WindowOn(new DateTime(2026, 11, 10, 9, 29, 0)));
+        Assert.Equal(StoreRequestWindow.Open, timed.WindowOn(new DateTime(2026, 11, 10, 9, 30, 0)));
+        Assert.Equal(StoreRequestWindow.Open, timed.WindowOn(new DateTime(2026, 11, 10, 17, 0, 0)));
+        Assert.Equal(StoreRequestWindow.Closed, timed.WindowOn(new DateTime(2026, 11, 10, 17, 1, 0)));
+        Assert.Throws<ArgumentException>(() => new StoreItem("U", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 10, 17, 0, 0), new DateTime(2026, 11, 10, 9, 0, 0)));
         Assert.Equal(StoreRequestWindow.Open, new StoreItem("B", "Pen", Cat, "عدد", null).WindowOn(DateTime.Today));
         Assert.Throws<ArgumentException>(() => new StoreItem("C", "Pen", Cat, "عدد", null, 0, new DateTime(2026, 11, 20), new DateTime(2026, 11, 10)));
     }
@@ -185,6 +191,19 @@ public class StoreTests
         w.Withdraw();
         Assert.Equal(LotteryEntryStatus.Withdrawn, w.Status);
         Assert.Throws<InvalidOperationException>(() => w.MarkWon(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Handover_can_be_undone_and_done_again()
+    {
+        var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Line()]);
+        Assert.Throws<InvalidOperationException>(() => order.UndoIssue());
+        order.MarkIssued(Guid.NewGuid(), "x");
+        order.UndoIssue();
+        Assert.False(order.IsIssued);
+        Assert.Null(order.IssueNote);
+        order.MarkIssued(Guid.NewGuid(), null);
+        Assert.True(order.IsIssued);
     }
 
     [Fact]

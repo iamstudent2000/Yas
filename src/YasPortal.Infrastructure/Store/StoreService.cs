@@ -29,7 +29,8 @@ public sealed class StoreItemFilter
     /// <summary>Only items that can be put in a cart on this day: in stock, not a lottery item, request period open.</summary>
     public DateTime? RequestableOn { get; set; }
     /// <summary>The day "open", "not yet" and "closed" are judged on.</summary>
-    public DateTime Today { get; set; } = DateTime.Today;
+    /// <summary>The moment the request period is judged against (local time, with the clock).</summary>
+    public DateTime Today { get; set; } = DateTime.Now;
     /// <summary>name, code, stock or category (default).</summary>
     public string? Sort { get; set; }
     public bool Descending { get; set; }
@@ -196,10 +197,10 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         else if (f.InStock is false) q = q.Where(x => x.Stock <= 0);
         if (f.Lottery is bool lottery) q = q.Where(x => x.IsLottery == lottery);
         if (f.Visible is bool visible) q = q.Where(x => x.IsVisible == visible);
-        var today = f.Today.Date;
+        var today = f.Today;
         if (f.RequestableOn is DateTime on)
         {
-            var day = on.Date;
+            var day = on;
             q = q.Where(x => x.Stock > 0 && !x.IsLottery && (x.RequestOpensOn == null || x.RequestOpensOn <= day) && (x.RequestClosesOn == null || x.RequestClosesOn >= day));
         }
         switch (f.Window)

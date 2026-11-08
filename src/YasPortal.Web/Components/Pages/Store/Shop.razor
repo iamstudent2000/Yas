@@ -90,9 +90,9 @@
                         @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
                         @switch (window)
                         {
-                            case StoreRequestWindow.NotYet: <span class="badge badge-muted">درخواست از @WorkflowDisplay.ToPersianDate(item.RequestOpensOn!.Value)</span> break;
+                            case StoreRequestWindow.NotYet: <span class="badge badge-muted">درخواست از @StoreWhen.Format(item.RequestOpensOn!.Value)</span> break;
                             case StoreRequestWindow.Closed: <span class="badge badge-danger">دوره درخواست بسته شد</span> break;
-                            default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @WorkflowDisplay.ToPersianDate(closes)</span> } break;
+                            default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @StoreWhen.Format(closes)</span> } break;
                         }
                     </div>
                     @if (item.MaxPerRequest > 0)

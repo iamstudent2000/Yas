@@ -67,7 +67,9 @@
                         }
                         <div class="form-field"><label class="form-label">حداکثر در هر درخواست</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰ = بدون محدودیت" @bind="_maxPerRequest" @bind:event="oninput" /></div>
                         <div class="form-field"><label class="form-label">شروع دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_opensOn" ValueChanged="d => _opensOn = d" Placeholder="از ابتدا" /></div>
+                        <div class="form-field"><label class="form-label">ساعت شروع</label><input class="form-control" type="time" dir="ltr" @bind="_opensTime" /></div>
                         <div class="form-field"><label class="form-label">پایان دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_closesOn" ValueChanged="d => _closesOn = d" Placeholder="بدون پایان" /></div>
+                        <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" @bind="_closesTime" /></div>
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isLottery" /> توزیع با قرعه‌کشی</label></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
@@ -208,6 +210,7 @@
     private Guid? _employeeId;
     private IReadOnlyList<(string Key, string Text)> UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList();
     private DateTime? _opensOn, _closesOn;
+    private string _opensTime = "", _closesTime = "";
     private bool _isLottery;
     private int _formKey;
 
@@ -277,7 +280,7 @@
         var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
             rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                 i.MaxPerRequest == 0 ? "" : i.MaxPerRequest.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
-                i.RequestOpensOn is DateTime o ? WorkflowDisplay.ToPersianDate(o) : "", i.RequestClosesOn is DateTime c ? WorkflowDisplay.ToPersianDate(c) : "",
+                i.RequestOpensOn is DateTime o ? StoreWhen.Format(o) : "", i.RequestClosesOn is DateTime c ? StoreWhen.Format(c) : "",
                 i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
         await JS.InvokeVoidAsync("yasDownloadFile", $"store-items-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
     }
@@ -326,17 +329,17 @@
         if (string.IsNullOrWhiteSpace(_unit)) { AppState.AddToast("واحد را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_initialStock, out var initial) || initial < 0) { AppState.AddToast("موجودی اولیه باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_maxPerRequest, out var max) || max < 0) { AppState.AddToast("حداکثر در هر درخواست باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
-        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, _opensOn, _closesOn, _isLottery, _editItemId is null ? initial : 0, _employeeId), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
+        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, StoreWhen.Combine(_opensOn, _opensTime, TimeSpan.Zero), StoreWhen.Combine(_closesOn, _closesTime, new TimeSpan(23, 59, 0)), _isLottery, _editItemId is null ? initial : 0, _employeeId), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
     }
 
-    private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = ""; _opensOn = _closesOn = null; _isLottery = false; _formKey++; }
+    private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = ""; _opensOn = _closesOn = null; _opensTime = _closesTime = ""; _isLottery = false; _formKey++; }
 
     private async Task EditItemAsync(StoreItemRow row)
     {
         var item = await Store.GetItemAsync(row.Id);
         if (item is null) { AppState.AddToast("این کالا دیگر وجود ندارد.", ToastLevel.Error); await LoadAsync(); return; }
         _editItemId = item.Id; _code = item.Code; _name = item.Name; _itemCategoryId = item.CategoryId; _unit = item.Unit;
-        _description = item.Description ?? ""; _maxPerRequest = Plain(item.MaxPerRequest); _opensOn = item.RequestOpensOn; _closesOn = item.RequestClosesOn; _isLottery = item.IsLottery;
+        _description = item.Description ?? ""; _maxPerRequest = Plain(item.MaxPerRequest); _opensOn = item.RequestOpensOn; _closesOn = item.RequestClosesOn; _opensTime = item.RequestOpensOn?.ToString("HH:mm") ?? ""; _closesTime = item.RequestClosesOn?.ToString("HH:mm") ?? ""; _isLottery = item.IsLottery;
         // an older item may carry a unit that is not in the list: keep it selectable so saving does not silently change it
         UnitOptions = StoreUnits.All.Contains(item.Unit) ? StoreUnits.All.Select(u => (u, u)).ToList() : StoreUnits.All.Append(item.Unit).Select(u => (u, u)).ToList();
         _formKey++;
@@ -344,7 +347,7 @@
 
     private static string WindowText(StoreItemRow i) =>
         i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
-        : $"{(i.RequestOpensOn is DateTime o ? "از " + WorkflowDisplay.ToPersianDate(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + WorkflowDisplay.ToPersianDate(c) : "")} ";
+        : $"{(i.RequestOpensOn is DateTime o ? "از " + StoreWhen.Format(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + WorkflowDisplay.ToPersianDate(c) : "")} ";
 
     private Task DeleteCategoryAsync(Guid id) { _confirmCategoryId = null; return RunAsync(() => Store.DeleteCategoryAsync(id), "گروه حذف شد."); }
     private Task DeleteItemAsync(Guid id) { _confirmItemId = null; return RunAsync(() => Store.DeleteItemAsync(id), "کالا حذف شد."); }

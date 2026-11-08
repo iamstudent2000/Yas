@@ -221,8 +221,16 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_StoreItems_CategoryId] ON [dbo].[StoreItems] ([CategoryId])');
         IF COL_LENGTH(N'dbo.StoreItems', N'MinStock') IS NOT NULL ALTER TABLE [dbo].[StoreItems] DROP COLUMN [MinStock];
         IF COL_LENGTH(N'dbo.StoreItems', N'MaxPerRequest') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [MaxPerRequest] decimal(18,3) NOT NULL CONSTRAINT [DF_StoreItems_MaxPerRequest] DEFAULT 0;
-        IF COL_LENGTH(N'dbo.StoreItems', N'RequestOpensOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestOpensOn] date NULL;
-        IF COL_LENGTH(N'dbo.StoreItems', N'RequestClosesOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestClosesOn] date NULL;
+        IF COL_LENGTH(N'dbo.StoreItems', N'RequestOpensOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestOpensOn] datetime2(0) NULL;
+        IF COL_LENGTH(N'dbo.StoreItems', N'RequestClosesOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestClosesOn] datetime2(0) NULL;
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'RequestOpensOn' AND system_type_id = TYPE_ID(N'date'))
+            ALTER TABLE [dbo].[StoreItems] ALTER COLUMN [RequestOpensOn] datetime2(0) NULL;
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'RequestClosesOn' AND system_type_id = TYPE_ID(N'date'))
+        BEGIN
+            ALTER TABLE [dbo].[StoreItems] ALTER COLUMN [RequestClosesOn] datetime2(0) NULL;
+            -- an end date used to mean the whole day: keep it open until the end of that day
+            EXEC(N'UPDATE [dbo].[StoreItems] SET [RequestClosesOn] = DATEADD(MINUTE, 1439, [RequestClosesOn]) WHERE [RequestClosesOn] IS NOT NULL');
+        END
         IF COL_LENGTH(N'dbo.StoreItems', N'IsLottery') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsLottery] bit NOT NULL CONSTRAINT [DF_StoreItems_IsLottery] DEFAULT 0;
         IF COL_LENGTH(N'dbo.StoreItems', N'IsVisible') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsVisible] bit NOT NULL CONSTRAINT [DF_StoreItems_IsVisible] DEFAULT 1;
         IF OBJECT_ID(N'dbo.StoreStockMovements', N'U') IS NULL
