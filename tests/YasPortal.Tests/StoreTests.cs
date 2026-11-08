@@ -121,6 +121,20 @@ public class StoreTests
     }
 
     [Fact]
+    public void Returned_order_lines_can_be_replaced_but_not_after_handover()
+    {
+        var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "old", [Line(1)]);
+        order.ReplaceLines(" new ", [Line(4), new StoreOrderLine(Guid.NewGuid(), "B-1", "Cap", "عدد", 2)]);
+        Assert.Equal("new", order.Note);
+        Assert.Equal(2, order.Lines.Count);
+        Assert.Throws<ArgumentException>(() => order.ReplaceLines(null, []));
+        var one = Line();
+        Assert.Throws<ArgumentException>(() => order.ReplaceLines(null, [one, new StoreOrderLine(one.ItemId, "A", "A", "عدد", 1)]));
+        order.MarkIssued(Guid.NewGuid(), null);
+        Assert.Throws<InvalidOperationException>(() => order.ReplaceLines(null, [Line()]));
+    }
+
+    [Fact]
     public void Order_can_be_handed_over_only_once()
     {
         var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Line()]);
