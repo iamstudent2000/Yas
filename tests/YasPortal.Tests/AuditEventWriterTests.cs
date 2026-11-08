@@ -158,7 +158,7 @@ public sealed class AuditEventWriterTests
         public string? Text;
         public string Blank = "";
         public bool Flag;
-        public Guid? Id;
+        public Guid? Id = null;
         public SampleKind Kind;
         public int Count => 5;
     }
