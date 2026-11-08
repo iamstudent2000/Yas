@@ -25,6 +25,8 @@ public static class Icons
     public const string Send = "ti-send";
     public const string Print = "ti-printer";
     public const string ExportData = "ti-file-export";
+    public const string Eye = "ti-eye";
+    public const string EyeOff = "ti-eye-off";
     public const string ExportSteps = "ti-file-spreadsheet";
     public const string Pdf = "ti-file-type-pdf";
 
@@ -138,6 +140,8 @@ public static class Icons
     public const string Links = "ti-link";
     public const string PhoneBook = "ti-address-book";
     public const string Guide = "ti-book-2";
+    public const string Store = "ti-building-store";
+    public const string Box = "ti-package";
     public const string Phone = "ti-phone";
     public const string Mobile = "ti-device-mobile";
     public const string Mail = "ti-mail";

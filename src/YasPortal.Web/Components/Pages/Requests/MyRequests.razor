@@ -79,7 +79,15 @@
                     <div class="request-card-body">
                         <RequestSummary Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
 
-                        @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && _editValues.TryGetValue(request.Id, out var editValues))
+                        @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && request.WorkflowType == WorkflowTypeCode.StoreOrder)
+                        {
+                            @* a store order's items are edited on the store page, not through the generic text fields *@
+                            <div class="resubmit-panel">
+                                <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px">این سفارش به شما بازگشته — اقلام را اصلاح کنید و دوباره بفرستید</h3>
+                                <div class="form-actions"><a class="btn btn-primary" href="/store/orders/edit/@request.Id"><i class="ti @Icons.Edit"></i> ویرایش اقلام سفارش</a></div>
+                            </div>
+                        }
+                        else if (request.Status == WorkflowRequestStatus.ReturnedToRequester && _editValues.TryGetValue(request.Id, out var editValues))
                         {
                             <div class="resubmit-panel">
                                 <h3 class="section-title" style="font-size:12.5px;margin:0 0 8px">این درخواست به شما بازگشته — پس از اصلاح، دوباره ارسال کنید</h3>

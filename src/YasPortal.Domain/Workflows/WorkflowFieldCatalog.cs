@@ -81,6 +81,12 @@ public static class WorkflowFieldCatalog
                 new WorkflowFieldDefinition("gatePassNumber", "شماره مجوز خروج", WorkflowFieldType.Text, true, Part: 3),
                 new WorkflowFieldDefinition("securityNote", "ملاحظات حراست", WorkflowFieldType.TextArea, false, Part: 3),
             }),
+            [WorkflowTypeCode.StoreOrder] = ("درخواست کالا از فروشگاه", new[]
+            {
+                // Written by the store when the cart is submitted (a readable list of the lines) so approvers see what is asked for.
+                new WorkflowFieldDefinition("summary", "اقلام درخواستی", WorkflowFieldType.TextArea, true),
+                new WorkflowFieldDefinition("note", "توضیحات", WorkflowFieldType.TextArea, false),
+            }),
             [WorkflowTypeCode.WorkReport] = ("گزارش کار", new[]
             {
                 new WorkflowFieldDefinition("reportDate", "تاریخ گزارش", WorkflowFieldType.Date, true),
@@ -155,6 +161,9 @@ public static class WorkflowFieldCatalog
             .ToList();
 
     public static IReadOnlyList<WorkflowTypeCode> AllTypes { get; } = Enum.GetValues<WorkflowTypeCode>();
+
+    /// <summary>The types a person can start from the generic "new request" forms (a store order is started from the store cart).</summary>
+    public static IReadOnlyList<WorkflowTypeCode> CreatableTypes { get; } = Enum.GetValues<WorkflowTypeCode>().Where(t => t != WorkflowTypeCode.StoreOrder).ToList();
 
     /// <summary>
     /// Validates a submitted set of field values against the type's fixed schema.

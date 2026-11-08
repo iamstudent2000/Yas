@@ -1,0 +1,28 @@
+/* Store: shop cards, category chips and the admin tab bar. Colours come from the theme variables, so dark mode follows. */
+.store-chips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 2px}
+.store-chip{border:1px solid var(--border,#d0d5dd);background:var(--surface,#fff);color:var(--text,#182230);border-radius:999px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;transition:background .12s,border-color .12s}
+.store-chip:hover{border-color:var(--accent,#155eef)}
+.store-chip.is-active{background:var(--accent,#155eef);border-color:var(--accent,#155eef);color:#fff}
+
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:16px}
+.store-card{display:flex;flex-direction:column;gap:12px;padding:22px;min-height:260px;border:1px solid var(--border,#e6ebf2);border-radius:12px;background:var(--surface,#fff)}
+.store-card.is-out{opacity:.72}
+.store-card-top{display:flex;align-items:flex-start;gap:10px}
+.store-card-icon{flex:none;width:56px;height:56px;border-radius:14px;display:grid;place-items:center;background:var(--accent-soft,#eef4ff);color:var(--accent,#155eef);font-size:28px}
+.store-card-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.store-card-title strong{font-size:16.5px;line-height:1.7}
+.store-card-meta{color:var(--text-muted,#667085);font-size:13px}
+.store-card-desc{color:var(--text-muted,#667085);font-size:13.5px;line-height:1.9;margin:0}
+.store-card-badges{display:flex;flex-wrap:wrap;gap:6px}
+.store-card-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13.5px;color:var(--text-muted,#667085);margin:0}
+.store-card-facts dt{margin:0}
+.store-card-facts dd{margin:0;color:var(--text,#182230);font-weight:600}
+.store-card-buy{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:auto;padding-top:10px}
+.store-card-buy .form-control{width:96px;height:40px}
+.store-card-buy .btn{height:40px;padding-inline:18px}
+
+.store-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border,#e6ebf2)}
+.store-tab{padding:10px 16px;border-radius:10px 10px 0 0;color:var(--text-muted,#667085);font-size:13.5px;border-bottom:3px solid transparent;margin-bottom:-1px}
+.store-tab:hover{color:var(--text,#182230)}
+.store-tab.active{color:var(--accent,#155eef);border-bottom-color:var(--accent,#155eef);font-weight:700}
+@media print{.store-tabs{display:none!important}}

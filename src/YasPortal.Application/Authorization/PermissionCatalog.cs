@@ -85,8 +85,24 @@ public static class Perm
     public const string AdminGuidesView = "Admin.Guides.View";
     /// <summary>Write guides and edit, switch off and delete the guides of everyone. Implies the view permission.</summary>
     public const string AdminGuidesManage = "Admin.Guides.Manage";
+    /// <summary>Browse the store catalogue and see what is available.</summary>
+    public const string StoreShopView = "Store.Shop.View";
+    /// <summary>Make store requests (an order of items from the store). Admins are still kept out of the requester pages.</summary>
+    public const string StoreOrdersCreate = "Store.Orders.Create";
+    /// <summary>Hand approved store orders to the requester (this takes the goods out of stock).</summary>
+    public const string StoreOrdersIssue = "Store.Orders.Issue";
+    /// <summary>The store reports (summary, out of stock, issued goods, dormant goods, orders) with print and CSV export.</summary>
+    public const string StoreReportsView = "Store.Reports.View";
+    public const string StoreItemsView = "Store.Items.View";
+    /// <summary>Add and edit store categories and items. Implies the view permission.</summary>
+    public const string StoreItemsManage = "Store.Items.Manage";
+    public const string StoreStockView = "Store.Stock.View";
+    /// <summary>Record receipts, issues and count corrections. Implies the view permission.</summary>
+    public const string StoreStockManage = "Store.Stock.Manage";
     /// <summary>Policy (not a permission code): the guides workspace is open to anyone who holds any of the three guide permissions.</summary>
     public const string GuidesWorkspacePolicy = "Guides.Workspace";
+    /// <summary>Policy (not a permission code): the store admin area is open to anyone who holds any store admin permission.</summary>
+    public const string StoreAdminPolicy = "Store.Admin";
 
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>
@@ -120,6 +136,8 @@ public static class PermissionCatalog
     {
         if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
             return PermissionReach.All;
+        if (code.StartsWith("Store.", StringComparison.OrdinalIgnoreCase) && code is not (Perm.StoreShopView or Perm.StoreOrdersCreate))
+            return PermissionReach.All;
         if (code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase))
             return PermissionReach.Assigned;
         if (code is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView or Perm.RequestsTeamCreate or Perm.DashboardTeamView || code == ReportPermissions.TeamRequests)
@@ -131,6 +149,7 @@ public static class PermissionCatalog
     public static bool ActsOnOthers(string code) =>
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
+        || code is Perm.StoreItemsManage or Perm.StoreStockManage or Perm.StoreOrdersIssue
         || code is Perm.RequestsTeamCreate or Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
 
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
@@ -201,6 +220,15 @@ public static class PermissionCatalog
             new(Perm.GuidesOwnManage, "نوشتن راهنمای کاربری و ویرایش راهنماهای خودم (غیرفعال‌کردن و حذف راهنماهای خودم)"),
             new(Perm.AdminGuidesView, "مشاهده همه راهنماهای کاربری (فقط خواندنی)"),
             new(Perm.AdminGuidesManage, "مدیریت همه راهنماهای کاربری (ویرایش، غیرفعال‌کردن و حذف راهنمای همه نویسنده‌ها)"),
+
+            new(Perm.StoreShopView, "مشاهده فروشگاه (کالاها و موجودی)"),
+            new(Perm.StoreOrdersCreate, "ثبت درخواست کالا از فروشگاه (و شرکت در قرعه‌کشی)"),
+            new(Perm.StoreOrdersIssue, "تحویل کالای سفارش‌های تأییدشده فروشگاه (کسر از موجودی)"),
+            new(Perm.StoreReportsView, "مشاهده گزارش‌های فروشگاه (چاپ و خروجی CSV)"),
+            new(Perm.StoreItemsView, "مشاهده مدیریت کالاها (فقط خواندنی)"),
+            new(Perm.StoreItemsManage, "مدیریت کالاها (گروه‌ها و کالاها)"),
+            new(Perm.StoreStockView, "مشاهده موجودی و گردش انبار (فقط خواندنی)"),
+            new(Perm.StoreStockManage, "مدیریت انبار (ورود کالا، خروج و اصلاح موجودی)"),
         };
 
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));

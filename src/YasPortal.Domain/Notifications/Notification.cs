@@ -35,6 +35,15 @@ public enum NotificationKind
 
     /// <summary>A message one person sent to another by hand (not produced by a workflow event). Recipient: the chosen employee.</summary>
     Manual,
+
+    /// <summary>A store order got its final approval and waits for the goods to be handed over. Recipient: the storekeepers (Store.Orders.Issue).</summary>
+    StoreOrderReady,
+
+    /// <summary>The goods of a store order were handed over. Recipient: the requester.</summary>
+    StoreOrderIssued,
+
+    /// <summary>The result of a store lottery draw (won or not). Recipient: the applicant.</summary>
+    StoreLotteryResult,
 }
 
 /// <summary>

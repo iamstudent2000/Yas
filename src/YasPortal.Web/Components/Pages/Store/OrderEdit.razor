@@ -1,0 +1,197 @@
+@page "/store/orders/edit/{RequestId:guid}"
+@implements IDisposable
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreOrdersCreate)]
+@attribute [Authorize(Policy = "NonAdmin")]
+@inject StoreOrderService Orders
+@inject StoreService Store
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+@inject NavigationManager Navigation
+@* Correct an order an approver sent back. Its owner changes the items and sends it again; the approval chain is worked out again from the position the order was first sent from. *@
+
+<PageTitle>ویرایش سفارش - فروشگاه</PageTitle>
+
+@if (_loading)
+{
+    <div class="admin-page" dir="rtl"><LoadingState /></div>
+}
+else if (_order is null)
+{
+    <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="سفارش پیدا نشد" Message="این سفارش وجود ندارد یا مال شما نیست.">
+        <a class="btn btn-primary" href="/store/orders"><i class="ti @Icons.Box"></i> سفارش‌های من</a>
+    </StatusPage>
+}
+else if (!_editable)
+{
+    <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="" Title="این سفارش قابل ویرایش نیست" Message="فقط سفارشی که مسئول تأیید برای اصلاح به شما برگردانده، قابل ویرایش است.">
+        <a class="btn btn-primary" href="/store/orders"><i class="ti @Icons.Box"></i> سفارش‌های من</a>
+    </StatusPage>
+}
+else
+{
+    <div class="admin-page" dir="rtl">
+        <div class="page-header">
+            <div>
+                <div class="page-kicker">فروشگاه</div>
+                <h1 class="page-title"><i class="ti @Icons.Edit"></i> ویرایش سفارش @_order.Number</h1>
+                <p class="page-subtitle">این سفارش برای اصلاح به شما برگشته است. اقلام را اصلاح کنید و دوباره بفرستید؛ توضیح مسئول تأیید را در «درخواست‌های من» ببینید.</p>
+            </div>
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/requests/mine"><i class="ti @Icons.MyRequests"></i> درخواست‌های من</a>
+                <a class="btn btn-secondary" href="/store/orders"><i class="ti @Icons.Back"></i> بازگشت</a>
+            </div>
+        </div>
+
+        @if (_problems > 0)
+        {
+            <section class="card" style="border-color:var(--danger,#d92d20)"><strong>@WorkflowDisplay.ToPersianDigits(_problems.ToString()) مورد نیاز به اصلاح دارد.</strong>
+                <span class="muted"> مقدار را اصلاح کنید یا کالا را حذف کنید.</span></section>
+        }
+
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var line in _lines)
+                        {
+                            _checks.TryGetValue(line.ItemId, out var check);
+                            <tr>
+                                <td><strong>@line.Name</strong> <span class="muted" dir="ltr">@line.Code</span></td>
+                                <td><input class="form-control" style="width:90px" inputmode="decimal" autocomplete="off" aria-label="مقدار" value="@WorkflowDisplay.ToPersianDigits(line.Quantity.ToString("0.###"))" @onchange="e => ChangeQuantityAsync(line, e.Value?.ToString())" /></td>
+                                <td>@line.Unit</td>
+                                <td>@(check is null ? "…" : WorkflowDisplay.ToPersianDigits(check.Stock.ToString("0.###")))</td>
+                                <td>
+                                    @if (check is null) { <span class="muted">در حال بررسی...</span> }
+                                    else if (check.Problem is null) { <span class="badge badge-success">مشکلی ندارد</span> }
+                                    else { <span style="color:var(--danger,#d92d20)">@check.Problem</span> }
+                                </td>
+                                <td><button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => RemoveAsync(line)"><i class="ti @Icons.Delete"></i> حذف</button></td>
+                            </tr>
+                        }
+                        @if (_lines.Count == 0) { <tr><td colspan="6" class="muted">سفارش کالایی ندارد؛ یک کالا اضافه کنید.</td></tr> }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card admin-form-row">
+            <h2 class="section-title"><i class="ti @Icons.Add"></i> افزودن کالا</h2>
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">کالا</label>
+                    <LookupSelect @key="_pickerKey" Options="ItemOptions" Value="@(_pickId?.ToString())" ValueChanged="PickChanged" Placeholder="انتخاب کالا" SearchPlaceholder="نام یا کد کالا..." /></div>
+                <div class="form-field"><label class="form-label">مقدار</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" @bind="_pickQty" /></div>
+                <div class="form-field admin-row-submit"><button class="btn btn-secondary" disabled="@(_busy || _pickId is null)" @onclick="AddAsync"><i class="ti @Icons.Add"></i> افزودن</button></div>
+            </div>
+        </section>
+
+        <section class="card admin-form-row">
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">توضیحات (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    <button class="btn btn-primary" disabled="@(_busy || _problems > 0 || _lines.Count == 0 || _checks.Count == 0)" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> ارسال مجدد</button>
+                </div></div>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid RequestId { get; set; }
+
+    private sealed class EditLine { public Guid ItemId; public string Code = "", Name = "", Unit = ""; public decimal Quantity; }
+
+    private bool _loading = true, _editable, _busy;
+    private StoreOrderDetail? _order;
+    private Guid? _employeeId;
+    private readonly List<EditLine> _lines = [];
+    private IReadOnlyDictionary<Guid, StoreCartCheck> _checks = new Dictionary<Guid, StoreCartCheck>();
+    private int _problems, _pickerKey;
+    private string _note = "", _pickQty = "";
+    private Guid? _pickId;
+    private IReadOnlyList<StoreItemRow> _catalogue = [];
+    private IReadOnlyList<(string Key, string Text)> ItemOptions = [];
+
+    public void Dispose() { }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        var orderId = await Orders.OrderIdOfRequestAsync(RequestId);
+        var order = orderId is Guid oid ? await Orders.GetAsync(oid) : null;
+        _order = order is not null && order.EmployeeId == _employeeId ? order : null;
+        _editable = _order is not null && _order.Status == WorkflowRequestStatus.ReturnedToRequester && _order.IssuedAtUtc is null;
+        if (_editable)
+        {
+            _lines.Clear();
+            var items = (await Store.AllItemsAsync(new StoreItemFilter())).ToDictionary(i => i.Code);
+            foreach (var l in _order!.Lines)
+                if (items.TryGetValue(l.ItemCode, out var item)) _lines.Add(new EditLine { ItemId = item.Id, Code = l.ItemCode, Name = l.ItemName, Unit = l.Unit, Quantity = l.Quantity });
+            _note = _order.Note ?? "";
+            _catalogue = await Store.AllItemsAsync(new StoreItemFilter { Active = true, Visible = true, ActiveCategoriesOnly = true, RequestableOn = DateTime.Now });
+            ItemOptions = _catalogue.Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
+            await RefreshAsync();
+        }
+        _loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _checks = _lines.Count == 0 ? new Dictionary<Guid, StoreCartCheck>() : await Orders.CheckAsync(_employeeId ?? Guid.Empty, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), DateTime.Now, RequestId);
+            _problems = _checks.Values.Count(c => c.Problem is not null);
+        }
+        catch (Exception) { AppState.AddToast("بررسی اقلام انجام نشد؛ صفحه را دوباره باز کنید.", ToastLevel.Error); }
+    }
+
+    private async Task ChangeQuantityAsync(EditLine line, string? text)
+    {
+        if (!StoreNumber.TryParse(text, out var q) || q <= 0) { AppState.AddToast("مقدار باید عددی بزرگ‌تر از صفر باشد.", ToastLevel.Error); return; }
+        line.Quantity = q;
+        await RefreshAsync();
+    }
+
+    private async Task RemoveAsync(EditLine line) { _lines.Remove(line); await RefreshAsync(); }
+
+    private void PickChanged(string? key) => _pickId = Guid.TryParse(key, out var g) ? g : null;
+
+    private async Task AddAsync()
+    {
+        if (_pickId is not Guid id) return;
+        var item = _catalogue.FirstOrDefault(i => i.Id == id);
+        if (item is null) return;
+        if (!StoreNumber.TryParse(_pickQty, out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        var existing = _lines.FirstOrDefault(l => l.ItemId == id);
+        if (existing is not null) existing.Quantity += q;
+        else _lines.Add(new EditLine { ItemId = item.Id, Code = item.Code, Name = item.Name, Unit = item.Unit, Quantity = q });
+        _pickId = null; _pickQty = ""; _pickerKey++;
+        await RefreshAsync();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy || _employeeId is not Guid emp) return;
+        _busy = true;
+        try
+        {
+            var result = await Orders.ResubmitAsync(RequestId, emp, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ارسال مجدد انجام نشد.", ToastLevel.Error); await RefreshAsync(); return; }
+            AppState.AddToast("سفارش اصلاح‌شده دوباره ارسال شد.", ToastLevel.Success);
+            AppState.NotifyRequestBadgesChanged();
+            Navigation.NavigateTo("/store/orders");
+        }
+        catch (Exception) { AppState.AddToast("ارسال مجدد انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+}

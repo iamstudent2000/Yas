@@ -1,0 +1,369 @@
+@page "/admin/store/items"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreItemsView)]
+@inject StoreService Store
+@inject AuthenticationStateProvider AuthState
+@inject IPermissionChecker PermissionChecker
+@inject AppState AppState
+@inject IJSRuntime JS
+
+<PageTitle>مدیریت کالاهای فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Box"></i> مدیریت کالاهای فروشگاه</h1>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")گروه‌ها و کالاهای فروشگاه. موجودی کالا از «انبار فروشگاه» تغییر می‌کند، نه از این‌جا.</p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else
+    {
+        <div class="admin-stack">
+            @if (_canManage)
+            {
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editCategoryId is null ? Icons.Add : Icons.Edit)"></i> @(_editCategoryId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                        <p class="muted">مثلاً «لوازم اداری» یا «لوازم رایانه».</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_categoryName" maxlength="@StoreCategory.NameMax" /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_categoryOrder" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveCategoryAsync"><i class="ti @Icons.Save"></i> @(_editCategoryId is null ? "افزودن گروه" : "ذخیره")</button>
+                            @if (_editCategoryId is not null) { <button class="btn btn-secondary" @onclick="ResetCategory">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        <h2 class="section-title"><i class="ti @(_editItemId is null ? Icons.Add : Icons.Edit)"></i> @(_editItemId is null ? "افزودن کالا" : "ویرایش کالا")</h2>
+                        <p class="muted">کد کالا یکتاست. «موجودی اولیه» (فقط هنگام افزودن) به‌صورت یک ورود به انبار ثبت می‌شود؛ بعداً موجودی را از «انبار فروشگاه» تغییر دهید.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field"><label class="form-label">کد</label><input class="form-control" dir="ltr" @bind="_code" maxlength="@StoreItem.CodeMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">نام کالا</label><input class="form-control" @bind="_name" maxlength="@StoreItem.NameMax" /></div>
+                        <div class="form-field"><label class="form-label">گروه</label>
+                            <LookupSelect @key="_formKey" Options="ActiveCategoryOptions" Value="@(_itemCategoryId?.ToString())" ValueChanged="k => _itemCategoryId = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتخاب گروه" /></div>
+                        <div class="form-field"><label class="form-label">واحد</label><LookupSelect @key="_formKey" Options="UnitOptions" Value="@_unit" ValueChanged="UnitChanged" Placeholder="انتخاب واحد" /></div>
+                        @if (_editItemId is null)
+                        {
+                            <div class="form-field"><label class="form-label">موجودی اولیه</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰" @bind="_initialStock" @bind:event="oninput" /></div>
+                        }
+                        <div class="form-field"><label class="form-label">حداکثر در هر درخواست</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰ = بدون محدودیت" @bind="_maxPerRequest" @bind:event="oninput" /></div>
+                        <div class="form-field"><label class="form-label">شروع دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_opensOn" ValueChanged="d => _opensOn = d" Placeholder="از ابتدا" /></div>
+                        <div class="form-field"><label class="form-label">ساعت شروع</label><input class="form-control" type="time" dir="ltr" value="@_opensTime" @onchange="e => _opensTime = e.Value?.ToString() ?? string.Empty" /></div>
+                        <div class="form-field"><label class="form-label">پایان دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_closesOn" ValueChanged="d => _closesOn = d" Placeholder="بدون پایان" /></div>
+                        <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" value="@_closesTime" @onchange="e => _closesTime = e.Value?.ToString() ?? string.Empty" /></div>
+                        <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isLottery" /> توزیع با قرعه‌کشی</label></div>
+                        <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveItemAsync"><i class="ti @Icons.Save"></i> @(_editItemId is null ? "افزودن کالا" : "ذخیره")</button>
+                            @if (_editItemId is not null) { <button class="btn btn-secondary" @onclick="ResetItem">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+            }
+
+            <section class="card">
+                <h2 class="section-title"><i class="ti @Icons.Box"></i> گروه‌ها</h2>
+                <div class="data-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>نام</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <tbody>
+                            @foreach (var c in _categories)
+                            {
+                                <tr>
+                                    <td>@c.Name</td><td>@WorkflowDisplay.ToPersianDigits(c.SortOrder.ToString())</td>
+                                    <td>@if (c.IsActive) {<span class="badge badge-success">فعال</span>} else {<span class="badge badge-muted">غیرفعال</span>}</td>
+                                    @if (_canManage)
+                                    {
+                                        <td><div class="form-actions">
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => EditCategory(c)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleCategoryAsync(c)">@(c.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @if (_confirmCategoryId == c.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteCategoryAsync(c.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmCategoryId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmCategoryId = c.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
+                                        </div></td>
+                                    }
+                                </tr>
+                            }
+                            @if (_categories.Count == 0) { <tr><td colspan="4" class="muted">هنوز گروهی تعریف نشده است.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2 class="section-title"><i class="ti @Icons.Box"></i> کالاها</h2>
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">جستجو</label>
+                        <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
+                    <div class="form-field"><label class="form-label">گروه</label>
+                        <LookupSelect Options="AllCategoryOptions" Value="@(_filterCategoryId?.ToString())" ValueChanged="FilterCategoryAsync" Placeholder="همه گروه‌ها" /></div>
+                    <div class="form-field"><label class="form-label">وضعیت</label>
+                        <LookupSelect Options="ActiveOptions" Value="@_activeF" ValueChanged="k => SetFilterAsync(() => _activeF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">نمایش در فروشگاه</label>
+                        <LookupSelect Options="VisibleOptions" Value="@_visibleF" ValueChanged="k => SetFilterAsync(() => _visibleF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">موجودی</label>
+                        <LookupSelect Options="StockOptions" Value="@_stockF" ValueChanged="k => SetFilterAsync(() => _stockF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">دوره درخواست</label>
+                        <LookupSelect Options="WindowOptions" Value="@_windowF" ValueChanged="k => SetFilterAsync(() => _windowF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">نوع توزیع</label>
+                        <LookupSelect Options="LotteryOptions" Value="@_lotteryF" ValueChanged="k => SetFilterAsync(() => _lotteryF = Blank(k))" Placeholder="همه" /></div>
+                    <div class="form-field"><label class="form-label">مرتب‌سازی</label>
+                        <LookupSelect Options="SortOptions" Value="@_sort" ValueChanged="k => SortChangedAsync(k)" Placeholder="گروه" /></div>
+                    <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_sortDesc" @onchange="e => SetFilterAsync(() => _sortDesc = e.Value is true)" /> نزولی</label></div>
+                </div>
+                <div class="form-actions" style="margin:10px 0">
+                    <button class="btn btn-secondary btn-sm" disabled="@(_items.Total == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="ClearFiltersAsync">پاک‌کردن فیلترها</button>
+                    @if (_canManage)
+                    {
+                        <span class="muted">انتخاب‌شده: @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString())</span>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(true)"><i class="ti @Icons.Eye"></i> نمایش در فروشگاه</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetVisibleBulkAsync(false)"><i class="ti @Icons.EyeOff"></i> پنهان‌کردن از فروشگاه</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetActiveBulkAsync(true)">فعال‌کردن</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0)" @onclick="() => SetActiveBulkAsync(false)">غیرفعال‌کردن</button>
+                        <span style="min-width:180px;display:inline-block"><LookupSelect Options="ActiveCategoryOptions" Value="@(_moveTo?.ToString())" ValueChanged="k => _moveTo = Guid.TryParse(k, out var g) ? g : null" Placeholder="انتقال به گروه..." /></span>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_busy || _selected.Count == 0 || _moveTo is null)" @onclick="MoveBulkAsync">انتقال</button>
+                    }
+                </div>
+                <div class="data-table-wrap">
+                    <table class="data-table">
+                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در درخواست</th><th>دوره درخواست</th><th>وضعیت</th><th>در فروشگاه</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <tbody>
+                            @foreach (var i in _items.Rows)
+                            {
+                                <tr>
+                                    @if (_canManage) {<td><input type="checkbox" aria-label="انتخاب" checked="@_selected.Contains(i.Id)" @onchange="e => ToggleSelect(i.Id, e.Value is true)" /></td>}
+                                    <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
+                                    <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))</td>
+                                    <td>@(i.MaxPerRequest == 0 ? "بدون محدودیت" : WorkflowDisplay.ToPersianDigits(i.MaxPerRequest.ToString("0.###")))</td>
+                                    <td>@WindowText(i)@if (i.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}</td>
+                                    <td>@if (i.IsActive) {<span class="badge badge-success">فعال</span>} else {<span class="badge badge-muted">غیرفعال</span>}</td>
+                                    <td>@if (i.IsVisible) {<span class="badge badge-success">نمایش</span>} else {<span class="badge badge-muted">پنهان</span>}</td>
+                                    @if (_canManage)
+                                    {
+                                        <td><div class="form-actions">
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => SetVisibleBulkAsync(!i.IsVisible, i.Id)"><i class="ti @(i.IsVisible ? Icons.EyeOff : Icons.Eye)"></i> @(i.IsVisible ? "پنهان" : "نمایش")</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => EditItemAsync(i)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleItemAsync(i)">@(i.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @if (_confirmItemId == i.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteItemAsync(i.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmItemId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmItemId = i.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
+                                        </div></td>
+                                    }
+                                </tr>
+                            }
+                            @if (_items.Rows.Count == 0) { <tr><td colspan="11" class="muted">کالایی پیدا نشد.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+                <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_items.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _busy, _canManage;
+    private IReadOnlyList<StoreCategory> _categories = [];
+    private StorePage<StoreItemRow> _items = new([], 0);
+    private IReadOnlyList<(string Key, string Text)> ActiveCategoryOptions = [], AllCategoryOptions = [];
+
+    private Guid? _confirmCategoryId, _confirmItemId;
+    private Guid? _editCategoryId;
+    private string _categoryName = "";
+    private int _categoryOrder;
+
+    private Guid? _editItemId, _itemCategoryId;
+    private string _code = "", _name = "", _unit = "", _description = "";
+    private string _initialStock = "", _maxPerRequest = "";
+    private Guid? _employeeId;
+    private IReadOnlyList<(string Key, string Text)> UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList();
+    private DateTime? _opensOn, _closesOn;
+    private string _opensTime = "", _closesTime = "";
+    private bool _isLottery;
+    private int _formKey;
+
+    private string _search = "";
+    private Guid? _filterCategoryId;
+    private string? _activeF, _visibleF, _stockF, _windowF, _lotteryF, _sort = "category";
+    private bool _sortDesc;
+    private readonly HashSet<Guid> _selected = [];
+    private static readonly IReadOnlyList<(string Key, string Text)> ActiveOptions = [("on", "فعال"), ("off", "غیرفعال")];
+    private static readonly IReadOnlyList<(string Key, string Text)> VisibleOptions = [("shown", "نمایش داده می‌شود"), ("hidden", "پنهان")];
+    private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "موجود"), ("out", "ناموجود")];
+    private static readonly IReadOnlyList<(string Key, string Text)> WindowOptions = [("always", "همیشه باز"), ("open", "هم‌اکنون باز"), ("notyet", "هنوز شروع نشده"), ("closed", "بسته‌شده")];
+    private static readonly IReadOnlyList<(string Key, string Text)> LotteryOptions = [("yes", "قرعه‌کشی"), ("no", "بدون قرعه‌کشی")];
+    private static readonly IReadOnlyList<(string Key, string Text)> SortOptions = [("category", "گروه"), ("name", "نام"), ("code", "کد"), ("stock", "موجودی")];
+
+    private static string? Blank(string? k) => string.IsNullOrEmpty(k) ? null : k;
+
+    private StoreItemFilter BuildFilter() => new()
+    {
+        Search = _search, CategoryId = _filterCategoryId, Sort = _sort, Descending = _sortDesc,
+        Active = _activeF switch { "on" => true, "off" => false, _ => null },
+        Visible = _visibleF switch { "shown" => true, "hidden" => false, _ => null },
+        InStock = _stockF switch { "in" => true, "out" => false, _ => null },
+        Lottery = _lotteryF switch { "yes" => true, "no" => false, _ => null },
+        Window = _windowF switch { "always" => StoreWindowFilter.Always, "open" => StoreWindowFilter.Open, "notyet" => StoreWindowFilter.NotYet, "closed" => StoreWindowFilter.Closed, _ => StoreWindowFilter.Any },
+    };
+
+    private Task SortChangedAsync(string? k) => SetFilterAsync(() => _sort = Blank(k) ?? "category");
+
+    private async Task SetFilterAsync(Action set) { set(); _pageNo = 1; await LoadAsync(); }
+
+    private async Task ClearFiltersAsync()
+    {
+        _search = ""; _filterCategoryId = null; _activeF = _visibleF = _stockF = _windowF = _lotteryF = null; _sort = "category"; _sortDesc = false; _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private void ToggleSelect(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
+
+    private void SelectPage(bool on) { foreach (var r in _items.Rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
+
+    /// <summary>Shows or hides one item (when <paramref name="only"/> is given) or every selected item.</summary>
+    private async Task SetVisibleBulkAsync(bool visible, Guid? only = null)
+    {
+        var ids = only is Guid one ? new List<Guid> { one } : _selected.ToList();
+        await RunAsync(() => Store.SetItemsVisibleAsync(ids, visible), visible ? "کالاها در فروشگاه نمایش داده می‌شوند." : "کالاها از فروشگاه پنهان شدند.", () => { if (only is null) _selected.Clear(); });
+    }
+
+    private Guid? _moveTo;
+
+    private async Task SetActiveBulkAsync(bool active)
+    {
+        var ids = _selected.ToList();
+        await RunAsync(() => Store.SetItemsActiveAsync(ids, active), active ? "کالاهای انتخاب‌شده فعال شدند." : "کالاهای انتخاب‌شده غیرفعال شدند.", _selected.Clear);
+    }
+
+    private async Task MoveBulkAsync()
+    {
+        if (_moveTo is not Guid category) return;
+        var ids = _selected.ToList();
+        await RunAsync(() => Store.MoveItemsToCategoryAsync(ids, category), "کالاهای انتخاب‌شده به گروه جدید منتقل شدند.", () => { _selected.Clear(); _moveTo = null; });
+    }
+
+    private async Task ExportAsync()
+    {
+        var rows = await Store.AllItemsAsync(BuildFilter());
+        var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
+            rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                i.MaxPerRequest == 0 ? "" : i.MaxPerRequest.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                i.RequestOpensOn is DateTime o ? StoreWhen.Format(o) : "", i.RequestClosesOn is DateTime c ? StoreWhen.Format(c) : "",
+                i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
+        await JS.InvokeVoidAsync("yasDownloadFile", $"store-items-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+    }
+    private int _pageNo = 1, _pageSize = 20;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canManage = await PermissionChecker.HasPermissionAsync(Perm.StoreItemsManage);
+        _employeeId = Guid.TryParse((await AuthState.GetAuthenticationStateAsync()).User.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _categories = await Store.ListCategoriesAsync(true);
+        ActiveCategoryOptions = _categories.Where(c => c.IsActive).Select(c => (c.Id.ToString(), c.Name)).ToList();
+        AllCategoryOptions = _categories.Select(c => (c.Id.ToString(), c.IsActive ? c.Name : c.Name + " (غیرفعال)")).ToList();
+        _items = await Store.SearchItemsAsync(BuildFilter(), _pageNo, _pageSize);
+    }
+
+    private async Task RunAsync(Func<Task<StoreResult>> action, string okMessage, Action? onOk = null)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var result = await action();
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast(okMessage, ToastLevel.Success);
+            onOk?.Invoke();
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("عملیات انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private Task SaveCategoryAsync() => RunAsync(() => Store.SaveCategoryAsync(_editCategoryId, _categoryName, _categoryOrder), _editCategoryId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ResetCategory);
+    private void ResetCategory() { _editCategoryId = null; _categoryName = ""; _categoryOrder = 0; }
+    private void EditCategory(StoreCategory c) { _editCategoryId = c.Id; _categoryName = c.Name; _categoryOrder = c.SortOrder; }
+    private Task ToggleCategoryAsync(StoreCategory c) => RunAsync(() => Store.SetCategoryActiveAsync(c.Id, !c.IsActive), c.IsActive ? "گروه غیرفعال شد." : "گروه فعال شد.");
+
+    private Task SaveItemAsync()
+    {
+        if (_itemCategoryId is null) { AppState.AddToast("گروه کالا را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if (string.IsNullOrWhiteSpace(_unit)) { AppState.AddToast("واحد را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if (!StoreNumber.TryParse(_initialStock, out var initial) || initial < 0) { AppState.AddToast("موجودی اولیه باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        if (!StoreNumber.TryParse(_maxPerRequest, out var max) || max < 0) { AppState.AddToast("حداکثر در هر درخواست باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        if (_opensOn is null && !string.IsNullOrWhiteSpace(_opensTime)) { AppState.AddToast("برای ساعت شروع، تاریخ شروع را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if (_closesOn is null && !string.IsNullOrWhiteSpace(_closesTime)) { AppState.AddToast("برای ساعت پایان، تاریخ پایان را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        if ((!string.IsNullOrWhiteSpace(_opensTime) && !StoreWhen.TryParseTime(_opensTime, out _)) || (!string.IsNullOrWhiteSpace(_closesTime) && !StoreWhen.TryParseTime(_closesTime, out _)))
+        { AppState.AddToast("ساعت را به شکل ۰۹:۳۰ وارد کنید.", ToastLevel.Error); return Task.CompletedTask; }
+        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, StoreWhen.Combine(_opensOn, _opensTime, TimeSpan.Zero), StoreWhen.Combine(_closesOn, _closesTime, new TimeSpan(23, 59, 0)), _isLottery, _editItemId is null ? initial : 0, _employeeId), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
+    }
+
+    private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = ""; _opensOn = _closesOn = null; _opensTime = _closesTime = ""; _isLottery = false; _formKey++; }
+
+    private async Task EditItemAsync(StoreItemRow row)
+    {
+        var item = await Store.GetItemAsync(row.Id);
+        if (item is null) { AppState.AddToast("این کالا دیگر وجود ندارد.", ToastLevel.Error); await LoadAsync(); return; }
+        _editItemId = item.Id; _code = item.Code; _name = item.Name; _itemCategoryId = item.CategoryId; _unit = item.Unit;
+        _description = item.Description ?? ""; _maxPerRequest = Plain(item.MaxPerRequest); _opensOn = item.RequestOpensOn; _closesOn = item.RequestClosesOn; _opensTime = item.RequestOpensOn?.ToString("HH:mm") ?? ""; _closesTime = item.RequestClosesOn?.ToString("HH:mm") ?? ""; _isLottery = item.IsLottery;
+        // an older item may carry a unit that is not in the list: keep it selectable so saving does not silently change it
+        UnitOptions = StoreUnits.All.Contains(item.Unit) ? StoreUnits.All.Select(u => (u, u)).ToList() : StoreUnits.All.Append(item.Unit).Select(u => (u, u)).ToList();
+        _formKey++;
+    }
+
+    private static string WindowText(StoreItemRow i) =>
+        i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
+        : $"{(i.RequestOpensOn is DateTime o ? "از " + StoreWhen.Format(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + StoreWhen.Format(c) : "")} ";
+
+    private Task DeleteCategoryAsync(Guid id) { _confirmCategoryId = null; return RunAsync(() => Store.DeleteCategoryAsync(id), "گروه حذف شد."); }
+    private Task DeleteItemAsync(Guid id) { _confirmItemId = null; return RunAsync(() => Store.DeleteItemAsync(id), "کالا حذف شد."); }
+
+    private void UnitChanged(string? key) => _unit = key ?? "";
+
+    private static string Plain(decimal v) => v == 0 ? "" : v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    private Task ToggleItemAsync(StoreItemRow i) => RunAsync(() => Store.SetItemActiveAsync(i.Id, !i.IsActive), i.IsActive ? "کالا غیرفعال شد." : "کالا فعال شد.");
+
+    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task FilterCategoryAsync(string? key) { _filterCategoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}

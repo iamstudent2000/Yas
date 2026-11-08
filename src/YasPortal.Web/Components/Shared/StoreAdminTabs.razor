@@ -1,0 +1,19 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@* The tab bar shared by the store admin pages: each tab shows only for people who hold its permission. *@
+<nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت فروشگاه">
+    <AuthorizeView Policy="@Perm.StoreItemsView">
+        <NavLink class="store-tab" href="/admin/store/items"><i class="ti @Icons.Box"></i> کالاها و گروه‌ها</NavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Perm.StoreStockView">
+        <NavLink class="store-tab" href="/admin/store/stock"><i class="ti @Icons.Store"></i> موجودی و گردش انبار</NavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Perm.StoreOrdersIssue">
+        <NavLink class="store-tab" href="/admin/store/issue"><i class="ti @Icons.Send"></i> تحویل کالا</NavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Perm.StoreOrdersIssue">
+        <NavLink class="store-tab" href="/admin/store/lottery"><i class="ti @Icons.Users"></i> قرعه‌کشی</NavLink>
+    </AuthorizeView>
+    <AuthorizeView Policy="@Perm.StoreReportsView">
+        <NavLink class="store-tab" href="/admin/store/reports"><i class="ti @Icons.AuditLog"></i> گزارش‌ها</NavLink>
+    </AuthorizeView>
+</nav>

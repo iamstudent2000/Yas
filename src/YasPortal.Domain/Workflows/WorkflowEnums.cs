@@ -16,6 +16,9 @@ public enum WorkflowTypeCode
 
     /// <summary>Vehicle request — the first multi-part form (see <see cref="WorkflowPartDefinition"/>).</summary>
     VehicleRequest,
+
+    /// <summary>An order of items from the internal store. Created only through the store cart (its lines live in StoreOrder), never from the generic request forms.</summary>
+    StoreOrder,
 }
 
 /// <summary>How a single fixed field on a workflow type should be presented and validated.</summary>

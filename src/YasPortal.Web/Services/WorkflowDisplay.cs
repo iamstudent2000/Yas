@@ -15,6 +15,7 @@ public static class WorkflowDisplay
         WorkflowTypeCode.Helpdesk => Icons.TypeHelpdesk,
         WorkflowTypeCode.WorkReport => Icons.TypeWorkReport,
         WorkflowTypeCode.VehicleRequest => Icons.TypeVehicle,
+        WorkflowTypeCode.StoreOrder => Icons.Store,
         _ => Icons.Request,
     };
 

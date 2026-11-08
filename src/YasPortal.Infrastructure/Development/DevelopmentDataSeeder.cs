@@ -238,6 +238,8 @@ public static class DevelopmentDataSeeder
         await EnsureWorkflowSteps(db, WorkflowTypeCode.VehicleRequest, ct,
             (Order: 1, Name: "تخصیص خودرو (مدیر واحد)", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)2),
             (Order: 2, Name: "ثبت حراست (مدیر منابع انسانی)", ManagerLevel: (int?)null, ApproverPositionId: (Guid?)positions["مدیر منابع انسانی"].Id, FillsPart: (int?)3));
+        await EnsureWorkflowSteps(db, WorkflowTypeCode.StoreOrder, ct,
+            (Order: 1, Name: "تایید مدیر مستقیم", ManagerLevel: (int?)1, ApproverPositionId: (Guid?)null, FillsPart: (int?)null));
         await db.SaveChangesAsync(ct);
     }
 

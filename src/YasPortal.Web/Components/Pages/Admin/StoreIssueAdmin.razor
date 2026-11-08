@@ -1,0 +1,238 @@
+@page "/admin/store/issue"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreOrdersIssue)]
+@inject StoreOrderService Orders
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+
+<PageTitle>تحویل کالا - فروشگاه</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Box"></i> تحویل کالا</h1>
+            <p class="page-subtitle">سفارش‌های تأییدشده در انتظار تحویل، و تاریخچهٔ تحویل‌ها. با «تحویل»، کالاها از موجودی کم می‌شوند.</p>
+        </div>
+    </div>
+
+    <div class="form-actions no-print">
+        <button class="btn @(!_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(false)">در انتظار تحویل</button>
+        <button class="btn @(_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(true)">تاریخچه تحویل</button>
+    </div>
+
+    @if (_history)
+    {
+        <section class="card list-filter no-print">
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
+                    <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
+                <div class="form-field"><label class="form-label">تحویل از تاریخ</label><PersianDatePicker Value="_from" ValueChanged="FromChangedAsync" Placeholder="تاریخ" /></div>
+                <div class="form-field"><label class="form-label">تحویل تا تاریخ</label><PersianDatePicker Value="_to" ValueChanged="ToChangedAsync" Placeholder="تاریخ" /></div>
+            </div>
+        </section>
+    }
+
+    @if (!_history && _rows.Count > 0)
+    {
+        <section class="card list-filter no-print">
+            <div class="admin-row-grid">
+                <div class="form-field"><label class="form-label">انتخاب‌شده</label><strong>@WorkflowDisplay.ToPersianDigits(_selected.Count.ToString()) سفارش</strong></div>
+                <div class="form-field is-grow"><label class="form-label">توضیحات تحویل (اختیاری، برای همهٔ انتخاب‌شده‌ها)</label>
+                    <input class="form-control" @bind="_bulkNote" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    @if (_confirmBulk)
+                    {
+                        <button class="btn btn-primary" disabled="@_busy" @onclick="IssueSelectedAsync"><i class="ti @Icons.Save"></i> تأیید تحویل @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString()) سفارش</button>
+                        <button class="btn btn-secondary" @onclick="() => _confirmBulk = false">انصراف</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary" disabled="@(_busy || _selected.Count == 0)" @onclick="() => _confirmBulk = true"><i class="ti @Icons.Save"></i> تحویل انتخاب‌شده‌ها</button>
+                        <button class="btn btn-secondary" disabled="@(_busy || _rows.Count == 0)" @onclick="SelectAllPending">انتخاب همه</button>
+                    }
+                </div></div>
+            </div>
+        </section>
+    }
+
+    @if (_bulkReport.Count > 0)
+    {
+        <section class="card">
+            <h2 class="section-title">نتیجه تحویل گروهی</h2>
+            <ul>
+                @foreach (var line in _bulkReport) {<li>@line</li>}
+            </ul>
+            <button class="btn btn-secondary btn-sm" @onclick="() => _bulkReport = []">بستن</button>
+        </section>
+    }
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_rows.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>@(_history ? "هنوز کالایی تحویل داده نشده است" : "سفارشی در انتظار تحویل نیست")</strong></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr>@if (!_history) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>شماره</th><th>درخواست‌کننده</th><th>@(_history ? "تاریخ تحویل" : "تاریخ ثبت")</th><th>اقلام</th>@if (_history) {<th>تحویل‌دهنده</th>}<th></th></tr></thead>
+                    <tbody>
+                        @foreach (var o in _rows)
+                        {
+                            <tr>
+                                @if (!_history) {<td><input type="checkbox" aria-label="انتخاب" checked="@_selected.Contains(o.Id)" @onchange="e => ToggleSelect(o.Id, e.Value is true)" /></td>}
+                                <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
+                                <td>@o.RequesterName</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(_history && o.IssuedAtUtc is DateTime d ? d : o.CreatedAtUtc)</td>
+                                <td>@o.Summary</td>
+                                @if (_history) {<td>@o.IssuedByName</td>}
+                                <td>
+                                    <div class="form-actions">
+                                        <a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> برگ سفارش</a>
+                                        @if (!_history && _confirmId == o.Id)
+                                        {
+                                            <input class="form-control" style="width:180px" placeholder="توضیحات تحویل (اختیاری)" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" />
+                                            <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => IssueAsync(o.Id)"><i class="ti @Icons.Save"></i> تأیید تحویل</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="Cancel">انصراف</button>
+                                        }
+                                        else if (!_history)
+                                        {
+                                            <button class="btn btn-primary btn-sm" @onclick="() => StartIssue(o.Id)">تحویل</button>
+                                        }
+                                        else if (_undoId == o.Id)
+                                        {
+                                            <input class="form-control" style="width:200px" placeholder="دلیل برگشت تحویل (الزامی)" @bind="_undoReason" maxlength="300" />
+                                            <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => UndoAsync(o.Id)"><i class="ti @Icons.Save"></i> تأیید برگشت</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _undoId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => StartUndo(o.Id)">برگشت تحویل</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+        </section>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _busy, _history;
+    private string _search = "";
+    private DateTime? _from, _to;
+    private int _pageNo = 1, _pageSize = 20, _total;
+    private IReadOnlyList<StoreOrderRow> _rows = [];
+    private Guid? _confirmId, _undoId;
+    private string _undoReason = "";
+    private void StartUndo(Guid id) { _undoId = id; _undoReason = ""; }
+
+    private async Task UndoAsync(Guid id)
+    {
+        if (_busy) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            var result = await Orders.UndoIssueAsync(id, me, _undoReason);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "برگشت تحویل انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast("تحویل برگشت خورد: کالاها به موجودی برگشتند و سفارش دوباره در انتظار تحویل است.", ToastLevel.Success);
+            _undoId = null; _undoReason = "";
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("برگشت تحویل انجام نشد؛ چیزی تغییر نکرد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+    private string _note = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime()) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
+        _loading = false;
+    }
+
+    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task FromChangedAsync(DateTime? d) { _from = d; _pageNo = 1; await LoadAsync(); }
+    private async Task ToChangedAsync(DateTime? d) { _to = d; _pageNo = 1; await LoadAsync(); }
+    private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
+
+    private readonly HashSet<Guid> _selected = [];
+    private string _bulkNote = "";
+    private bool _confirmBulk;
+    private IReadOnlyList<string> _bulkReport = [];
+
+    private void ToggleSelect(Guid id, bool on) { _confirmBulk = false; if (on) _selected.Add(id); else _selected.Remove(id); }
+    private void SelectPage(bool on) { _confirmBulk = false; foreach (var r in _rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
+
+    /// <summary>Selects every order waiting for hand-over, not only the ones on this page.</summary>
+    private async Task SelectAllPending()
+    {
+        var all = await Orders.ListPendingIssueAsync(1, 1000);
+        foreach (var r in all.Rows) _selected.Add(r.Id);
+    }
+
+    private async Task IssueSelectedAsync()
+    {
+        if (_busy || _selected.Count == 0) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            // oldest orders first, so when stock runs short the people who asked first are served first
+            var all = await Orders.ListPendingIssueAsync(1, 1000);
+            var ids = all.Rows.Where(r => _selected.Contains(r.Id)).Select(r => r.Id).ToList();
+            var results = await Orders.IssueManyAsync(ids, me, _bulkNote);
+            var byId = all.Rows.ToDictionary(r => r.Id);
+            var done = results.Count(r => r.Result.Ok);
+            _bulkReport = results.Select(r => $"{(r.Result.Ok ? "✔" : "✘")} سفارش {r.OrderId.ToString("N")[..8].ToUpperInvariant()} ({byId[r.OrderId].RequesterName}): {(r.Result.Ok ? "تحویل داده شد" : r.Result.Error)}").ToList();
+            AppState.AddToast($"{WorkflowDisplay.ToPersianDigits(done.ToString())} سفارش از {WorkflowDisplay.ToPersianDigits(results.Count.ToString())} تحویل داده شد.", done == results.Count ? ToastLevel.Success : ToastLevel.Warning);
+            _selected.Clear(); _bulkNote = ""; _confirmBulk = false;
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("تحویل گروهی انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private void StartIssue(Guid id) { _confirmId = id; _note = ""; }
+
+    private void Cancel() { _confirmId = null; _note = ""; }
+
+    private async Task IssueAsync(Guid id)
+    {
+        if (_busy) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            var result = await Orders.IssueAsync(id, me, _note);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "تحویل انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast("کالا تحویل داده شد و از موجودی کم شد.", ToastLevel.Success);
+            Cancel();
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("تحویل کالا انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}

@@ -1,0 +1,137 @@
+@page "/admin/store/lottery"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreOrdersIssue)]
+@inject StoreLotteryService Lottery
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+@* The storekeeper's lottery desk: lottery items with applications waiting, the list of applicants, and one button that draws. *@
+
+<PageTitle>قرعه‌کشی - فروشگاه</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Box"></i> قرعه‌کشی کالاها</h1>
+            <p class="page-subtitle">بعد از پایان دوره درخواست، قرعه‌کشی را انجام دهید. برندگان به‌اندازهٔ موجودی انتخاب می‌شوند، سفارش آن‌ها برای تأیید می‌رود و بقیه با اعلان مطلع می‌شوند. هر کالا فقط یک بار قرعه‌کشی می‌شود.</p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_items.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>ثبت‌نامی در انتظار قرعه‌کشی نیست</strong><span>کالاهای قرعه‌کشی را در «کالاها و گروه‌ها» با گزینهٔ «توزیع با قرعه‌کشی» و تاریخ پایان دوره بسازید.</span></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>کالا</th><th>پایان ثبت‌نام</th><th>متقاضیان</th><th>مجموع درخواست</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var i in _items)
+                        {
+                            <tr>
+                                <td><strong>@i.Name</strong> <span class="muted" dir="ltr">@i.Code</span></td>
+                                <td>@(i.ClosesOn is DateTime c ? StoreWhen.Format(c) : "—")</td>
+                                <td>@WorkflowDisplay.ToPersianDigits(i.Applicants.ToString()) نفر</td>
+                                <td>@WorkflowDisplay.ToPersianDigits(i.TotalQuantity.ToString("0.###")) @i.Unit</td>
+                                <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###")) @i.Unit</td>
+                                <td>
+                                    @if (i.Window == StoreRequestWindow.Closed) { <span class="badge badge-success">آماده قرعه‌کشی</span> }
+                                    else if (i.ClosesOn is null) { <span class="badge badge-danger">تاریخ پایان ندارد</span> }
+                                    else { <span class="badge badge-warning">ثبت‌نام باز است</span> }
+                                </td>
+                                <td>
+                                    <div class="form-actions">
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => ToggleApplicantsAsync(i.ItemId)"><i class="ti @Icons.Users"></i> متقاضیان</button>
+                                        @if (_confirmId == i.ItemId)
+                                        {
+                                            <span class="muted">@ConfirmText(i)</span>
+                                            <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => DrawAsync(i)"><i class="ti @Icons.Save"></i> بله، قرعه‌کشی شود</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _confirmId = null">انصراف</button>
+                                        }
+                                        else if (i.Window == StoreRequestWindow.Closed)
+                                        {
+                                            <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => _confirmId = i.ItemId"><i class="ti @Icons.Send"></i> قرعه‌کشی</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                            @if (_openItemId == i.ItemId)
+                            {
+                                <tr><td colspan="7">
+                                    <table class="data-table">
+                                        <thead><tr><th>نام</th><th>سمت</th><th>مقدار</th><th>زمان ثبت‌نام</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var a in _applicants)
+                                            {
+                                                <tr><td>@a.EmployeeName</td><td>@a.PositionName</td><td>@WorkflowDisplay.ToPersianDigits(a.Quantity.ToString("0.###"))</td><td>@WorkflowDisplay.ToPersianDateTime(a.AppliedAtUtc)</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </td></tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private bool _loading = true, _busy;
+    private IReadOnlyList<LotteryItemRow> _items = [];
+    private IReadOnlyList<LotteryApplicantRow> _applicants = [];
+    private Guid? _openItemId, _confirmId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { _items = await Lottery.WaitingItemsAsync(DateTime.Now); }
+        catch (Exception) { AppState.AddToast("خواندن فهرست قرعه‌کشی‌ها انجام نشد.", ToastLevel.Error); }
+        _loading = false;
+    }
+
+    private static string ConfirmText(LotteryItemRow i) =>
+        i.TotalQuantity > i.Stock
+            ? $"درخواست‌ها ({WorkflowDisplay.ToPersianDigits(i.TotalQuantity.ToString("0.###"))}) از موجودی ({WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))}) بیشتر است؛ برنده‌ها تصادفی انتخاب می‌شوند. ادامه می‌دهید؟"
+            : "موجودی برای همهٔ درخواست‌ها کافی است؛ همه برنده می‌شوند. ادامه می‌دهید؟";
+
+    private async Task ToggleApplicantsAsync(Guid itemId)
+    {
+        if (_openItemId == itemId) { _openItemId = null; return; }
+        _applicants = await Lottery.ApplicantsAsync(itemId);
+        _openItemId = itemId;
+    }
+
+    private async Task DrawAsync(LotteryItemRow item)
+    {
+        if (_busy) return;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        if (!Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var me)) return;
+        _busy = true;
+        try
+        {
+            var result = await Lottery.DrawAsync(item.ItemId, me, DateTime.Now);
+            _confirmId = null;
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "قرعه‌کشی انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast($"قرعه‌کشی انجام شد: {WorkflowDisplay.ToPersianDigits(result.Winners.ToString())} برنده، {WorkflowDisplay.ToPersianDigits(result.Losers.ToString())} نفر برنده نشدند. همه مطلع شدند.", ToastLevel.Success);
+            _openItemId = null;
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("قرعه‌کشی انجام نشد؛ چیزی ثبت نشد. دوباره تلاش کنید.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+}

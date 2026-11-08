@@ -14,6 +14,7 @@ using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
 using YasPortal.Infrastructure.Guides;
+using YasPortal.Infrastructure.Store;
 using YasPortal.Infrastructure.Landing;
 using YasPortal.Infrastructure.PhoneBook;
 using YasPortal.Infrastructure.Persistence;
@@ -53,6 +54,8 @@ builder.Services.AddAuthorization(options => {
     options.AddPolicy("Requests.ViewSubordinates", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.RequestsTeamView or Perm.RequestsTeamApprovalsView)));
     // The guides workspace is open to anyone who holds one of the three guide permissions; the page then limits what each person can see and change.
+    options.AddPolicy(Perm.StoreAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
+        ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.StoreItemsView or Perm.StoreItemsManage or Perm.StoreStockView or Perm.StoreStockManage or Perm.StoreOrdersIssue or Perm.StoreReportsView)));
     options.AddPolicy(Perm.GuidesWorkspacePolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.AdminGuidesView or Perm.AdminGuidesManage or Perm.GuidesOwnManage)));
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
@@ -69,6 +72,7 @@ builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
+builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
@@ -85,6 +89,9 @@ builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>(
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<StoreOrderService>();
+builder.Services.AddScoped<StoreReportService>();
+builder.Services.AddScoped<StoreLotteryService>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<RequestReportBuilder>();
@@ -203,6 +210,48 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE INDEX [IX_PortalLinks_GroupId] ON [dbo].[PortalLinks] ([GroupId])');
         IF OBJECT_ID(N'dbo.HomeSlideAttachments', N'U') IS NULL
             CREATE TABLE [dbo].[HomeSlideAttachments] ([SlideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_HomeSlideAttachments] PRIMARY KEY ([SlideId]), CONSTRAINT [FK_HomeSlideAttachments_HomeSlides_SlideId] FOREIGN KEY ([SlideId]) REFERENCES [dbo].[HomeSlides] ([Id]) ON DELETE CASCADE);
+        IF OBJECT_ID(N'dbo.StoreCategories', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreCategories] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_StoreCategories] PRIMARY KEY ([Id]));
+        IF OBJECT_ID(N'dbo.StoreItems', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreItems] ([Id] uniqueidentifier NOT NULL, [Code] nvarchar(50) NOT NULL, [Name] nvarchar(200) NOT NULL, [CategoryId] uniqueidentifier NOT NULL, [Unit] nvarchar(30) NOT NULL, [Description] nvarchar(500) NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_StoreItems] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreItems_StoreCategories_CategoryId] FOREIGN KEY ([CategoryId]) REFERENCES [dbo].[StoreCategories] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'IX_StoreItems_Code')
+            EXEC(N'CREATE UNIQUE INDEX [IX_StoreItems_Code] ON [dbo].[StoreItems] ([Code])');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'IX_StoreItems_CategoryId')
+            EXEC(N'CREATE INDEX [IX_StoreItems_CategoryId] ON [dbo].[StoreItems] ([CategoryId])');
+        IF COL_LENGTH(N'dbo.StoreItems', N'MinStock') IS NOT NULL ALTER TABLE [dbo].[StoreItems] DROP COLUMN [MinStock];
+        IF COL_LENGTH(N'dbo.StoreItems', N'MaxPerRequest') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [MaxPerRequest] decimal(18,3) NOT NULL CONSTRAINT [DF_StoreItems_MaxPerRequest] DEFAULT 0;
+        IF COL_LENGTH(N'dbo.StoreItems', N'RequestOpensOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestOpensOn] datetime2(0) NULL;
+        IF COL_LENGTH(N'dbo.StoreItems', N'RequestClosesOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestClosesOn] datetime2(0) NULL;
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'RequestOpensOn' AND system_type_id = TYPE_ID(N'date'))
+            ALTER TABLE [dbo].[StoreItems] ALTER COLUMN [RequestOpensOn] datetime2(0) NULL;
+        IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'RequestClosesOn' AND system_type_id = TYPE_ID(N'date'))
+        BEGIN
+            ALTER TABLE [dbo].[StoreItems] ALTER COLUMN [RequestClosesOn] datetime2(0) NULL;
+            -- an end date used to mean the whole day: keep it open until the end of that day
+            EXEC(N'UPDATE [dbo].[StoreItems] SET [RequestClosesOn] = DATEADD(MINUTE, 1439, [RequestClosesOn]) WHERE [RequestClosesOn] IS NOT NULL');
+        END
+        IF COL_LENGTH(N'dbo.StoreItems', N'IsLottery') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsLottery] bit NOT NULL CONSTRAINT [DF_StoreItems_IsLottery] DEFAULT 0;
+        IF COL_LENGTH(N'dbo.StoreItems', N'IsVisible') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [IsVisible] bit NOT NULL CONSTRAINT [DF_StoreItems_IsVisible] DEFAULT 1;
+        IF OBJECT_ID(N'dbo.StoreStockMovements', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreStockMovements] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [Kind] int NOT NULL, [Delta] decimal(18,3) NOT NULL, [Reference] nvarchar(200) NULL, [Note] nvarchar(300) NULL, [CreatedByEmployeeId] uniqueidentifier NULL, [OrderId] uniqueidentifier NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_StoreStockMovements] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreStockMovements_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreStockMovements') AND name = N'IX_StoreStockMovements_ItemId_CreatedAtUtc')
+            EXEC(N'CREATE INDEX [IX_StoreStockMovements_ItemId_CreatedAtUtc] ON [dbo].[StoreStockMovements] ([ItemId], [CreatedAtUtc])');
+        IF OBJECT_ID(N'dbo.StoreOrders', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreOrders] ([Id] uniqueidentifier NOT NULL, [RequestId] uniqueidentifier NOT NULL, [EmployeeId] uniqueidentifier NOT NULL, [PositionId] uniqueidentifier NOT NULL, [Note] nvarchar(500) NULL, [CreatedAtUtc] datetime2 NOT NULL, [IssuedAtUtc] datetime2 NULL, [IssuedByEmployeeId] uniqueidentifier NULL, [IssueNote] nvarchar(500) NULL, CONSTRAINT [PK_StoreOrders] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreOrders_WorkflowRequests_RequestId] FOREIGN KEY ([RequestId]) REFERENCES [dbo].[WorkflowRequests] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrders') AND name = N'IX_StoreOrders_RequestId')
+            EXEC(N'CREATE UNIQUE INDEX [IX_StoreOrders_RequestId] ON [dbo].[StoreOrders] ([RequestId])');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrders') AND name = N'IX_StoreOrders_EmployeeId_CreatedAtUtc')
+            EXEC(N'CREATE INDEX [IX_StoreOrders_EmployeeId_CreatedAtUtc] ON [dbo].[StoreOrders] ([EmployeeId], [CreatedAtUtc])');
+        IF OBJECT_ID(N'dbo.StoreOrderLines', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreOrderLines] ([Id] uniqueidentifier NOT NULL, [OrderId] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [ItemCode] nvarchar(50) NOT NULL, [ItemName] nvarchar(200) NOT NULL, [Unit] nvarchar(30) NOT NULL, [Quantity] decimal(18,3) NOT NULL, CONSTRAINT [PK_StoreOrderLines] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreOrderLines_StoreOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [dbo].[StoreOrders] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_StoreOrderLines_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrderLines') AND name = N'IX_StoreOrderLines_OrderId')
+            EXEC(N'CREATE INDEX [IX_StoreOrderLines_OrderId] ON [dbo].[StoreOrderLines] ([OrderId])');
+        IF OBJECT_ID(N'dbo.StoreLotteryEntries', N'U') IS NULL
+            CREATE TABLE [dbo].[StoreLotteryEntries] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [EmployeeId] uniqueidentifier NOT NULL, [PositionId] uniqueidentifier NOT NULL, [Quantity] decimal(18,3) NOT NULL, [Status] nvarchar(20) NOT NULL, [AppliedAtUtc] datetime2 NOT NULL, [DrawnAtUtc] datetime2 NULL, [OrderId] uniqueidentifier NULL, CONSTRAINT [PK_StoreLotteryEntries] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreLotteryEntries_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreLotteryEntries') AND name = N'IX_StoreLotteryEntries_ItemId_EmployeeId')
+            EXEC(N'CREATE UNIQUE INDEX [IX_StoreLotteryEntries_ItemId_EmployeeId] ON [dbo].[StoreLotteryEntries] ([ItemId], [EmployeeId]) WHERE [Status] = N''Applied''');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreLotteryEntries') AND name = N'IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc')
+            EXEC(N'CREATE INDEX [IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc] ON [dbo].[StoreLotteryEntries] ([EmployeeId], [AppliedAtUtc])');
         IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NOT NULL DROP TABLE [dbo].[GuideBlocks];
         IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
             CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [ContentHtml] nvarchar(max) NOT NULL, [Visibility] int NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, [CreatedByEmployeeId] uniqueidentifier NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));

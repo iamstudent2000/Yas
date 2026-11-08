@@ -64,6 +64,27 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                     $"سمت «{positionName}» خالی است؛ درخواست {requestLabel} در مرحله «{target.StepName}» نمی‌تواند پیش برود.",
                     "/admin/active-requests"));
         }
+
+        // A store order with its last approval is now the storekeepers' job: tell them it is waiting.
+        if (request.WorkflowType == WorkflowTypeCode.StoreOrder && evt == WorkflowNotificationEvent.StepApproved && request.Status == WorkflowRequestStatus.Approved)
+            foreach (var keeper in await StorekeepersAsync(db, ct))
+                db.Notifications.Add(new Notification(keeper, NotificationKind.StoreOrderReady, request.Id, typeName,
+                    $"سفارش فروشگاه {shortId} تأیید نهایی شد و منتظر تحویل کالا است.", "/admin/store/issue"));
+    }
+
+    /// <summary>Employees who may hand over store orders (Store.Orders.Issue), by a direct grant or through a permission group, whichever way their account is set up. Inactive employees are left out.</summary>
+    private static async Task<List<Guid>> StorekeepersAsync(ApplicationDbContext db, CancellationToken ct)
+    {
+        const string code = Perm.StoreOrdersIssue;
+        var ids = new List<Guid>();
+        ids.AddRange(await db.UserPositionPermissions.AsNoTracking().Where(x => x.Permission.Code == code).Select(x => x.EmployeeId).ToListAsync(ct));
+        ids.AddRange(await db.UserPositionPermissionGroups.AsNoTracking()
+            .Where(x => db.PermissionGroupPermissions.Any(gp => gp.GroupId == x.GroupId && gp.Permission.Code == code)).Select(x => x.EmployeeId).ToListAsync(ct));
+        ids.AddRange(await db.EmployeePermissions.AsNoTracking().Where(x => x.Permission.Code == code).Select(x => x.EmployeeId).ToListAsync(ct));
+        ids.AddRange(await db.EmployeePermissionGroups.AsNoTracking()
+            .Where(x => db.PermissionGroupPermissions.Any(gp => gp.GroupId == x.GroupId && gp.Permission.Code == code)).Select(x => x.EmployeeId).ToListAsync(ct));
+        var distinct = ids.Distinct().ToList();
+        return await db.Employees.AsNoTracking().Where(e => e.IsActive && distinct.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct);
     }
 
     /// <summary>Tells the delegate that authority over a position was handed to them (spec §17.2). Added to <paramref name="db"/> without saving.</summary>

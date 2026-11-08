@@ -1,0 +1,281 @@
+@page "/store"
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreShopView)]
+@inject StoreService Store
+@inject StoreOrderService Orders
+@inject StoreLotteryService Lottery
+@inject WorkflowService Workflows
+@inject IPermissionChecker PermissionChecker
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+@* The catalogue every signed-in person with Store.Shop.View can browse. People who may order also get the cart. *@
+
+<PageTitle>فروشگاه - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Store"></i> فروشگاه</h1>
+            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.@(_canOrder ? " برای درخواست، مقدار را وارد و «درخواست» را بزنید؛ هر کالا جداگانه درخواست می‌شود." : "")</p>
+        </div>
+        @if (_canOrder)
+        {
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/store/orders"><i class="ti @Icons.Box"></i> سفارش‌های من</a>
+            </div>
+        }
+    </div>
+
+    @if (_canOrder)
+    {
+        <section class="card" style="background:var(--accent-soft,#eef4ff)">
+            <strong>چطور کالا بگیرم؟</strong>
+            <ol class="muted" style="margin:6px 0 0;padding-inline-start:22px;line-height:2">
+                <li>روی کارت کالا مقدار را بنویسید و «درخواست» را بزنید؛ هر کالا یک درخواست جدا است.</li>
+                <li>اگر کالا سقف مقدار دارد، تا وقتی درخواست‌های قبلی همان کالا تحویل نشده‌اند، مجموع آن‌ها از سقف بیشتر نمی‌شود.</li>
+                <li>مدیر شما درخواست را تأیید می‌کند؛ وضعیت را در «سفارش‌های من» ببینید.</li>
+                <li>پس از تأیید، انباردار کالا را تحویل می‌دهد؛ برگ سفارش را چاپ کنید و همراه ببرید.</li>
+            </ol>
+        </section>
+    }
+
+    <section class="card list-filter">
+        <div class="admin-row-grid">
+            <div class="form-field is-grow"><label class="form-label">جستجو</label>
+                <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
+        </div>
+        <div class="store-chips" role="group" aria-label="گروه کالا">
+            <button type="button" class="store-chip @(_categoryId is null ? "is-active" : "")" @onclick="() => CategoryChangedAsync(null)">همه</button>
+            @foreach (var c in _categories)
+            {
+                <button type="button" class="store-chip @(_categoryId == c.Id ? "is-active" : "")" @onclick="() => CategoryChangedAsync(c.Id.ToString())">@c.Name</button>
+            }
+        </div>
+    </section>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_page.Rows.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>کالایی پیدا نشد</strong><span>جستجو یا گروه را تغییر دهید.</span></div></section>
+    }
+    else
+    {
+        <div class="store-grid">
+            @foreach (var item in _page.Rows)
+            {
+                var window = item.WindowOn(DateTime.Now);
+                <article class="store-card @(item.Stock <= 0 ? "is-out" : "")">
+                    <div class="store-card-top">
+                        <span class="store-card-icon"><i class="ti @Icons.Box"></i></span>
+                        <div class="store-card-title">
+                            <strong>@item.Name</strong>
+                            <span class="store-card-meta">@item.CategoryName · <span dir="ltr">@item.Code</span></span>
+                        </div>
+                    </div>
+                    @if (item.Description is not null) {<p class="store-card-desc">@item.Description</p>}
+                    <div class="store-card-badges">
+                        @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
+                        else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###")) @item.Unit</span> }
+                        @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
+                        @switch (window)
+                        {
+                            case StoreRequestWindow.NotYet: <span class="badge badge-muted">درخواست از @StoreWhen.Format(item.RequestOpensOn!.Value)</span> break;
+                            case StoreRequestWindow.Closed: <span class="badge badge-danger">دوره درخواست بسته شد</span> break;
+                            default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @StoreWhen.Format(closes)</span> } break;
+                        }
+                    </div>
+                    @if (item.MaxPerRequest > 0)
+                    {
+                        <dl class="store-card-facts"><dt>حداکثر در هر درخواست</dt><dd>@WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) @item.Unit</dd></dl>
+                    }
+                    @if (_canOrder)
+                    {
+                        <div class="store-card-buy">
+                            @if (CanAdd(item))
+                            {
+                                if (_confirmItemId == item.Id)
+                                {
+                                    <span>ثبت درخواست @WorkflowDisplay.ToPersianDigits(_confirmQty.ToString("0.###")) @item.Unit «@item.Name»؟</span>
+                                    <input class="form-control" placeholder="توضیحات (اختیاری)" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" @bind="_note" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => PlaceAsync(item)"><i class="ti @Icons.Send"></i> تأیید و ثبت</button>
+                                    <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="CancelConfirm">انصراف</button>
+                                }
+                                else
+                                {
+                                    <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => StartRequestAsync(item)"><i class="ti @Icons.Send"></i> درخواست</button>
+                                }
+                                if (_outstanding.TryGetValue(item.Id, out var pending) && pending > 0)
+                                {
+                                    <span class="muted">تحویل‌نشده از قبل: @WorkflowDisplay.ToPersianDigits(pending.ToString("0.###")) @item.Unit</span>
+                                }
+                            }
+                            else if (item.IsLottery && window == StoreRequestWindow.Open)
+                            {
+                                if (_waiting.TryGetValue(item.Id, out var mine))
+                                {
+                                    <span class="badge badge-success">ثبت‌نام شده: @WorkflowDisplay.ToPersianDigits(mine.Quantity.ToString("0.###")) @item.Unit</span>
+                                    <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => WithdrawAsync(item, mine.EntryId)"><i class="ti @Icons.Delete"></i> انصراف</button>
+                                }
+                                else
+                                {
+                                    <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => ApplyAsync(item)"><i class="ti @Icons.Add"></i> شرکت در قرعه‌کشی</button>
+                                }
+                            }
+                            else if (item.IsLottery && _waiting.TryGetValue(item.Id, out var waitingMine)) { <span class="muted">ثبت‌نام شما (@WorkflowDisplay.ToPersianDigits(waitingMine.Quantity.ToString("0.###")) @item.Unit) در انتظار قرعه‌کشی است.</span> }
+                            else if (item.IsLottery) { <span class="muted">این کالا با قرعه‌کشی توزیع می‌شود.</span> }
+                        </div>
+                    }
+                </article>
+            }
+        </div>
+        <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_page.Total" Busy="_loading" PageSizes="@(new[] { 12, 24, 48, 96 })" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string _search = "";
+    private Guid? _categoryId;
+    private int _pageNo = 1, _pageSize = 24;
+    private StorePage<StoreItemRow> _page = new([], 0);
+    private IReadOnlyList<StoreCategory> _categories = [];
+    private CancellationTokenSource? _cts;
+    private bool _canOrder, _busy;
+    private IReadOnlyDictionary<Guid, (Guid EntryId, decimal Quantity)> _waiting = new Dictionary<Guid, (Guid, decimal)>();
+    private Guid? _employeeId, _positionId;
+    private readonly Dictionary<Guid, string> _qty = [];
+
+    private void SetQty(Guid id, string? text) => _qty[id] = text ?? "";
+
+    private string QtyText(Guid id) => _qty.TryGetValue(id, out var v) ? v : "";
+
+    private bool CanAdd(StoreItemRow item) => !item.IsLottery && item.Stock > 0 && item.WindowOn(DateTime.Now) == StoreRequestWindow.Open;
+
+    private Guid? _confirmItemId;
+    private decimal _confirmQty;
+    private string _note = "";
+    private IReadOnlyDictionary<Guid, decimal> _outstanding = new Dictionary<Guid, decimal>();
+
+    private void CancelConfirm() { _confirmItemId = null; _note = ""; }
+
+    /// <summary>Checks the quantity with the same rules as sending (stock, period, per-person maximum counting what is still undelivered) and asks for confirmation.</summary>
+    private async Task StartRequestAsync(StoreItemRow item)
+    {
+        if (_busy || _employeeId is not Guid emp) return;
+        if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        _busy = true;
+        try
+        {
+            var checks = await Orders.CheckAsync(emp, [(item.Id, q)], DateTime.Now);
+            if (checks.TryGetValue(item.Id, out var c) && c.Problem is not null) { AppState.AddToast(c.Problem, ToastLevel.Error); return; }
+            _confirmItemId = item.Id; _confirmQty = q; _note = "";
+        }
+        catch (Exception) { AppState.AddToast("بررسی درخواست انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task PlaceAsync(StoreItemRow item)
+    {
+        if (_busy) return;
+        if (_employeeId is not Guid emp || _positionId is not Guid pos || !await Workflows.HoldsActivePositionAsync(emp, pos))
+        { AppState.AddToast("سمت فعالی برای شما یافت نشد؛ برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            var result = await Orders.PlaceAsync(emp, pos, [(item.Id, _confirmQty)], _note, DateTime.Now);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); CancelConfirm(); return; }
+            _qty.Remove(item.Id);
+            CancelConfirm();
+            AppState.AddToast("درخواست ثبت شد و برای تأیید رفت. وضعیت را در «سفارش‌های من» ببینید.", ToastLevel.Success);
+            _outstanding = await Orders.OutstandingOfAsync(emp);
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("ثبت درخواست انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task ApplyAsync(StoreItemRow item)
+    {
+        if (_busy) return;
+        if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        if (_employeeId is not Guid emp || _positionId is not Guid pos || !await Workflows.HoldsActivePositionAsync(emp, pos))
+        { AppState.AddToast("سمت فعال شما معتبر نیست؛ از حساب خارج شوید و دوباره وارد شوید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            var result = await Lottery.ApplyAsync(item.Id, emp, pos, q, DateTime.Now);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت‌نام انجام نشد.", ToastLevel.Error); return; }
+            _qty.Remove(item.Id);
+            _waiting = await Lottery.WaitingOfAsync(emp);
+            AppState.AddToast("در قرعه‌کشی ثبت‌نام شدید. نتیجه را در اعلان‌ها خواهید دید.", ToastLevel.Success);
+        }
+        catch (Exception) { AppState.AddToast("ثبت‌نام انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task WithdrawAsync(StoreItemRow item, Guid entryId)
+    {
+        if (_busy || _employeeId is not Guid emp) return;
+        _busy = true;
+        try
+        {
+            var result = await Lottery.WithdrawAsync(entryId, emp);
+            AppState.AddToast(result.Ok ? "ثبت‌نام شما لغو شد." : result.Error ?? "انصراف انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            _waiting = await Lottery.WaitingOfAsync(emp);
+        }
+        catch (Exception) { AppState.AddToast("انصراف انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // admins are kept out of the requester pages, so they do not get the cart either
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _canOrder = !user.HasClaim("yas_is_admin", "True") && await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersCreate);
+        if (_canOrder)
+        {
+            _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+            _positionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : null;
+            if (_employeeId is Guid me) { _waiting = await Lottery.WaitingOfAsync(me); _outstanding = await Orders.OutstandingOfAsync(me); }
+        }
+        _categories = await Store.ListCategoriesAsync(false);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _cts?.Cancel();
+        var cts = _cts = new CancellationTokenSource();
+        _loading = true;
+        try
+        {
+            _page = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, Active = true, Visible = true, ActiveCategoriesOnly = true }, _pageNo, _pageSize, cts.Token);
+            _loading = false;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            _loading = false;
+            AppState.AddToast("خواندن فهرست کالاها انجام نشد.", ToastLevel.Error);
+        }
+    }
+
+    private async Task SearchChangedAsync() { _pageNo = 1; await LoadAsync(); }
+    private async Task CategoryChangedAsync(string? key) { _categoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+}
