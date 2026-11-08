@@ -1,5 +1,6 @@
 @page "/store"
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Store
 @using YasPortal.Infrastructure.Store
@@ -8,6 +9,8 @@
 @attribute [Authorize(Policy = Perm.StoreShopView)]
 @inject StoreService Store
 @inject StoreCart Cart
+@inject StoreLotteryService Lottery
+@inject WorkflowService Workflows
 @inject IPermissionChecker PermissionChecker
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
@@ -105,6 +108,20 @@
                                 <button class="btn btn-primary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن به سبد</button>
                                 @if (Cart.QuantityOf(item.Id) > 0) {<span class="muted">در سبد: @WorkflowDisplay.ToPersianDigits(Cart.QuantityOf(item.Id).ToString("0.###"))</span>}
                             }
+                            else if (item.IsLottery && window == StoreRequestWindow.Open)
+                            {
+                                if (_waiting.TryGetValue(item.Id, out var mine))
+                                {
+                                    <span class="badge badge-success">ثبت‌نام شده: @WorkflowDisplay.ToPersianDigits(mine.Quantity.ToString("0.###")) @item.Unit</span>
+                                    <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => WithdrawAsync(item, mine.EntryId)"><i class="ti @Icons.Delete"></i> انصراف</button>
+                                }
+                                else
+                                {
+                                    <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => ApplyAsync(item)"><i class="ti @Icons.Add"></i> شرکت در قرعه‌کشی</button>
+                                }
+                            }
+                            else if (item.IsLottery && _waiting.TryGetValue(item.Id, out var waitingMine)) { <span class="muted">ثبت‌نام شما (@WorkflowDisplay.ToPersianDigits(waitingMine.Quantity.ToString("0.###")) @item.Unit) در انتظار قرعه‌کشی است.</span> }
                             else if (item.IsLottery) { <span class="muted">این کالا با قرعه‌کشی توزیع می‌شود.</span> }
                         </div>
                     }
@@ -123,7 +140,9 @@
     private StorePage<StoreItemRow> _page = new([], 0);
     private IReadOnlyList<StoreCategory> _categories = [];
     private CancellationTokenSource? _cts;
-    private bool _canOrder;
+    private bool _canOrder, _busy;
+    private IReadOnlyDictionary<Guid, (Guid EntryId, decimal Quantity)> _waiting = new Dictionary<Guid, (Guid, decimal)>();
+    private Guid? _employeeId, _positionId;
     private readonly Dictionary<Guid, string> _qty = [];
 
     private void SetQty(Guid id, string? text) => _qty[id] = text ?? "";
@@ -145,11 +164,51 @@
         AppState.AddToast("به سبد اضافه شد.", ToastLevel.Success);
     }
 
+    private async Task ApplyAsync(StoreItemRow item)
+    {
+        if (_busy) return;
+        if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        if (_employeeId is not Guid emp || _positionId is not Guid pos || !await Workflows.HoldsActivePositionAsync(emp, pos))
+        { AppState.AddToast("سمت فعال شما معتبر نیست؛ از حساب خارج شوید و دوباره وارد شوید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            var result = await Lottery.ApplyAsync(item.Id, emp, pos, q, DateTime.Now);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت‌نام انجام نشد.", ToastLevel.Error); return; }
+            _qty.Remove(item.Id);
+            _waiting = await Lottery.WaitingOfAsync(emp);
+            AppState.AddToast("در قرعه‌کشی ثبت‌نام شدید. نتیجه را در اعلان‌ها خواهید دید.", ToastLevel.Success);
+        }
+        catch (Exception) { AppState.AddToast("ثبت‌نام انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task WithdrawAsync(StoreItemRow item, Guid entryId)
+    {
+        if (_busy || _employeeId is not Guid emp) return;
+        _busy = true;
+        try
+        {
+            var result = await Lottery.WithdrawAsync(entryId, emp);
+            AppState.AddToast(result.Ok ? "ثبت‌نام شما لغو شد." : result.Error ?? "انصراف انجام نشد.", result.Ok ? ToastLevel.Success : ToastLevel.Error);
+            _waiting = await Lottery.WaitingOfAsync(emp);
+        }
+        catch (Exception) { AppState.AddToast("انصراف انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // admins are kept out of the requester pages, so they do not get the cart either
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _canOrder = !user.HasClaim("yas_is_admin", "True") && await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersCreate);
+        if (_canOrder)
+        {
+            _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+            _positionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : null;
+            if (_employeeId is Guid me) _waiting = await Lottery.WaitingOfAsync(me);
+        }
         _categories = await Store.ListCategoriesAsync(false);
         await LoadAsync();
     }

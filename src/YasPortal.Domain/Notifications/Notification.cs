@@ -41,6 +41,9 @@ public enum NotificationKind
 
     /// <summary>The goods of a store order were handed over. Recipient: the requester.</summary>
     StoreOrderIssued,
+
+    /// <summary>The result of a store lottery draw (won or not). Recipient: the applicant.</summary>
+    StoreLotteryResult,
 }
 
 /// <summary>

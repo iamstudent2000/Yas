@@ -29,3 +29,11 @@ IF OBJECT_ID(N'dbo.StoreOrderLines', N'U') IS NULL
     CREATE TABLE [dbo].[StoreOrderLines] ([Id] uniqueidentifier NOT NULL, [OrderId] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [ItemCode] nvarchar(50) NOT NULL, [ItemName] nvarchar(200) NOT NULL, [Unit] nvarchar(30) NOT NULL, [Quantity] decimal(18,3) NOT NULL, CONSTRAINT [PK_StoreOrderLines] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreOrderLines_StoreOrders_OrderId] FOREIGN KEY ([OrderId]) REFERENCES [dbo].[StoreOrders] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_StoreOrderLines_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreOrderLines') AND name = N'IX_StoreOrderLines_OrderId')
     EXEC(N'CREATE INDEX [IX_StoreOrderLines_OrderId] ON [dbo].[StoreOrderLines] ([OrderId])');
+
+-- Stage 3: lottery applications
+IF OBJECT_ID(N'dbo.StoreLotteryEntries', N'U') IS NULL
+    CREATE TABLE [dbo].[StoreLotteryEntries] ([Id] uniqueidentifier NOT NULL, [ItemId] uniqueidentifier NOT NULL, [EmployeeId] uniqueidentifier NOT NULL, [PositionId] uniqueidentifier NOT NULL, [Quantity] decimal(18,3) NOT NULL, [Status] nvarchar(20) NOT NULL, [AppliedAtUtc] datetime2 NOT NULL, [DrawnAtUtc] datetime2 NULL, [OrderId] uniqueidentifier NULL, CONSTRAINT [PK_StoreLotteryEntries] PRIMARY KEY ([Id]), CONSTRAINT [FK_StoreLotteryEntries_StoreItems_ItemId] FOREIGN KEY ([ItemId]) REFERENCES [dbo].[StoreItems] ([Id]));
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreLotteryEntries') AND name = N'IX_StoreLotteryEntries_ItemId_EmployeeId')
+    EXEC(N'CREATE UNIQUE INDEX [IX_StoreLotteryEntries_ItemId_EmployeeId] ON [dbo].[StoreLotteryEntries] ([ItemId], [EmployeeId]) WHERE [Status] = N''Applied''');
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreLotteryEntries') AND name = N'IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc')
+    EXEC(N'CREATE INDEX [IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc] ON [dbo].[StoreLotteryEntries] ([EmployeeId], [AppliedAtUtc])');

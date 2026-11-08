@@ -20,6 +20,7 @@ public static class NotificationDisplay
         NotificationKind.Manual => "پیام دستی",
         NotificationKind.StoreOrderReady => "سفارش فروشگاه در انتظار تحویل",
         NotificationKind.StoreOrderIssued => "تحویل کالای فروشگاه",
+        NotificationKind.StoreLotteryResult => "نتیجه قرعه‌کشی فروشگاه",
         _ => kind.ToString(),
     };
 

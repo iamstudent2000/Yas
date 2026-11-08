@@ -2,12 +2,14 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
 @using YasPortal.Domain.Workflows
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.StoreOrdersCreate)]
 @attribute [Authorize(Policy = "NonAdmin")]
 @inject StoreOrderService Orders
+@inject StoreLotteryService Lottery
 @inject AuthenticationStateProvider AuthState
 @* The person's own store orders. Listed by employee, so an order sent while acting in one position is still here under another. *@
 
@@ -25,6 +27,30 @@
             <a class="btn btn-primary" href="/store"><i class="ti @Icons.Store"></i> فروشگاه</a>
         </div>
     </div>
+
+    @if (_lottery.Count > 0)
+    {
+        <section class="card">
+            <h2 class="section-title"><i class="ti @Icons.Box"></i> ثبت‌نام‌های قرعه‌کشی من</h2>
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>کالا</th><th>مقدار</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in _lottery)
+                        {
+                            <tr>
+                                <td>@l.ItemName</td>
+                                <td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###")) @l.Unit</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(l.AppliedAtUtc)</td>
+                                <td><span class="badge @(l.Status == LotteryEntryStatus.Won ? "badge-success" : l.Status == LotteryEntryStatus.Applied ? "badge-info" : "badge-muted")">@StoreLottery.StatusText(l.Status)</span>
+                                    @if (l.Status == LotteryEntryStatus.Won) { <span class="muted"> — سفارش آن در فهرست پایین است</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
 
     @if (_loading)
     {
@@ -70,6 +96,7 @@
     private Guid? _employeeId;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
+    private IReadOnlyList<LotteryMineRow> _lottery = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,7 +108,11 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        if (_employeeId is Guid id) (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize);
+        if (_employeeId is Guid id)
+        {
+            (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize);
+            _lottery = await Lottery.ListMineAsync(id);
+        }
         _loading = false;
     }
 

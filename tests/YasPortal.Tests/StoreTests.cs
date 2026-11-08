@@ -135,6 +135,59 @@ public class StoreTests
     }
 
     [Fact]
+    public void Lottery_draw_never_gives_out_more_than_the_stock()
+    {
+        var people = Enumerable.Range(0, 20).Select(_ => (Guid.NewGuid(), 3m)).ToList();
+        for (var round = 0; round < 50; round++)
+        {
+            var winners = StoreLottery.Draw(people, 10);
+            Assert.Equal(3, winners.Count); // 3 x 3 = 9 fits in 10, a fourth would need 12
+            Assert.Equal(winners.Count, winners.Distinct().Count());
+        }
+    }
+
+    [Fact]
+    public void Lottery_draw_gives_everybody_a_win_when_stock_is_enough_and_skips_requests_that_do_not_fit()
+    {
+        var a = (Guid.NewGuid(), 2m); var b = (Guid.NewGuid(), 5m); var c = (Guid.NewGuid(), 1m);
+        Assert.Equal(3, StoreLottery.Draw([a, b, c], 8).Count);
+        // only 3 left: the big request can never win, the two small ones both can
+        for (var i = 0; i < 30; i++)
+        {
+            var winners = StoreLottery.Draw([a, b, c], 3);
+            Assert.DoesNotContain(b.Item1, winners);
+            Assert.Equal(2, winners.Count);
+        }
+        Assert.Empty(StoreLottery.Draw([a, b, c], 0));
+        Assert.Empty(StoreLottery.Draw([], 10));
+    }
+
+    [Fact]
+    public void Lottery_draw_is_actually_random()
+    {
+        var a = (Guid.NewGuid(), 1m); var b = (Guid.NewGuid(), 1m);
+        var seen = new HashSet<Guid>();
+        for (var i = 0; i < 200; i++) seen.Add(StoreLottery.Draw([a, b], 1).Single());
+        Assert.Equal(2, seen.Count);
+    }
+
+    [Fact]
+    public void Lottery_entry_moves_from_applied_to_one_final_state()
+    {
+        Assert.Throws<ArgumentException>(() => new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 0));
+        var e = new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2);
+        Assert.Equal(LotteryEntryStatus.Applied, e.Status);
+        e.MarkWon(Guid.NewGuid());
+        Assert.Equal(LotteryEntryStatus.Won, e.Status);
+        Assert.Throws<InvalidOperationException>(() => e.MarkLost());
+        Assert.Throws<InvalidOperationException>(() => e.Withdraw());
+        var w = new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1);
+        w.Withdraw();
+        Assert.Equal(LotteryEntryStatus.Withdrawn, w.Status);
+        Assert.Throws<InvalidOperationException>(() => w.MarkWon(Guid.NewGuid()));
+    }
+
+    [Fact]
     public void Order_can_be_handed_over_only_once()
     {
         var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Line()]);

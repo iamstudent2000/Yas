@@ -47,6 +47,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<StoreStockMovement> StoreStockMovements => Set<StoreStockMovement>();
     public DbSet<StoreOrder> StoreOrders => Set<StoreOrder>();
     public DbSet<StoreOrderLine> StoreOrderLines => Set<StoreOrderLine>();
+    public DbSet<StoreLotteryEntry> StoreLotteryEntries => Set<StoreLotteryEntry>();
     public DbSet<WorkflowStepDefinition> WorkflowStepDefinitions => Set<WorkflowStepDefinition>();
     public DbSet<WorkflowRequest> WorkflowRequests => Set<WorkflowRequest>();
     public DbSet<WorkflowRequestStep> WorkflowRequestSteps => Set<WorkflowRequestStep>();
@@ -266,6 +267,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<StoreStockMovement>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Delta).HasPrecision(18, 3); e.Property(x => x.Reference).HasMaxLength(StoreStockMovement.ReferenceMax); e.Property(x => x.Note).HasMaxLength(StoreStockMovement.NoteMax); e.HasIndex(x => new { x.ItemId, x.CreatedAtUtc }); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<StoreOrder>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Note).HasMaxLength(StoreOrder.NoteMax); e.Property(x => x.IssueNote).HasMaxLength(StoreOrder.NoteMax); e.HasIndex(x => x.RequestId).IsUnique(); e.HasIndex(x => new { x.EmployeeId, x.CreatedAtUtc }); e.HasMany(x => x.Lines).WithOne().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Cascade); e.HasOne<WorkflowRequest>().WithMany().HasForeignKey(x => x.RequestId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<StoreOrderLine>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.ItemCode).HasMaxLength(StoreItem.CodeMax).IsRequired(); e.Property(x => x.ItemName).HasMaxLength(StoreItem.NameMax).IsRequired(); e.Property(x => x.Unit).HasMaxLength(StoreItem.UnitMax).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 3); e.HasIndex(x => x.OrderId); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<StoreLotteryEntry>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Quantity).HasPrecision(18, 3); e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20); e.HasIndex(x => new { x.ItemId, x.EmployeeId }).IsUnique().HasFilter("[Status] = N'Applied'"); e.HasIndex(x => new { x.EmployeeId, x.AppliedAtUtc }); e.HasOne<StoreItem>().WithMany().HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<ContactGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(ContactGroup.NameMax).IsRequired(); });
         modelBuilder.Entity<Contact>(e =>
         {

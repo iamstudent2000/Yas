@@ -9,6 +9,9 @@
     <AuthorizeView Policy="@Perm.StoreOrdersIssue">
         <NavLink class="store-tab" href="/admin/store/issue"><i class="ti @Icons.Send"></i> تحویل کالا</NavLink>
     </AuthorizeView>
+    <AuthorizeView Policy="@Perm.StoreOrdersIssue">
+        <NavLink class="store-tab" href="/admin/store/lottery"><i class="ti @Icons.Users"></i> قرعه‌کشی</NavLink>
+    </AuthorizeView>
     <AuthorizeView Policy="@Perm.StoreReportsView">
         <NavLink class="store-tab" href="/admin/store/reports"><i class="ti @Icons.AuditLog"></i> گزارش‌ها</NavLink>
     </AuthorizeView>

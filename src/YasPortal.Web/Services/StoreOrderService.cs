@@ -44,28 +44,33 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         string.Join("\n", lines.Select(l => $"• {l.ItemName} ({l.ItemCode}) — {l.Quantity:0.###} {l.Unit}"));
 
     /// <summary>The one place the ordering rules live: the cart page shows these messages before sending, and sending checks them again. Returns null when the line is fine.</summary>
-    private static string? Validate(StoreItem? item, bool categoryActive, decimal quantity, decimal available, DateTime today)
+    private static string? Validate(StoreItem? item, bool categoryActive, decimal quantity, decimal available, DateTime today, bool alreadyOnOrder = false)
     {
         if (item is null || !item.IsListed || !categoryActive) return "این کالا دیگر در فروشگاه نیست؛ آن را از سبد حذف کنید.";
         var name = $"«{item.Name}»";
         if (quantity <= 0) return $"مقدار {name} باید بیشتر از صفر باشد.";
         if (decimal.Round(quantity, 3) != quantity) return $"مقدار {name} حداکثر سه رقم اعشار دارد.";
         if (!StoreUnits.AllowsFraction(item.Unit) && quantity != decimal.Truncate(quantity)) return $"واحد «{item.Unit}» شمارشی است؛ مقدار {name} باید عدد صحیح باشد.";
-        switch (item.WindowOn(today))
+        // an item that is already on the order being corrected (for example a lottery win, drawn after the period closed) keeps its place as long as the quantity does not grow
+        if (!alreadyOnOrder)
         {
-            case StoreRequestWindow.NotYet: return $"دوره درخواست {name} هنوز شروع نشده است.";
-            case StoreRequestWindow.Closed: return $"دوره درخواست {name} پایان یافته است.";
+            switch (item.WindowOn(today))
+            {
+                case StoreRequestWindow.NotYet: return $"دوره درخواست {name} هنوز شروع نشده است.";
+                case StoreRequestWindow.Closed: return $"دوره درخواست {name} پایان یافته است.";
+            }
         }
-        if (item.IsLottery) return $"{name} با قرعه‌کشی توزیع می‌شود و از سبد خرید قابل سفارش نیست.";
+        if (item.IsLottery && !alreadyOnOrder) return $"{name} با قرعه‌کشی توزیع می‌شود و از سبد خرید قابل سفارش نیست.";
         if (item.MaxPerRequest > 0 && quantity > item.MaxPerRequest) return $"حداکثر مقدار {name} در هر درخواست {item.MaxPerRequest:0.###} {item.Unit} است.";
         if (quantity > available) return $"موجودی {name} کافی نیست (موجودی: {available:0.###} {item.Unit}).";
         return null;
     }
 
     /// <summary>Checks every cart line as it would be checked when sending, so the person sees what to fix before pressing send. Key = item id; a missing key means the line is fine.</summary>
-    public async Task<IReadOnlyDictionary<Guid, StoreCartCheck>> CheckAsync(IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, CancellationToken ct = default)
+    public async Task<IReadOnlyDictionary<Guid, StoreCartCheck>> CheckAsync(IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, Guid? correctingRequestId = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var existing = await ExistingQuantitiesAsync(db, correctingRequestId, ct);
         var ids = wanted.Select(x => x.ItemId).ToList();
         var items = await db.StoreItems.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync(ct);
         var activeCategories = await db.StoreCategories.AsNoTracking().Where(c => c.IsActive).Select(c => c.Id).ToListAsync(ct);
@@ -76,13 +81,17 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         {
             var item = items.FirstOrDefault(x => x.Id == itemId);
             var available = stock.GetValueOrDefault(itemId);
-            result[itemId] = new StoreCartCheck(Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, available, today), available);
+            result[itemId] = new StoreCartCheck(Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, available, today, existing.TryGetValue(itemId, out var had) && quantity <= had), available);
         }
         return result;
     }
 
-    private async Task<(List<StoreOrderLine>? Lines, string? Error)> BuildLinesAsync(ApplicationDbContext db, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, CancellationToken ct)
+    private static async Task<Dictionary<Guid, decimal>> ExistingQuantitiesAsync(ApplicationDbContext db, Guid? requestId, CancellationToken ct) =>
+        requestId is null ? [] : await db.StoreOrderLines.AsNoTracking().Where(l => db.StoreOrders.Any(o => o.Id == l.OrderId && o.RequestId == requestId)).ToDictionaryAsync(l => l.ItemId, l => l.Quantity, ct);
+
+    private async Task<(List<StoreOrderLine>? Lines, string? Error)> BuildLinesAsync(ApplicationDbContext db, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, Guid? correctingRequestId, CancellationToken ct)
     {
+        var existing = await ExistingQuantitiesAsync(db, correctingRequestId, ct);
         var ids = wanted.Select(x => x.ItemId).ToList();
         var items = await db.StoreItems.AsNoTracking().Where(x => ids.Contains(x.Id)).ToListAsync(ct);
         var activeCategories = await db.StoreCategories.AsNoTracking().Where(c => c.IsActive).Select(c => c.Id).ToListAsync(ct);
@@ -92,7 +101,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         foreach (var (itemId, quantity) in wanted)
         {
             var item = items.FirstOrDefault(x => x.Id == itemId);
-            var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today);
+            var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today, existing.TryGetValue(itemId, out var had) && quantity <= had);
             if (problem is not null) return (null, problem);
             lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity));
         }
@@ -123,7 +132,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var order = await db.StoreOrders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.RequestId == requestId, ct);
         if (order is null || order.IsIssued) return new(false, "سفارش پیدا نشد.");
 
-        var (lines, error) = await BuildLinesAsync(db, wanted, today, ct);
+        var (lines, error) = await BuildLinesAsync(db, wanted, today, requestId, ct);
         if (lines is null) return new(false, error);
         var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, request.RequesterPositionId, ct);
         if (!resolved.Success) return new(false, resolved.Error);
@@ -147,7 +156,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var (lines, error) = await BuildLinesAsync(db, wanted, today, ct);
+        var (lines, error) = await BuildLinesAsync(db, wanted, today, null, ct);
         if (lines is null) return new(false, error);
 
         // a double click (or a second tab) must not send the same order twice: refuse an identical order sent in the last two minutes

@@ -240,6 +240,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         code = (code ?? "").Trim();
         if (await db.StoreItems.AnyAsync(x => x.Code == code && x.Id != id, ct)) return StoreResult.Fail("کالایی با این کد وجود دارد.");
         if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه کالا را انتخاب کنید.");
+        if (isLottery && requestClosesOn is null) return StoreResult.Fail("برای کالای قرعه‌کشی، تاریخ پایان دوره درخواست را وارد کنید؛ قرعه‌کشی بعد از آن انجام می‌شود.");
         unit = (unit ?? "").Trim();
         if (initialStock < 0 || decimal.Round(initialStock, 3) != initialStock) return StoreResult.Fail("موجودی اولیه باید عدد صفر یا بیشتر باشد.");
         // a unit outside the list is accepted only when the item already has it (older data)
