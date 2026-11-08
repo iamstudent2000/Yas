@@ -32,7 +32,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         var item = await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == itemId, ct);
         var categoryActive = item is not null && await db.StoreCategories.AnyAsync(c => c.Id == item.CategoryId && c.IsActive, ct);
         if (item is null || !item.IsListed || !categoryActive) return StoreResult.Fail("این کالا دیگر در فروشگاه نیست.");
-        if (!item.IsLottery) return StoreResult.Fail("این کالا قرعه‌کشی ندارد؛ آن را از سبد خرید سفارش دهید.");
+        if (!item.IsLottery) return StoreResult.Fail("این کالا قرعه‌کشی ندارد؛ آن را مستقیم درخواست دهید.");
         var name = $"«{item.Name}»";
         switch (item.WindowOn(today))
         {
@@ -41,7 +41,14 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         }
         if (quantity <= 0) return StoreResult.Fail($"مقدار {name} باید بیشتر از صفر باشد.");
         if (!StoreUnits.IsValidQuantity(item.Unit, quantity)) return StoreResult.Fail(StoreUnits.AllowsFraction(item.Unit) ? "مقدار حداکثر سه رقم اعشار دارد." : $"واحد «{item.Unit}» شمارشی است؛ مقدار باید عدد صحیح باشد.");
-        if (item.MaxPerRequest > 0 && quantity > item.MaxPerRequest) return StoreResult.Fail($"حداکثر مقدار {name} برای هر نفر {item.MaxPerRequest:0.###} {item.Unit} است.");
+        if (item.MaxPerRequest > 0)
+        {
+            // the per-person maximum also counts what the person asked for and has not received yet
+            var outstanding = await db.StoreOrderLines.AsNoTracking().Where(l => l.ItemId == itemId && db.StoreOrders.Any(o => o.Id == l.OrderId && o.EmployeeId == employeeId && o.IssuedAtUtc == null
+                && db.WorkflowRequests.Any(r => r.Id == o.RequestId && (r.Status == WorkflowRequestStatus.PendingApproval || r.Status == WorkflowRequestStatus.Approved || r.Status == WorkflowRequestStatus.ReturnedToRequester)))).SumAsync(l => (decimal?)l.Quantity, ct) ?? 0m;
+            if (outstanding + quantity > item.MaxPerRequest)
+                return StoreResult.Fail($"سقف مجاز {name} برای هر نفر {item.MaxPerRequest:0.###} {item.Unit} است و {outstanding:0.###} {item.Unit} از آن را هنوز تحویل نگرفته‌اید.");
+        }
         if (await db.StoreLotteryEntries.AnyAsync(e => e.ItemId == itemId && e.EmployeeId == employeeId && e.Status == LotteryEntryStatus.Applied, ct)) return StoreResult.Fail(AlreadyApplied);
 
         db.StoreLotteryEntries.Add(new StoreLotteryEntry(itemId, employeeId, positionId, quantity));

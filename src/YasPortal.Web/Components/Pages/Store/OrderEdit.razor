@@ -148,7 +148,7 @@ else
     {
         try
         {
-            _checks = _lines.Count == 0 ? new Dictionary<Guid, StoreCartCheck>() : await Orders.CheckAsync(_lines.Select(l => (l.ItemId, l.Quantity)).ToList(), DateTime.Now, RequestId);
+            _checks = _lines.Count == 0 ? new Dictionary<Guid, StoreCartCheck>() : await Orders.CheckAsync(_employeeId ?? Guid.Empty, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), DateTime.Now, RequestId);
             _problems = _checks.Values.Count(c => c.Problem is not null);
         }
         catch (Exception) { AppState.AddToast("بررسی اقلام انجام نشد؛ صفحه را دوباره باز کنید.", ToastLevel.Error); }

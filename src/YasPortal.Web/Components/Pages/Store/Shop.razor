@@ -8,7 +8,7 @@
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.StoreShopView)]
 @inject StoreService Store
-@inject StoreCart Cart
+@inject StoreOrderService Orders
 @inject StoreLotteryService Lottery
 @inject WorkflowService Workflows
 @inject IPermissionChecker PermissionChecker
@@ -23,13 +23,12 @@
         <div>
             <div class="page-kicker">فروشگاه</div>
             <h1 class="page-title"><i class="ti @Icons.Store"></i> فروشگاه</h1>
-            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.@(_canOrder ? " برای درخواست، کالا را به سبد اضافه کنید." : "")</p>
+            <p class="page-subtitle">کالاهای موجود در انبار سازمان و وضعیت موجودی آن‌ها.@(_canOrder ? " برای درخواست، مقدار را وارد و «درخواست» را بزنید؛ هر کالا جداگانه درخواست می‌شود." : "")</p>
         </div>
         @if (_canOrder)
         {
             <div class="form-actions">
                 <a class="btn btn-secondary" href="/store/orders"><i class="ti @Icons.Box"></i> سفارش‌های من</a>
-                <a class="btn btn-primary" href="/store/cart"><i class="ti @Icons.Store"></i> سبد خرید@(Cart.Count > 0 ? " (" + WorkflowDisplay.ToPersianDigits(Cart.Count.ToString()) + ")" : "")</a>
             </div>
         }
     </div>
@@ -39,8 +38,8 @@
         <section class="card" style="background:var(--accent-soft,#eef4ff)">
             <strong>چطور کالا بگیرم؟</strong>
             <ol class="muted" style="margin:6px 0 0;padding-inline-start:22px;line-height:2">
-                <li>کالا را با مقدار دلخواه «افزودن به سبد» کنید (هر کالا سقف مقدار خودش را دارد).</li>
-                <li>در «سبد خرید» مقدارها را بررسی و درخواست را ثبت کنید.</li>
+                <li>روی کارت کالا مقدار را بنویسید و «درخواست» را بزنید؛ هر کالا یک درخواست جدا است.</li>
+                <li>اگر کالا سقف مقدار دارد، تا وقتی درخواست‌های قبلی همان کالا تحویل نشده‌اند، مجموع آن‌ها از سقف بیشتر نمی‌شود.</li>
                 <li>مدیر شما درخواست را تأیید می‌کند؛ وضعیت را در «سفارش‌های من» ببینید.</li>
                 <li>پس از تأیید، انباردار کالا را تحویل می‌دهد؛ برگ سفارش را چاپ کنید و همراه ببرید.</li>
             </ol>
@@ -104,9 +103,22 @@
                         <div class="store-card-buy">
                             @if (CanAdd(item))
                             {
-                                <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
-                                <button class="btn btn-primary btn-sm" @onclick="() => AddToCart(item)"><i class="ti @Icons.Add"></i> افزودن به سبد</button>
-                                @if (Cart.QuantityOf(item.Id) > 0) {<span class="muted">در سبد: @WorkflowDisplay.ToPersianDigits(Cart.QuantityOf(item.Id).ToString("0.###"))</span>}
+                                if (_confirmItemId == item.Id)
+                                {
+                                    <span>ثبت درخواست @WorkflowDisplay.ToPersianDigits(_confirmQty.ToString("0.###")) @item.Unit «@item.Name»؟</span>
+                                    <input class="form-control" placeholder="توضیحات (اختیاری)" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" @bind="_note" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => PlaceAsync(item)"><i class="ti @Icons.Send"></i> تأیید و ثبت</button>
+                                    <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="CancelConfirm">انصراف</button>
+                                }
+                                else
+                                {
+                                    <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
+                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => StartRequestAsync(item)"><i class="ti @Icons.Send"></i> درخواست</button>
+                                }
+                                if (_outstanding.TryGetValue(item.Id, out var pending) && pending > 0)
+                                {
+                                    <span class="muted">تحویل‌نشده از قبل: @WorkflowDisplay.ToPersianDigits(pending.ToString("0.###")) @item.Unit</span>
+                                }
                             }
                             else if (item.IsLottery && window == StoreRequestWindow.Open)
                             {
@@ -151,17 +163,48 @@
 
     private bool CanAdd(StoreItemRow item) => !item.IsLottery && item.Stock > 0 && item.WindowOn(DateTime.Now) == StoreRequestWindow.Open;
 
-    private void AddToCart(StoreItemRow item)
+    private Guid? _confirmItemId;
+    private decimal _confirmQty;
+    private string _note = "";
+    private IReadOnlyDictionary<Guid, decimal> _outstanding = new Dictionary<Guid, decimal>();
+
+    private void CancelConfirm() { _confirmItemId = null; _note = ""; }
+
+    /// <summary>Checks the quantity with the same rules as sending (stock, period, per-person maximum counting what is still undelivered) and asks for confirmation.</summary>
+    private async Task StartRequestAsync(StoreItemRow item)
     {
+        if (_busy || _employeeId is not Guid emp) return;
         if (!StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
         if (q == 0) q = 1;
-        if (!StoreUnits.IsValidQuantity(item.Unit, q)) { AppState.AddToast(StoreUnits.AllowsFraction(item.Unit) ? "مقدار حداکثر سه رقم اعشار دارد." : $"واحد «{item.Unit}» شمارشی است؛ مقدار باید عدد صحیح باشد.", ToastLevel.Error); return; }
-        var total = Cart.QuantityOf(item.Id) + q;
-        if (item.MaxPerRequest > 0 && total > item.MaxPerRequest) { AppState.AddToast($"حداکثر «{item.Name}» در هر درخواست {WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###"))} {item.Unit} است.", ToastLevel.Error); return; }
-        if (total > item.Stock) { AppState.AddToast($"موجودی «{item.Name}» کافی نیست.", ToastLevel.Error); return; }
-        Cart.Add(item, q);
-        _qty.Remove(item.Id);
-        AppState.AddToast("به سبد اضافه شد.", ToastLevel.Success);
+        _busy = true;
+        try
+        {
+            var checks = await Orders.CheckAsync(emp, [(item.Id, q)], DateTime.Now);
+            if (checks.TryGetValue(item.Id, out var c) && c.Problem is not null) { AppState.AddToast(c.Problem, ToastLevel.Error); return; }
+            _confirmItemId = item.Id; _confirmQty = q; _note = "";
+        }
+        catch (Exception) { AppState.AddToast("بررسی درخواست انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task PlaceAsync(StoreItemRow item)
+    {
+        if (_busy) return;
+        if (_employeeId is not Guid emp || _positionId is not Guid pos || !await Workflows.HoldsActivePositionAsync(emp, pos))
+        { AppState.AddToast("سمت فعالی برای شما یافت نشد؛ برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.", ToastLevel.Error); return; }
+        _busy = true;
+        try
+        {
+            var result = await Orders.PlaceAsync(emp, pos, [(item.Id, _confirmQty)], _note, DateTime.Now);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); CancelConfirm(); return; }
+            _qty.Remove(item.Id);
+            CancelConfirm();
+            AppState.AddToast("درخواست ثبت شد و برای تأیید رفت. وضعیت را در «سفارش‌های من» ببینید.", ToastLevel.Success);
+            _outstanding = await Orders.OutstandingOfAsync(emp);
+            await LoadAsync();
+        }
+        catch (Exception) { AppState.AddToast("ثبت درخواست انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
     }
 
     private async Task ApplyAsync(StoreItemRow item)
@@ -207,7 +250,7 @@
         {
             _employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
             _positionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? pid : null;
-            if (_employeeId is Guid me) _waiting = await Lottery.WaitingOfAsync(me);
+            if (_employeeId is Guid me) { _waiting = await Lottery.WaitingOfAsync(me); _outstanding = await Orders.OutstandingOfAsync(me); }
         }
         _categories = await Store.ListCategoriesAsync(false);
         await LoadAsync();

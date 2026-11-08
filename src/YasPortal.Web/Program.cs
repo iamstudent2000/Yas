@@ -92,7 +92,6 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<StoreOrderService>();
 builder.Services.AddScoped<StoreReportService>();
 builder.Services.AddScoped<StoreLotteryService>();
-builder.Services.AddScoped<StoreCart>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<RequestReportBuilder>();
