@@ -16,4 +16,7 @@
     <AuthorizeView Policy="@Perm.StoreReportsView">
         <NavLink class="store-tab" href="/admin/store/reports"><i class="ti @Icons.AuditLog"></i> گزارش‌ها</NavLink>
     </AuthorizeView>
+    <AuthorizeView Policy="@Perm.AdminAuditLogView">
+        <NavLink class="store-tab" href="/admin/audit-log"><i class="ti @Icons.History"></i> گزارش رویدادها</NavLink>
+    </AuthorizeView>
 </nav>
