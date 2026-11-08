@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.Components.Authorization
 @* The tab bar shared by the store admin pages: each tab shows only for people who hold its permission. *@
 <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت فروشگاه">
     <AuthorizeView Policy="@Perm.StoreItemsView">

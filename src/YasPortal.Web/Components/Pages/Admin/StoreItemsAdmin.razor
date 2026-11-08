@@ -67,9 +67,9 @@
                         }
                         <div class="form-field"><label class="form-label">حداکثر در هر درخواست</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۰ = بدون محدودیت" @bind="_maxPerRequest" @bind:event="oninput" /></div>
                         <div class="form-field"><label class="form-label">شروع دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_opensOn" ValueChanged="d => _opensOn = d" Placeholder="از ابتدا" /></div>
-                        <div class="form-field"><label class="form-label">ساعت شروع</label><input class="form-control" type="time" dir="ltr" @bind="_opensTime" /></div>
+                        <div class="form-field"><label class="form-label">ساعت شروع</label><input class="form-control" type="time" dir="ltr" value="@_opensTime" @onchange="e => _opensTime = e.Value?.ToString() ?? string.Empty" /></div>
                         <div class="form-field"><label class="form-label">پایان دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_closesOn" ValueChanged="d => _closesOn = d" Placeholder="بدون پایان" /></div>
-                        <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" @bind="_closesTime" /></div>
+                        <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" value="@_closesTime" @onchange="e => _closesTime = e.Value?.ToString() ?? string.Empty" /></div>
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isLottery" /> توزیع با قرعه‌کشی</label></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
