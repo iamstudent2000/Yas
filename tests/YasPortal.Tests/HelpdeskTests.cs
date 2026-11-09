@@ -182,3 +182,87 @@ public class HelpdeskTests
         Assert.Throws<ArgumentException>(() => new WorkflowRequestAttachment(Guid.NewGuid(), Guid.NewGuid(), "x.html", new byte[] { 1 }));
     }
 }
+
+/// <summary>The helpdesk report numbers and its permission.</summary>
+public class HelpdeskReportTests
+{
+    private static readonly DateTime Now = new(2026, 11, 9, 12, 0, 0, DateTimeKind.Utc);
+
+    private static HelpdeskReportRow Row(WorkflowRequestStatus status, string category, string? priority, double hoursAgoCreated, double? hoursToFinish = null, string? minutes = null)
+    {
+        var created = Now.AddHours(-hoursAgoCreated);
+        var values = new Dictionary<string, string?> { ["subject"] = "موضوع", ["category"] = category };
+        if (priority is not null) values["priority"] = priority;
+        if (minutes is not null) values["timeSpentMinutes"] = minutes;
+        return new HelpdeskReportRow(Guid.NewGuid(), status, created, created, hoursToFinish is null ? null : created.AddHours(hoursToFinish.Value),
+            System.Text.Json.JsonSerializer.Serialize(values));
+    }
+
+    [Fact]
+    public void Counts_statuses_and_averages_over_resolved_requests()
+    {
+        var report = HelpdeskReport.Build(new[]
+        {
+            Row(WorkflowRequestStatus.Approved, "شبکه و اینترنت", "بحرانی", 50, 2, "30"),
+            Row(WorkflowRequestStatus.Approved, "شبکه و اینترنت", "زیاد", 40, 4, "60"),
+            Row(WorkflowRequestStatus.PendingApproval, "ایمیل", "کم", 10),
+            Row(WorkflowRequestStatus.Rejected, "ایمیل", null, 5),
+            Row(WorkflowRequestStatus.Cancelled, "سایر", null, 3),
+        }, Now);
+
+        Assert.Equal(5, report.Total);
+        Assert.Equal(1, report.Open);
+        Assert.Equal(2, report.Resolved);
+        Assert.Equal(1, report.Rejected);
+        Assert.Equal(1, report.Other);
+        Assert.Equal(TimeSpan.FromHours(3), report.AverageResolution);
+        Assert.Equal(45, report.AverageMinutesSpent);
+    }
+
+    [Fact]
+    public void Groups_by_category_most_first_and_by_priority_highest_first_with_none_last()
+    {
+        var report = HelpdeskReport.Build(new[]
+        {
+            Row(WorkflowRequestStatus.PendingApproval, "ایمیل", "کم", 1),
+            Row(WorkflowRequestStatus.PendingApproval, "شبکه و اینترنت", "بحرانی", 1),
+            Row(WorkflowRequestStatus.PendingApproval, "شبکه و اینترنت", null, 1),
+        }, Now);
+
+        Assert.Equal(new[] { "شبکه و اینترنت", "ایمیل" }, report.ByCategory.Select(g => g.Name));
+        Assert.Equal(2, report.ByCategory[0].Total);
+        Assert.Equal(new[] { "بحرانی", "کم", HelpdeskReport.NoPriority }, report.ByPriority.Select(g => g.Name));
+    }
+
+    [Fact]
+    public void Longest_waiting_lists_only_open_requests_oldest_first_and_is_limited()
+    {
+        var report = HelpdeskReport.Build(new[]
+        {
+            Row(WorkflowRequestStatus.PendingApproval, "ایمیل", "زیاد", 5),
+            Row(WorkflowRequestStatus.PendingApproval, "ایمیل", "کم", 30),
+            Row(WorkflowRequestStatus.Approved, "ایمیل", "کم", 100, 1),
+            Row(WorkflowRequestStatus.PendingApproval, "ایمیل", null, 12),
+        }, Now, longestWaitingCount: 2);
+
+        Assert.Equal(new[] { TimeSpan.FromHours(30), TimeSpan.FromHours(12) }, report.LongestWaiting.Select(w => w.Waited));
+        Assert.Equal("کم", report.LongestWaiting[0].Priority);
+    }
+
+    [Fact]
+    public void Empty_input_gives_zeros_and_no_averages()
+    {
+        var report = HelpdeskReport.Build([], Now);
+        Assert.Equal(0, report.Total);
+        Assert.Null(report.AverageResolution);
+        Assert.Null(report.AverageMinutesSpent);
+        Assert.Empty(report.ByCategory);
+    }
+
+    [Fact]
+    public void Report_permission_is_in_the_catalog_and_admin_reach()
+    {
+        Assert.Single(YasPortal.Application.Authorization.PermissionCatalog.All, x => x.Code == YasPortal.Application.Authorization.Perm.AdminHelpdeskReportView);
+        Assert.Equal(YasPortal.Application.Authorization.PermissionReach.All, YasPortal.Application.Authorization.PermissionCatalog.ReachOf(YasPortal.Application.Authorization.Perm.AdminHelpdeskReportView));
+    }
+}

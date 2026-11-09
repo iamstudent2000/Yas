@@ -165,6 +165,7 @@ public static class Icons
     public const string Inbox = "ti-inbox";
     public const string NewRequestForOthers = "ti-user-edit";
     public const string RequestsReport = "ti-report-analytics";
+    public const string HelpdeskReport = "ti-chart-bar";
     public const string ActiveRequests = "ti-progress";
     public const string RejectedRequests = "ti-file-x";
     public const string Reopen = "ti-restore";

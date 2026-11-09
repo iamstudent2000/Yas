@@ -148,6 +148,9 @@
                         <AuthorizeView Policy="@Perm.AdminRequestsView">
                             <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="ti @Icons.RequestsReport"></i><span>گزارش درخواست‌ها</span></NavLink>
                         </AuthorizeView>
+                        <AuthorizeView Policy="@Perm.AdminHelpdeskReportView">
+                            <NavLink href="/admin/helpdesk-report"><i class="ti @Icons.HelpdeskReport"></i><span>گزارش پشتیبانی</span></NavLink>
+                        </AuthorizeView>
                         <AuthorizeView Policy="@Perm.AdminRequestsCreateForOthers">
                             <NavLink href="/admin/requests/new"><i class="ti @Icons.NewRequestForOthers"></i><span>ثبت درخواست برای دیگران</span></NavLink>
                         </AuthorizeView>
@@ -276,7 +279,7 @@
         _accessGroupVisible = await Can(Perm.AdminUsersView) || await Can(Perm.AdminPasswordPolicyView) || await Can(Perm.AdminAccessView) || await Can(Perm.AdminPermissionsView);
         _structureGroupVisible = await Can(Perm.AdminPositionsView) || await Can(Perm.AdminOrganizationsView) || await Can(Perm.AdminAssignmentHistoryView)
             || await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
-        _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.RequestsOwnView)
+        _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.AdminHelpdeskReportView) || await Can(Perm.RequestsOwnView)
             || await Can(Perm.AdminWorkflowsView) || await Can(Perm.AdminRequestsForceClose) || await Can(Perm.AdminRequestsReopen) || await Can(Perm.RequestsTeamView) || await Can(Perm.RequestsTeamApprovalsView)
             ;
         _notificationsGroupVisible = await Can(Perm.RequestsOwnView) || await Can(Perm.NotificationsMessageSend) || await Can(Perm.AdminNotificationsView)

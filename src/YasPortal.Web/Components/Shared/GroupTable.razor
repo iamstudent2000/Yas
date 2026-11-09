@@ -1,0 +1,25 @@
+@using YasPortal.Domain.Workflows
+@using YasPortal.Web.Services
+
+@* Counts per group (category or priority) for the helpdesk report. *@
+<div class="admin-table-wrap">
+    <table class="admin-table">
+        <thead><tr><th>گروه</th><th>کل</th><th>در انتظار</th><th>رسیدگی‌شده</th><th>میانگین زمان رسیدگی</th></tr></thead>
+        <tbody>
+            @foreach (var row in Rows)
+            {
+                <tr>
+                    <td>@row.Name</td>
+                    <td>@WorkflowDisplay.ToPersianDigits(row.Total.ToString())</td>
+                    <td>@WorkflowDisplay.ToPersianDigits(row.Open.ToString())</td>
+                    <td>@WorkflowDisplay.ToPersianDigits(row.Resolved.ToString())</td>
+                    <td>@(row.AverageResolution is { } avg ? WorkflowDisplay.FormatDuration(avg) : "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<HelpdeskGroupStat> Rows { get; set; } = [];
+}

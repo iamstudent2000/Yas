@@ -42,6 +42,8 @@ public static class Perm
     public const string AdminRequestsCreateForOthers = "Admin.Requests.CreateForOthers";
     public const string AdminRequestsForceClose = "Admin.Requests.ForceClose";
     public const string AdminRequestsReopen = "Admin.Requests.Reopen";
+    /// <summary>See the helpdesk report: counts by category and priority, resolution times and the longest-waiting open requests (read-only).</summary>
+    public const string AdminHelpdeskReportView = "Admin.Helpdesk.Report";
 
     public const string AdminUsersView = "Admin.Users.View";
     public const string AdminUsersManage = "Admin.Users.Manage";
@@ -187,6 +189,7 @@ public static class PermissionCatalog
             new(Perm.AdminRequestsCreateForOthers, "ثبت درخواست برای دیگران", "Admin.RequestForOthers"),
             new(Perm.AdminRequestsForceClose, "بستن اجباری درخواست‌های گیر کرده", "Requests.ForceClose"),
             new(Perm.AdminRequestsReopen, "بازگشایی درخواست‌های ردشده", "Requests.Reopen"),
+            new(Perm.AdminHelpdeskReportView, "مشاهده گزارش پشتیبانی (آمار درخواست‌های پشتیبانی، فقط خواندنی)"),
 
             new(Perm.AdminUsersView, "مشاهده کاربران (فقط خواندنی)"),
             new(Perm.AdminUsersManage, "مدیریت کاربران (ایجاد، ویرایش، فعال/غیرفعال)", "Admin.Users"),
