@@ -122,7 +122,7 @@
     private async Task EmployeeChanged(Guid? id)
     {
         _employeeId = id;
-        _positionId = null; _positionText = ""; _values = [] _files = [];
+        _positionId = null; _positionText = ""; _values = []; _files = [];
         if (id is Guid eid)
         {
             await using var db = await DbFactory.CreateDbContextAsync();
