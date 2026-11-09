@@ -53,14 +53,12 @@
             }
             else
             {
-                @{
-                    var now = DateTime.UtcNow;
+                var now = DateTime.UtcNow;
                     var oldest = _items.Min(i => i.Request.RequesterActions
                         .Where(x => x.Round == i.Request.CurrentRound && x.Kind is WorkflowRequesterActionKind.Submitted or WorkflowRequesterActionKind.Resubmitted)
                         .Select(x => (DateTime?)x.AtUtc).Max() ?? i.Request.CreatedAtUtc);
                     var byPriority = _items.Select(i => HelpdeskWaiting.For(i.Request, now)?.Priority)
                         .Where(p => p is not null).GroupBy(p => p!).ToDictionary(g => g.Key, g => g.Count());
-                }
                 <div class="inbox-summary">
                     <span><strong>@ToPersianDigits(_pendingTotalCount.ToString())</strong> درخواست در انتظار شما</span>
                     <span><i class="ti @Icons.Age"></i> قدیمی‌ترین در این صفحه: @WorkflowDisplay.FormatDuration(now - oldest) در انتظار</span>
