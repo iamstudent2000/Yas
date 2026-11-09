@@ -53,14 +53,35 @@
             }
             else
             {
+                @{
+                    var now = DateTime.UtcNow;
+                    var oldest = _items.Min(i => i.Request.RequesterActions
+                        .Where(x => x.Round == i.Request.CurrentRound && x.Kind is WorkflowRequesterActionKind.Submitted or WorkflowRequesterActionKind.Resubmitted)
+                        .Select(x => (DateTime?)x.AtUtc).Max() ?? i.Request.CreatedAtUtc);
+                    var byPriority = _items.Select(i => HelpdeskWaiting.For(i.Request, now)?.Priority)
+                        .Where(p => p is not null).GroupBy(p => p!).ToDictionary(g => g.Key, g => g.Count());
+                }
+                <div class="inbox-summary">
+                    <span><strong>@ToPersianDigits(_pendingTotalCount.ToString())</strong> درخواست در انتظار شما</span>
+                    <span><i class="ti @Icons.Age"></i> قدیمی‌ترین در این صفحه: @WorkflowDisplay.FormatDuration(now - oldest) در انتظار</span>
+                    @foreach (var priority in new[] { "بحرانی", "زیاد" })
+                    {
+                        if (byPriority.TryGetValue(priority, out var count))
+                        {
+                            <span class="badge @(priority == "بحرانی" ? "badge-danger" : "badge-warning")">@priority: @ToPersianDigits(count.ToString())</span>
+                        }
+                    }
+                    <small>برای دیدن جزئیات و تصمیم‌گیری روی هر ردیف کلیک کنید.</small>
+                </div>
                 @foreach (var item in _items)
                 {
                     var busy = _actingRequestId == item.Request.Id;
-                    <div class="request-card">
-                        <div class="request-card-header">
+                    var open = _items.Count == 1 || _expandedPendingId == item.Request.Id;
+                    <div class="request-card @(open ? "is-expanded" : "")">
+                        <div class="request-card-header is-clickable" @onclick="() => TogglePending(item.Request.Id)">
                             <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
-                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)</strong>
+                                <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)@(SubjectOf(item.Request) is { } subject ? " — " + subject : "")</strong>
                                 <span>از طرف @item.RequesterName · @item.Request.CreatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                                 <RequestNowLine Request="item.Request" ShowWaitingFor="false" />
                             </span>
@@ -70,8 +91,11 @@
                             {
                                 <span class="badge badge-info"><i class="ti @Icons.Delegation"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
                             }
+                            <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
 
+                        @if (open)
+                        {
                         <div class="request-card-body">
                             <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id" />
 
@@ -138,6 +162,7 @@
                                 }
                             </div>
                         </div>
+                        }
                     </div>
                 }
                 <ServerPagination Page="_pendingPage" PageSize="_pendingPageSize" TotalCount="_pendingTotalCount" Busy="_pendingLoading" PageChanged="GoToPendingPageAsync" PageSizeChanged="OnPendingPageSizeChangedAsync" />
@@ -440,6 +465,26 @@
         return decision.OnBehalfOfEmployeeId is Guid id && _employeeNames.TryGetValue(id, out var name)
             ? $" (به نمایندگی از {name})"
             : " (به‌عنوان جانشین)";
+    }
+
+    private Guid? _expandedPendingId;
+
+    private void TogglePending(Guid requestId) => _expandedPendingId = _expandedPendingId == requestId ? null : requestId;
+
+    /// <summary>The subject line of a helpdesk request, so a row says what it is about without opening it.</summary>
+    private static string? SubjectOf(WorkflowRequest request)
+    {
+        if (request.WorkflowType != WorkflowTypeCode.Helpdesk)
+            return null;
+        try
+        {
+            var subject = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson)?.GetValueOrDefault("subject")?.Trim();
+            return string.IsNullOrEmpty(subject) ? null : subject;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     private void ToggleHistory(Guid stepId) => _expandedHistoryId = _expandedHistoryId == stepId ? null : stepId;

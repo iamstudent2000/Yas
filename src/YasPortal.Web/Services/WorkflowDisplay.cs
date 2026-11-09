@@ -44,6 +44,16 @@ public static class WorkflowDisplay
         return ToPersianDate(local) + " " + ToPersianDigits(local.ToString("HH:mm", CultureInfo.InvariantCulture));
     }
 
+    /// <summary>A waiting time in Persian words and digits: «۲ روز و ۳ ساعت»، «۴ ساعت و ۱۰ دقیقه»، «۱۲ دقیقه».</summary>
+    public static string FormatDuration(TimeSpan span)
+    {
+        var text = span.TotalDays >= 1 ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
+            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه"
+            : span.TotalMinutes >= 1 ? $"{(int)span.TotalMinutes} دقیقه"
+            : "کمتر از یک دقیقه";
+        return ToPersianDigits(text);
+    }
+
     public static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";

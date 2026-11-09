@@ -17,13 +17,5 @@
 
     protected override void OnParametersSet() => _waiting = HelpdeskWaiting.For(Request, DateTime.UtcNow);
 
-    private string WaitedText()
-    {
-        var span = _waiting!.Waited;
-        var text = span.TotalDays >= 1 ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
-            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه"
-            : span.TotalMinutes >= 1 ? $"{(int)span.TotalMinutes} دقیقه"
-            : "کمتر از یک دقیقه";
-        return WorkflowDisplay.ToPersianDigits($"{text} در انتظار");
-    }
+    private string WaitedText() => WorkflowDisplay.FormatDuration(_waiting!.Waited) + " در انتظار";
 }

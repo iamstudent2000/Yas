@@ -200,3 +200,8 @@
 .attachment-list li{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border,#e6ebf2);border-radius:9px;background:var(--surface,#fff);font-size:12px}
 .attachment-list li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attachment-list li small{color:var(--text-muted,#667085)}
+
+/* Inbox: one summary line above the waiting requests; rows are collapsed until clicked. */
+.inbox-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 0 12px;padding:10px 14px;border:1px solid var(--border,#e6ebf2);border-radius:10px;background:var(--surface,#fff);font-size:12.5px}
+.inbox-summary strong{font-size:15px}
+.inbox-summary small{margin-inline-start:auto;color:var(--text-muted,#667085)}
