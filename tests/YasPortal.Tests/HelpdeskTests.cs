@@ -118,6 +118,41 @@ public class HelpdeskTests
         Assert.Null(HelpdeskWaiting.For(leave, DateTime.UtcNow));
     }
 
+    [Theory]
+    [InlineData("کم", 1)]
+    [InlineData("متوسط", 2)]
+    [InlineData("زیاد", 3)]
+    [InlineData("بحرانی", 4)]
+    [InlineData(" زیاد ", 3)]
+    [InlineData("فوری", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void Priority_label_maps_to_a_rank(string? label, int? rank)
+    {
+        Assert.Equal(rank, WorkflowPriority.RankOf(label));
+        if (rank is not null)
+            Assert.Equal(label!.Trim(), WorkflowPriority.LabelOf(rank));
+    }
+
+    [Fact]
+    public void Request_stores_the_rank_of_its_priority_and_none_for_types_without_one()
+    {
+        Assert.Equal(3, CreateRequest().PriorityRank);   // "زیاد"
+        Assert.Null(CreateRequest("{}").PriorityRank);
+        Assert.Null(CreateRequest("not json").PriorityRank);
+
+        var leave = new WorkflowRequest(WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{\"reason\":\"x\"}",
+            new[] { new WorkflowResolvedStep(Guid.NewGuid(), 1, "s", Guid.NewGuid()) });
+        Assert.Null(leave.PriorityRank);
+    }
+
+    [Fact]
+    public void Catalog_priority_options_are_the_shared_labels()
+    {
+        var field = WorkflowFieldCatalog.GetFields(WorkflowTypeCode.Helpdesk, 1).Single(f => f.Key == WorkflowPriority.FieldKey);
+        Assert.Equal(WorkflowPriority.Labels, field.Options);
+    }
+
     [Fact]
     public void Only_helpdesk_takes_attachments()
     {

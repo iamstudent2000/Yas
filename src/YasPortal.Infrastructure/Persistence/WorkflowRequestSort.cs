@@ -17,6 +17,7 @@ public static class WorkflowRequestSort
     public const string Status = "status";
     public const string Created = "created";
     public const string RejectedAt = "rejectedAt";
+    public const string Priority = "priority";
 
     public static IQueryable<WorkflowRequest> Apply(IQueryable<WorkflowRequest> query, string? sortBy, bool descending, ApplicationDbContext db)
     {
@@ -35,6 +36,10 @@ public static class WorkflowRequestSort
             RejectedAt => descending
                 ? query.OrderByDescending(x => x.StepDecisions.Where(d => d.Round == x.CurrentRound && d.Outcome == WorkflowStepStatus.Rejected).Max(d => (DateTime?)d.ActedAtUtc))
                 : query.OrderBy(x => x.StepDecisions.Where(d => d.Round == x.CurrentRound && d.Outcome == WorkflowStepStatus.Rejected).Max(d => (DateTime?)d.ActedAtUtc)),
+            // Requests without a priority (other types, or no value) always come last, whichever direction; within a level, oldest first.
+            Priority => descending
+                ? query.OrderBy(x => x.PriorityRank == null).ThenByDescending(x => x.PriorityRank).ThenBy(x => x.CreatedAtUtc)
+                : query.OrderBy(x => x.PriorityRank == null).ThenBy(x => x.PriorityRank).ThenBy(x => x.CreatedAtUtc),
             Created => descending ? query.OrderByDescending(x => x.CreatedAtUtc) : query.OrderBy(x => x.CreatedAtUtc),
             _ => query.OrderByDescending(x => x.CreatedAtUtc),
         };

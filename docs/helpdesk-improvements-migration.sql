@@ -29,3 +29,12 @@ IF NOT EXISTS (SELECT 1 FROM [dbo].[WorkflowStepDefinitions] WHERE [WorkflowType
     WHERE d.[WorkflowType] = N'Helpdesk'
       AND d.[Order] = (SELECT MAX(x.[Order]) FROM [dbo].[WorkflowStepDefinitions] x WHERE x.[WorkflowType] = N'Helpdesk')
       AND (SELECT COUNT(*) FROM [dbo].[WorkflowStepDefinitions] y WHERE y.[WorkflowType] = N'Helpdesk' AND y.[Order] = d.[Order]) = 1;
+
+-- 3) Priority rank on requests (1 = کم, 2 = متوسط, 3 = زیاد, 4 = بحرانی; NULL for types without a priority). Lets the inbox, my requests and the
+--    request filter sort and filter by priority in SQL. Existing requests are filled from their stored "priority" field value.
+IF COL_LENGTH(N'dbo.WorkflowRequests', N'PriorityRank') IS NULL
+    ALTER TABLE [dbo].[WorkflowRequests] ADD [PriorityRank] int NULL;
+GO
+UPDATE [dbo].[WorkflowRequests]
+SET [PriorityRank] = CASE JSON_VALUE([FieldValuesJson], '$.priority') WHEN N'کم' THEN 1 WHEN N'متوسط' THEN 2 WHEN N'زیاد' THEN 3 WHEN N'بحرانی' THEN 4 END
+WHERE [PriorityRank] IS NULL AND ISJSON([FieldValuesJson]) = 1 AND JSON_VALUE([FieldValuesJson], '$.priority') IS NOT NULL;

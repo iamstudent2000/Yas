@@ -64,7 +64,7 @@ public static class WorkflowFieldCatalog
                 // Part 1 — requester.
                 new WorkflowFieldDefinition("subject", "موضوع", WorkflowFieldType.Text, true),
                 new WorkflowFieldDefinition("category", "دسته‌بندی", WorkflowFieldType.Select, true, new[] { "سخت‌افزار", "نرم‌افزار", "شبکه و اینترنت", "حساب کاربری و رمز عبور", "چاپگر و اسکنر", "ایمیل", "سایر" }),
-                new WorkflowFieldDefinition("priority", "اولویت", WorkflowFieldType.Select, true, new[] { "کم", "متوسط", "زیاد", "بحرانی" }),
+                new WorkflowFieldDefinition(WorkflowPriority.FieldKey, "اولویت", WorkflowFieldType.Select, true, WorkflowPriority.Labels),
                 new WorkflowFieldDefinition("affectedSystem", "سامانه یا دستگاه مرتبط", WorkflowFieldType.Text, false),
                 new WorkflowFieldDefinition("location", "محل (ساختمان/اتاق)", WorkflowFieldType.Text, false),
                 new WorkflowFieldDefinition("contactPhone", "شماره تماس/داخلی", WorkflowFieldType.Text, false),

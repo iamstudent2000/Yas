@@ -65,6 +65,7 @@ public sealed class WorkflowRequest
         // Set only when an administrator submitted the request for the requester; null when the requester submitted it.
         CreatedByEmployeeId = createdByEmployeeId is { } by && by != requesterEmployeeId ? by : null;
         FieldValuesJson = fieldValuesJson;
+        PriorityRank = WorkflowPriority.FromFieldValues(fieldValuesJson);
         CreatedAtUtc = DateTime.UtcNow;
         Status = WorkflowRequestStatus.PendingApproval;
         CurrentRound = 1;
@@ -83,6 +84,12 @@ public sealed class WorkflowRequest
     /// <summary>The administrator who submitted this request on the requester's behalf, or null when the requester submitted it themselves.</summary>
     public Guid? CreatedByEmployeeId { get; private set; }
     public string FieldValuesJson { get; private set; } = null!;
+
+    /// <summary>
+    /// The request's priority as a rank (1 = کم … 4 = بحرانی), copied from the "priority" field so lists can sort and filter on it in SQL.
+    /// Null when the request type has no priority field or the value is not a known level. Kept in step with <see cref="FieldValuesJson"/>.
+    /// </summary>
+    public int? PriorityRank { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public WorkflowRequestStatus Status { get; private set; }
     public int CurrentStepOrder { get; private set; }
@@ -367,6 +374,7 @@ public sealed class WorkflowRequest
 
         RecordFieldChanges(before, after, actingEmployeeId, step.ApproverPositionId);
         FieldValuesJson = JsonSerializer.Serialize(after);
+        PriorityRank = WorkflowPriority.FromFieldValues(FieldValuesJson);
     }
 
     /// <summary>Whether the group has all the approvals its mode asks for (§14.1 ANY, §14.2 ALL).</summary>
@@ -558,6 +566,7 @@ public sealed class WorkflowRequest
             step.Supersede();
 
         FieldValuesJson = fieldValuesJson;
+        PriorityRank = WorkflowPriority.FromFieldValues(fieldValuesJson);
         CurrentRound++;
         RecordFieldChanges(previousValues, newValues, RequesterEmployeeId, RequesterPositionId);
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))

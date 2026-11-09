@@ -17,6 +17,10 @@
         <label class="form-label">نوع درخواست</label>
         <LookupSelect @key="_resetKey" Options="_typeOptions" Value="@(_d.Type?.ToString())" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
     </div>
+    <div class="admin-filter">
+        <label class="form-label">اولویت</label>
+        <LookupSelect @key="_resetKey" Options="_priorityChoices" Value="@(_d.PriorityRank?.ToString())" ValueChanged="k => _d.PriorityRank = int.TryParse(k, out var rank) ? rank : null" Placeholder="همه اولویت‌ها" />
+    </div>
     @if (StatusOptions.Count > 0)
     {
         <div class="admin-filter">
@@ -139,6 +143,8 @@
         (nameof(WorkflowRequestFilter.CancelKind.ByRequester), "لغو توسط درخواست‌کننده"),
         (nameof(WorkflowRequestFilter.CancelKind.ByAdmin), "بسته‌شده توسط مدیر"),
     ];
+    private static readonly IReadOnlyList<(string Key, string Text)> _priorityChoices =
+        WorkflowPriority.Labels.Select((label, index) => ((index + 1).ToString(), label)).Reverse().ToList();
     private IReadOnlyList<(string Key, string Text)> _statusChoices => StatusOptions.Select(x => (x.ToString(), WorkflowDisplay.StatusLabel(x))).ToList();
     private IReadOnlyList<(string Key, string Text)> _stepChoices => _stepNames.Select(n => (n, n)).ToList();
 
@@ -150,7 +156,7 @@
     }
 
     private int ActiveCount =>
-        (Filter.Status is null ? 0 : 1) + (Filter.CancelledBy is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
+        (Filter.Status is null ? 0 : 1) + (Filter.PriorityRank is null ? 0 : 1) + (Filter.CancelledBy is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
         + (Filter.RequesterEmployeeId is null && string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0)
         + (Filter.RequesterOrganizationId is null ? 0 : 1) + (Filter.WaitingAtPositionId is null ? 0 : 1) + (Filter.ActedByEmployeeId is null ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.Text) ? 0 : 1);

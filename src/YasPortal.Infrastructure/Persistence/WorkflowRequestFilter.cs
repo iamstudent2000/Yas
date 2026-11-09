@@ -18,6 +18,9 @@ public sealed class WorkflowRequestFilter
     public CancelKind? CancelledBy { get; set; }
 
     public WorkflowRequestStatus? Status { get; set; }
+
+    /// <summary>Only requests of this priority rank (1 = کم … 4 = بحرانی, see <see cref="WorkflowPriority"/>).</summary>
+    public int? PriorityRank { get; set; }
     public WorkflowTypeCode? Type { get; set; }
 
     /// <summary>Part of the requester's full name.</summary>
@@ -60,12 +63,13 @@ public sealed class WorkflowRequestFilter
     public DateTime? To { get; set; }
 
     public bool IsEmpty =>
-        Status is null && CancelledBy is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
+        Status is null && PriorityRank is null && CancelledBy is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
     public void Clear()
     {
         Status = null;
+        PriorityRank = null;
         CancelledBy = null;
         Type = null;
         RequesterName = null;
@@ -85,6 +89,7 @@ public sealed class WorkflowRequestFilter
     public void CopyFrom(WorkflowRequestFilter other)
     {
         Status = other.Status;
+        PriorityRank = other.PriorityRank;
         CancelledBy = other.CancelledBy;
         Type = other.Type;
         RequesterName = other.RequesterName;
@@ -105,6 +110,8 @@ public sealed class WorkflowRequestFilter
     {
         if (Status is WorkflowRequestStatus status)
             query = query.Where(x => x.Status == status);
+        if (PriorityRank is int rank)
+            query = query.Where(x => x.PriorityRank == rank);
         if (CancelledBy is CancelKind kind)
             query = query.Where(x => x.Status == WorkflowRequestStatus.Cancelled
                 && (kind == CancelKind.ByAdmin ? x.ForceClosedByEmployeeId != null : x.ForceClosedByEmployeeId == null));
