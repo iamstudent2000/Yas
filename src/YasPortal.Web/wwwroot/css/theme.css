@@ -369,3 +369,6 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
     .application-shell.is-bare .login-shell{padding:0}
     .application-shell.is-bare .login-frame{height:100%;grid-template-rows:auto minmax(0,1fr)}
 }
+
+/* Native dropdown items follow the theme, so they stay readable (light text on a light list in dark mode hides them). */
+select option,select optgroup{background:var(--surface,#fff);color:var(--text,#101828)}
