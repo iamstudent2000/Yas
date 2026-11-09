@@ -205,3 +205,13 @@
 .inbox-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:0 0 12px;padding:10px 14px;border:1px solid var(--border,#e6ebf2);border-radius:10px;background:var(--surface,#fff);font-size:12.5px}
 .inbox-summary strong{font-size:15px}
 .inbox-summary small{margin-inline-start:auto;color:var(--text-muted,#667085)}
+
+/* Request summary as tabs (inbox): a compact tab bar, a panel per section, and the decision buttons kept in view under the content. */
+.rs-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0 10px;border-bottom:1px solid var(--border,#e6ebf2)}
+.rs-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--text-muted,#667085);font:inherit;font-size:12.5px;cursor:pointer}
+.rs-tab:hover{color:var(--text,#141c2c)}
+.rs-tab.is-active{color:var(--accent-strong,#1d4ed8);border-bottom-color:var(--accent-strong,#1d4ed8);font-weight:600}
+.rs-tab-panel{margin-bottom:10px}
+.rs-tab-panel .resubmit-panel,.rs-tab-panel .inbox-comment{margin-top:0}
+.rs-actionbar{position:sticky;bottom:0;z-index:3;margin-top:12px;padding:10px 0;background:var(--surface,#fff);border-top:1px solid var(--border,#e6ebf2)}
+.rs-actionbar .inbox-actions{margin:0}

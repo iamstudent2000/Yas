@@ -95,12 +95,13 @@
                         @if (open)
                         {
                         <div class="request-card-body">
-                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id" />
-
                             @{
                                 // Multi-part forms: the approver at this step fills their own part before approving.
                                 var stepPart = WorkflowFieldCatalog.GetStepPart(item.Request.WorkflowType, item.CurrentStep.FillsPart);
                             }
+                            <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id"
+                                            Tabbed="true" ActionTabTitle="تصمیم‌گیری" OpenOnAction="@(stepPart is not null)">
+                            <ActionTab>
                             @if (stepPart is not null)
                             {
                                 <div class="resubmit-panel">
@@ -114,6 +115,8 @@
                                 <textarea class="form-control" rows="2" placeholder="در صورت نیاز، توضیحی برای ثبت در کارتابل درخواست‌کننده بنویسید..." value="@GetComment(item.Request.Id)" @oninput="e => SetComment(item.Request.Id, e)"></textarea>
                             </div>
 
+                            </ActionTab>
+                            <ActionBar>
                             <div class="inbox-actions">
                                 <div class="inbox-actions-primary">
                                 <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
@@ -159,6 +162,8 @@
                                     <span class="muted"><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
                                 }
                             </div>
+                            </ActionBar>
+                            </RequestSummary>
                         </div>
                         }
                     </div>

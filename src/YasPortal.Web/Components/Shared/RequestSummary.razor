@@ -71,10 +71,38 @@
     </div>
 }
 
+@if (Tabbed)
+{
+    var hasEarlierRounds = Request.Steps.Select(x => x.Round).Distinct().Count() > 1;
+    var hasChanges = Request.FieldChanges.Count > 0 || Request.RequesterActions.Any(x => x.Kind == WorkflowRequesterActionKind.Reopened);
+    <div class="rs-tabs no-print" role="tablist">
+        @if (ActionTab is not null)
+        {
+            <button type="button" role="tab" class="rs-tab @(_tab == "action" ? "is-active" : "")" @onclick='() => _tab = "action"'><i class="ti @Icons.Edit"></i> @ActionTabTitle</button>
+        }
+        <button type="button" role="tab" class="rs-tab @(_tab == "info" ? "is-active" : "")" @onclick='() => _tab = "info"'><i class="ti @Icons.Details"></i> اطلاعات درخواست</button>
+        <button type="button" role="tab" class="rs-tab @(_tab == "stages" ? "is-active" : "")" @onclick='() => _tab = "stages"'><i class="ti @Icons.WorkflowStep"></i> مراحل تایید</button>
+        @if (hasEarlierRounds)
+        {
+            <button type="button" role="tab" class="rs-tab @(_tab == "rounds" ? "is-active" : "")" @onclick='() => _tab = "rounds"'><i class="ti @Icons.History"></i> تاریخچه دورها</button>
+        }
+        @if (hasChanges)
+        {
+            <button type="button" role="tab" class="rs-tab @(_tab == "changes" ? "is-active" : "")" @onclick='() => _tab = "changes"'><i class="ti @Icons.Edit"></i> تاریخچه تغییر فیلدها</button>
+        }
+    </div>
+    @if (_tab == "action" && ActionTab is not null)
+    {
+        <div class="rs-tab-panel">@ActionTab</div>
+    }
+}
+
 @{
     var formParts = WorkflowFieldCatalog.GetParts(Request.WorkflowType);
     var isMultiPart = formParts.Count > 1;
 }
+@if (Show("info"))
+{
 <div class="field-summary">
     <div class="field-summary-item"><span>شناسه درخواست</span><strong dir="ltr">#@(Request.Id.ToString("N")[..8])</strong></div>
     @if (isMultiPart)
@@ -114,6 +142,10 @@
     }
 }
 
+}
+
+@if (Show("changes"))
+{
 @if (Request.RequesterActions.Any(a => a.Kind == WorkflowRequesterActionKind.Reopened))
 {
     <div class="field-summary field-history">
@@ -150,6 +182,8 @@
     </div>
 }
 
+}
+
 @{
     var rounds = Request.Steps.GroupBy(x => x.Round).OrderBy(g => g.Key).ToList();
     var requesterName = EmployeeNames.TryGetValue(Request.RequesterEmployeeId, out var rn) ? rn : null;
@@ -162,7 +196,7 @@
     var isCurrentRound = roundKey == Request.CurrentRound;
     var roundSteps = rounds.FirstOrDefault(g => g.Key == roundKey)?.OrderBy(x => x.Order).ToList() ?? new List<WorkflowRequestStep>();
 
-    if (isCurrentRound)
+    if (isCurrentRound && Show("stages"))
     {
         @if (roundKeys.Count > 1)
         {
@@ -173,7 +207,7 @@
                      Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
                      ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
     }
-    else
+    else if (!isCurrentRound && Show("rounds"))
     {
         var expanded = _expandedRounds.Contains(roundKey);
         <div class="round-history">
@@ -190,6 +224,11 @@
             }
         </div>
     }
+}
+
+@if (Tabbed && ActionBar is not null)
+{
+    <div class="rs-actionbar no-print">@ActionBar</div>
 }
 
 </div>
@@ -209,6 +248,30 @@
     /// that is not really being read.
     /// </summary>
     [Parameter] public bool LogView { get; set; } = true;
+
+    /// <summary>Show the sections as tabs (request data, stages, earlier rounds, field changes) instead of one long page.</summary>
+    [Parameter] public bool Tabbed { get; set; }
+
+    /// <summary>An extra first tab for what the viewer must do (the inbox: part form and comment). Only used when <see cref="Tabbed"/>.</summary>
+    [Parameter] public RenderFragment? ActionTab { get; set; }
+    [Parameter] public string ActionTabTitle { get; set; } = "تصمیم‌گیری";
+
+    /// <summary>Open on the action tab instead of the request data.</summary>
+    [Parameter] public bool OpenOnAction { get; set; }
+
+    /// <summary>Buttons kept under the tab content, visible whichever tab is open.</summary>
+    [Parameter] public RenderFragment? ActionBar { get; set; }
+
+    private string? _tab;
+
+    private bool Show(string tab) => !Tabbed || _tab == tab;
+
+    protected override void OnParametersSet()
+    {
+        _tab ??= ActionTab is not null && OpenOnAction ? "action" : "info";
+        if (_tab == "action" && ActionTab is null)
+            _tab = "info";
+    }
 
     private readonly HashSet<int> _expandedRounds = [];
     private bool _printing;
