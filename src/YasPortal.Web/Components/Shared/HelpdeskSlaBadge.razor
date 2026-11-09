@@ -1,30 +1,29 @@
 @using YasPortal.Domain.Workflows
 @using YasPortal.Web.Services
 
-@* Priority and time left (or overdue) for a helpdesk request that is still waiting. Nothing for any other request. *@
-@if (_sla is not null)
+@* How long a helpdesk request has been waiting, with its priority. Nothing for any other request or once it is no longer pending. *@
+@if (_waiting is not null)
 {
-    <span class="badge @Css()" title="مهلت پاسخ‌گویی بر اساس اولویت: @WorkflowDisplay.ToPersianDateTime(_sla.DueAtUtc)">
-        <i class="ti @(_sla.IsOverdue ? Icons.Alert : Icons.Age)"></i>
-        اولویت @_sla.Priority · @RemainingText()
+    <span class="badge badge-muted" title="در انتظار از: @WorkflowDisplay.ToPersianDateTime(_waiting.SinceUtc)">
+        <i class="ti @Icons.Age"></i>
+        @(_waiting.Priority is null ? "" : $"اولویت {_waiting.Priority} · ")@WaitedText()
     </span>
 }
 
 @code {
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
 
-    private HelpdeskSlaStatus? _sla;
+    private HelpdeskWaitingStatus? _waiting;
 
-    protected override void OnParametersSet() => _sla = HelpdeskSla.For(Request, DateTime.UtcNow);
+    protected override void OnParametersSet() => _waiting = HelpdeskWaiting.For(Request, DateTime.UtcNow);
 
-    private string Css() => _sla!.IsOverdue ? "badge-danger" : _sla.Remaining < TimeSpan.FromHours(2) ? "badge-warning" : "badge-muted";
-
-    private string RemainingText()
+    private string WaitedText()
     {
-        var span = _sla!.Remaining.Duration();
-        var text = span.TotalHours >= 24
-            ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
-            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه" : $"{Math.Max(1, span.Minutes)} دقیقه";
-        return WorkflowDisplay.ToPersianDigits(_sla.IsOverdue ? $"{text} تاخیر" : $"{text} تا مهلت");
+        var span = _waiting!.Waited;
+        var text = span.TotalDays >= 1 ? $"{(int)span.TotalDays} روز و {span.Hours} ساعت"
+            : span.TotalHours >= 1 ? $"{(int)span.TotalHours} ساعت و {span.Minutes} دقیقه"
+            : span.TotalMinutes >= 1 ? $"{(int)span.TotalMinutes} دقیقه"
+            : "کمتر از یک دقیقه";
+        return WorkflowDisplay.ToPersianDigits($"{text} در انتظار");
     }
 }

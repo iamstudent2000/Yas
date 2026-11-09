@@ -3,7 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
-/// <summary>Helpdesk requests: the richer form, the support-action part, the priority-based target time and the attachment rules.</summary>
+/// <summary>Helpdesk requests: the richer form, the support-action part, the waiting time and the attachment rules.</summary>
 public class HelpdeskTests
 {
     private const string Json = "{\"subject\":\"چاپگر کار نمی‌کند\",\"category\":\"چاپگر و اسکنر\",\"priority\":\"زیاد\",\"description\":\"خطا\"}";
@@ -83,51 +83,39 @@ public class HelpdeskTests
         Assert.Equal("کابل تعویض شد", System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson)!["resolution"]);
     }
 
-    [Theory]
-    [InlineData("بحرانی", 4)]
-    [InlineData("زیاد", 8)]
-    [InlineData("متوسط", 24)]
-    [InlineData("کم", 72)]
-    public void Target_hours_follow_the_priority(string priority, int hours)
+    [Fact]
+    public void Pending_request_reports_how_long_it_has_waited()
     {
-        Assert.Equal(hours, HelpdeskSla.TargetHoursFor(priority));
-        var start = new DateTime(2026, 11, 8, 8, 0, 0, DateTimeKind.Utc);
-        Assert.Equal(start.AddHours(hours), HelpdeskSla.DueAtUtc(priority, start));
+        var request = CreateRequest();
+        var since = request.RequesterActions.Single().AtUtc;   // the clock starts at the submission record
+
+        var status = HelpdeskWaiting.For(request, since.AddHours(26));
+        Assert.NotNull(status);
+        Assert.Equal(TimeSpan.FromHours(26), status!.Waited);
+        Assert.Equal("زیاد", status.Priority);
+        Assert.Equal(since, status.SinceUtc);
     }
 
     [Fact]
-    public void Unknown_or_missing_priority_has_no_target()
+    public void Waiting_time_is_never_negative_and_works_without_a_priority()
     {
-        Assert.Null(HelpdeskSla.TargetHoursFor(null));
-        Assert.Null(HelpdeskSla.TargetHoursFor("فوری"));
-        Assert.Null(HelpdeskSla.For(CreateRequest("{}"), DateTime.UtcNow));
+        var request = CreateRequest("{}");
+        var since = request.RequesterActions.Single().AtUtc;
+        var status = HelpdeskWaiting.For(request, since.AddMinutes(-5));
+        Assert.Equal(TimeSpan.Zero, status!.Waited);
+        Assert.Null(status.Priority);
     }
 
     [Fact]
-    public void Pending_request_is_on_time_then_overdue()
-    {
-        var request = CreateRequest();   // priority "زیاد": 8 hours
-        var created = request.RequesterActions.Single().AtUtc;   // the clock starts at the submission record
-
-        var early = HelpdeskSla.For(request, created.AddHours(2));
-        Assert.NotNull(early);
-        Assert.False(early!.IsOverdue);
-        Assert.Equal(TimeSpan.FromHours(6), early.Remaining);
-        Assert.Equal("زیاد", early.Priority);
-
-        Assert.True(HelpdeskSla.For(request, created.AddHours(9))!.IsOverdue);
-    }
-
-    [Fact]
-    public void Target_applies_only_to_pending_helpdesk_requests()
+    public void Waiting_time_applies_only_to_pending_helpdesk_requests()
     {
         var request = CreateRequest();
         request.Approve(request.Steps.Single().Id, Guid.NewGuid(), null, partValues: new Dictionary<string, string?> { ["resolution"] = "انجام شد" });
-        Assert.Null(HelpdeskSla.For(request, DateTime.UtcNow));
+        Assert.Null(HelpdeskWaiting.For(request, DateTime.UtcNow));
 
         var leave = new WorkflowRequest(WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{\"priority\":\"زیاد\"}",
             new[] { new WorkflowResolvedStep(Guid.NewGuid(), 1, "s", Guid.NewGuid()) });
-        Assert.Null(HelpdeskSla.For(leave, DateTime.UtcNow));
+        Assert.Null(HelpdeskWaiting.For(leave, DateTime.UtcNow));
     }
 
     [Fact]
