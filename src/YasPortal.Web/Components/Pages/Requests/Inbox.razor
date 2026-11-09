@@ -75,6 +75,7 @@
                 {
                     var busy = _actingRequestId == item.Request.Id;
                     var open = _items.Count == 1 || _expandedPendingId == item.Request.Id;
+                    var needsForm = WorkflowFieldCatalog.GetStepPart(item.Request.WorkflowType, item.CurrentStep.FillsPart) is not null;
                     <div class="request-card @(open ? "is-expanded" : "")">
                         <div class="request-card-header is-clickable" @onclick="() => TogglePending(item.Request.Id)">
                             <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
@@ -88,6 +89,23 @@
                             @if (item.IsDelegated)
                             {
                                 <span class="badge badge-info"><i class="ti @Icons.Delegation"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
+                            }
+                            @if (!open && !needsForm)
+                            {
+                                @* Quick approve: only for requests with no form part to fill, and only after a second click. *@
+                                <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
+                                    <span class="request-quick" @onclick:stopPropagation="true">
+                                        @if (_quickApproveId == item.Request.Id)
+                                        {
+                                            <button type="button" class="btn btn-primary btn-sm" disabled="@busy" @onclick="() => QuickApproveAsync(item)"><i class="ti @Icons.Approve"></i> بله، تایید شود</button>
+                                            <button type="button" class="btn btn-secondary btn-sm" disabled="@busy" @onclick="() => _quickApproveId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="btn btn-secondary btn-sm" disabled="@busy" @onclick="() => _quickApproveId = item.Request.Id"><i class="ti @Icons.Approve"></i> تایید سریع</button>
+                                        }
+                                    </span>
+                                </AuthorizeView>
                             }
                             <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
@@ -473,6 +491,13 @@
     }
 
     private Guid? _expandedPendingId;
+    private Guid? _quickApproveId;
+
+    private async Task QuickApproveAsync(InboxItem item)
+    {
+        _quickApproveId = null;
+        await Act(item, WorkflowAction.Approve);
+    }
 
     private void TogglePending(Guid requestId) => _expandedPendingId = _expandedPendingId == requestId ? null : requestId;
 

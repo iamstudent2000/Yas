@@ -218,3 +218,9 @@
 /* One row: approve, reject, PDF, printable form, then the return buttons (the groups dissolve into the row). */
 .rs-actionbar .inbox-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .rs-actionbar .inbox-actions-primary,.rs-actionbar .inbox-actions-secondary,.rs-actionbar .rs-toolbar{display:contents}
+/* Keep every button of the action bar on the one row at any width (the mobile rules above stretch them to full width). */
+.rs-actionbar .inbox-actions .btn,.rs-actionbar .inbox-actions .inbox-return-target{flex:0 0 auto;width:auto;min-width:0}
+.rs-actionbar .inbox-actions .inbox-return-target{min-width:170px}
+.rs-actionbar .rs-toolbar{margin:0}
+/* Quick approve on a collapsed inbox row. */
+.request-quick{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
