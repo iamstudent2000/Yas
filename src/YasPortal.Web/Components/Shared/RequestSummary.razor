@@ -14,19 +14,10 @@
 @inject ILogger<RequestSummary> Logger
 
 <div class="rs-root">
-    <div class="rs-toolbar no-print">
-        <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="DownloadPdfAsync" title="برگه PDF این درخواست با شماره صفحه، لوگو و محل امضا">
-            <i class="ti @(_printing ? Icons.Spinner : Icons.Pdf)"></i> PDF
-        </button>
-        @if (Request.Status == WorkflowRequestStatus.Approved && Pdf.HasForm(Request.WorkflowType))
-        {
-            <AuthorizeView Policy="@FormPermissions.For(Request.WorkflowType)">
-                <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
-                    <i class="ti @Icons.Print"></i> فرم چاپی
-                </button>
-            </AuthorizeView>
-        }
-    </div>
+    @if (!Tabbed)
+    {
+        @Toolbar
+    }
 
 @{
     var currentSteps = Request.Steps.Where(x => x.Round == Request.CurrentRound).ToList();
@@ -41,7 +32,7 @@
         })
         .ToList();
 }
-@if (stageViews.Count > 0)
+@if (stageViews.Count > 0 && Show("progress"))
 {
     var now = DescribeNow(stageViews);
     <div class="rt-progress">
@@ -81,6 +72,10 @@
             <button type="button" role="tab" class="rs-tab @(_tab == "action" ? "is-active" : "")" @onclick='() => _tab = "action"'><i class="ti @Icons.Edit"></i> @ActionTabTitle</button>
         }
         <button type="button" role="tab" class="rs-tab @(_tab == "info" ? "is-active" : "")" @onclick='() => _tab = "info"'><i class="ti @Icons.Details"></i> اطلاعات درخواست</button>
+        @if (stageViews.Count > 0)
+        {
+            <button type="button" role="tab" class="rs-tab @(_tab == "progress" ? "is-active" : "")" @onclick='() => _tab = "progress"'><i class="ti @Icons.Awaiting"></i> پیشرفت</button>
+        }
         <button type="button" role="tab" class="rs-tab @(_tab == "stages" ? "is-active" : "")" @onclick='() => _tab = "stages"'><i class="ti @Icons.WorkflowStep"></i> مراحل تایید</button>
         @if (hasEarlierRounds)
         {
@@ -228,7 +223,7 @@
 
 @if (Tabbed && ActionBar is not null)
 {
-    <div class="rs-actionbar no-print">@ActionBar</div>
+    <div class="rs-actionbar no-print">@ActionBar(Toolbar)</div>
 }
 
 </div>
@@ -260,7 +255,22 @@
     [Parameter] public bool OpenOnAction { get; set; }
 
     /// <summary>Buttons kept under the tab content, visible whichever tab is open.</summary>
-    [Parameter] public RenderFragment? ActionBar { get; set; }
+    [Parameter] public RenderFragment<RenderFragment>? ActionBar { get; set; }
+
+    /// <summary>The PDF and printable-form buttons. In tabbed mode they are handed to the action bar so everything sits in one row.</summary>
+    private RenderFragment Toolbar => @<div class="rs-toolbar no-print">
+            <button type="button" class="btn btn-secondary btn-sm" disabled="@_printing" @onclick="DownloadPdfAsync" title="برگه PDF این درخواست با شماره صفحه، لوگو و محل امضا">
+                <i class="ti @(_printing ? Icons.Spinner : Icons.Pdf)"></i> PDF
+            </button>
+            @if (Request.Status == WorkflowRequestStatus.Approved && Pdf.HasForm(Request.WorkflowType))
+            {
+                <AuthorizeView Policy="@FormPermissions.For(Request.WorkflowType)">
+                    <button type="button" class="btn btn-primary btn-sm" disabled="@_printing" @onclick="DownloadFormAsync" title="فرم رسمی این درخواست برای چاپ و بایگانی">
+                        <i class="ti @Icons.Print"></i> فرم چاپی
+                    </button>
+                </AuthorizeView>
+            }
+        </div>;
 
     private string? _tab;
 

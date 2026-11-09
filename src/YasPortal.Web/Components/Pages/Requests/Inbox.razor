@@ -116,7 +116,7 @@
                             </div>
 
                             </ActionTab>
-                            <ActionBar>
+                            <ActionBar Context="summaryToolbar">
                             <div class="inbox-actions">
                                 <div class="inbox-actions-primary">
                                 <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
@@ -126,6 +126,7 @@
                                     <button class="btn btn-danger" disabled="@busy" @onclick="() => Act(item, WorkflowAction.Reject)"><i class="ti @Icons.Reject"></i> رد</button>
                                 </AuthorizeView>
                                 </div>
+                                @summaryToolbar
                                 <div class="inbox-actions-secondary">
                                 <AuthorizeView Policy="@Perm.RequestsDecisionReturnToRequester">
                                     <button class="btn btn-secondary" disabled="@busy" @onclick="() => Act(item, WorkflowAction.ReturnToRequester)"><i class="ti @Icons.ReturnToRequester"></i> بازگشت به درخواست‌کننده</button>

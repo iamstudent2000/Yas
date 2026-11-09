@@ -215,3 +215,6 @@
 .rs-tab-panel .resubmit-panel,.rs-tab-panel .inbox-comment{margin-top:0}
 .rs-actionbar{position:sticky;bottom:0;z-index:3;margin-top:12px;padding:10px 0;background:var(--surface,#fff);border-top:1px solid var(--border,#e6ebf2)}
 .rs-actionbar .inbox-actions{margin:0}
+/* One row: approve, reject, PDF, printable form, then the return buttons (the groups dissolve into the row). */
+.rs-actionbar .inbox-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rs-actionbar .inbox-actions-primary,.rs-actionbar .inbox-actions-secondary,.rs-actionbar .rs-toolbar{display:contents}
