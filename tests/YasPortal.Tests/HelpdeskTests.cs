@@ -80,7 +80,7 @@ public class HelpdeskTests
 
         request.Approve(stepId, Guid.NewGuid(), null, partValues: new Dictionary<string, string?> { ["resolution"] = "کابل تعویض شد", ["timeSpentMinutes"] = "20" });
         Assert.Equal(WorkflowRequestStatus.Approved, request.Status);
-        Assert.Contains("کابل تعویض شد", request.FieldValuesJson);
+        Assert.Equal("کابل تعویض شد", System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string?>>(request.FieldValuesJson)!["resolution"]);
     }
 
     [Theory]
