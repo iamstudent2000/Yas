@@ -216,7 +216,7 @@
 .rs-actionbar{position:sticky;bottom:0;z-index:3;margin-top:12px;padding:10px 0;background:var(--surface,#fff);border-top:1px solid var(--border,#e6ebf2)}
 .rs-actionbar .inbox-actions{margin:0}
 /* One row: approve, reject, PDF, printable form, then the return buttons (the groups dissolve into the row). */
-.rs-actionbar .inbox-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rs-actionbar .inbox-actions{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px}
 .rs-actionbar .inbox-actions-primary,.rs-actionbar .inbox-actions-secondary,.rs-actionbar .rs-toolbar{display:contents}
 /* Keep every button of the action bar on the one row at any width (the mobile rules above stretch them to full width). */
 .rs-actionbar .inbox-actions .btn,.rs-actionbar .inbox-actions .inbox-return-target{flex:0 0 auto;width:auto;min-width:0}
@@ -224,3 +224,7 @@
 .rs-actionbar .rs-toolbar{margin:0}
 /* Quick approve on a collapsed inbox row. */
 .request-quick{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+/* Quick approve: a soft green outline instead of the grey secondary button. */
+.request-quick .btn-quick{background:#ecfdf3;color:#067647;border:1px solid #abefc6}
+.request-quick .btn-quick:hover:not(:disabled){background:#d1fadf}
+html[data-scheme="dark"] .request-quick .btn-quick{background:rgba(18,183,106,.14);color:#6ce9a6;border-color:rgba(18,183,106,.4)}
