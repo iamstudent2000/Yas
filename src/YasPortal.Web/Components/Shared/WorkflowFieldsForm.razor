@@ -18,7 +18,7 @@
             <PersianDatePicker Value="@GetDateValue(field.Key)" ValueChanged="d => SetDateValue(field.Key, d)" Placeholder="انتخاب تاریخ" />
             break;
         case WorkflowFieldType.Select:
-            <select class="form-control" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
+            <select class="form-control" data-searchable="false" value="@GetValue(field.Key)" @onchange="e => SetValue(field.Key, e)">
                 <option value="">— انتخاب کنید —</option>
                 @foreach (var option in field.Options ?? [])
                 {
