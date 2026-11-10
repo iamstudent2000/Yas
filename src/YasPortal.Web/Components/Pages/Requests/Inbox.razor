@@ -244,10 +244,11 @@
                         @if (expanded)
                         {
                             <div class="request-card-body">
-                                <RequestSummary Tabbed="true" Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
                                 @if (CanReopen(item))
                                 {
-                                    <div class="rs-actionbar no-print">
+                                    <RequestSummary Tabbed="true" Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId">
+                                        <ActionBar Context="summaryToolbar">
+                                            <div class="inbox-actions">
                                     <div class="force-close-panel">
                                         <p class="muted">این درخواست هنوز ردشده است. اگر رد کردن اشتباه بوده، می‌توانید آن را به مرحله‌ی خودتان برگردانید؛ تأییدهای مراحل قبل حفظ می‌شود و دلیل بازگشایی در تاریخچه ثبت می‌شود.</p>
                                         @if (_reopenOpenFor == item.Request.Id)
@@ -274,8 +275,14 @@
                                             <button type="button" class="btn btn-primary btn-sm" @onclick="() => _reopenOpenFor = item.Request.Id"><i class="ti @Icons.Reopen"></i> بازگشایی رد من</button>
                                         }
                                     </div>
-                                
-                                    </div>
+                                                @summaryToolbar
+                                            </div>
+                                        </ActionBar>
+                                    </RequestSummary>
+                                }
+                                else
+                                {
+                                    <RequestSummary Tabbed="true" Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" HighlightStepId="item.Decision.StepId" />
                                 }
                             </div>
                         }
