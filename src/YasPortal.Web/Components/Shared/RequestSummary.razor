@@ -33,36 +33,6 @@
         })
         .ToList();
 }
-@if (stageViews.Count > 0 && Show("progress"))
-{
-    var now = DescribeNow(stageViews);
-    <div class="rt-progress">
-        <div class="rt-progress-track" role="list" aria-label="پیشرفت مسیر تایید">
-            @for (var i = 0; i < stageViews.Count; i++)
-            {
-                var view = stageViews[i];
-                var stateClass = WorkflowDisplay.StageStateClass(view.Summary.State);
-                var tip = string.Join(" / ", view.Members.Select(m => m.Name)) + " — " + WorkflowDisplay.StageStateLabel(view.Summary.State);
-                <span class="rt-progress-dot @stateClass" role="listitem" title="@tip">
-                    @if (view.Summary.State is WorkflowStageState.Approved or WorkflowStageState.Rejected or WorkflowStageState.Returned)
-                    {
-                        <i class="ti @WorkflowDisplay.StageStateIcon(view.Summary.State)"></i>
-                    }
-                    else
-                    {
-                        <text>@ToPersianDigits(view.Order.ToString())</text>
-                    }
-                </span>
-                @if (i < stageViews.Count - 1)
-                {
-                    <span class="rt-progress-line @(view.Summary.State == WorkflowStageState.Approved ? "is-done" : "")"></span>
-                }
-            }
-        </div>
-        <p class="rt-now @now.Class"><i class="ti @now.Icon"></i><span>@now.Text</span></p>
-    </div>
-}
-
 @if (Tabbed)
 {
     var hasEarlierRounds = Request.Steps.Select(x => x.Round).Distinct().Count() > 1;
@@ -91,6 +61,36 @@
     {
         <div class="rs-tab-panel">@ActionTab</div>
     }
+}
+
+@if (stageViews.Count > 0 && Show("progress"))
+{
+    var now = DescribeNow(stageViews);
+    <div class="rt-progress">
+        <div class="rt-progress-track" role="list" aria-label="پیشرفت مسیر تایید">
+            @for (var i = 0; i < stageViews.Count; i++)
+            {
+                var view = stageViews[i];
+                var stateClass = WorkflowDisplay.StageStateClass(view.Summary.State);
+                var tip = string.Join(" / ", view.Members.Select(m => m.Name)) + " — " + WorkflowDisplay.StageStateLabel(view.Summary.State);
+                <span class="rt-progress-dot @stateClass" role="listitem" title="@tip">
+                    @if (view.Summary.State is WorkflowStageState.Approved or WorkflowStageState.Rejected or WorkflowStageState.Returned)
+                    {
+                        <i class="ti @WorkflowDisplay.StageStateIcon(view.Summary.State)"></i>
+                    }
+                    else
+                    {
+                        <text>@ToPersianDigits(view.Order.ToString())</text>
+                    }
+                </span>
+                @if (i < stageViews.Count - 1)
+                {
+                    <span class="rt-progress-line @(view.Summary.State == WorkflowStageState.Approved ? "is-done" : "")"></span>
+                }
+            }
+        </div>
+        <p class="rt-now @now.Class"><i class="ti @now.Icon"></i><span>@now.Text</span></p>
+    </div>
 }
 
 @{
