@@ -140,8 +140,8 @@ public static class WorkflowFieldCatalog
 
     public static bool IsMultiPart(WorkflowTypeCode type) => GetParts(type).Count > 1;
 
-    /// <summary>Whether the requester can attach files when submitting this type (see <see cref="WorkflowRequestAttachment"/>).</summary>
-    public static bool SupportsAttachments(WorkflowTypeCode type) => type == WorkflowTypeCode.Helpdesk;
+    /// <summary>Whether the requester can attach files when submitting this type: every type made from the request forms; store orders are made from the cart and have none (see <see cref="WorkflowRequestAttachment"/>).</summary>
+    public static bool SupportsAttachments(WorkflowTypeCode type) => type != WorkflowTypeCode.StoreOrder;
 
     /// <summary>
     /// The part (2 or later) a step is set to fill, or null when it fills nothing or the number is

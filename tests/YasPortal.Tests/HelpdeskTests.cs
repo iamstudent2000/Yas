@@ -155,10 +155,10 @@ public class HelpdeskTests
     }
 
     [Fact]
-    public void Only_helpdesk_takes_attachments()
+    public void Every_form_type_takes_attachments_except_store_orders()
     {
-        Assert.True(WorkflowFieldCatalog.SupportsAttachments(WorkflowTypeCode.Helpdesk));
-        Assert.False(WorkflowFieldCatalog.SupportsAttachments(WorkflowTypeCode.Leave));
+        foreach (var type in Enum.GetValues<WorkflowTypeCode>())
+            Assert.Equal(type != WorkflowTypeCode.StoreOrder, WorkflowFieldCatalog.SupportsAttachments(type));
     }
 
     [Theory]
