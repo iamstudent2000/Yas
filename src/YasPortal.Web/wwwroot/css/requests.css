@@ -228,3 +228,5 @@
 .request-quick .btn-quick{background:#ecfdf3;color:#067647;border:1px solid #abefc6}
 .request-quick .btn-quick:hover:not(:disabled){background:#d1fadf}
 html[data-scheme="dark"] .request-quick .btn-quick{background:rgba(18,183,106,.14);color:#6ce9a6;border-color:rgba(18,183,106,.4)}
+.rs-toolbar-bottom{display:flex;flex-direction:row;justify-content:flex-end;margin-top:12px}
+.rs-toolbar-bottom .rs-toolbar{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px}

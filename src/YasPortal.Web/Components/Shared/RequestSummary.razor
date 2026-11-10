@@ -14,12 +14,6 @@
 @inject ILogger<RequestSummary> Logger
 
 <div class="rs-root">
-    @* In tabbed mode the toolbar moves into the action bar, when the page provides one; otherwise it stays on top. *@
-    @if (!Tabbed || ActionBar is null)
-    {
-        @Toolbar
-    }
-
 @{
     var currentSteps = Request.Steps.Where(x => x.Round == Request.CurrentRound).ToList();
     var stageViews = currentSteps
@@ -225,6 +219,11 @@
 @if (Tabbed && ActionBar is not null)
 {
     <div class="rs-actionbar no-print">@ActionBar(Toolbar)</div>
+}
+else
+{
+    @* No action bar on this page: PDF and print sit at the bottom-left (end side in RTL) of the form. *@
+    <div class="rs-toolbar-bottom no-print">@Toolbar</div>
 }
 
 </div>
