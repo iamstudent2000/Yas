@@ -82,6 +82,9 @@
                             </td>
                             <td>@WorkflowDisplay.ToPersianDate(request.CreatedAtUtc)</td>
                             <td>
+                                <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleDetails(request.Id)">
+                                    <i class="ti @Icons.Details"></i> جزئیات
+                                </button>
                                 @if (_openReasonFor == request.Id)
                                 {
                                     <div class="force-close-panel">
@@ -111,6 +114,12 @@
                                 }
                             </td>
                         </tr>
+                        @if (_detailsId == request.Id)
+                        {
+                            <tr>
+                                <td colspan="7"><RequestSummary Tabbed="true" Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" /></td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -124,6 +133,7 @@
     private List<WorkflowRequest> _requests = [];
     private Dictionary<Guid, string> _employeeNames = [];
     private Dictionary<Guid, string> _holderNames = [];
+    private Guid? _detailsId;
     private Dictionary<Guid, string> _reasons = [];
     private Guid? _openReasonFor;
     private Guid? _busyId;
@@ -209,20 +219,32 @@
 
         _requests = await WorkflowRequestSort.Apply(query, _sortBy, _sortDesc, db)
             .Include(x => x.Steps)
+            .Include(x => x.StepDecisions)
+            .Include(x => x.RequesterActions)
+            .Include(x => x.FieldChanges)
+            .AsSplitQuery()
             .Skip((_page - 1) * _pageSize)
             .Take(_pageSize)
             .ToListAsync();
 
-        var requesterIds = _requests.Select(x => x.RequesterEmployeeId).Distinct().ToList();
-        _employeeNames = requesterIds.Count == 0 ? [] : await db.Employees.AsNoTracking()
-            .Where(x => requesterIds.Contains(x.Id))
+        // Everyone named anywhere in the details (requester, deciders, delegators, people who changed fields).
+        var personIds = _requests.Select(x => x.RequesterEmployeeId).ToList();
+        personIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
+        personIds.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
+        personIds.AddRange(_requests.SelectMany(x => x.RequesterActions).Select(x => x.EmployeeId));
+        personIds.AddRange(_requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value));
+        personIds = personIds.Distinct().ToList();
+        _employeeNames = personIds.Count == 0 ? [] : await db.Employees.AsNoTracking()
+            .Where(x => personIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.FullName);
 
-        var pendingPositionIds = _requests.SelectMany(x => x.CurrentSteps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
-        _holderNames = await Workflows.GetCurrentHolderNamesAsync(pendingPositionIds);
+        var positionIds = _requests.SelectMany(x => x.Steps).Select(x => x.ApproverPositionId).Distinct().ToList();
+        _holderNames = await Workflows.GetCurrentHolderNamesAsync(positionIds);
 
         _loading = false;
     }
+
+    private void ToggleDetails(Guid id) => _detailsId = _detailsId == id ? null : id;
 
     private string GetReason(Guid requestId) => _reasons.TryGetValue(requestId, out var r) ? r : "";
     private void SetReason(Guid requestId, ChangeEventArgs e) => _reasons[requestId] = e.Value?.ToString() ?? "";
