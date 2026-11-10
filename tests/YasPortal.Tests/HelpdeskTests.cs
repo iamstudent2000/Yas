@@ -321,3 +321,41 @@ public class WaitingReminderTests
             Assert.Throws<ArgumentOutOfRangeException>(() => new WaitingReminderSetting(Guid.NewGuid(), hours));
     }
 }
+
+public class WaitingReminderRepeatTests
+{
+    private static readonly DateTime Now = new(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Nothing_is_sent_before_the_threshold()
+        => Assert.False(WaitingReminders.ShouldSend(Now.AddHours(-1), null, 2, true, Now));
+
+    [Fact]
+    public void First_reminder_of_a_waiting_period_is_sent_with_or_without_repeat()
+    {
+        Assert.True(WaitingReminders.ShouldSend(Now.AddHours(-3), null, 2, false, Now));
+        // a reminder from an earlier period does not count
+        Assert.True(WaitingReminders.ShouldSend(Now.AddHours(-3), Now.AddHours(-10), 2, false, Now));
+    }
+
+    [Fact]
+    public void Without_repeat_a_second_reminder_is_never_sent()
+        => Assert.False(WaitingReminders.ShouldSend(Now.AddHours(-9), Now.AddHours(-7), 2, false, Now));
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(5, true)]
+    public void With_repeat_the_next_one_comes_a_full_threshold_after_the_last(int hoursSinceLast, bool expected)
+        => Assert.Equal(expected, WaitingReminders.ShouldSend(Now.AddHours(-9), Now.AddHours(-hoursSinceLast), 2, true, Now));
+
+    [Fact]
+    public void Repeat_is_stored_and_changeable()
+    {
+        var s = new WaitingReminderSetting(Guid.NewGuid(), 4, true);
+        Assert.True(s.Repeat);
+        s.Update(8, false);
+        Assert.False(s.Repeat);
+        Assert.Equal(8, s.AfterHours);
+    }
+}

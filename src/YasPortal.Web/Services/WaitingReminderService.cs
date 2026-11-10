@@ -8,8 +8,7 @@ namespace YasPortal.Web.Services;
 /// <summary>
 /// Sends the "waiting too long" reminders: for every employee who set their own number of hours, one in-app notification for each
 /// request waiting for their decision (at a position they hold, or one delegated to them) for at least that long. A request is
-/// reminded about once per time it reaches a step: a new notification is sent only if none was sent since it started waiting at
-/// its current step. At most <see cref="MaxPerEmployeePerRun"/> per person per run, oldest first; the rest follow on the next run.
+/// reminded about once per time it reaches a step; people who chose "repeat" get it again every threshold until it is handled. At most <see cref="MaxPerEmployeePerRun"/> per person per run, oldest first; the rest follow on the next run.
 /// </summary>
 public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows)
 {
@@ -59,7 +58,9 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
                 .Select(n => new { n.RequestId, n.CreatedAtUtc }).ToListAsync(ct);
 
             var toSend = due
-                .Where(x => !earlier.Any(n => n.RequestId == x.Request.Id && n.CreatedAtUtc >= x.Since))
+                .Where(x => WaitingReminders.ShouldSend(x.Since,
+                    earlier.Where(n => n.RequestId == x.Request.Id).Select(n => (DateTime?)n.CreatedAtUtc).Max(),
+                    setting.AfterHours, setting.Repeat, nowUtc))
                 .Take(MaxPerEmployeePerRun)
                 .ToList();
             if (toSend.Count == 0)

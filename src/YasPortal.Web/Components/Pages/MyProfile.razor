@@ -106,6 +106,9 @@
                         <label class="form-label">بعد از چند ساعت انتظار (@WaitingReminderSetting.MinHours تا @WaitingReminderSetting.MaxHours)</label>
                         <input class="form-control" type="number" min="@WaitingReminderSetting.MinHours" max="@WaitingReminderSetting.MaxHours" disabled="@(!_remindOn)" @bind="_remindHours" />
                     </div>
+                    <div class="form-field">
+                        <label class="form-label"><input type="checkbox" disabled="@(!_remindOn)" @bind="_remindRepeat" /> تکرار هر همین مدت تا زمان تصمیم‌گیری</label>
+                    </div>
                     <div class="form-field admin-row-submit">
                         <button class="btn btn-primary" disabled="@_remindSaving" @onclick="SaveReminderAsync"><i class="ti @Icons.Save"></i> ذخیره</button>
                     </div>
@@ -154,6 +157,7 @@
     private Guid? _employeeId;
     private bool _remindOn;
     private int _remindHours = 24;
+    private bool _remindRepeat;
     private bool _remindSaving;
     private string? _avatarKey;
     private string _currentPassword = "", _newPassword = "", _confirmPassword = "";
@@ -182,6 +186,7 @@ employeeId);
         var reminder = await Db.WaitingReminderSettings.AsNoTracking().SingleOrDefaultAsync(x => x.EmployeeId == employeeId);
         _remindOn = reminder is not null;
         _remindHours = reminder?.AfterHours ?? 24;
+        _remindRepeat = reminder?.Repeat ?? false;
     }
 
     /// <summary>Saves this person's own reminder threshold; switching it off removes the row (no row = no reminders).</summary>
@@ -202,9 +207,9 @@ employeeId);
                 if (row is not null) Db.WaitingReminderSettings.Remove(row);
             }
             else if (row is null)
-                Db.WaitingReminderSettings.Add(new WaitingReminderSetting(id, _remindHours));
+                Db.WaitingReminderSettings.Add(new WaitingReminderSetting(id, _remindHours, _remindRepeat));
             else
-                row.SetHours(_remindHours);
+                row.Update(_remindHours, _remindRepeat);
             await Db.SaveChangesAsync();
             AppState.AddToast(_remindOn ? "یادآوری ذخیره شد." : "یادآوری خاموش شد.", ToastLevel.Success);
         }

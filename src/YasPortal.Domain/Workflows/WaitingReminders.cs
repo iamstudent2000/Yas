@@ -21,6 +21,19 @@ public static class WaitingReminders
         return lastDecision is DateTime decided && decided > roundStart ? decided : roundStart;
     }
 
+    /// <summary>
+    /// Whether a reminder should be sent now. Never before the threshold. The first reminder of a waiting period (none sent since it
+    /// started) is always sent; later ones only when the person chose to repeat and a full threshold has passed since the last one.
+    /// </summary>
+    public static bool ShouldSend(DateTime sinceUtc, DateTime? lastReminderUtc, int afterHours, bool repeat, DateTime nowUtc)
+    {
+        if (!IsDue(sinceUtc, afterHours, nowUtc))
+            return false;
+        if (lastReminderUtc is not DateTime last || last < sinceUtc)
+            return true;
+        return repeat && nowUtc - last >= TimeSpan.FromHours(afterHours);
+    }
+
     /// <summary>Whether a request that has waited since <paramref name="sinceUtc"/> has reached the person's threshold.</summary>
     public static bool IsDue(DateTime sinceUtc, int afterHours, DateTime nowUtc) => nowUtc - sinceUtc >= TimeSpan.FromHours(afterHours);
 }

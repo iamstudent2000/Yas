@@ -14,17 +14,27 @@ public sealed class WaitingReminderSetting
     {
     }
 
-    public WaitingReminderSetting(Guid employeeId, int afterHours)
+    public WaitingReminderSetting(Guid employeeId, int afterHours, bool repeat = false)
     {
         if (employeeId == Guid.Empty)
             throw new ArgumentException("Employee is required.", nameof(employeeId));
         EmployeeId = employeeId;
         SetHours(afterHours);
+        Repeat = repeat;
     }
 
     public Guid EmployeeId { get; private set; }
     public int AfterHours { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
+
+    /// <summary>When true the reminder is sent again every <see cref="AfterHours"/> hours until the request is handled; otherwise once per waiting period.</summary>
+    public bool Repeat { get; private set; }
+
+    public void Update(int afterHours, bool repeat)
+    {
+        SetHours(afterHours);
+        Repeat = repeat;
+    }
 
     public void SetHours(int afterHours)
     {

@@ -46,6 +46,11 @@ IF OBJECT_ID(N'dbo.WaitingReminderSettings', N'U') IS NULL
         [EmployeeId] uniqueidentifier NOT NULL,
         [AfterHours] int NOT NULL,
         [UpdatedAtUtc] datetime2 NOT NULL,
+        [Repeat] bit NOT NULL CONSTRAINT [DF_WaitingReminderSettings_Repeat] DEFAULT 0,
         CONSTRAINT [PK_WaitingReminderSettings] PRIMARY KEY ([EmployeeId]),
         CONSTRAINT [FK_WaitingReminderSettings_Employees_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE CASCADE
     );
+
+-- Databases that created the table before the "repeat" option existed need the column too:
+IF COL_LENGTH(N'dbo.WaitingReminderSettings', N'Repeat') IS NULL
+    ALTER TABLE [dbo].[WaitingReminderSettings] ADD [Repeat] bit NOT NULL CONSTRAINT [DF_WaitingReminderSettings_Repeat] DEFAULT 0;
