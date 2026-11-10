@@ -70,6 +70,7 @@
                     var byPriority = _items.Select(i => HelpdeskWaiting.For(i.Request, now)?.Priority)
                         .Where(p => p is not null).GroupBy(p => p!).ToDictionary(g => g.Key, g => g.Count());
                 <div class="inbox-summary">
+                    <label class="bulk-check-all"><input type="checkbox" disabled="@_bulkBusy" checked="@(_items.Count > 0 && _items.All(i => _bulkSelected.Contains(i.Request.Id)))" @onchange="e => SelectPageForBulk(e.Value is true)" /> انتخاب همه در این صفحه</label>
                     <span><strong>@ToPersianDigits(_pendingTotalCount.ToString())</strong> درخواست در انتظار شما</span>
                     <span><i class="ti @Icons.Age"></i> قدیمی‌ترین در این صفحه: @WorkflowDisplay.FormatDuration(now - oldest) در انتظار</span>
                     @foreach (var priority in new[] { "بحرانی", "زیاد" })
@@ -79,10 +80,10 @@
                             <span class="badge @(priority == "بحرانی" ? "badge-danger" : "badge-warning")">@priority: @ToPersianDigits(count.ToString())</span>
                         }
                     }
-                    <small>برای دیدن جزئیات و تصمیم‌گیری روی هر ردیف کلیک کنید.</small>
-                </div>
-                <div class="bulk-bar">
-                    <label class="bulk-check-all"><input type="checkbox" disabled="@_bulkBusy" checked="@(_items.Count > 0 && _items.All(i => _bulkSelected.Contains(i.Request.Id)))" @onchange="e => SelectPageForBulk(e.Value is true)" /> انتخاب همه در این صفحه</label>
+                    @if (_bulkSelected.Count == 0)
+                    {
+                        <small>برای دیدن جزئیات و تصمیم‌گیری روی هر ردیف کلیک کنید.</small>
+                    }
                     @if (_bulkSelected.Count > 0)
                     {
                         <span class="bulk-count"><strong>@ToPersianDigits(_bulkSelected.Count.ToString())</strong> درخواست انتخاب شده</span>

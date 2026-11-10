@@ -9,7 +9,7 @@
    - "پاک کردن فیلترها" resets the draft and the list in one step,
    - sorting (optional) applies at once, because it never changes which rows match,
    - while a search runs the button shows a spinner and is disabled,
-   - the whole card folds with its header (open by default) on every screen size.
+   - the whole card folds with its header (collapsed by default; the header still shows how many filters are active) on every screen size.
    Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
 <section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
@@ -117,7 +117,7 @@
     [Parameter] public EventCallback<string> SortChanged { get; set; }
 
     // Open by default; the header folds the card away to give the list the whole screen.
-    private bool _open = true;
+    private bool _open;
     private bool _menu;
 
     private async Task PrintListAsync()

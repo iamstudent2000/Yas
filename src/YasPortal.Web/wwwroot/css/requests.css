@@ -245,3 +245,7 @@ html[data-scheme="dark"] .request-quick .btn-quick{background:rgba(18,183,106,.1
 .bulk-bar .bulk-actions{display:inline-flex;flex-wrap:wrap;gap:8px}
 .bulk-report{margin-bottom:10px}
 .bulk-report ul{margin:6px 0 10px;padding-inline-start:18px}
+/* the bulk controls now live inside the summary strip */
+.inbox-summary .bulk-check-all{padding-inline-end:10px;border-inline-end:1px solid var(--border,#e6ebf2)}
+.inbox-summary .bulk-comment{flex:1 1 220px;min-width:180px;max-width:380px}
+.inbox-summary .bulk-actions{display:inline-flex;flex-wrap:wrap;gap:8px}

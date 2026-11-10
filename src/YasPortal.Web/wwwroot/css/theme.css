@@ -372,3 +372,6 @@ section.card.list-filter,section.card.request-filter.list-filter{overflow:visibl
 
 /* Native dropdown items follow the theme, so they stay readable (light text on a light list in dark mode hides them). */
 select option,select optgroup{background:var(--surface,#fff);color:var(--text,#101828)}
+
+/* The top bar keeps its height on every page: in the fixed-height shell column it could otherwise be squeezed by a tall page. */
+.shell-main > .topbar{flex:0 0 auto}
