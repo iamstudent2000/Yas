@@ -235,3 +235,4 @@ html[data-scheme="dark"] .request-quick .btn-quick{background:rgba(18,183,106,.1
 .request-card-body .force-close-panel .btn{width:auto;flex:0 0 auto}
 .request-card-body .force-close-panel .form-control{width:100%;max-width:480px}
 .request-card-body .force-close-panel .force-close-actions{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px}
+.rs-actionbar .inbox-actions .rs-toolbar{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;margin-inline-start:auto}

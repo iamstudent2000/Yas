@@ -216,11 +216,15 @@
     }
 }
 
-@* PDF and print always sit at the bottom-left (end side in RTL) of the form, above the action bar when the page has one. *@
-<div class="rs-toolbar-bottom no-print">@Toolbar</div>
+@* PDF and print sit at the bottom-left (end side in RTL) of the form; with an action bar they share its row. *@
 @if (Tabbed && ActionBar is not null)
 {
+    @* The page's action bar receives the toolbar and puts it in its own row. *@
     <div class="rs-actionbar no-print">@ActionBar(Toolbar)</div>
+}
+else
+{
+    <div class="rs-toolbar-bottom no-print">@Toolbar</div>
 }
 
 </div>
