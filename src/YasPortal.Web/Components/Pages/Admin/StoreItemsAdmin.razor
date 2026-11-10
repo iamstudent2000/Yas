@@ -26,6 +26,11 @@
         </div>
     </div>
 
+    <div class="form-actions no-print">
+        <button class="btn @(_tab == "items" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("items"))">کالاها</button>
+        <button class="btn @(_tab == "categories" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("categories"))">گروه‌ها</button>
+    </div>
+
     @if (_loading)
     {
         <LoadingState />
@@ -33,7 +38,7 @@
     else
     {
         <div class="admin-stack">
-            @if (_canManage)
+            @if (_canManage && _tab == "categories")
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
@@ -50,6 +55,10 @@
                     </div>
                 </section>
 
+            }
+
+            @if (_canManage && _tab == "items")
+            {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editItemId is null ? Icons.Add : Icons.Edit)"></i> @(_editItemId is null ? "افزودن کالا" : "ویرایش کالا")</h2>
@@ -80,13 +89,24 @@
                 </section>
             }
 
+            @if (_tab == "categories")
+            {
+            <ListFilterBar Busy="_busy" ActiveCount="@((string.IsNullOrWhiteSpace(_cSearch) ? 0 : 1) + (_cStatus is null ? 0 : 1))"
+                           CanClear="@(!string.IsNullOrWhiteSpace(_cSearch) || _cStatus is not null || !string.IsNullOrWhiteSpace(_dcSearch) || _dcStatus is not null)"
+                           OnSearch="ApplyCategoryFilter" OnClear="ClearCategoryFilter">
+                <div class="admin-filter"><label class="form-label">نام گروه</label>
+                    <input class="form-control" placeholder="جستجو در نام گروه..." @bind="_dcSearch" @bind:event="oninput" /></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label>
+                    <LookupSelect Options="ActiveOptions" Value="@_dcStatus" ValueChanged="k => _dcStatus = Blank(k)" Placeholder="همه" /></div>
+            </ListFilterBar>
+
             <section class="card">
                 <h2 class="section-title"><i class="ti @Icons.Box"></i> گروه‌ها</h2>
                 <div class="data-table-wrap">
                     <table class="data-table">
                         <thead><tr><th>نام</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
-                            @foreach (var c in _categories)
+                            @foreach (var c in FilteredCategories)
                             {
                                 <tr>
                                     <td>@c.Name</td><td>@WorkflowDisplay.ToPersianDigits(c.SortOrder.ToString())</td>
@@ -109,12 +129,15 @@
                                     }
                                 </tr>
                             }
-                            @if (_categories.Count == 0) { <tr><td colspan="4" class="muted">هنوز گروهی تعریف نشده است.</td></tr> }
+                            @if (FilteredCategories.Count == 0) { <tr><td colspan="4" class="muted">@(_categories.Count == 0 ? "هنوز گروهی تعریف نشده است." : "گروهی با این فیلتر پیدا نشد.")</td></tr> }
                         </tbody>
                     </table>
                 </div>
             </section>
+            }
 
+            @if (_tab == "items")
+            {
             <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft || _sort != "category" || _sortDesc)"
                            OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => BuildFilter())">
                 <div class="admin-filter"><label class="form-label">جستجو</label>
@@ -191,6 +214,7 @@
                 </div>
                 <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_items.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
             </section>
+            }
         </div>
     }
 </div>
@@ -198,6 +222,22 @@
 @code {
     private bool _loading = true, _busy, _canManage;
     private IReadOnlyList<StoreCategory> _categories = [];
+    private string _tab = "items";
+
+    // Group filter: applied values and what is typed in the card (applied only when "جستجو" is pressed).
+    private string _cSearch = "", _dcSearch = "";
+    private string? _cStatus, _dcStatus;
+
+    private List<StoreCategory> FilteredCategories => _categories
+        .Where(c => (string.IsNullOrWhiteSpace(_cSearch) || c.Name.Contains(_cSearch.Trim(), StringComparison.CurrentCultureIgnoreCase))
+                    && (_cStatus is null || (_cStatus == "on") == c.IsActive))
+        .ToList();
+
+    private void SwitchTab(string tab) { _tab = tab; _confirmCategoryId = null; }
+
+    private Task ApplyCategoryFilter() { _cSearch = _dcSearch.Trim(); _cStatus = _dcStatus; return Task.CompletedTask; }
+
+    private Task ClearCategoryFilter() { _dcSearch = ""; _dcStatus = null; return ApplyCategoryFilter(); }
     private StorePage<StoreItemRow> _items = new([], 0);
     private IReadOnlyList<(string Key, string Text)> ActiveCategoryOptions = [], AllCategoryOptions = [];
 
