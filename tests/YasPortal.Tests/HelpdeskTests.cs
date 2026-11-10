@@ -349,6 +349,24 @@ public class WaitingReminderRepeatTests
     public void With_repeat_the_next_one_comes_a_full_threshold_after_the_last(int hoursSinceLast, bool expected)
         => Assert.Equal(expected, WaitingReminders.ShouldSend(Now.AddHours(-9), Now.AddHours(-hoursSinceLast), 2, true, Now));
 
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(6, true)]
+    public void A_separate_repeat_interval_overrides_the_threshold(int hoursSinceLast, bool expected)
+        => Assert.Equal(expected, WaitingReminders.ShouldSend(Now.AddHours(-20), Now.AddHours(-hoursSinceLast), 2, true, Now, repeatEveryHours: 6));
+
+    [Fact]
+    public void Repeat_interval_defaults_to_the_threshold_and_is_validated()
+    {
+        var s = new WaitingReminderSetting(Guid.NewGuid(), 4, true);
+        Assert.Equal(4, s.EffectiveRepeatHours);
+        s.Update(4, true, 12);
+        Assert.Equal(12, s.EffectiveRepeatHours);
+        Assert.Throws<ArgumentOutOfRangeException>(() => s.Update(4, true, 0));
+        s.Update(4, false, 12);
+        Assert.Null(s.RepeatEveryHours);
+    }
+
     [Fact]
     public void Repeat_is_stored_and_changeable()
     {

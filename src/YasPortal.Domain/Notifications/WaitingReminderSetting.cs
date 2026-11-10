@@ -14,13 +14,13 @@ public sealed class WaitingReminderSetting
     {
     }
 
-    public WaitingReminderSetting(Guid employeeId, int afterHours, bool repeat = false)
+    public WaitingReminderSetting(Guid employeeId, int afterHours, bool repeat = false, int? repeatEveryHours = null)
     {
         if (employeeId == Guid.Empty)
             throw new ArgumentException("Employee is required.", nameof(employeeId));
         EmployeeId = employeeId;
         SetHours(afterHours);
-        Repeat = repeat;
+        Update(afterHours, repeat, repeatEveryHours);
     }
 
     public Guid EmployeeId { get; private set; }
@@ -30,10 +30,19 @@ public sealed class WaitingReminderSetting
     /// <summary>When true the reminder is sent again every <see cref="AfterHours"/> hours until the request is handled; otherwise once per waiting period.</summary>
     public bool Repeat { get; private set; }
 
-    public void Update(int afterHours, bool repeat)
+    /// <summary>Hours between repeats; null means "the same as <see cref="AfterHours"/>". Only used when <see cref="Repeat"/> is on.</summary>
+    public int? RepeatEveryHours { get; private set; }
+
+    /// <summary>The number of hours actually used between repeats.</summary>
+    public int EffectiveRepeatHours => RepeatEveryHours ?? AfterHours;
+
+    public void Update(int afterHours, bool repeat, int? repeatEveryHours = null)
     {
         SetHours(afterHours);
+        if (repeat && repeatEveryHours is int every && Validate(every) is { } error)
+            throw new ArgumentOutOfRangeException(nameof(repeatEveryHours), error);
         Repeat = repeat;
+        RepeatEveryHours = repeat ? repeatEveryHours : null;
     }
 
     public void SetHours(int afterHours)

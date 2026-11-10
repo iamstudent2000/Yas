@@ -60,7 +60,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
             var toSend = due
                 .Where(x => WaitingReminders.ShouldSend(x.Since,
                     earlier.Where(n => n.RequestId == x.Request.Id).Select(n => (DateTime?)n.CreatedAtUtc).Max(),
-                    setting.AfterHours, setting.Repeat, nowUtc))
+                    setting.AfterHours, setting.Repeat, nowUtc, setting.RepeatEveryHours))
                 .Take(MaxPerEmployeePerRun)
                 .ToList();
             if (toSend.Count == 0)

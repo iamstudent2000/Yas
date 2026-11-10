@@ -23,15 +23,15 @@ public static class WaitingReminders
 
     /// <summary>
     /// Whether a reminder should be sent now. Never before the threshold. The first reminder of a waiting period (none sent since it
-    /// started) is always sent; later ones only when the person chose to repeat and a full threshold has passed since the last one.
+    /// started) is always sent; later ones only when the person chose to repeat and the repeat interval (default: the threshold) has passed since the last one.
     /// </summary>
-    public static bool ShouldSend(DateTime sinceUtc, DateTime? lastReminderUtc, int afterHours, bool repeat, DateTime nowUtc)
+    public static bool ShouldSend(DateTime sinceUtc, DateTime? lastReminderUtc, int afterHours, bool repeat, DateTime nowUtc, int? repeatEveryHours = null)
     {
         if (!IsDue(sinceUtc, afterHours, nowUtc))
             return false;
         if (lastReminderUtc is not DateTime last || last < sinceUtc)
             return true;
-        return repeat && nowUtc - last >= TimeSpan.FromHours(afterHours);
+        return repeat && nowUtc - last >= TimeSpan.FromHours(repeatEveryHours ?? afterHours);
     }
 
     /// <summary>Whether a request that has waited since <paramref name="sinceUtc"/> has reached the person's threshold.</summary>
