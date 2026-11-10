@@ -237,3 +237,11 @@ html[data-scheme="dark"] .request-quick .btn-quick{background:rgba(18,183,106,.1
 .request-card-body .force-close-panel .force-close-actions{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px}
 .rs-actionbar .inbox-actions .rs-toolbar{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;margin-inline-start:auto}
 .rs-actionbar .inbox-actions .force-close-panel{flex:1 1 320px}
+/* Inbox bulk decisions */
+.bulk-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px;padding:8px 12px;border:1px solid var(--border,#e6ebf2);border-radius:10px;background:var(--surface,#fff)}
+.bulk-check-all{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
+.bulk-check{flex:0 0 auto;width:16px;height:16px;cursor:pointer}
+.bulk-bar .bulk-comment{flex:1 1 240px;min-width:200px;max-width:420px}
+.bulk-bar .bulk-actions{display:inline-flex;flex-wrap:wrap;gap:8px}
+.bulk-report{margin-bottom:10px}
+.bulk-report ul{margin:6px 0 10px;padding-inline-start:18px}

@@ -47,6 +47,16 @@
         {
             <RequestFilterBar Filter="_pendingFilter" Busy="_pendingLoading" Changed="OnPendingFilterChangedAsync"
                               SortOptions="_pendingSortOptions" Sort="@(_pendingSort)" DefaultSort="created:asc" SortChanged="OnPendingSortChangedAsync" />
+            @if (_bulkReport.Count > 0)
+            {
+                <section class="card bulk-report">
+                    <h2 class="section-title">نتیجه تصمیم گروهی</h2>
+                    <ul>
+                        @foreach (var line in _bulkReport) {<li>@line</li>}
+                    </ul>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _bulkReport = []">بستن</button>
+                </section>
+            }
             @if (_items.Count == 0)
             {
                 <section class="card"><div class="empty-state"><i class="ti @Icons.Success inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
@@ -71,6 +81,35 @@
                     }
                     <small>برای دیدن جزئیات و تصمیم‌گیری روی هر ردیف کلیک کنید.</small>
                 </div>
+                <div class="bulk-bar">
+                    <label class="bulk-check-all"><input type="checkbox" disabled="@_bulkBusy" checked="@(_items.Count > 0 && _items.All(i => _bulkSelected.Contains(i.Request.Id)))" @onchange="e => SelectPageForBulk(e.Value is true)" /> انتخاب همه در این صفحه</label>
+                    @if (_bulkSelected.Count > 0)
+                    {
+                        <span class="bulk-count"><strong>@ToPersianDigits(_bulkSelected.Count.ToString())</strong> درخواست انتخاب شده</span>
+                        <input class="form-control bulk-comment" maxlength="1000" placeholder="توضیح برای همه (برای رد الزامی است)" value="@_bulkComment" @oninput="e => _bulkComment = e.Value?.ToString() ?? string.Empty" />
+                        <span class="bulk-actions">
+                            @if (_bulkConfirm is WorkflowAction confirming)
+                            {
+                                <button type="button" class="btn @(confirming == WorkflowAction.Approve ? "btn-primary" : "btn-danger")" disabled="@_bulkBusy" @onclick="BulkDecideAsync"><i class="ti @(confirming == WorkflowAction.Approve ? Icons.Approve : Icons.Reject)"></i> بله، @(confirming == WorkflowAction.Approve ? "تایید" : "رد") @ToPersianDigits(_bulkSelected.Count.ToString()) درخواست</button>
+                                <button type="button" class="btn btn-secondary" disabled="@_bulkBusy" @onclick="() => _bulkConfirm = null">انصراف</button>
+                            }
+                            else
+                            {
+                                <AuthorizeView Policy="@Perm.RequestsDecisionApprove">
+                                    <button type="button" class="btn btn-primary" disabled="@_bulkBusy" @onclick="() => AskBulk(WorkflowAction.Approve)"><i class="ti @Icons.Approve"></i> تایید انتخاب‌شده‌ها</button>
+                                </AuthorizeView>
+                                <AuthorizeView Policy="@Perm.RequestsDecisionReject">
+                                    <button type="button" class="btn btn-danger" disabled="@_bulkBusy" @onclick="() => AskBulk(WorkflowAction.Reject)"><i class="ti @Icons.Reject"></i> رد انتخاب‌شده‌ها</button>
+                                </AuthorizeView>
+                                <button type="button" class="btn btn-secondary" disabled="@_bulkBusy" @onclick="ClearBulk">لغو انتخاب</button>
+                            }
+                        </span>
+                        @if (_bulkBusy)
+                        {
+                            <span class="muted"><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
+                        }
+                    }
+                </div>
                 @foreach (var item in _items)
                 {
                     var busy = _actingRequestId == item.Request.Id;
@@ -78,6 +117,8 @@
                     var needsForm = WorkflowFieldCatalog.GetStepPart(item.Request.WorkflowType, item.CurrentStep.FillsPart) is not null;
                     <div class="request-card @(open ? "is-expanded" : "")">
                         <div class="request-card-header is-clickable" @onclick="() => TogglePending(item.Request.Id)">
+                            <input type="checkbox" class="bulk-check" aria-label="انتخاب" disabled="@_bulkBusy" checked="@_bulkSelected.Contains(item.Request.Id)"
+                                   @onclick:stopPropagation="true" @onchange="e => ToggleBulk(item.Request.Id, e.Value is true)" />
                             <span class="request-card-icon"><i class="ti @WorkflowDisplay.IconFor(item.Request.WorkflowType)"></i></span>
                             <span class="request-card-title">
                                 <strong>@WorkflowFieldCatalog.GetDisplayName(item.Request.WorkflowType)@(SubjectOf(item.Request) is { } subject ? " — " + subject : "")</strong>
@@ -503,6 +544,159 @@
 
     private Guid? _expandedPendingId;
     private Guid? _quickApproveId;
+
+    // Bulk decisions (approve / reject many selected requests at once), same pattern as bulk issue in the store.
+    private readonly HashSet<Guid> _bulkSelected = [];
+    private string _bulkComment = "";
+    private WorkflowAction? _bulkConfirm;
+    private bool _bulkBusy;
+    private IReadOnlyList<string> _bulkReport = [];
+
+    private void ToggleBulk(Guid id, bool on)
+    {
+        _bulkConfirm = null;
+        if (on) _bulkSelected.Add(id); else _bulkSelected.Remove(id);
+    }
+
+    private void SelectPageForBulk(bool on)
+    {
+        _bulkConfirm = null;
+        foreach (var item in _items)
+        {
+            if (on) _bulkSelected.Add(item.Request.Id); else _bulkSelected.Remove(item.Request.Id);
+        }
+    }
+
+    private void ClearBulk()
+    {
+        _bulkConfirm = null;
+        _bulkSelected.Clear();
+        _bulkComment = "";
+    }
+
+    private void AskBulk(WorkflowAction action)
+    {
+        if (action == WorkflowAction.Reject && string.IsNullOrWhiteSpace(_bulkComment))
+        {
+            AppState.AddToast("برای رد گروهی، نوشتن توضیح الزامی است.", ToastLevel.Error);
+            return;
+        }
+        _bulkConfirm = action;
+    }
+
+    /// <summary>Approves or rejects every selected request, one at a time, each in its own save, and lists the outcome per request.</summary>
+    private async Task BulkDecideAsync()
+    {
+        if (_bulkBusy || _bulkConfirm is not WorkflowAction action || _bulkSelected.Count == 0)
+            return;
+        if (_employeeId is not Guid employeeId || _approverPositionId is not Guid positionId)
+            return;
+        var comment = _bulkComment.Trim();
+        if (action == WorkflowAction.Reject && comment.Length == 0)
+        {
+            AppState.AddToast("برای رد گروهی، نوشتن توضیح الزامی است.", ToastLevel.Error);
+            return;
+        }
+
+        _bulkBusy = true;
+        _bulkConfirm = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (!await Workflows.HoldsActivePositionAsync(employeeId, positionId))
+            {
+                AppState.AddToast("سمت فعال شما دیگر معتبر نیست. صفحه را دوباره بارگذاری کنید.", ToastLevel.Error);
+                return;
+            }
+            if (!await Permissions.HasPermissionAsync(PermissionFor(action)))
+            {
+                AppState.AddToast("شما مجوز انجام این عملیات را ندارید.", ToastLevel.Error);
+                return;
+            }
+
+            var labels = new Dictionary<Guid, string>();
+            foreach (var i in _items)
+                labels.TryAdd(i.Request.Id, WorkflowFieldCatalog.GetDisplayName(i.Request.WorkflowType));
+            var report = new List<string>();
+            foreach (var id in _bulkSelected.ToList())
+            {
+                var label = (labels.TryGetValue(id, out var type) ? type : "درخواست") + " #" + id.ToString("N")[..8];
+                var (ok, message) = await DecideOneAsync(id, action, employeeId, positionId, comment.Length == 0 ? null : comment);
+                report.Add(ok ? $"✔ {label}" : $"✘ {label}: {message}");
+            }
+
+            var done = report.Count(r => r.StartsWith('✔'));
+            _bulkReport = report;
+            _bulkSelected.Clear();
+            _bulkComment = "";
+            AppState.AddToast($"{ToPersianDigits(done.ToString())} از {ToPersianDigits(report.Count.ToString())} درخواست ثبت شد.", done == report.Count ? ToastLevel.Success : ToastLevel.Info);
+            AppState.NotifyRequestBadgesChanged();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            AppState.AddToast($"تصمیم گروهی با خطا مواجه شد: {ex.Message}", ToastLevel.Error);
+        }
+        finally
+        {
+            _bulkBusy = false;
+        }
+    }
+
+    /// <summary>One request of a bulk decision. Same checks as a single decision; requests whose step needs a form part filled in are skipped.</summary>
+    private async Task<(bool Ok, string Message)> DecideOneAsync(Guid requestId, WorkflowAction action, Guid employeeId, Guid positionId, string? comment)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var request = await db.WorkflowRequests.Include(x => x.Steps).SingleOrDefaultAsync(x => x.Id == requestId);
+            if (request is null || request.Status != WorkflowRequestStatus.PendingApproval)
+                return (false, "دیگر در انتظار تصمیم نیست.");
+
+            var stepOrderBefore = request.CurrentStepOrder;
+            WorkflowRequestStep? currentStep = null;
+            var acting = WorkflowService.ActingResult.Denied;
+            foreach (var candidate in request.CurrentSteps.Where(x => x.Status == WorkflowStepStatus.Pending))
+            {
+                var result = await Workflows.ResolveActingAsync(employeeId, positionId, candidate, DateTime.Now);
+                if (!result.Allowed)
+                    continue;
+                currentStep = candidate;
+                acting = result;
+                break;
+            }
+            if (currentStep is null)
+                return (false, "این مرحله دیگر به سمت شما ارجاع نشده است.");
+
+            if (action == WorkflowAction.Approve && WorkflowFieldCatalog.GetStepPart(request.WorkflowType, currentStep.FillsPart) is not null)
+                return (false, "این مرحله بخشی برای تکمیل دارد؛ آن را باز کنید و جداگانه تایید کنید.");
+
+            try
+            {
+                if (action == WorkflowAction.Approve)
+                    request.Approve(currentStep.Id, employeeId, comment, acting.Authority);
+                else
+                    request.Reject(currentStep.Id, employeeId, comment, acting.Authority);
+            }
+            catch (InvalidOperationException)
+            {
+                return (false, "دیگر در وضعیتی نیست که بتوان درباره آن تصمیم گرفت.");
+            }
+
+            await NotificationSvc.StageAsync(db, request,
+                action == WorkflowAction.Approve ? WorkflowNotificationEvent.StepApproved : WorkflowNotificationEvent.Rejected, stepOrderBefore);
+            await db.SaveChangesAsync();
+            return (true, "");
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return (false, "هم‌زمان توسط شخص دیگری تغییر کرد.");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
 
     private async Task QuickApproveAsync(InboxItem item)
     {
