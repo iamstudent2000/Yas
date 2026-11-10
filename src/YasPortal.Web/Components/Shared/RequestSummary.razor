@@ -14,7 +14,8 @@
 @inject ILogger<RequestSummary> Logger
 
 <div class="rs-root">
-    @if (!Tabbed)
+    @* In tabbed mode the toolbar moves into the action bar, when the page provides one; otherwise it stays on top. *@
+    @if (!Tabbed || ActionBar is null)
     {
         @Toolbar
     }

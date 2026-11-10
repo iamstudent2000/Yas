@@ -78,7 +78,7 @@
                 @if (expanded)
                 {
                     <div class="request-card-body">
-                        <RequestSummary Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
+                        <RequestSummary Tabbed="true" Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
 
                         @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && request.WorkflowType == WorkflowTypeCode.StoreOrder)
                         {
