@@ -28,14 +28,14 @@
 
     @if (_history)
     {
-        <section class="card list-filter no-print">
-            <div class="admin-row-grid">
-                <div class="form-field is-grow"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
-                    <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
-                <div class="form-field"><label class="form-label">تحویل از تاریخ</label><PersianDatePicker Value="_from" ValueChanged="FromChangedAsync" Placeholder="تاریخ" /></div>
-                <div class="form-field"><label class="form-label">تحویل تا تاریخ</label><PersianDatePicker Value="_to" ValueChanged="ToChangedAsync" Placeholder="تاریخ" /></div>
-            </div>
-        </section>
+        <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1))"
+                       CanClear="@(!string.IsNullOrWhiteSpace(_search) || _from is not null || _to is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dFrom is not null || _dTo is not null)"
+                       OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
+            <div class="admin-filter"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
+                <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
+            <div class="admin-filter"><label class="form-label">تحویل از تاریخ</label><PersianDatePicker Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+            <div class="admin-filter"><label class="form-label">تحویل تا تاریخ</label><PersianDatePicker Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+        </ListFilterBar>
     }
 
     @if (!_history && _rows.Count > 0)
@@ -135,6 +135,9 @@
     private bool _loading = true, _busy, _history;
     private string _search = "";
     private DateTime? _from, _to;
+    // What is typed in the filter card; it becomes the applied filter above only when "جستجو" is pressed.
+    private string _dSearch = "";
+    private DateTime? _dFrom, _dTo;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
     private Guid? _confirmId, _undoId;
@@ -168,9 +171,16 @@
         _loading = false;
     }
 
-    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
-    private async Task FromChangedAsync(DateTime? d) { _from = d; _pageNo = 1; await LoadAsync(); }
-    private async Task ToChangedAsync(DateTime? d) { _to = d; _pageNo = 1; await LoadAsync(); }
+    private async Task ApplyFiltersAsync()
+    {
+        _search = _dSearch.Trim();
+        (_from, _to) = (_dFrom, _dTo);
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync() { _dSearch = ""; _dFrom = _dTo = null; await ApplyFiltersAsync(); }
+
     private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
 
     private readonly HashSet<Guid> _selected = [];
