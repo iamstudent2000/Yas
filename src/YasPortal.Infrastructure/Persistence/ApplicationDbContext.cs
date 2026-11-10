@@ -59,6 +59,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<RecipientGroup> RecipientGroups => Set<RecipientGroup>();
     public DbSet<RecipientGroupMember> RecipientGroupMembers => Set<RecipientGroupMember>();
     public DbSet<UserUiPreference> UiPreferences => Set<UserUiPreference>();
+    public DbSet<WaitingReminderSetting> WaitingReminderSettings => Set<WaitingReminderSetting>();
     public DbSet<PasswordPolicy> PasswordPolicies => Set<PasswordPolicy>();
     public DbSet<PositionDelegation> PositionDelegations => Set<PositionDelegation>();
 
@@ -373,6 +374,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             e.HasIndex(x => x.EmployeeId);
         });
         // Per-employee appearance settings: cosmetic only, one row per employee, never audited.
+        modelBuilder.Entity<WaitingReminderSetting>(e => { e.HasKey(x => x.EmployeeId); e.Property(x => x.EmployeeId).ValueGeneratedNever(); e.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<UserUiPreference>(e =>
         {
             e.HasKey(x => x.EmployeeId);

@@ -21,6 +21,7 @@ public static class NotificationDisplay
         NotificationKind.StoreOrderReady => "سفارش فروشگاه در انتظار تحویل",
         NotificationKind.StoreOrderIssued => "تحویل کالای فروشگاه",
         NotificationKind.StoreLotteryResult => "نتیجه قرعه‌کشی فروشگاه",
+        NotificationKind.WaitingReminder => "یادآوری انتظار طولانی",
         _ => kind.ToString(),
     };
 
@@ -35,6 +36,7 @@ public static class NotificationDisplay
         NotificationKind.RequestCreatedForYou => Icons.NewRequestForOthers,
         NotificationKind.VacantPosition => Icons.PositionVacant,
         NotificationKind.Manual => Icons.Message,
+        NotificationKind.WaitingReminder => Icons.Age,
         _ => Icons.Bell,
     };
 }

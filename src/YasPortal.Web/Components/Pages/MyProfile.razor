@@ -10,6 +10,7 @@
 @using YasPortal.Infrastructure.Authorization
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
+@using YasPortal.Domain.Notifications
 @attribute [Authorize(Policy = Perm.ProfileOwnView)]
 @inject ApplicationDbContext Db
 @inject IPasswordHasher<Employee> Hasher
@@ -92,6 +93,27 @@
         </div>
     </section>
 
+    <AuthorizeView Policy="@Perm.RequestsOwnView">
+        <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
+            <section class="profile-card">
+                <h2 class="section-title"><i class="ti @Icons.Age"></i> یادآوری انتظار طولانی</h2>
+                <p class="muted">اگر درخواستی بیشتر از این مدت منتظر تصمیم شما بماند، یک اعلان برایتان ارسال می‌شود (برای هر درخواست یک بار). این عدد فقط برای خود شماست و روی دیگران اثری ندارد.</p>
+                <div class="profile-security-grid">
+                    <div class="form-field">
+                        <label class="form-label"><input type="checkbox" @bind="_remindOn" /> یادآوری فعال باشد</label>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">بعد از چند ساعت انتظار (@WaitingReminderSetting.MinHours تا @WaitingReminderSetting.MaxHours)</label>
+                        <input class="form-control" type="number" min="@WaitingReminderSetting.MinHours" max="@WaitingReminderSetting.MaxHours" disabled="@(!_remindOn)" @bind="_remindHours" />
+                    </div>
+                    <div class="form-field admin-row-submit">
+                        <button class="btn btn-primary" disabled="@_remindSaving" @onclick="SaveReminderAsync"><i class="ti @Icons.Save"></i> ذخیره</button>
+                    </div>
+                </div>
+            </section>
+        </AuthorizeView>
+    </AuthorizeView>
+
     <section class="profile-card">
         <h2 class="section-title"><i class="ti @Icons.ChangePassword"></i> تغییر رمز عبور</h2>
         <div class="profile-security-grid">
@@ -130,6 +152,9 @@
     private string AccountType { get; set; } = "کاربر عادی";
 
     private Guid? _employeeId;
+    private bool _remindOn;
+    private int _remindHours = 24;
+    private bool _remindSaving;
     private string? _avatarKey;
     private string _currentPassword = "", _newPassword = "", _confirmPassword = "";
     private bool _changing;
@@ -153,6 +178,41 @@ employeeId);
         EmployeeCode = employee.Code;
         OrganizationName = employee.Organization.Name;
         OrganizationStatus = employee.Organization.IsActive ? "فعال" : "غیرفعال";
+
+        var reminder = await Db.WaitingReminderSettings.AsNoTracking().SingleOrDefaultAsync(x => x.EmployeeId == employeeId);
+        _remindOn = reminder is not null;
+        _remindHours = reminder?.AfterHours ?? 24;
+    }
+
+    /// <summary>Saves this person's own reminder threshold; switching it off removes the row (no row = no reminders).</summary>
+    private async Task SaveReminderAsync()
+    {
+        if (_employeeId is not Guid id) return;
+        if (_remindOn && WaitingReminderSetting.Validate(_remindHours) is { } error)
+        {
+            AppState.AddToast(error, ToastLevel.Error);
+            return;
+        }
+        _remindSaving = true;
+        try
+        {
+            var row = await Db.WaitingReminderSettings.SingleOrDefaultAsync(x => x.EmployeeId == id);
+            if (!_remindOn)
+            {
+                if (row is not null) Db.WaitingReminderSettings.Remove(row);
+            }
+            else if (row is null)
+                Db.WaitingReminderSettings.Add(new WaitingReminderSetting(id, _remindHours));
+            else
+                row.SetHours(_remindHours);
+            await Db.SaveChangesAsync();
+            AppState.AddToast(_remindOn ? "یادآوری ذخیره شد." : "یادآوری خاموش شد.", ToastLevel.Success);
+        }
+        catch (Exception)
+        {
+            AppState.AddToast("ذخیره یادآوری انجام نشد.", ToastLevel.Error);
+        }
+        finally { _remindSaving = false; }
     }
 
     private async Task PickAvatarAsync(string? key)

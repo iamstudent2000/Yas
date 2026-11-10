@@ -44,6 +44,9 @@ public enum NotificationKind
 
     /// <summary>The result of a store lottery draw (won or not). Recipient: the applicant.</summary>
     StoreLotteryResult,
+
+    /// <summary>A request has waited for the recipient's decision longer than the recipient's own reminder setting. Recipient: the approver who set it.</summary>
+    WaitingReminder,
 }
 
 /// <summary>

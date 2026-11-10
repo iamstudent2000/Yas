@@ -38,3 +38,14 @@ GO
 UPDATE [dbo].[WorkflowRequests]
 SET [PriorityRank] = CASE JSON_VALUE([FieldValuesJson], '$.priority') WHEN N'کم' THEN 1 WHEN N'متوسط' THEN 2 WHEN N'زیاد' THEN 3 WHEN N'بحرانی' THEN 4 END
 WHERE [PriorityRank] IS NULL AND ISJSON([FieldValuesJson]) = 1 AND JSON_VALUE([FieldValuesJson], '$.priority') IS NOT NULL;
+
+-- 4) Per-person "waiting too long" reminder threshold (set on the profile page). No row = no reminders.
+--    The notification kind WaitingReminder needs no schema change (kinds are stored as text).
+IF OBJECT_ID(N'dbo.WaitingReminderSettings', N'U') IS NULL
+    CREATE TABLE [dbo].[WaitingReminderSettings] (
+        [EmployeeId] uniqueidentifier NOT NULL,
+        [AfterHours] int NOT NULL,
+        [UpdatedAtUtc] datetime2 NOT NULL,
+        CONSTRAINT [PK_WaitingReminderSettings] PRIMARY KEY ([EmployeeId]),
+        CONSTRAINT [FK_WaitingReminderSettings_Employees_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE CASCADE
+    );

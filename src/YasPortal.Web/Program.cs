@@ -77,6 +77,8 @@ builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
+builder.Services.AddScoped<WaitingReminderService>();
+builder.Services.AddHostedService<WaitingReminderWorker>();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
@@ -202,6 +204,8 @@ if (app.Environment.IsDevelopment())
         IF COL_LENGTH(N'dbo.WorkflowRequests', N'PriorityRank') IS NULL
             ALTER TABLE [dbo].[WorkflowRequests] ADD [PriorityRank] int NULL;
         EXEC(N'UPDATE [dbo].[WorkflowRequests] SET [PriorityRank] = CASE JSON_VALUE([FieldValuesJson], ''$.priority'') WHEN N''کم'' THEN 1 WHEN N''متوسط'' THEN 2 WHEN N''زیاد'' THEN 3 WHEN N''بحرانی'' THEN 4 END WHERE [PriorityRank] IS NULL AND ISJSON([FieldValuesJson]) = 1 AND JSON_VALUE([FieldValuesJson], ''$.priority'') IS NOT NULL');
+        IF OBJECT_ID(N'dbo.WaitingReminderSettings', N'U') IS NULL
+            CREATE TABLE [dbo].[WaitingReminderSettings] ([EmployeeId] uniqueidentifier NOT NULL, [AfterHours] int NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_WaitingReminderSettings] PRIMARY KEY ([EmployeeId]), CONSTRAINT [FK_WaitingReminderSettings_Employees_EmployeeId] FOREIGN KEY ([EmployeeId]) REFERENCES [dbo].[Employees] ([Id]) ON DELETE CASCADE);
         IF OBJECT_ID(N'dbo.WorkflowRequestAttachments', N'U') IS NULL
         BEGIN
             CREATE TABLE [dbo].[WorkflowRequestAttachments] ([Id] uniqueidentifier NOT NULL, [RequestId] uniqueidentifier NOT NULL, [UploadedByEmployeeId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_WorkflowRequestAttachments] PRIMARY KEY ([Id]), CONSTRAINT [FK_WorkflowRequestAttachments_WorkflowRequests_RequestId] FOREIGN KEY ([RequestId]) REFERENCES [dbo].[WorkflowRequests] ([Id]) ON DELETE CASCADE, CONSTRAINT [FK_WorkflowRequestAttachments_Employees_UploadedByEmployeeId] FOREIGN KEY ([UploadedByEmployeeId]) REFERENCES [dbo].[Employees] ([Id]));

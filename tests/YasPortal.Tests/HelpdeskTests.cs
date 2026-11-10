@@ -1,5 +1,6 @@
 using Xunit;
 using YasPortal.Domain.Workflows;
+using YasPortal.Domain.Notifications;
 
 namespace YasPortal.Tests;
 
@@ -264,5 +265,59 @@ public class HelpdeskReportTests
     {
         Assert.Single(YasPortal.Application.Authorization.PermissionCatalog.All, x => x.Code == YasPortal.Application.Authorization.Perm.AdminHelpdeskReportView);
         Assert.Equal(YasPortal.Application.Authorization.PermissionReach.All, YasPortal.Application.Authorization.PermissionCatalog.ReachOf(YasPortal.Application.Authorization.Perm.AdminHelpdeskReportView));
+    }
+}
+
+/// <summary>The per-person "waiting too long" reminder rules.</summary>
+public class WaitingReminderTests
+{
+    private static WorkflowRequest TwoStepRequest(out Guid firstStepId) 
+    {
+        var request = new WorkflowRequest(WorkflowTypeCode.Leave, Guid.NewGuid(), Guid.NewGuid(), "{\"reason\":\"x\"}",
+            new[]
+            {
+                new WorkflowResolvedStep(Guid.NewGuid(), 1, "اول", Guid.NewGuid()),
+                new WorkflowResolvedStep(Guid.NewGuid(), 2, "دوم", Guid.NewGuid()),
+            });
+        firstStepId = request.Steps.Single(s => s.Order == 1).Id;
+        return request;
+    }
+
+    [Fact]
+    public void Waiting_starts_at_submission_then_at_the_last_decision()
+    {
+        var request = TwoStepRequest(out var first);
+        var submitted = request.RequesterActions.Single().AtUtc;
+        Assert.Equal(submitted, WaitingReminders.WaitingSince(request));
+
+        request.Approve(first, Guid.NewGuid(), null);
+        var decided = request.StepDecisions.Single().ActedAtUtc;
+        Assert.True(decided >= submitted);
+        Assert.Equal(decided, WaitingReminders.WaitingSince(request));
+    }
+
+    [Theory]
+    [InlineData(5, 6, false)]
+    [InlineData(6, 6, true)]
+    [InlineData(7, 6, true)]
+    public void Due_when_the_wait_reaches_the_threshold(int waitedHours, int afterHours, bool due)
+    {
+        var now = new DateTime(2026, 11, 9, 12, 0, 0, DateTimeKind.Utc);
+        Assert.Equal(due, WaitingReminders.IsDue(now.AddHours(-waitedHours), afterHours, now));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(720, true)]
+    [InlineData(721, false)]
+    [InlineData(-3, false)]
+    public void Threshold_must_be_within_the_allowed_range(int hours, bool ok)
+    {
+        Assert.Equal(ok, WaitingReminderSetting.Validate(hours) is null);
+        if (ok)
+            Assert.Equal(hours, new WaitingReminderSetting(Guid.NewGuid(), hours).AfterHours);
+        else
+            Assert.Throws<ArgumentOutOfRangeException>(() => new WaitingReminderSetting(Guid.NewGuid(), hours));
     }
 }
