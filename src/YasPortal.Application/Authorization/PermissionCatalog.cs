@@ -39,7 +39,6 @@ public static class Perm
     /// <summary>Send the same notification to every active employee, or to all members of chosen organizations (on top of <see cref="NotificationsMessageSend"/>).</summary>
 
     public const string AdminRequestsView = "Admin.Requests.View";
-    public const string AdminRequestsCreateForOthers = "Admin.Requests.CreateForOthers";
     public const string AdminRequestsForceClose = "Admin.Requests.ForceClose";
     public const string AdminRequestsReopen = "Admin.Requests.Reopen";
     /// <summary>See the helpdesk report: counts by category and priority, resolution times and the longest-waiting open requests (read-only).</summary>
@@ -152,7 +151,8 @@ public static class PermissionCatalog
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
         || code is Perm.StoreItemsManage or Perm.StoreStockManage or Perm.StoreOrdersIssue
-        || code is Perm.RequestsTeamCreate or Perm.AdminRequestsCreateForOthers or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
+        || CreateForOthersPermissions.IsOne(code)
+        || code is Perm.RequestsTeamCreate or Perm.AdminRequestsForceClose or Perm.AdminRequestsReopen;
 
     public static IReadOnlyList<PermissionDefinition> All { get; } = Build();
 
@@ -186,7 +186,6 @@ public static class PermissionCatalog
             new(Perm.NotificationsMessageSend, "ارسال اعلان به یک یا چند نفر، سازمان‌ها یا همه کارکنان، نگهداری گروه‌های گیرنده و مشاهده و پس‌گرفتن اعلان‌های ارسالی خود"),
 
             new(Perm.AdminRequestsView, "مشاهده گزارش همه درخواست‌ها", "Admin.Requests"),
-            new(Perm.AdminRequestsCreateForOthers, "ثبت درخواست برای دیگران", "Admin.RequestForOthers"),
             new(Perm.AdminRequestsForceClose, "بستن اجباری درخواست‌های گیر کرده", "Requests.ForceClose"),
             new(Perm.AdminRequestsReopen, "بازگشایی درخواست‌های ردشده", "Requests.Reopen"),
             new(Perm.AdminHelpdeskReportView, "مشاهده گزارش پشتیبانی (آمار درخواست‌های پشتیبانی، فقط خواندنی)"),
@@ -235,6 +234,7 @@ public static class PermissionCatalog
         };
 
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));
+        list.AddRange(CreateForOthersPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name)));
         list.AddRange(FormPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, x.OldCode)));
         return list;
     }

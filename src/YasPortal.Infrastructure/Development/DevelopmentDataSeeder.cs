@@ -82,6 +82,30 @@ public static class DevelopmentDataSeeder
         positions["کارشناس مالی"] = await EnsurePosition(db, "POS-004", "کارشناس مالی", positions["مدیر واحد"].Id, ct);
         positions["کارمند"] = await EnsurePosition(db, "POS-005", "کارمند", positions["مدیر واحد"].Id, ct);
 
+        // The single «ثبت درخواست برای دیگران» permission was split into one per request type: everybody who held it keeps access
+        // to every type (grants are copied to each new row), then the old row is removed.
+        var legacy = await db.Permissions.SingleOrDefaultAsync(x => x.Code == CreateForOthersPermissions.LegacyCode, ct);
+        if (legacy is not null)
+        {
+            foreach (var (code, name) in CreateForOthersPermissions.All)
+            {
+                var target = await db.Permissions.SingleOrDefaultAsync(x => x.Code == code, ct);
+                if (target is null) { target = new Permission(code, name); db.Permissions.Add(target); await db.SaveChangesAsync(ct); }
+                foreach (var g in await db.EmployeePermissions.Where(x => x.PermissionId == legacy.Id).ToListAsync(ct))
+                    if (!await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == g.EmployeeId && x.PermissionId == target.Id, ct))
+                        db.EmployeePermissions.Add(new EmployeePermission(g.EmployeeId, target.Id));
+                foreach (var g in await db.UserPositionPermissions.Where(x => x.PermissionId == legacy.Id).ToListAsync(ct))
+                    if (!await db.UserPositionPermissions.AnyAsync(x => x.EmployeeId == g.EmployeeId && x.PositionId == g.PositionId && x.PermissionId == target.Id, ct))
+                        db.UserPositionPermissions.Add(new UserPositionPermission(g.EmployeeId, g.PositionId, target.Id));
+                foreach (var g in await db.PermissionGroupPermissions.Where(x => x.PermissionId == legacy.Id).ToListAsync(ct))
+                    if (!await db.PermissionGroupPermissions.AnyAsync(x => x.GroupId == g.GroupId && x.PermissionId == target.Id, ct))
+                        db.PermissionGroupPermissions.Add(new PermissionGroupPermission(g.GroupId, target.Id));
+                await db.SaveChangesAsync(ct);
+            }
+            db.Permissions.Remove(legacy);   // its own grants go with it (cascade)
+            await db.SaveChangesAsync(ct);
+        }
+
         // Every permission comes from PermissionCatalog. A row still carrying an old code is renamed in place
         // (so every grant to persons, positions and groups is kept); missing rows are created; names are refreshed.
         var permissions = new Dictionary<string, Permission>(StringComparer.OrdinalIgnoreCase);

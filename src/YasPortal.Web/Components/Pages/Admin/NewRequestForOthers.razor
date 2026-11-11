@@ -8,7 +8,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = Perm.AdminRequestsCreateForOthers)]
+@attribute [Authorize(Policy = CreateForOthersPermissions.AnyPolicy)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject WorkflowService Workflows
 @inject AdminQueryService AdminQueries
@@ -16,6 +16,7 @@
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject IPermissionChecker PermissionChecker
 
 <PageTitle>ثبت درخواست برای دیگران - یاس پورتال</PageTitle>
 
@@ -62,7 +63,7 @@
         <section class="card">
             <h2 class="section-title">نوع درخواست</h2>
             <div class="request-type-grid">
-                @foreach (var type in WorkflowFieldCatalog.CreatableTypes)
+                @foreach (var type in _allowedTypes)
                 {
                     <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
                         <span class="request-type-card-icon"><i class="ti @WorkflowDisplay.IconFor(type)"></i></span>
@@ -104,6 +105,8 @@
     private Guid? _employeeId, _positionId;
     private string _employeeText = "", _employeeName = "", _positionText = "";
     private WorkflowTypeCode _selectedType = WorkflowFieldCatalog.AllTypes[0];
+    // Only the types this administrator holds «ثبت برای دیگران» for (each type is a separate permission).
+    private List<WorkflowTypeCode> _allowedTypes = [];
     private Dictionary<string, string?> _values = [];
     private List<PendingAttachment> _files = [];
     private bool _submitting;
@@ -112,6 +115,9 @@
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _adminId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+        foreach (var type in WorkflowFieldCatalog.CreatableTypes)
+            if (await PermissionChecker.HasPermissionAsync(CreateForOthersPermissions.For(type))) _allowedTypes.Add(type);
+        if (_allowedTypes.Count > 0) _selectedType = _allowedTypes[0];
     }
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
@@ -163,6 +169,12 @@
         if (errors.Count > 0)
         {
             AppState.AddToast(string.Join(" ", errors.Select(e => $"{e.Label}: {e.Message}")), ToastLevel.Error);
+            return;
+        }
+
+        if (!await PermissionChecker.HasPermissionAsync(CreateForOthersPermissions.For(_selectedType)))
+        {
+            AppState.AddToast("اجازهٔ ثبت این نوع درخواست برای دیگران را ندارید.", ToastLevel.Error);
             return;
         }
 

@@ -702,6 +702,35 @@ BEGIN
     DELETE FROM Permissions WHERE Id = @old; -- grants of the old row are removed by cascade
 END
 
+-- ===== Admin.Requests.CreateForOthers split into one permission per request type =====
+-- Everyone who held the single permission gets all of the new ones (trim per role afterwards in the access screens), then the old row is removed.
+DECLARE @cfoOld uniqueidentifier = (SELECT Id FROM Permissions WHERE Code = N'Admin.Requests.CreateForOthers');
+DECLARE @cfoTypes TABLE (Code nvarchar(100), Name nvarchar(300));
+INSERT INTO @cfoTypes (Code, Name) VALUES
+    (N'Admin.Requests.CreateForOthers.Leave', N'ثبت درخواست برای دیگران: مرخصی'),
+    (N'Admin.Requests.CreateForOthers.Purchase', N'ثبت درخواست برای دیگران: درخواست خرید'),
+    (N'Admin.Requests.CreateForOthers.Access', N'ثبت درخواست برای دیگران: درخواست دسترسی'),
+    (N'Admin.Requests.CreateForOthers.Loan', N'ثبت درخواست برای دیگران: درخواست وام'),
+    (N'Admin.Requests.CreateForOthers.Helpdesk', N'ثبت درخواست برای دیگران: درخواست پشتیبانی'),
+    (N'Admin.Requests.CreateForOthers.WorkReport', N'ثبت درخواست برای دیگران: گزارش کار'),
+    (N'Admin.Requests.CreateForOthers.VehicleRequest', N'ثبت درخواست برای دیگران: درخواست خودرو'),
+    (N'Admin.Requests.CreateForOthers.StoreOrder', N'ثبت درخواست برای دیگران: درخواست کالا از فروشگاه');
+INSERT INTO Permissions (Id, Code, Name)
+SELECT NEWID(), t.Code, t.Name FROM @cfoTypes t WHERE NOT EXISTS (SELECT 1 FROM Permissions p WHERE p.Code = t.Code);
+IF @cfoOld IS NOT NULL
+BEGIN
+    INSERT INTO EmployeePermissions (EmployeeId, PermissionId)
+    SELECT o.EmployeeId, n.Id FROM EmployeePermissions o CROSS JOIN Permissions n JOIN @cfoTypes t ON t.Code = n.Code
+    WHERE o.PermissionId = @cfoOld AND NOT EXISTS (SELECT 1 FROM EmployeePermissions x WHERE x.EmployeeId = o.EmployeeId AND x.PermissionId = n.Id);
+    INSERT INTO UserPositionPermissions (EmployeeId, PositionId, PermissionId)
+    SELECT o.EmployeeId, o.PositionId, n.Id FROM UserPositionPermissions o CROSS JOIN Permissions n JOIN @cfoTypes t ON t.Code = n.Code
+    WHERE o.PermissionId = @cfoOld AND NOT EXISTS (SELECT 1 FROM UserPositionPermissions x WHERE x.EmployeeId = o.EmployeeId AND x.PositionId = o.PositionId AND x.PermissionId = n.Id);
+    INSERT INTO PermissionGroupPermissions (GroupId, PermissionId)
+    SELECT o.GroupId, n.Id FROM PermissionGroupPermissions o CROSS JOIN Permissions n JOIN @cfoTypes t ON t.Code = n.Code
+    WHERE o.PermissionId = @cfoOld AND NOT EXISTS (SELECT 1 FROM PermissionGroupPermissions x WHERE x.GroupId = o.GroupId AND x.PermissionId = n.Id);
+    DELETE FROM Permissions WHERE Id = @cfoOld; -- grants of the old row are removed by cascade
+END
+
 -- Optional: give every administrator account all new permissions that it does not have yet (admins hold permissions only through direct grants).
 -- INSERT INTO EmployeePermissions (EmployeeId, PermissionId)
 -- SELECT e.Id, p.Id FROM Employees e CROSS JOIN Permissions p

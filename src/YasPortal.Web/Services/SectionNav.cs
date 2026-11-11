@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using YasPortal.Application.Authorization;
+using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Web.Services;
 
@@ -51,7 +52,7 @@ public static class SectionNav
     [
         new("/admin/requests", "گزارش درخواست‌ها", Icons.RequestsReport, One(Perm.AdminRequestsView), ExactMatch: true),
         new("/admin/helpdesk-report", "گزارش پشتیبانی", Icons.HelpdeskReport, One(Perm.AdminHelpdeskReportView)),
-        new("/admin/requests/new", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(Perm.AdminRequestsCreateForOthers)),
+        new("/admin/requests/new", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(CreateForOthersPermissions.AnyPolicy)),
         new("/admin/workflows", "مراحل گردش‌کار", Icons.Workflow, One(Perm.AdminWorkflowsView)),
         new("/admin/rejected-requests", "درخواست‌های ردشده", Icons.RejectedRequests, One(Perm.AdminRequestsReopen)),
         new("/admin/active-requests", "درخواست‌های فعال", Icons.ActiveRequests, One(Perm.AdminRequestsForceClose)),
@@ -104,7 +105,7 @@ public static class SectionNav
         new("/admin/store/stock", "موجودی و گردش انبار", Icons.Store, One(Perm.StoreStockView)),
         new("/admin/store/issue", "تحویل کالا", Icons.Send, One(Perm.StoreOrdersIssue)),
         new("/admin/store/lottery", "قرعه‌کشی", Icons.Users, One(Perm.StoreOrdersIssue)),
-        new("/admin/store/order-for-others", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(Perm.AdminRequestsCreateForOthers)),
+        new("/admin/store/order-for-others", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(CreateForOthersPermissions.For(WorkflowTypeCode.StoreOrder))),
         new("/admin/store/reports", "گزارش‌ها", Icons.AuditLog, One(Perm.StoreReportsView)),
     ]);
 

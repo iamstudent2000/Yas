@@ -4,11 +4,12 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Store
+@using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = Perm.AdminRequestsCreateForOthers)]
+@attribute [Authorize(Policy = CreateForOthersPermissions.For(WorkflowTypeCode.StoreOrder))]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject StoreService Store
 @inject StoreOrderService Orders
