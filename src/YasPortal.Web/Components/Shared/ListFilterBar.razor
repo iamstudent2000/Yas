@@ -13,7 +13,7 @@
    Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
 <section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
-        <i class="ti @Icons.Filter"></i> فیلترها@(SortOptions.Count > 0 ? " و ترتیب" : "")
+        <i class="ti @Icons.Search"></i> جستجو
         @if (ActiveCount > 0)
         {
             <span class="badge badge-info">@ActiveCount فیلتر فعال</span>
