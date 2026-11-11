@@ -19,9 +19,11 @@
 @inject AuditEventWriter Audit
 @inject AppState AppState
 
+@using YasPortal.Web.Components.Shared
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
 <div class="profile-page">
+    <SectionTabs Group="account" />
     <div class="page-header">
         <div>
             <div class="page-kicker">حساب من</div>

@@ -1,0 +1,49 @@
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Services
+@implements IDisposable
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
+@inject NavigationManager Navigation
+@* One sidebar link for a whole section: shown when the person may open at least one of its tabs, and it leads to the first of them. *@
+@if (_first is not null)
+{
+    <a href="@_first.Href" class="@(IsActive ? "active" : "")"><i class="ti @Icon"></i><span>@Title</span>@if (Badge > 0)
+        {
+            <span class="nav-badge">@Badge</span>
+        }</a>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Group { get; set; } = "";
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter] public int Badge { get; set; }
+
+    private SectionTab? _first;
+    private IReadOnlyList<SectionTab> _tabs = [];
+
+    private bool IsActive
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+            return _tabs.Any(t => t.IsCurrent(path));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        var section = SectionNav.Find(Group);
+        if (section is null) return;
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _tabs = await SectionNav.VisibleAsync(AuthorizationService, user, section);
+        _first = _tabs.FirstOrDefault();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => await InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}
