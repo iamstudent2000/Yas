@@ -104,6 +104,7 @@ public static class SectionNav
         new("/admin/store/stock", "موجودی و گردش انبار", Icons.Store, One(Perm.StoreStockView)),
         new("/admin/store/issue", "تحویل کالا", Icons.Send, One(Perm.StoreOrdersIssue)),
         new("/admin/store/lottery", "قرعه‌کشی", Icons.Users, One(Perm.StoreOrdersIssue)),
+        new("/admin/store/order-for-others", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(Perm.AdminRequestsCreateForOthers)),
         new("/admin/store/reports", "گزارش‌ها", Icons.AuditLog, One(Perm.StoreReportsView)),
     ]);
 

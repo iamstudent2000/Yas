@@ -1,0 +1,218 @@
+@page "/admin/store/order-for-others"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Store
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.AdminRequestsCreateForOthers)]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject StoreService Store
+@inject StoreOrderService Orders
+@inject WorkflowService Workflows
+@inject AdminQueryService AdminQueries
+@inject AuthenticationStateProvider AuthState
+@inject AppState AppState
+@inject NavigationManager Navigation
+@* Same rule as «ثبت درخواست برای دیگران» on other request types: the order is sent in the employee's name and from the chosen position,
+   the approval chain follows that position, and the person who typed it in is kept in the request history. *@
+
+<PageTitle>ثبت درخواست کالا برای دیگران - فروشگاه</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.NewRequestForOthers"></i> ثبت درخواست کالا برای دیگران</h1>
+            <p class="page-subtitle">درخواست کالا به نام کارمند انتخاب‌شده و از سمت او ثبت می‌شود، با همان قوانین فروشگاه (موجودی، دورهٔ درخواست، سقف مقدار). مسیر تأیید بر اساس سمت او تعیین می‌شود و کارمند اعلان می‌گیرد.</p>
+        </div>
+    </div>
+
+    <section class="card admin-form-row">
+        <div class="admin-form-row-head">
+            <h2 class="section-title"><i class="ti @Icons.Requester"></i> درخواست‌دهنده</h2>
+            <p class="muted">فقط کارمندان فعال دارای سمت فعال فهرست می‌شوند.</p>
+        </div>
+        <div class="admin-row-grid">
+            <div class="form-field is-grow"><label class="form-label">کارمند</label>
+                <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
+                                            SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeText"
+                                            Placeholder="کارمند را جستجو و انتخاب کنید..." SearchPlaceholder="نام، کد یا نام کاربری..." /></div>
+            <div class="form-field is-grow"><label class="form-label">سمت درخواست‌دهنده</label>
+                @if (_employeeId is null)
+                {
+                    <input class="form-control" disabled placeholder="ابتدا کارمند را انتخاب کنید" />
+                }
+                else
+                {
+                    <ServerSearchableGuidSelect @key="_employeeId" Value="@_positionId" ValueChanged="PositionChanged"
+                                                SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
+                                                Placeholder="سمت را انتخاب کنید..." SearchPlaceholder="نام یا کد سمت..." />
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (_employeeId is not null && _positionId is not null)
+    {
+        <section class="card admin-form-row">
+            <div class="admin-form-row-head">
+                <h2 class="section-title"><i class="ti @Icons.Box"></i> کالاها</h2>
+                <p class="muted">فقط کالاهایی که همین حالا قابل درخواست‌اند (موجود، دورهٔ درخواست باز، بدون قرعه‌کشی) پیشنهاد می‌شوند.</p>
+            </div>
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">کالا</label>
+                    <ServerSearchableGuidSelect @key="_itemKey" Value="@_itemId" ValueChanged="ItemChanged"
+                                                SearchAsync="SearchItemsAsync" SelectedText="@_itemText"
+                                                Placeholder="کالا را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا کد کالا..." /></div>
+                <div class="form-field"><label class="form-label">مقدار</label>
+                    <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" @bind="_qtyText" @bind:event="oninput" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    <button class="btn btn-secondary" disabled="@(_busy || _itemId is null)" @onclick="AddLineAsync"><i class="ti @Icons.Add"></i> افزودن به فهرست</button>
+                </div></div>
+            </div>
+        </section>
+
+        @if (_lines.Count > 0)
+        {
+            <section class="card">
+                <h2 class="section-title">اقلام درخواست</h2>
+                <div class="data-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>کد</th><th>کالا</th><th>مقدار</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var l in _lines)
+                            {
+                                <tr>
+                                    <td dir="ltr" style="text-align:right">@l.Code</td><td>@l.Name</td>
+                                    <td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###")) @l.Unit</td>
+                                    <td><button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => RemoveLine(l.ItemId)"><i class="ti @Icons.Delete"></i> حذف</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="form-field" style="margin-top:12px"><label class="form-label">توضیحات (اختیاری)</label>
+                    <input class="form-control" maxlength="@StoreOrder.NoteMax" @bind="_note" /></div>
+                <div class="form-actions" style="margin-top:12px">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="SubmitAsync">
+                        <i class="ti @(_busy ? Icons.Spinner : Icons.Send)"></i> ثبت درخواست برای @_employeeName
+                    </button>
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private sealed record Line(Guid ItemId, string Code, string Name, string Unit, decimal Quantity);
+
+    private Guid? _adminId, _employeeId, _positionId, _itemId;
+    private string _employeeText = "", _employeeName = "", _positionText = "", _itemText = "", _qtyText = "", _note = "";
+    private int _itemKey;
+    private bool _busy;
+    private readonly List<Line> _lines = [];
+    private readonly Dictionary<Guid, StoreItemRow> _found = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        _adminId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+    }
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchRequestersAsync(search, ct);
+
+    private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
+        AdminQueries.SearchPositionsAsync(search, _employeeId, null, ct, true);
+
+    private async Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchItemsAsync(string search, CancellationToken ct)
+    {
+        var now = DateTime.Now;
+        var page = await Store.SearchItemsAsync(new StoreItemFilter
+        {
+            Search = search, Active = true, Visible = true, ActiveCategoriesOnly = true, Lottery = false, InStock = true,
+            Today = now, Window = StoreWindowFilter.Open, Sort = "name",
+        }, 1, 30, ct);
+        foreach (var r in page.Rows) _found[r.Id] = r;
+        return page.Rows.Select(r => new AdminQueryService.LookupItem(r.Id, $"{r.Code} — {r.Name} (موجودی {WorkflowDisplay.ToPersianDigits(r.Stock.ToString("0.###"))} {r.Unit})")).ToList();
+    }
+
+    private async Task EmployeeChanged(Guid? id)
+    {
+        _employeeId = id;
+        _positionId = null; _positionText = "";
+        ResetCart();
+        if (id is Guid eid)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var emp = await db.Employees.AsNoTracking().Where(x => x.Id == eid).Select(x => new { x.Code, x.FullName, x.Username }).SingleOrDefaultAsync();
+            _employeeText = emp is null ? "" : $"{emp.Code} — {emp.FullName} — {emp.Username}";
+            _employeeName = emp?.FullName ?? "";
+            var def = await AdminQueries.GetDefaultPositionAsync(eid);
+            if (def is not null) { _positionId = def.Id; _positionText = def.Text; }
+        }
+        else _employeeText = _employeeName = "";
+    }
+
+    private void PositionChanged(Guid? id) { _positionId = id; ResetCart(); }
+
+    private void ItemChanged(Guid? id)
+    {
+        _itemId = id;
+        _itemText = id is Guid g && _found.TryGetValue(g, out var r) ? $"{r.Code} — {r.Name}" : "";
+    }
+
+    private void ResetCart()
+    {
+        _lines.Clear(); _note = ""; _qtyText = ""; _itemId = null; _itemText = ""; _itemKey++;
+    }
+
+    private void RemoveLine(Guid itemId) => _lines.RemoveAll(l => l.ItemId == itemId);
+
+    /// <summary>Checks the line (with what is already in the list) by the shop's own rules before adding it.</summary>
+    private async Task AddLineAsync()
+    {
+        if (_busy || _employeeId is not Guid emp || _itemId is not Guid itemId || !_found.TryGetValue(itemId, out var item)) return;
+        if (!StoreNumber.TryParse(_qtyText, out var q) || q < 0) { AppState.AddToast("مقدار را به صورت عدد وارد کنید.", ToastLevel.Error); return; }
+        if (q == 0) q = 1;
+        _busy = true;
+        try
+        {
+            var wanted = _lines.Where(l => l.ItemId != itemId).Select(l => (l.ItemId, l.Quantity)).Append((itemId, q)).ToList();
+            var checks = await Orders.CheckAsync(emp, wanted, DateTime.Now);
+            if (checks.TryGetValue(itemId, out var c) && c.Problem is not null) { AppState.AddToast(c.Problem, ToastLevel.Error); return; }
+            _lines.RemoveAll(l => l.ItemId == itemId);
+            _lines.Add(new Line(itemId, item.Code, item.Name, item.Unit, q));
+            _itemId = null; _itemText = ""; _qtyText = ""; _itemKey++;
+        }
+        catch (Exception) { AppState.AddToast("بررسی کالا انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy || _adminId is not Guid adminId || _employeeId is not Guid emp || _positionId is not Guid pos || _lines.Count == 0) return;
+        _busy = true;
+        try
+        {
+            // The same re-check the other request types make: an active, non-admin employee who still holds this position.
+            await using (var check = await DbFactory.CreateDbContextAsync())
+            {
+                var eligible = await check.Employees.AsNoTracking().AnyAsync(x => x.Id == emp && x.IsActive && !x.IsAdmin);
+                if (!eligible || !await Workflows.HoldsActivePositionAsync(emp, pos))
+                { AppState.AddToast("این کارمند دیگر سمت فعال انتخاب‌شده را ندارد؛ دوباره انتخاب کنید.", ToastLevel.Error); return; }
+            }
+            var result = await Orders.PlaceAsync(emp, pos, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now, adminId);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast($"درخواست کالا برای {_employeeName} ثبت شد.", ToastLevel.Success);
+            Navigation.NavigateTo("/admin/active-requests");
+        }
+        catch (Exception) { AppState.AddToast("ثبت درخواست انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+}

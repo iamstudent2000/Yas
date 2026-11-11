@@ -178,7 +178,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>Checks the lines against the catalogue (active item, request period open today, not a lottery item, per-request maximum, stock) and sends the order for approval.</summary>
-    public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
+    public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, Guid? createdByEmployeeId = null, CancellationToken ct = default)
     {
         if (wanted.Count == 0) return new(false, "کالایی برای درخواست انتخاب نشده است.");
         if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
@@ -200,7 +200,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var summary = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity)));
         var fields = new Dictionary<string, string?> { ["summary"] = summary };
         if (!string.IsNullOrWhiteSpace(note)) fields["note"] = note.Trim();
-        var request = new WorkflowRequest(WorkflowTypeCode.StoreOrder, employeeId, positionId, JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList());
+        var request = new WorkflowRequest(WorkflowTypeCode.StoreOrder, employeeId, positionId, JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList(), createdByEmployeeId: createdByEmployeeId);
         var order = new StoreOrder(request.Id, employeeId, positionId, note, lines);
 
         db.WorkflowRequests.Add(request);
