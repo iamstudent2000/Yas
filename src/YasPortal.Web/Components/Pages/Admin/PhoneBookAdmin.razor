@@ -32,15 +32,15 @@
     }
     else
     {
-        <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت دفترچه تلفن">
-            <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.PhoneBook"></i> گروه‌ها و مخاطبان</button>
-            @if (_canManage)
-            {
+        @if (_canManage)
+        {
+            <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت دفترچه تلفن">
+                <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.PhoneBook"></i> گروه‌ها و مخاطبان</button>
                 <button type="button" class="store-tab @(_tab == "group" ? "active" : "")" @onclick="@(() => _tab = "group")"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "گروه جدید" : "ویرایش گروه")</button>
                 <button type="button" class="store-tab @(_tab == "contact" ? "active" : "")" @onclick="@(() => _tab = "contact")"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "مخاطب جدید" : "ویرایش مخاطب")</button>
                 <button type="button" class="store-tab @(_tab == "import" ? "active" : "")" @onclick="@(() => _tab = "import")"><i class="ti @Icons.Add"></i> ورود گروهی</button>
-            }
-        </nav>
+            </nav>
+        }
 
         <div class="admin-stack">
             @if (_canManage && _tab == "group")
