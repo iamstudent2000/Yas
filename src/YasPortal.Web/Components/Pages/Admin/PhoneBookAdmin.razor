@@ -32,8 +32,18 @@
     }
     else
     {
+        @if (_canManage)
+        {
+            <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت دفترچه تلفن">
+                <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.PhoneBook"></i> گروه‌ها و مخاطبان</button>
+                <button type="button" class="store-tab @(_tab == "group" ? "active" : "")" @onclick="@(() => _tab = "group")"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "گروه جدید" : "ویرایش گروه")</button>
+                <button type="button" class="store-tab @(_tab == "contact" ? "active" : "")" @onclick="@(() => _tab = "contact")"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "مخاطب جدید" : "ویرایش مخاطب")</button>
+                <button type="button" class="store-tab @(_tab == "import" ? "active" : "")" @onclick="@(() => _tab = "import")"><i class="ti @Icons.Add"></i> ورود گروهی</button>
+            </nav>
+        }
+
         <div class="admin-stack">
-            @if (_canManage)
+            @if (_canManage && _tab == "group")
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
@@ -50,6 +60,10 @@
                     </div>
                 </section>
 
+            }
+
+            @if (_canManage && _tab == "contact")
+            {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "افزودن مخاطب" : "ویرایش مخاطب")</h2>
@@ -77,6 +91,10 @@
                     </div>
                 </section>
 
+            }
+
+            @if (_canManage && _tab == "import")
+            {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی مخاطبان</h2>
@@ -120,6 +138,8 @@
                 </section>
             }
 
+            @if (_tab == "list")
+            {
             <section class="card">
                 <div class="card-toolbar">
                     <div>
@@ -162,12 +182,14 @@
                     </ContactActions>
                 </PhoneBookView>
             </section>
+            }
         </div>
     }
 </div>
 
 @code {
     private bool _loading = true, _canManage, _busy;
+    private string _tab = "list";
     private List<ContactGroup> _groups = [];
     private List<Contact> _contacts = [];
     private PhoneBookTree _tree = new();
@@ -217,11 +239,13 @@
     private async Task BeginEditGroupAsync(ContactGroup group)
     {
         _editingGroupId = group.Id; _groupName = group.Name; _groupOrder = group.SortOrder;
+        _tab = "group";
         await ToTopAsync();
     }
 
     private void ResetGroupForm()
     {
+        if (_editingGroupId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
         _editingGroupId = null; _groupName = "";
         _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
     }
@@ -295,12 +319,14 @@
         _extension = c.Extension ?? ""; _phone = c.Phone ?? ""; _mobile = c.Mobile ?? ""; _email = c.Email ?? ""; _note = c.Note ?? "";
         _contactOrder = c.SortOrder;
         _contactFormKey++;
+        _tab = "contact";
         await ToTopAsync();
     }
 
     private void ResetContactForm()
     {
         // The chosen group is kept for the next contact, which makes typing a whole group quick.
+        if (_editingContactId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
         _editingContactId = null; _fullName = _jobTitle = _extension = _phone = _mobile = _email = _note = "";
         _contactOrder = _contacts.Count == 0 ? 1 : _contacts.Max(x => x.SortOrder) + 1;
         _contactFormKey++;
@@ -427,7 +453,7 @@
             }
             await db.SaveChangesAsync();
             AppState.AddToast($"{added} مخاطب و {newGroups} گروه جدید اضافه شد" + (duplicates > 0 ? $"؛ {duplicates} مخاطب تکراری نادیده گرفته شد." : "."), ToastLevel.Success);
-            _importText = ""; _importLines = null;
+            _importText = ""; _importLines = null; _tab = "list";
             await LoadAsync();
             ResetContactForm();
         }

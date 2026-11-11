@@ -26,3 +26,6 @@
 .store-tab:hover{color:var(--text,#182230)}
 .store-tab.active{color:var(--accent,#155eef);border-bottom-color:var(--accent,#155eef);font-weight:700}
 @media print{.store-tabs{display:none!important}}
+/* the same tab bar, with buttons (in-page tabs, e.g. the phone book admin) */
+.store-tabs button.store-tab{background:none;border:0;border-bottom:3px solid transparent;cursor:pointer;font:inherit;font-size:13.5px}
+.store-tabs button.store-tab.active{color:var(--accent,#155eef);border-bottom-color:var(--accent,#155eef);font-weight:700}
