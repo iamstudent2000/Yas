@@ -9,7 +9,7 @@
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@attribute [Authorize(Policy = CreateForOthersPermissions.For(WorkflowTypeCode.StoreOrder))]
+@attribute [Authorize(Policy = CreateForOthersPermissions.StoreOrder)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject StoreService Store
 @inject StoreOrderService Orders

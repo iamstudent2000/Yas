@@ -16,6 +16,9 @@ public static class CreateForOthersPermissions
     /// <summary>The permission that the earlier single permission was split into (kept only so the seeder and SQL can move its grants).</summary>
     public const string LegacyCode = "Admin.Requests.CreateForOthers";
 
+    /// <summary>The store-order permission as a constant (an attribute argument must be one).</summary>
+    public const string StoreOrder = Prefix + "StoreOrder";
+
     public static string For(WorkflowTypeCode type) => Prefix + type;
 
     public static IReadOnlyList<(string Code, string Name)> All { get; } =
