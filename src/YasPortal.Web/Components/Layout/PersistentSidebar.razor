@@ -56,59 +56,8 @@
                     </div>
                 </div>
             }
-            @if (_accessGroupVisible)
-            {
-                <div class="sidebar-group">
-                    <button type="button"
-                            class="sidebar-group-toggle @(_accessExpanded ? "expanded" : "") @(_accessActive ? "active-parent" : "")"
-                            @onclick="ToggleAccessGroup"><i class="ti @Icons.AccessGroup"></i><span class="group-title">مدیریت کاربران و
-                        دسترسی‌ها</span><i class="ti @Icons.ChevronDown group-chevron"></i></button>
-                    <div class="sidebar-group-items @(_accessExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="@Perm.AdminUsersView">
-                            <NavLink href="/admin/users"><i class="ti @Icons.Users"></i><span>کاربران</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminAccessView">
-                            <NavLink href="/admin/access"><i class="ti @Icons.AccessManagement"></i><span>مدیریت دسترسی</span>
-                            </NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminPasswordPolicyView">
-                            <NavLink href="/admin/password-policy"><i class="ti @Icons.PasswordPolicy"></i><span>سیاست رمز عبور</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminPermissionsView">
-                            <NavLink href="/admin/permissions"><i class="ti @Icons.Permission"></i><span>مجوزها</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminPermissionsView">
-                            <NavLink href="/admin/permission-groups"><i class="ti @Icons.PermissionGroup"></i><span>گروه‌های مجوز</span>
-                            </NavLink>
-                        </AuthorizeView>
-                    </div>
-                </div>
-            }
-            @if (_structureGroupVisible)
-            {
-                <div class="sidebar-group">
-                    <button type="button"
-                            class="sidebar-group-toggle @(_structureExpanded ? "expanded" : "") @(_structureActive ? "active-parent" : "")"
-                            @onclick="ToggleStructureGroup"><i class="ti @Icons.OrgStructure"></i><span class="group-title">ساختار
-                        سازمانی</span><i class="ti @Icons.ChevronDown group-chevron"></i></button>
-                    <div class="sidebar-group-items @(_structureExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="@Perm.AdminPositionsView">
-                            <NavLink href="/admin/positions"><i class="ti @Icons.Position"></i><span>سمت‌ها</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminOrganizationsView">
-                            <NavLink href="/admin/organizations"><i class="ti @Icons.Organization"></i><span>سازمان‌ها</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminAssignmentHistoryView">
-                            <NavLink href="/admin/assignment-history"><i class="ti @Icons.History"></i><span>سوابق تخصیص
-                                سمت‌ها</span></NavLink>
-                        </AuthorizeView>
-                        @if (_delegationsVisible)
-                        {
-                            <NavLink href="/delegations"><i class="ti @Icons.Delegation"></i><span>تفویض اختیار</span></NavLink>
-                        }
-                    </div>
-                </div>
-            }
+            <SectionNavLink Group="access" Title="مدیریت کاربران و دسترسی‌ها" Icon="@Icons.AccessGroup" />
+            <SectionNavLink Group="structure" Title="ساختار سازمانی" Icon="@Icons.OrgStructure" />
             <AuthorizeView Policy="@Perm.AdminLinksView">
                 <NavLink href="/admin/links"><i class="ti @Icons.Links"></i><span>پیوندهای صفحه اصلی</span></NavLink>
             </AuthorizeView>
@@ -145,15 +94,7 @@
                             <NavLink href="/requests/new-for-team"><i class="ti @Icons.NewRequestForOthers"></i><span>ثبت درخواست برای زیرمجموعه</span></NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminRequestsView">
-                            <NavLink href="/admin/requests" Match="NavLinkMatch.All"><i class="ti @Icons.RequestsReport"></i><span>گزارش درخواست‌ها</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminHelpdeskReportView">
-                            <NavLink href="/admin/helpdesk-report"><i class="ti @Icons.HelpdeskReport"></i><span>گزارش پشتیبانی</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminRequestsCreateForOthers">
-                            <NavLink href="/admin/requests/new"><i class="ti @Icons.NewRequestForOthers"></i><span>ثبت درخواست برای دیگران</span></NavLink>
-                        </AuthorizeView>
+                        <SectionNavLink Group="request-admin" Title="مدیریت درخواست‌ها" Icon="@Icons.Workflow" />
                         <AuthorizeView Policy="@Perm.RequestsOwnView">
                           <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
                             <NavLink href="/requests/mine"><i class="ti @Icons.MyRequests"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
@@ -175,48 +116,10 @@
                             <NavLink href="/requests/team"><i class="ti @Icons.Subordinates"></i><span>درخواست‌های زیرمجموعه</span></NavLink>
                           </AuthorizeView>
                         </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminWorkflowsView">
-                            <NavLink href="/admin/workflows"><i class="ti @Icons.Workflow"></i><span>مدیریت مراحل گردش‌کار</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminRequestsReopen">
-                            <NavLink href="/admin/rejected-requests"><i class="ti @Icons.RejectedRequests"></i><span>درخواست‌های ردشده</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminRequestsForceClose">
-                            <NavLink href="/admin/active-requests"><i class="ti @Icons.ActiveRequests"></i><span>درخواست‌های فعال</span></NavLink>
-                        </AuthorizeView>
                     </div>
                 </div>
             }
-            @if (_notificationsGroupVisible)
-            {
-                <div class="sidebar-group">
-                    <button type="button"
-                            class="sidebar-group-toggle @(_notificationsExpanded ? "expanded" : "") @(_notificationsActive ? "active-parent" : "")"
-                            @onclick="ToggleNotificationsGroup"><i class="ti @Icons.Bell"></i><span class="group-title">اعلان‌ها</span><i class="ti @Icons.ChevronDown group-chevron"></i></button>
-                    <div class="sidebar-group-items @(_notificationsExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="@Perm.RequestsOwnView">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/notifications" Match="NavLinkMatch.All"><i class="ti @Icons.Bell"></i><span>اعلان‌ها</span>@if (_notificationBadge > 0)
-                                {
-                                    <span class="nav-badge">@_notificationBadge</span>
-                                }</NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="AdminOnly">
-                            <NavLink href="/admin/notifications" Match="NavLinkMatch.All"><i class="ti @Icons.Bell"></i><span>اعلان‌های مدیر</span>@if (_notificationBadge > 0)
-                                {
-                                    <span class="nav-badge">@_notificationBadge</span>
-                                }</NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.NotificationsMessageSend">
-                            <NavLink href="/notifications/send"><i class="ti @Icons.SendNotification"></i><span>ارسال اعلان</span></NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.AdminNotificationsView">
-                            <NavLink href="/admin/notifications/report"><i class="ti @Icons.NotificationsReport"></i><span>گزارش اعلان‌ها</span></NavLink>
-                        </AuthorizeView>
-                    </div>
-                </div>
-            }
+            <SectionNavLink Group="notifications" Title="اعلان‌ها" Icon="@Icons.Bell" Badge="_notificationBadge" />
         </nav>
                             <div class="sidebar-footer"><i class="ti @Icons.Secure"></i>
                                 <div><strong>امنیت فعال</strong><small>دسترسی بر اساس مجوز</small></div>
@@ -230,28 +133,15 @@
     private bool _isMinimal;
     private bool _stateLoaded;
     private bool _accountExpanded = true;
-    private bool _accessExpanded;
-    private bool _structureExpanded;
-    private bool _accessActive;
-    private bool _structureActive;
     private bool _requestsExpanded;
     private bool _requestsActive;
-    private bool _notificationsExpanded;
-    private bool _notificationsActive;
     private int _inboxBadge;
     private int _notificationBadge;
     private int _myRequestsBadge;
 
     private bool _accountGroupVisible;
-    private bool _accessGroupVisible;
-    private bool _structureGroupVisible;
     private bool _requestsGroupVisible;
-    private bool _notificationsGroupVisible;
-    private bool _delegationsVisible;
 
-    private static readonly string[] AccessGroupPaths = { "admin/users", "admin/access", "admin/permissions", "admin/permission-groups", "admin/password-policy" };
-    private static readonly string[] StructureGroupPaths = { "admin/positions", "admin/organizations", "admin/assignment-history", "delegations" };
-    private static readonly string[] NotificationsGroupPaths = { "notifications", "admin/notifications" };
     private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/new-for-team", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "requests/team", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
@@ -276,15 +166,9 @@
         _accountGroupVisible = await Can(Perm.DashboardPageView)
             || await Can(Perm.ProfileOwnView)
             || !user.HasClaim("yas_is_admin", "True");
-        _accessGroupVisible = await Can(Perm.AdminUsersView) || await Can(Perm.AdminPasswordPolicyView) || await Can(Perm.AdminAccessView) || await Can(Perm.AdminPermissionsView);
-        _structureGroupVisible = await Can(Perm.AdminPositionsView) || await Can(Perm.AdminOrganizationsView) || await Can(Perm.AdminAssignmentHistoryView)
-            || await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
         _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.AdminHelpdeskReportView) || await Can(Perm.RequestsOwnView)
             || await Can(Perm.AdminWorkflowsView) || await Can(Perm.AdminRequestsForceClose) || await Can(Perm.AdminRequestsReopen) || await Can(Perm.RequestsTeamView) || await Can(Perm.RequestsTeamApprovalsView)
             ;
-        _notificationsGroupVisible = await Can(Perm.RequestsOwnView) || await Can(Perm.NotificationsMessageSend) || await Can(Perm.AdminNotificationsView)
-            || user.HasClaim("yas_is_admin", "True"); // administrators always get their notifications entry
-        _delegationsVisible = await Can(Perm.DelegationsOwnManage) || await Can(Perm.AdminDelegationsView);
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
@@ -297,10 +181,7 @@
     private void UpdateActiveGroups(string uri)
     {
         var path = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
-        _accessActive = AccessGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-        _structureActive = StructureGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
         _requestsActive = RequestsGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
-        _notificationsActive = NotificationsGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
     private async void OnAppStateChanged()
@@ -348,10 +229,7 @@
             {
                 var values = groups.Split('|', StringSplitOptions.RemoveEmptyEntries);
                 _accountExpanded = values.Contains("account", StringComparer.OrdinalIgnoreCase);
-                _accessExpanded = values.Contains("access", StringComparer.OrdinalIgnoreCase);
-                _structureExpanded = values.Contains("structure", StringComparer.OrdinalIgnoreCase);
                 _requestsExpanded = values.Contains("requests", StringComparer.OrdinalIgnoreCase);
-                _notificationsExpanded = values.Contains("notifications", StringComparer.OrdinalIgnoreCase);
             }
         }
         catch (InvalidOperationException) { }
@@ -359,15 +237,11 @@
     }
 
     private async Task ToggleAccountGroup() { _accountExpanded = !_accountExpanded; await PersistGroups(); }
-    private async Task ToggleAccessGroup() { _accessExpanded = !_accessExpanded; await PersistGroups(); }
-    private async Task ToggleStructureGroup() { _structureExpanded = !_structureExpanded; await PersistGroups(); }
     private async Task ToggleRequestsGroup() { _requestsExpanded = !_requestsExpanded; await PersistGroups(); }
-    private async Task ToggleNotificationsGroup() { _notificationsExpanded = !_notificationsExpanded; await PersistGroups(); }
 
     private async Task PersistGroups()
     {
-        var value = string.Join('|', new[] { _accountExpanded ? "account" : null, _accessExpanded ? "access" : null,
-_structureExpanded ? "structure" : null, _requestsExpanded ? "requests" : null, _notificationsExpanded ? "notifications" : null }.Where(x => x is not null));
+        var value = string.Join('|', new[] { _accountExpanded ? "account" : null, _requestsExpanded ? "requests" : null }.Where(x => x is not null));
         try { await JS.InvokeVoidAsync("localStorage.setItem", ExpansionStorageKey, value); }
         catch (InvalidOperationException)
         { }

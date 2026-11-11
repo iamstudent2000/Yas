@@ -1,0 +1,32 @@
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Web.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
+@* The tab bar shared by the pages of one section (same look as the store admin): each tab shows only for people who may open it. *@
+@if (_tabs.Count > 1)
+{
+    <nav class="store-tabs no-print" dir="rtl" aria-label="@_title">
+        @foreach (var tab in _tabs)
+        {
+            <NavLink class="store-tab" href="@tab.Href" Match="@(tab.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)"><i class="ti @tab.Icon"></i> @tab.Label</NavLink>
+        }
+    </nav>
+}
+
+@code {
+    /// <summary>The section key: access, structure, request-admin or notifications.</summary>
+    [Parameter, EditorRequired] public string Group { get; set; } = "";
+
+    private IReadOnlyList<SectionTab> _tabs = [];
+    private string _title = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var section = SectionNav.Find(Group);
+        if (section is null) { _tabs = []; return; }
+        _title = section.Title;
+        var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        _tabs = await SectionNav.VisibleAsync(AuthorizationService, user, section);
+    }
+}
