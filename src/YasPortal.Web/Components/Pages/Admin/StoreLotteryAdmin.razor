@@ -36,9 +36,9 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کالا</th><th>پایان ثبت‌نام</th><th>متقاضیان</th><th>مجموع درخواست</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
+                    <thead><tr><SortableHeader Text="کالا" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="پایان ثبت‌نام" Column="closes" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="متقاضیان" Column="applicants" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="مجموع درخواست" Column="total" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><th></th></tr></thead>
                     <tbody>
-                        @foreach (var i in _items)
+                        @foreach (var i in SortedItems)
                         {
                             <tr>
                                 <td><strong>@i.Name</strong> <span class="muted" dir="ltr">@i.Code</span></td>
@@ -71,9 +71,9 @@
                             {
                                 <tr><td colspan="7">
                                     <table class="data-table">
-                                        <thead><tr><th>نام</th><th>سمت</th><th>مقدار</th><th>زمان ثبت‌نام</th></tr></thead>
+                                        <thead><tr><SortableHeader Text="نام" Column="name" CurrentSort="@_aSort" CurrentDescending="@_aDesc" OnSort="ApplicantSortBy" /><SortableHeader Text="سمت" Column="position" CurrentSort="@_aSort" CurrentDescending="@_aDesc" OnSort="ApplicantSortBy" /><SortableHeader Text="مقدار" Column="qty" CurrentSort="@_aSort" CurrentDescending="@_aDesc" OnSort="ApplicantSortBy" /><SortableHeader Text="زمان ثبت‌نام" Column="date" CurrentSort="@_aSort" CurrentDescending="@_aDesc" OnSort="ApplicantSortBy" /></tr></thead>
                                         <tbody>
-                                            @foreach (var a in _applicants)
+                                            @foreach (var a in SortedApplicants)
                                             {
                                                 <tr><td>@a.EmployeeName</td><td>@a.PositionName</td><td>@WorkflowDisplay.ToPersianDigits(a.Quantity.ToString("0.###"))</td><td>@WorkflowDisplay.ToPersianDateTime(a.AppliedAtUtc)</td></tr>
                                             }
@@ -94,6 +94,16 @@
     private IReadOnlyList<LotteryItemRow> _items = [];
     private IReadOnlyList<LotteryApplicantRow> _applicants = [];
     private Guid? _openItemId, _confirmId;
+    private string? _sortBy, _aSort;
+    private bool _sortDesc, _aDesc;
+
+    private IReadOnlyList<LotteryItemRow> SortedItems => TableSort.Apply(_items, _sortBy, _sortDesc,
+        ("name", i => i.Name), ("closes", i => i.ClosesOn), ("applicants", i => i.Applicants), ("total", i => i.TotalQuantity), ("stock", i => i.Stock),
+        ("status", i => i.Window == StoreRequestWindow.Closed ? 0 : i.ClosesOn is null ? 2 : 1));
+    private IReadOnlyList<LotteryApplicantRow> SortedApplicants => TableSort.Apply(_applicants, _aSort, _aDesc,
+        ("name", a => a.EmployeeName), ("position", a => a.PositionName), ("qty", a => a.Quantity), ("date", a => a.AppliedAtUtc));
+    private void SortBy(string col) => (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col);
+    private void ApplicantSortBy(string col) => (_aSort, _aDesc) = TableSort.Toggle(_aSort, _aDesc, col);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

@@ -31,7 +31,7 @@ public sealed class StoreItemFilter
     /// <summary>The day "open", "not yet" and "closed" are judged on.</summary>
     /// <summary>The moment the request period is judged against (local time, with the clock).</summary>
     public DateTime Today { get; set; } = DateTime.Now;
-    /// <summary>name, code, stock or category (default).</summary>
+    /// <summary>name, code, stock, unit, max, window, active, visible, status or category (default).</summary>
     public string? Sort { get; set; }
     public bool Descending { get; set; }
 }
@@ -221,6 +221,18 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         ("code", true) => q.OrderByDescending(x => x.Code),
         ("stock", false) => q.OrderBy(x => x.Stock).ThenBy(x => x.Name),
         ("stock", true) => q.OrderByDescending(x => x.Stock).ThenBy(x => x.Name),
+        ("unit", false) => q.OrderBy(x => x.Unit).ThenBy(x => x.Name),
+        ("unit", true) => q.OrderByDescending(x => x.Unit).ThenBy(x => x.Name),
+        ("max", false) => q.OrderBy(x => x.MaxPerRequest).ThenBy(x => x.Name),
+        ("max", true) => q.OrderByDescending(x => x.MaxPerRequest).ThenBy(x => x.Name),
+        ("window", false) => q.OrderBy(x => x.RequestOpensOn).ThenBy(x => x.RequestClosesOn).ThenBy(x => x.Name),
+        ("window", true) => q.OrderByDescending(x => x.RequestOpensOn).ThenByDescending(x => x.RequestClosesOn).ThenBy(x => x.Name),
+        ("active", false) => q.OrderBy(x => x.IsActive).ThenBy(x => x.Name),
+        ("active", true) => q.OrderByDescending(x => x.IsActive).ThenBy(x => x.Name),
+        ("visible", false) => q.OrderBy(x => x.IsVisible).ThenBy(x => x.Name),
+        ("visible", true) => q.OrderByDescending(x => x.IsVisible).ThenBy(x => x.Name),
+        ("status", false) => q.OrderBy(x => x.Stock > 0).ThenBy(x => x.Name),
+        ("status", true) => q.OrderByDescending(x => x.Stock > 0).ThenBy(x => x.Name),
         (_, true) => q.OrderByDescending(x => x.CategoryName).ThenBy(x => x.Name),
         _ => q.OrderBy(x => x.CategoryName).ThenBy(x => x.Name),
     };
@@ -348,7 +360,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
-    public async Task<StorePage<StoreMovementRow>> SearchMovementsAsync(Guid? itemId, StockMovementKind? kind, DateTime? fromUtc, DateTime? toUtcExclusive, int page, int pageSize, string? text = null, CancellationToken ct = default)
+    public async Task<StorePage<StoreMovementRow>> SearchMovementsAsync(Guid? itemId, StockMovementKind? kind, DateTime? fromUtc, DateTime? toUtcExclusive, int page, int pageSize, string? text = null, string? sort = null, bool descending = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = from m in db.StoreStockMovements.AsNoTracking()
@@ -364,7 +376,25 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
             q = q.Where(x => (x.m.Reference != null && x.m.Reference.Contains(s)) || (x.m.Note != null && x.m.Note.Contains(s)));
         }
         var total = await q.CountAsync(ct);
-        var rows = await q.OrderByDescending(x => x.m.CreatedAtUtc)
+        // Default (and tie-break): newest first.
+        var ordered = (sort, descending) switch
+        {
+            ("item", false) => q.OrderBy(x => x.i.Name).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("item", true) => q.OrderByDescending(x => x.i.Name).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("kind", false) => q.OrderBy(x => x.m.Kind).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("kind", true) => q.OrderByDescending(x => x.m.Kind).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("delta", false) => q.OrderBy(x => x.m.Delta).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("delta", true) => q.OrderByDescending(x => x.m.Delta).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("ref", false) => q.OrderBy(x => x.m.Reference).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("ref", true) => q.OrderByDescending(x => x.m.Reference).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("note", false) => q.OrderBy(x => x.m.Note).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("note", true) => q.OrderByDescending(x => x.m.Note).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("by", false) => q.OrderBy(x => db.Employees.Where(e => e.Id == x.m.CreatedByEmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("by", true) => q.OrderByDescending(x => db.Employees.Where(e => e.Id == x.m.CreatedByEmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenByDescending(x => x.m.CreatedAtUtc),
+            ("time", false) => q.OrderBy(x => x.m.CreatedAtUtc),
+            _ => q.OrderByDescending(x => x.m.CreatedAtUtc),
+        };
+        var rows = await ordered
             .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {

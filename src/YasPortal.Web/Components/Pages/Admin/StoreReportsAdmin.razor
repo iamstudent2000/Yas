@@ -56,9 +56,9 @@
             {
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr>@foreach (var h in _table.Headers) {<th>@h</th>}</tr></thead>
+                        <thead><tr>@for (var ci = 0; ci < _table.Headers.Count; ci++) { var col = ci; <SortableHeader Text="@_table.Headers[col]" Column="@col.ToString()" CurrentSort="@_sortCol" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /> }</tr></thead>
                         <tbody>
-                            @foreach (var row in _table.Rows)
+                            @foreach (var row in SortedRows)
                             {
                                 <tr>@foreach (var cell in row) {<td>@WorkflowDisplay.ToPersianDigits(cell)</td>}</tr>
                             }
@@ -82,6 +82,21 @@
     private DateTime? _dFrom, _dTo;
     private int _dDays = 90;
     private StoreReportTable? _table;
+    private string? _sortCol;
+    private bool _sortDesc;
+
+    private Task SortByAsync(string col) { (_sortCol, _sortDesc) = TableSort.Toggle(_sortCol, _sortDesc, col); return Task.CompletedTask; }
+
+    private IReadOnlyList<IReadOnlyList<string>> SortedRows
+    {
+        get
+        {
+            if (_table is null) return [];
+            var rows = _table.Rows.Select(r => (IReadOnlyList<string>)r).ToList();
+            if (!int.TryParse(_sortCol, out var c)) return rows;
+            return TableSort.Apply(rows, _sortCol, _sortDesc, (_sortCol!, r => c < r.Count ? r[c] : null));
+        }
+    }
     private static readonly IReadOnlyList<(string Key, string Text)> DayOptions = [("30", "۳۰ روز"), ("60", "۶۰ روز"), ("90", "۹۰ روز"), ("180", "۱۸۰ روز"), ("365", "یک سال")];
 
     private static readonly IReadOnlyList<(string Key, string Text)> KindOptions = StoreReportService.Kinds.Select(k => (k.Key, k.Name)).ToList();
@@ -93,6 +108,7 @@
     private async Task LoadAsync()
     {
         _loading = true;
+        _sortCol = null; _sortDesc = false;
         try { _table = await Reports.BuildAsync(_key, _from, _to, _days); }
         catch (Exception) { AppState.AddToast("ساخت گزارش انجام نشد.", ToastLevel.Error); }
         finally { _loading = false; }
@@ -118,7 +134,7 @@
         _exporting = true;
         try
         {
-            var bytes = StoreCsv.Build(_table.Headers, _table.Rows);
+            var bytes = StoreCsv.Build(_table.Headers, SortedRows);
             await JS.InvokeVoidAsync("yasDownloadFile", $"store-{_key}-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", bytes);
         }
         finally { _exporting = false; }

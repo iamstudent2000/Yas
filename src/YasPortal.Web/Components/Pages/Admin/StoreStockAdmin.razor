@@ -91,7 +91,7 @@
                     <h2 class="section-title print-only">موجودی کالاهای فروشگاه</h2>
                     <div class="data-table-wrap">
                         <table class="data-table">
-                            <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>وضعیت</th></tr></thead>
+                            <thead><tr><SortableHeader Text="کد" Column="code" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /></tr></thead>
                             <tbody>
                                 @foreach (var i in _levels.Rows)
                                 {
@@ -127,7 +127,7 @@
                     <h2 class="section-title print-only">گردش انبار فروشگاه</h2>
                     <div class="data-table-wrap">
                         <table class="data-table">
-                            <thead><tr><th>زمان</th><th>کالا</th><th>نوع</th><th>مقدار</th><th>مرجع</th><th>توضیح</th><th>ثبت‌کننده</th></tr></thead>
+                            <thead><tr><SortableHeader Text="زمان" Column="time" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="کالا" Column="item" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="نوع" Column="kind" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="مقدار" Column="delta" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="مرجع" Column="ref" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="توضیح" Column="note" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="ثبت‌کننده" Column="by" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /></tr></thead>
                             <tbody>
                                 @foreach (var m in _moves.Rows)
                                 {
@@ -174,7 +174,7 @@
 
     private async Task ExportMovesCoreAsync()
     {
-        var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText);
+        var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText, _mSort, _mDesc);
         var csv = StoreCsv.Build(["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"],
             all.Rows.Select(m => (IReadOnlyList<string>)[WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc), m.ItemCode, m.ItemName, StoreService.KindLabel(m.Kind),
                 m.Delta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), m.Unit, m.Reference ?? "", m.Note ?? "", m.CreatedBy ?? ""]));
@@ -182,6 +182,12 @@
         if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
     }
     private string? _stockFilter;
+    private string? _lSort;
+    private bool _lDesc;
+    private string? _mSort = "time";
+    private bool _mDesc = true;
+    private async Task LevelSortBy(string col) { (_lSort, _lDesc) = TableSort.Toggle(_lSort, _lDesc, col); _pageNo = 1; await LoadAsync(); }
+    private async Task MoveSortBy(string col) { (_mSort, _mDesc) = TableSort.Toggle(_mSort, _mDesc, col); _pageNo = 1; await LoadAsync(); }
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "فقط موجود"), ("out", "فقط ناموجود")];
     private int _pageNo = 1, _pageSize = 20, _formKey;
     private StorePage<StoreItemRow> _levels = new([], 0);
@@ -214,8 +220,8 @@
 
     private async Task LoadAsync()
     {
-        if (_tab == "levels") _levels = await Store.SearchItemsAsync(_search, _categoryId, false, _pageNo, _pageSize, _stockFilter switch { "in" => true, "out" => false, _ => null });
-        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize, _moveText);
+        if (_tab == "levels") _levels = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, InStock = _stockFilter switch { "in" => true, "out" => false, _ => null }, Sort = _lSort, Descending = _lDesc }, _pageNo, _pageSize);
+        else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize, _moveText, _mSort, _mDesc);
     }
 
     private sealed record MovementPreview(string ItemName, string Unit, decimal Current, decimal After);

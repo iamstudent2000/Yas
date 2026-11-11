@@ -35,9 +35,9 @@
             <h2 class="section-title"><i class="ti @Icons.Box"></i> ثبت‌نام‌های قرعه‌کشی من</h2>
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کالا</th><th>مقدار</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th></tr></thead>
+                    <thead><tr><SortableHeader Text="کالا" Column="item" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="مقدار" Column="qty" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="تاریخ ثبت‌نام" Column="date" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /></tr></thead>
                     <tbody>
-                        @foreach (var l in _lottery)
+                        @foreach (var l in SortedLottery)
                         {
                             <tr>
                                 <td>@l.ItemName</td>
@@ -66,7 +66,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>شماره</th><th>تاریخ</th><th>اقلام</th><th>وضعیت</th><th></th></tr></thead>
+                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
@@ -98,6 +98,13 @@
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
     private IReadOnlyList<LotteryMineRow> _lottery = [];
+    private string? _sortBy, _lotSort;
+    private bool _sortDesc, _lotDesc;
+
+    private IReadOnlyList<LotteryMineRow> SortedLottery => TableSort.Apply(_lottery, _lotSort, _lotDesc,
+        ("item", l => l.ItemName), ("qty", l => l.Quantity), ("date", l => l.AppliedAtUtc), ("status", l => StoreLottery.StatusText(l.Status)));
+    private void LotSortBy(string col) => (_lotSort, _lotDesc) = TableSort.Toggle(_lotSort, _lotDesc, col);
+    private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,7 +118,7 @@
         _loading = true;
         if (_employeeId is Guid id)
         {
-            (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize);
+            (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize, _sortBy, _sortDesc);
             _lottery = await Lottery.ListMineAsync(id);
         }
         _loading = false;

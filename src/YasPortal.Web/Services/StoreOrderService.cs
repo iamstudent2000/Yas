@@ -211,23 +211,23 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>The person's own orders, newest first. Filtered by employee, so orders sent while acting in any position are listed.</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListMineAsync(Guid employeeId, int page, int pageSize, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListMineAsync(Guid employeeId, int page, int pageSize, string? sort = null, bool descending = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.EmployeeId == employeeId);
-        return await PageAsync(db, q, page, pageSize, ct);
+        return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
     }
 
     /// <summary>Approved orders still waiting for the goods to be handed over, oldest first.</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, string? sort = null, bool descending = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc == null && db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Approved));
-        return await PageAsync(db, q, page, pageSize, ct, oldestFirst: true);
+        return await PageAsync(db, q, page, pageSize, ct, oldestFirst: true, sort: sort, descending: descending);
     }
 
     /// <summary>Orders already handed over, newest hand-over first (the storekeeper's history).</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListIssuedAsync(int page, int pageSize, string? search = null, DateTime? issuedFromUtc = null, DateTime? issuedToUtcExclusive = null, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListIssuedAsync(int page, int pageSize, string? search = null, DateTime? issuedFromUtc = null, DateTime? issuedToUtcExclusive = null, string? sort = null, bool descending = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc != null);
@@ -238,14 +238,29 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             var s = search.Trim();
             q = q.Where(o => db.Employees.Any(e => e.Id == o.EmployeeId && e.FullName.Contains(s)) || o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
         }
-        return await PageAsync(db, q, page, pageSize, ct, byIssueDate: true);
+        return await PageAsync(db, q, page, pageSize, ct, byIssueDate: true, sort: sort, descending: descending);
     }
 
-    private static async Task<(IReadOnlyList<StoreOrderRow>, int)> PageAsync(ApplicationDbContext db, IQueryable<StoreOrder> q, int page, int pageSize, CancellationToken ct, bool oldestFirst = false, bool byIssueDate = false)
+    private static async Task<(IReadOnlyList<StoreOrderRow>, int)> PageAsync(ApplicationDbContext db, IQueryable<StoreOrder> q, int page, int pageSize, CancellationToken ct, bool oldestFirst = false, bool byIssueDate = false, string? sort = null, bool descending = false)
     {
         var total = await q.CountAsync(ct);
-        var ordered = byIssueDate ? q.OrderByDescending(o => o.IssuedAtUtc)
-            : oldestFirst ? q.OrderBy(o => o.CreatedAtUtc) : q.OrderByDescending(o => o.CreatedAtUtc);
+        var ordered = (sort, descending) switch
+        {
+            ("number", false) => q.OrderBy(o => o.Id),
+            ("number", true) => q.OrderByDescending(o => o.Id),
+            ("who", false) => q.OrderBy(o => db.Employees.Where(e => e.Id == o.EmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("who", true) => q.OrderByDescending(o => db.Employees.Where(e => e.Id == o.EmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("by", false) => q.OrderBy(o => db.Employees.Where(e => e.Id == o.IssuedByEmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("by", true) => q.OrderByDescending(o => db.Employees.Where(e => e.Id == o.IssuedByEmployeeId).Select(e => e.FullName).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("status", false) => q.OrderBy(o => db.WorkflowRequests.Where(r => r.Id == o.RequestId).Select(r => r.Status).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("status", true) => q.OrderByDescending(o => db.WorkflowRequests.Where(r => r.Id == o.RequestId).Select(r => r.Status).FirstOrDefault()).ThenBy(o => o.CreatedAtUtc),
+            ("issued", false) => q.OrderBy(o => o.IssuedAtUtc),
+            ("issued", true) => q.OrderByDescending(o => o.IssuedAtUtc),
+            ("date", false) => q.OrderBy(o => o.CreatedAtUtc),
+            ("date", true) => q.OrderByDescending(o => o.CreatedAtUtc),
+            _ => byIssueDate ? q.OrderByDescending(o => o.IssuedAtUtc)
+                : oldestFirst ? q.OrderBy(o => o.CreatedAtUtc) : q.OrderByDescending(o => o.CreatedAtUtc),
+        };
         var rows = await ordered.Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize)
             .Select(o => new
             {

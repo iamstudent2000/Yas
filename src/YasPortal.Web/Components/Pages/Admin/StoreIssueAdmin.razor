@@ -85,7 +85,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr>@if (!_history) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>شماره</th><th>درخواست‌کننده</th><th>@(_history ? "تاریخ تحویل" : "تاریخ ثبت")</th><th>اقلام</th>@if (_history) {<th>تحویل‌دهنده</th>}<th></th></tr></thead>
+                    <thead><tr>@if (!_history) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="@(_history ? "تاریخ تحویل" : "تاریخ ثبت")" Column="@(_history ? "issued" : "date")" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th>@if (_history) {<SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />}<th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
@@ -167,7 +167,7 @@
 
     private async Task LoadAsync()
     {
-        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime()) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize);
+        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime(), _sortBy, _sortDesc) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize, _sortBy, _sortDesc);
         _loading = false;
     }
 
@@ -181,7 +181,11 @@
 
     private async Task ClearFiltersAsync() { _dSearch = ""; _dFrom = _dTo = null; await ApplyFiltersAsync(); }
 
-    private async Task SwitchAsync(bool history) { _history = history; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
+    private string? _sortBy;
+    private bool _sortDesc;
+    private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
+
+    private async Task SwitchAsync(bool history) { _history = history; _sortBy = null; _sortDesc = false; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
 
     private readonly HashSet<Guid> _selected = [];
     private string _bulkNote = "";

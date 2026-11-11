@@ -104,7 +104,7 @@
                 <h2 class="section-title"><i class="ti @Icons.Box"></i> گروه‌ها</h2>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>نام</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <thead><tr><SortableHeader Text="نام" Column="name" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" /><SortableHeader Text="ترتیب" Column="order" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" />@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
                             @foreach (var c in FilteredCategories)
                             {
@@ -174,7 +174,7 @@
                 </div>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>حداکثر در درخواست</th><th>دوره درخواست</th><th>وضعیت</th><th>در فروشگاه</th>@if (_canManage) {<th></th>}</tr></thead>
+                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="کد" Column="code" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="حداکثر در درخواست" Column="max" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="دوره درخواست" Column="window" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="در فروشگاه" Column="visible" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" />@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
                             @foreach (var i in _items.Rows)
                             {
@@ -225,10 +225,19 @@
     private string _cSearch = "", _dcSearch = "";
     private string? _cStatus, _dcStatus;
 
-    private List<StoreCategory> FilteredCategories => _categories
+    private List<StoreCategory> FilteredCategories => TableSort.Apply(_categories
         .Where(c => (string.IsNullOrWhiteSpace(_cSearch) || c.Name.Contains(_cSearch.Trim(), StringComparison.CurrentCultureIgnoreCase))
                     && (_cStatus is null || (_cStatus == "on") == c.IsActive))
-        .ToList();
+        , _catSort, _catDesc, ("name", c => c.Name), ("order", c => c.SortOrder), ("active", c => c.IsActive)).ToList();
+
+    private string? _catSort;
+    private bool _catDesc;
+    private void CatSortBy(string col) => (_catSort, _catDesc) = TableSort.Toggle(_catSort, _catDesc, col);
+    private Task ItemSortBy(string col)
+    {
+        var (key, desc) = TableSort.Toggle(_sort, _sortDesc, col);
+        return SetFilterAsync(() => { _sort = key; _sortDesc = desc; });
+    }
 
     private void SwitchTab(string tab) { _tab = tab; _confirmCategoryId = null; }
 
