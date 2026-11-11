@@ -37,89 +37,25 @@
                             <NavLink href="/dashboard" Match="NavLinkMatch.All"><i
                                 class="ti @Icons.Dashboard"></i><span>داشبورد</span></NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.ProfileOwnView">
-                            <NavLink href="/my-profile"><i class="ti @Icons.Profile"></i><span>پروفایل من</span></NavLink>
-                        </AuthorizeView>
                         <NavLink href="/phone-book"><i class="ti @Icons.PhoneBook"></i><span>دفترچه تلفن</span></NavLink>
-                        <AuthorizeView Policy="@Perm.StoreShopView">
-                            <NavLink href="/store"><i class="ti @Icons.Store"></i><span>فروشگاه</span></NavLink>
-                        </AuthorizeView>
                         <NavLink href="/guides"><i class="ti @Icons.Guide"></i><span>راهنمای کاربری</span></NavLink>
-                        <NavLink href="/settings/appearance"><i class="ti @Icons.Appearance"></i><span>ظاهر برنامه</span></NavLink>
-                        <AuthorizeView Context="myPositionsAuth">
-                            <Authorized>
-                                @if (!myPositionsAuth.User.HasClaim("yas_is_admin", "True"))
-                                {
-                                    <NavLink href="/my-positions"><i class="ti @Icons.Position"></i><span>سمت‌های من</span></NavLink>
-                                }
-                            </Authorized>
-                        </AuthorizeView>
+                        <SectionNavLink Group="account" Title="تنظیمات حساب" Icon="@Icons.Profile" />
+                        <SectionNavLink Group="store" Title="فروشگاه" Icon="@Icons.Store" />
                     </div>
                 </div>
             }
             <SectionNavLink Group="access" Title="مدیریت کاربران و دسترسی‌ها" Icon="@Icons.AccessGroup" />
             <SectionNavLink Group="structure" Title="ساختار سازمانی" Icon="@Icons.OrgStructure" />
-            <AuthorizeView Policy="@Perm.AdminLinksView">
-                <NavLink href="/admin/links"><i class="ti @Icons.Links"></i><span>پیوندهای صفحه اصلی</span></NavLink>
-            </AuthorizeView>
-            <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
-                <NavLink href="/guides/manage"><i class="ti @Icons.Guide"></i><span>مدیریت راهنماها</span></NavLink>
-            </AuthorizeView>
-            <AuthorizeView Policy="@Perm.StoreAdminPolicy">
-                <NavLink href="/admin/store"><i class="ti @Icons.Store"></i><span>مدیریت فروشگاه</span></NavLink>
-            </AuthorizeView>
+            <SectionNavLink Group="content-admin" Title="محتوای صفحه اصلی" Icon="@Icons.Links" />
+            <SectionNavLink Group="store-admin" Title="مدیریت فروشگاه" Icon="@Icons.Store" />
             <AuthorizeView Policy="@Perm.AdminPhoneBookView">
                 <NavLink href="/admin/phone-book"><i class="ti @Icons.PhoneBook"></i><span>مدیریت دفترچه تلفن</span></NavLink>
-            </AuthorizeView>
-            <AuthorizeView Policy="@Perm.AdminLandingSlidesView">
-                <NavLink href="/admin/landing-slides"><i class="ti @Icons.LandingSlides"></i><span>اسلایدهای صفحه اصلی</span></NavLink>
             </AuthorizeView>
             <AuthorizeView Policy="@Perm.AdminAuditLogView">
                 <NavLink href="/admin/audit-log"><i class="ti @Icons.AuditLog"></i><span>گزارش رویدادها</span></NavLink>
             </AuthorizeView>
-            @if (_requestsGroupVisible)
-            {
-                <div class="sidebar-group">
-                    <button type="button"
-                            class="sidebar-group-toggle @(_requestsExpanded ? "expanded" : "") @(_requestsActive ? "active-parent" : "")"
-                            @onclick="ToggleRequestsGroup"><i class="ti @Icons.RequestsGroup"></i><span class="group-title">درخواست‌ها و
-                        گردش‌کار</span><i class="ti @Icons.ChevronDown group-chevron"></i></button>
-                    <div class="sidebar-group-items @(_requestsExpanded ? "expanded" : "")">
-                        <AuthorizeView Policy="@Perm.RequestsOwnCreate">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/new"><i class="ti @Icons.NewRequest"></i><span>درخواست جدید</span></NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.RequestsTeamCreate">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/new-for-team"><i class="ti @Icons.NewRequestForOthers"></i><span>ثبت درخواست برای زیرمجموعه</span></NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                        <SectionNavLink Group="request-admin" Title="مدیریت درخواست‌ها" Icon="@Icons.Workflow" />
-                        <AuthorizeView Policy="@Perm.RequestsOwnView">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/mine"><i class="ti @Icons.MyRequests"></i><span>درخواست‌های من</span>@if (_myRequestsBadge > 0)
-                                {
-                                    <span class="nav-badge">@_myRequestsBadge</span>
-                                }</NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@Perm.RequestsOwnView">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/inbox"><i class="ti @Icons.Inbox"></i><span>کارتابل تاییدات</span>@if (_inboxBadge > 0)
-                                {
-                                    <span class="nav-badge">@_inboxBadge</span>
-                                }</NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="Requests.ViewSubordinates">
-                          <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
-                            <NavLink href="/requests/team"><i class="ti @Icons.Subordinates"></i><span>درخواست‌های زیرمجموعه</span></NavLink>
-                          </AuthorizeView>
-                        </AuthorizeView>
-                    </div>
-                </div>
-            }
+            <SectionNavLink Group="my-requests" Title="درخواست‌ها" Icon="@Icons.RequestsGroup" Badge="@(_inboxBadge + _myRequestsBadge)" />
+            <SectionNavLink Group="request-admin" Title="مدیریت درخواست‌ها" Icon="@Icons.Workflow" />
             <SectionNavLink Group="notifications" Title="اعلان‌ها" Icon="@Icons.Bell" Badge="_notificationBadge" />
         </nav>
                             <div class="sidebar-footer"><i class="ti @Icons.Secure"></i>
@@ -134,22 +70,17 @@
     private bool _isMinimal;
     private bool _stateLoaded;
     private bool _accountExpanded = true;
-    private bool _requestsExpanded;
-    private bool _requestsActive;
     private int _inboxBadge;
     private int _notificationBadge;
     private int _myRequestsBadge;
 
     private bool _accountGroupVisible;
-    private bool _requestsGroupVisible;
 
-    private static readonly string[] RequestsGroupPaths = { "requests/new", "requests/new-for-team", "admin/requests", "admin/requests/new", "requests/mine", "requests/inbox", "requests/team", "admin/workflows", "admin/active-requests", "admin/rejected-requests" };
 
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
         AppState.OnChange += OnAppStateChanged;
-        UpdateActiveGroups(Navigation.Uri);
         await UpdateGroupVisibilityAsync();
         await RefreshBadgesAsync();
     }
@@ -167,22 +98,12 @@
         _accountGroupVisible = await Can(Perm.DashboardPageView)
             || await Can(Perm.ProfileOwnView)
             || !user.HasClaim("yas_is_admin", "True");
-        _requestsGroupVisible = await Can(Perm.RequestsOwnCreate) || await Can(Perm.AdminRequestsCreateForOthers) || await Can(Perm.AdminRequestsView) || await Can(Perm.AdminHelpdeskReportView) || await Can(Perm.RequestsOwnView)
-            || await Can(Perm.AdminWorkflowsView) || await Can(Perm.AdminRequestsForceClose) || await Can(Perm.AdminRequestsReopen) || await Can(Perm.RequestsTeamView) || await Can(Perm.RequestsTeamApprovalsView)
-            ;
     }
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        UpdateActiveGroups(e.Location);
         await RefreshBadgesAsync();
         await InvokeAsync(StateHasChanged);
-    }
-
-    private void UpdateActiveGroups(string uri)
-    {
-        var path = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
-        _requestsActive = RequestsGroupPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
     }
 
     private async void OnAppStateChanged()
@@ -230,7 +151,6 @@
             {
                 var values = groups.Split('|', StringSplitOptions.RemoveEmptyEntries);
                 _accountExpanded = values.Contains("account", StringComparer.OrdinalIgnoreCase);
-                _requestsExpanded = values.Contains("requests", StringComparer.OrdinalIgnoreCase);
             }
         }
         catch (InvalidOperationException) { }
@@ -238,11 +158,10 @@
     }
 
     private async Task ToggleAccountGroup() { _accountExpanded = !_accountExpanded; await PersistGroups(); }
-    private async Task ToggleRequestsGroup() { _requestsExpanded = !_requestsExpanded; await PersistGroups(); }
 
     private async Task PersistGroups()
     {
-        var value = string.Join('|', new[] { _accountExpanded ? "account" : null, _requestsExpanded ? "requests" : null }.Where(x => x is not null));
+        var value = string.Join('|', new[] { _accountExpanded ? "account" : null }.Where(x => x is not null));
         try { await JS.InvokeVoidAsync("localStorage.setItem", ExpansionStorageKey, value); }
         catch (InvalidOperationException)
         { }

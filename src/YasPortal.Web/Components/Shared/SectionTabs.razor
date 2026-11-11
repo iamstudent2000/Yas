@@ -3,13 +3,16 @@
 @using YasPortal.Web.Services
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IAuthorizationService AuthorizationService
+@inject WorkflowService Workflows
+@inject AppState AppState
+@implements IDisposable
 @* The tab bar shared by the pages of one section (same look as the store admin): each tab shows only for people who may open it. *@
 @if (_tabs.Count > 1)
 {
     <nav class="store-tabs no-print" dir="rtl" aria-label="@_title">
         @foreach (var tab in _tabs)
         {
-            <NavLink class="store-tab" href="@tab.Href" Match="@(tab.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)"><i class="ti @tab.Icon"></i> @tab.Label</NavLink>
+            <NavLink class="store-tab" href="@tab.Href" Match="@(tab.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)"><i class="ti @tab.Icon"></i> @tab.Label@if (BadgeOf(tab) > 0) {<span class="nav-badge">@BadgeOf(tab)</span>}</NavLink>
         }
     </nav>
 }
@@ -20,6 +23,10 @@
 
     private IReadOnlyList<SectionTab> _tabs = [];
     private string _title = "";
+    private int _inboxBadge, _mineBadge;
+    private bool _subscribed;
+
+    private int BadgeOf(SectionTab tab) => tab.BadgeKey switch { "inbox" => _inboxBadge, "mine" => _mineBadge, _ => 0 };
 
     protected override async Task OnParametersSetAsync()
     {
@@ -28,5 +35,37 @@
         _title = section.Title;
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
         _tabs = await SectionNav.VisibleAsync(AuthorizationService, user, section);
+        if (_tabs.Any(t => t.BadgeKey is not null))
+        {
+            if (!_subscribed) { AppState.OnChange += OnAppStateChanged; _subscribed = true; }
+            await RefreshBadgesAsync(user);
+        }
+    }
+
+    private async Task RefreshBadgesAsync(System.Security.Claims.ClaimsPrincipal? user = null)
+    {
+        try
+        {
+            user ??= (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+            var employeeId = Guid.TryParse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var eid) ? (Guid?)eid : null;
+            var positionId = Guid.TryParse(user.FindFirst("yas_active_position_id")?.Value, out var pid) ? (Guid?)pid : null;
+            _mineBadge = await Workflows.CountUnseenForRequesterAsync(employeeId);
+            _inboxBadge = await Workflows.CountInboxAsync(employeeId, positionId, DateTime.Now);
+        }
+        catch
+        {
+            _mineBadge = _inboxBadge = 0;   // a counter is a convenience; never break the page for it
+        }
+    }
+
+    private async void OnAppStateChanged()
+    {
+        await RefreshBadgesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        if (_subscribed) AppState.OnChange -= OnAppStateChanged;
     }
 }

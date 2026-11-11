@@ -9,7 +9,7 @@ namespace YasPortal.Web.Services;
 /// satisfied when every policy in it passes (so "own notifications" is one alternative of two policies, and
 /// "delegations" is two alternatives of one policy each).
 /// </summary>
-public sealed record SectionTab(string Href, string Label, string Icon, string[][] Allowed, bool ExactMatch = false)
+public sealed record SectionTab(string Href, string Label, string Icon, string[][] Allowed, bool ExactMatch = false, string? BadgeKey = null)
 {
     public bool IsCurrent(string path)
     {
@@ -65,8 +65,51 @@ public static class SectionNav
         new("/admin/notifications/report", "گزارش اعلان‌ها", Icons.NotificationsReport, One(Perm.AdminNotificationsView)),
     ]);
 
-    public static SectionDef? Find(string key)
-        => new[] { Access, Structure, RequestAdmin, Notifications }.FirstOrDefault(x => x.Key == key);
+    // An alternative with no policies is always satisfied (any signed-in person).
+    private static readonly string[][] Anyone = [[]];
+
+    /// <summary>The pages a person uses for their own requests. Tabs carry the approvals-inbox and my-requests counters.</summary>
+    public static readonly SectionDef MyRequests = new("my-requests", "درخواست‌ها", Icons.RequestsGroup,
+    [
+        new("/requests/new", "درخواست جدید", Icons.NewRequest, [[Perm.RequestsOwnCreate, "NonAdmin"]]),
+        new("/requests/new-for-team", "ثبت برای زیرمجموعه", Icons.NewRequestForOthers, [[Perm.RequestsTeamCreate, "NonAdmin"]]),
+        new("/requests/mine", "درخواست‌های من", Icons.MyRequests, [[Perm.RequestsOwnView, "NonAdmin"]], BadgeKey: "mine"),
+        new("/requests/inbox", "کارتابل تاییدات", Icons.Inbox, [[Perm.RequestsOwnView, "NonAdmin"]], BadgeKey: "inbox"),
+        new("/requests/team", "درخواست‌های زیرمجموعه", Icons.Subordinates, [["Requests.ViewSubordinates", "NonAdmin"]]),
+    ]);
+
+    public static readonly SectionDef Account = new("account", "تنظیمات حساب", Icons.Profile,
+    [
+        new("/my-profile", "پروفایل من", Icons.Profile, One(Perm.ProfileOwnView)),
+        new("/settings/appearance", "ظاهر برنامه", Icons.Appearance, Anyone),
+        new("/my-positions", "سمت‌های من", Icons.Position, One("NonAdmin")),
+    ]);
+
+    public static readonly SectionDef Shop = new("store", "فروشگاه", Icons.Store,
+    [
+        new("/store", "فروشگاه", Icons.Store, One(Perm.StoreShopView), ExactMatch: true),
+        new("/store/orders", "سفارش‌های من", Icons.MyRequests, [[Perm.StoreOrdersCreate, "NonAdmin"]]),
+    ]);
+
+    public static readonly SectionDef Content = new("content-admin", "محتوای صفحه اصلی", Icons.Links,
+    [
+        new("/admin/links", "پیوندهای صفحه اصلی", Icons.Links, One(Perm.AdminLinksView)),
+        new("/admin/landing-slides", "اسلایدهای صفحه اصلی", Icons.LandingSlides, One(Perm.AdminLandingSlidesView)),
+        new("/guides/manage", "مدیریت راهنماها", Icons.Guide, One(Perm.GuidesWorkspacePolicy)),
+    ]);
+
+    public static readonly SectionDef StoreAdmin = new("store-admin", "مدیریت فروشگاه", Icons.Store,
+    [
+        new("/admin/store/items", "کالاها و گروه‌ها", Icons.Box, One(Perm.StoreItemsView)),
+        new("/admin/store/stock", "موجودی و گردش انبار", Icons.Store, One(Perm.StoreStockView)),
+        new("/admin/store/issue", "تحویل کالا", Icons.Send, One(Perm.StoreOrdersIssue)),
+        new("/admin/store/lottery", "قرعه‌کشی", Icons.Users, One(Perm.StoreOrdersIssue)),
+        new("/admin/store/reports", "گزارش‌ها", Icons.AuditLog, One(Perm.StoreReportsView)),
+    ]);
+
+    private static readonly SectionDef[] All = [Access, Structure, RequestAdmin, Notifications, MyRequests, Account, Shop, Content, StoreAdmin];
+
+    public static SectionDef? Find(string key) => All.FirstOrDefault(x => x.Key == key);
 
     /// <summary>The tabs of a section that this person may open, in order. The first one is where the sidebar link leads.</summary>
     public static async Task<IReadOnlyList<SectionTab>> VisibleAsync(IAuthorizationService authorization, ClaimsPrincipal user, SectionDef section)
