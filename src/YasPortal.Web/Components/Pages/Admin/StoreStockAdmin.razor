@@ -77,16 +77,18 @@
 
             @if (_tab == "levels")
             {
+                <ListFilterBar Busy="_busy" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_categoryId is null ? 0 : 1) + (_stockFilter is null ? 0 : 1))"
+                               CanClear="@(!string.IsNullOrWhiteSpace(_search) || _categoryId is not null || _stockFilter is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dCategory is not null || _dStock is not null)"
+                               OnSearch="ApplyLevelsAsync" OnClear="ClearLevelsAsync">
+                    <div class="admin-filter"><label class="form-label">جستجو</label>
+                        <input class="form-control" placeholder="نام یا کد..." @bind="_dSearch" @bind:event="oninput" /></div>
+                    <div class="admin-filter"><label class="form-label">گروه</label>
+                        <LookupSelect Options="CategoryOptions" Value="@_dCategory" ValueChanged="k => _dCategory = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه گروه‌ها" /></div>
+                    <div class="admin-filter"><label class="form-label">موجودی</label>
+                        <LookupSelect Options="StockOptions" Value="@_dStock" ValueChanged="k => _dStock = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+                </ListFilterBar>
                 <section class="card">
                     <h2 class="section-title print-only">موجودی کالاهای فروشگاه</h2>
-                    <div class="admin-row-grid no-print">
-                        <div class="form-field is-grow"><label class="form-label">جستجو</label>
-                            <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
-                        <div class="form-field"><label class="form-label">گروه</label>
-                            <LookupSelect Options="CategoryOptions" Value="@(_categoryId?.ToString())" ValueChanged="CategoryChangedAsync" Placeholder="همه گروه‌ها" /></div>
-                        <div class="form-field"><label class="form-label">موجودی</label>
-                            <LookupSelect Options="StockOptions" Value="@_stockFilter" ValueChanged="StockFilterChangedAsync" Placeholder="همه" /></div>
-                    </div>
                     <div class="data-table-wrap">
                         <table class="data-table">
                             <thead><tr><th>کد</th><th>کالا</th><th>گروه</th><th>واحد</th><th>موجودی</th><th>وضعیت</th></tr></thead>
@@ -108,18 +110,20 @@
             }
             else
             {
+                <ListFilterBar Busy="_busy" ActiveCount="@((_moveItemId is null ? 0 : 1) + (_moveKind is null ? 0 : 1) + (string.IsNullOrWhiteSpace(_moveText) ? 0 : 1) + (_moveFrom is null ? 0 : 1) + (_moveTo is null ? 0 : 1))"
+                               CanClear="@(_moveItemId is not null || _moveKind is not null || !string.IsNullOrWhiteSpace(_moveText) || _moveFrom is not null || _moveTo is not null || _dMoveItem is not null || _dMoveKind is not null || !string.IsNullOrWhiteSpace(_dMoveText) || _dMoveFrom is not null || _dMoveTo is not null)"
+                               OnSearch="ApplyMovesAsync" OnClear="ClearMovesAsync">
+                    <div class="admin-filter"><label class="form-label">کالا</label>
+                        <LookupSelect Options="ItemOptions" Value="@_dMoveItem" ValueChanged="k => _dMoveItem = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
+                    <div class="admin-filter"><label class="form-label">نوع</label>
+                        <LookupSelect Options="KindOptions" Value="@_dMoveKind" ValueChanged="k => _dMoveKind = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه انواع" /></div>
+                    <div class="admin-filter"><label class="form-label">جستجو در مرجع و توضیح</label>
+                        <input class="form-control" placeholder="شماره فاکتور، حواله، سفارش..." @bind="_dMoveText" @bind:event="oninput" /></div>
+                    <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_dMoveFrom" ValueChanged="d => _dMoveFrom = d" Placeholder="تاریخ" /></div>
+                    <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_dMoveTo" ValueChanged="d => _dMoveTo = d" Placeholder="تاریخ" /></div>
+                </ListFilterBar>
                 <section class="card">
                     <h2 class="section-title print-only">گردش انبار فروشگاه</h2>
-                    <div class="admin-row-grid no-print">
-                        <div class="form-field is-grow"><label class="form-label">کالا</label>
-                            <LookupSelect Options="ItemOptions" Value="@(_moveItemId?.ToString())" ValueChanged="MoveItemChangedAsync" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
-                        <div class="form-field"><label class="form-label">نوع</label>
-                            <LookupSelect Options="KindOptions" Value="@(_moveKind is null ? null : ((int)_moveKind.Value).ToString())" ValueChanged="MoveKindChangedAsync" Placeholder="همه انواع" /></div>
-                        <div class="form-field"><label class="form-label">جستجو در مرجع و توضیح</label>
-                            <input class="form-control" placeholder="شماره فاکتور، حواله، سفارش..." @bind="_moveText" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
-                        <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker Value="_moveFrom" ValueChanged="MoveFromChangedAsync" Placeholder="تاریخ" /></div>
-                        <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_moveTo" ValueChanged="MoveToChangedAsync" Placeholder="تاریخ" /></div>
-                    </div>
                     <div class="form-actions no-print" style="margin:8px 0"><button class="btn btn-secondary btn-sm" disabled="@(_moves.Total == 0)" @onclick="ExportMovesAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button></div>
                     <div class="data-table-wrap">
                         <table class="data-table">
@@ -154,6 +158,10 @@
     private StockMovementKind? _moveKind;
     private DateTime? _moveFrom, _moveTo;
     private string _moveText = "";
+    // What is typed in the filter cards; it becomes the applied filter above only when "جستجو" is pressed.
+    private string _dSearch = "", _dMoveText = "";
+    private string? _dCategory, _dStock, _dMoveItem, _dMoveKind;
+    private DateTime? _dMoveFrom, _dMoveTo;
 
     private async Task ExportMovesAsync()
     {
@@ -242,13 +250,29 @@
     }
 
     private async Task SwitchTabAsync(string tab) { _tab = tab; _pageNo = 1; await LoadAsync(); }
-    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
-    private async Task CategoryChangedAsync(string? k) { _categoryId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
-    private async Task MoveItemChangedAsync(string? k) { _moveItemId = Guid.TryParse(k, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
-    private async Task StockFilterChangedAsync(string? k) { _stockFilter = string.IsNullOrEmpty(k) ? null : k; _pageNo = 1; await LoadAsync(); }
-    private async Task MoveFromChangedAsync(DateTime? d) { _moveFrom = d; _pageNo = 1; await LoadAsync(); }
-    private async Task MoveToChangedAsync(DateTime? d) { _moveTo = d; _pageNo = 1; await LoadAsync(); }
-    private async Task MoveKindChangedAsync(string? k) { _moveKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : null; _pageNo = 1; await LoadAsync(); }
+    private async Task ApplyLevelsAsync()
+    {
+        _search = _dSearch.Trim();
+        _categoryId = Guid.TryParse(_dCategory, out var g) ? g : null;
+        _stockFilter = _dStock;
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearLevelsAsync() { _dSearch = ""; _dCategory = _dStock = null; await ApplyLevelsAsync(); }
+
+    private async Task ApplyMovesAsync()
+    {
+        _moveItemId = Guid.TryParse(_dMoveItem, out var g) ? g : null;
+        _moveKind = Enum.TryParse<StockMovementKind>(_dMoveKind, out var v) ? v : null;
+        _moveText = _dMoveText.Trim();
+        _moveFrom = _dMoveFrom;
+        _moveTo = _dMoveTo;
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearMovesAsync() { _dMoveItem = _dMoveKind = null; _dMoveText = ""; _dMoveFrom = _dMoveTo = null; await ApplyMovesAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

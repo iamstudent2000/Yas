@@ -26,6 +26,11 @@
         </div>
     </div>
 
+    <div class="form-actions no-print">
+        <button class="btn @(_tab == "items" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("items"))">کالاها</button>
+        <button class="btn @(_tab == "categories" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("categories"))">گروه‌ها</button>
+    </div>
+
     @if (_loading)
     {
         <LoadingState />
@@ -33,7 +38,7 @@
     else
     {
         <div class="admin-stack">
-            @if (_canManage)
+            @if (_canManage && _tab == "categories")
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
@@ -50,6 +55,10 @@
                     </div>
                 </section>
 
+            }
+
+            @if (_canManage && _tab == "items")
+            {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editItemId is null ? Icons.Add : Icons.Edit)"></i> @(_editItemId is null ? "افزودن کالا" : "ویرایش کالا")</h2>
@@ -80,13 +89,24 @@
                 </section>
             }
 
+            @if (_tab == "categories")
+            {
+            <ListFilterBar Busy="_busy" ActiveCount="@((string.IsNullOrWhiteSpace(_cSearch) ? 0 : 1) + (_cStatus is null ? 0 : 1))"
+                           CanClear="@(!string.IsNullOrWhiteSpace(_cSearch) || _cStatus is not null || !string.IsNullOrWhiteSpace(_dcSearch) || _dcStatus is not null)"
+                           OnSearch="ApplyCategoryFilter" OnClear="ClearCategoryFilter">
+                <div class="admin-filter"><label class="form-label">نام گروه</label>
+                    <input class="form-control" placeholder="جستجو در نام گروه..." @bind="_dcSearch" @bind:event="oninput" /></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label>
+                    <LookupSelect Options="ActiveOptions" Value="@_dcStatus" ValueChanged="k => _dcStatus = Blank(k)" Placeholder="همه" /></div>
+            </ListFilterBar>
+
             <section class="card">
                 <h2 class="section-title"><i class="ti @Icons.Box"></i> گروه‌ها</h2>
                 <div class="data-table-wrap">
                     <table class="data-table">
                         <thead><tr><th>نام</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
-                            @foreach (var c in _categories)
+                            @foreach (var c in FilteredCategories)
                             {
                                 <tr>
                                     <td>@c.Name</td><td>@WorkflowDisplay.ToPersianDigits(c.SortOrder.ToString())</td>
@@ -109,36 +129,41 @@
                                     }
                                 </tr>
                             }
-                            @if (_categories.Count == 0) { <tr><td colspan="4" class="muted">هنوز گروهی تعریف نشده است.</td></tr> }
+                            @if (FilteredCategories.Count == 0) { <tr><td colspan="4" class="muted">@(_categories.Count == 0 ? "هنوز گروهی تعریف نشده است." : "گروهی با این فیلتر پیدا نشد.")</td></tr> }
                         </tbody>
                     </table>
                 </div>
             </section>
+            }
+
+            @if (_tab == "items")
+            {
+            <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft || _sort != "category" || _sortDesc)"
+                           OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => BuildFilter())">
+                <div class="admin-filter"><label class="form-label">جستجو</label>
+                    <input class="form-control" placeholder="نام یا کد..." @bind="_dSearch" @bind:event="oninput" /></div>
+                <div class="admin-filter"><label class="form-label">گروه</label>
+                    <LookupSelect Options="AllCategoryOptions" Value="@_dCategory" ValueChanged="k => _dCategory = Blank(k)" Placeholder="همه گروه‌ها" /></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label>
+                    <LookupSelect Options="ActiveOptions" Value="@_dActive" ValueChanged="k => _dActive = Blank(k)" Placeholder="همه" /></div>
+                <div class="admin-filter"><label class="form-label">نمایش در فروشگاه</label>
+                    <LookupSelect Options="VisibleOptions" Value="@_dVisible" ValueChanged="k => _dVisible = Blank(k)" Placeholder="همه" /></div>
+                <div class="admin-filter"><label class="form-label">موجودی</label>
+                    <LookupSelect Options="StockOptions" Value="@_dStock" ValueChanged="k => _dStock = Blank(k)" Placeholder="همه" /></div>
+                <div class="admin-filter"><label class="form-label">دوره درخواست</label>
+                    <LookupSelect Options="WindowOptions" Value="@_dWindow" ValueChanged="k => _dWindow = Blank(k)" Placeholder="همه" /></div>
+                <div class="admin-filter"><label class="form-label">نوع توزیع</label>
+                    <LookupSelect Options="LotteryOptions" Value="@_dLottery" ValueChanged="k => _dLottery = Blank(k)" Placeholder="همه" /></div>
+                @* Sorting never changes which rows match, so it applies at once (same as on the other lists). *@
+                <div class="admin-filter"><label class="form-label">مرتب‌سازی</label>
+                    <LookupSelect Options="SortOptions" Value="@_sort" ValueChanged="k => SortChangedAsync(k)" Placeholder="گروه" /></div>
+                <div class="admin-filter admin-row-check"><label class="check-row"><input type="checkbox" checked="@_sortDesc" @onchange="e => SetFilterAsync(() => _sortDesc = e.Value is true)" /> نزولی</label></div>
+            </ListFilterBar>
 
             <section class="card">
                 <h2 class="section-title"><i class="ti @Icons.Box"></i> کالاها</h2>
-                <div class="admin-row-grid">
-                    <div class="form-field is-grow"><label class="form-label">جستجو</label>
-                        <input class="form-control" placeholder="نام یا کد..." @bind="_search" @bind:event="oninput" @bind:after="FilterChangedAsync" /></div>
-                    <div class="form-field"><label class="form-label">گروه</label>
-                        <LookupSelect Options="AllCategoryOptions" Value="@(_filterCategoryId?.ToString())" ValueChanged="FilterCategoryAsync" Placeholder="همه گروه‌ها" /></div>
-                    <div class="form-field"><label class="form-label">وضعیت</label>
-                        <LookupSelect Options="ActiveOptions" Value="@_activeF" ValueChanged="k => SetFilterAsync(() => _activeF = Blank(k))" Placeholder="همه" /></div>
-                    <div class="form-field"><label class="form-label">نمایش در فروشگاه</label>
-                        <LookupSelect Options="VisibleOptions" Value="@_visibleF" ValueChanged="k => SetFilterAsync(() => _visibleF = Blank(k))" Placeholder="همه" /></div>
-                    <div class="form-field"><label class="form-label">موجودی</label>
-                        <LookupSelect Options="StockOptions" Value="@_stockF" ValueChanged="k => SetFilterAsync(() => _stockF = Blank(k))" Placeholder="همه" /></div>
-                    <div class="form-field"><label class="form-label">دوره درخواست</label>
-                        <LookupSelect Options="WindowOptions" Value="@_windowF" ValueChanged="k => SetFilterAsync(() => _windowF = Blank(k))" Placeholder="همه" /></div>
-                    <div class="form-field"><label class="form-label">نوع توزیع</label>
-                        <LookupSelect Options="LotteryOptions" Value="@_lotteryF" ValueChanged="k => SetFilterAsync(() => _lotteryF = Blank(k))" Placeholder="همه" /></div>
-                    <div class="form-field"><label class="form-label">مرتب‌سازی</label>
-                        <LookupSelect Options="SortOptions" Value="@_sort" ValueChanged="k => SortChangedAsync(k)" Placeholder="گروه" /></div>
-                    <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" checked="@_sortDesc" @onchange="e => SetFilterAsync(() => _sortDesc = e.Value is true)" /> نزولی</label></div>
-                </div>
                 <div class="form-actions" style="margin:10px 0">
                     <button class="btn btn-secondary btn-sm" disabled="@(_items.Total == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button>
-                    <button class="btn btn-secondary btn-sm" @onclick="ClearFiltersAsync">پاک‌کردن فیلترها</button>
                     @if (_canManage)
                     {
                         <span class="muted">انتخاب‌شده: @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString())</span>
@@ -189,6 +214,7 @@
                 </div>
                 <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_items.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
             </section>
+            }
         </div>
     }
 </div>
@@ -196,6 +222,22 @@
 @code {
     private bool _loading = true, _busy, _canManage;
     private IReadOnlyList<StoreCategory> _categories = [];
+    private string _tab = "items";
+
+    // Group filter: applied values and what is typed in the card (applied only when "جستجو" is pressed).
+    private string _cSearch = "", _dcSearch = "";
+    private string? _cStatus, _dcStatus;
+
+    private List<StoreCategory> FilteredCategories => _categories
+        .Where(c => (string.IsNullOrWhiteSpace(_cSearch) || c.Name.Contains(_cSearch.Trim(), StringComparison.CurrentCultureIgnoreCase))
+                    && (_cStatus is null || (_cStatus == "on") == c.IsActive))
+        .ToList();
+
+    private void SwitchTab(string tab) { _tab = tab; _confirmCategoryId = null; }
+
+    private Task ApplyCategoryFilter() { _cSearch = _dcSearch.Trim(); _cStatus = _dcStatus; return Task.CompletedTask; }
+
+    private Task ClearCategoryFilter() { _dcSearch = ""; _dcStatus = null; return ApplyCategoryFilter(); }
     private StorePage<StoreItemRow> _items = new([], 0);
     private IReadOnlyList<(string Key, string Text)> ActiveCategoryOptions = [], AllCategoryOptions = [];
 
@@ -216,6 +258,9 @@
 
     private string _search = "";
     private Guid? _filterCategoryId;
+    // What is typed in the filter card; it becomes the applied filter above only when "جستجو" is pressed.
+    private string _dSearch = "";
+    private string? _dCategory, _dActive, _dVisible, _dStock, _dWindow, _dLottery;
     private string? _activeF, _visibleF, _stockF, _windowF, _lotteryF, _sort = "category";
     private bool _sortDesc;
     private readonly HashSet<Guid> _selected = [];
@@ -242,10 +287,25 @@
 
     private async Task SetFilterAsync(Action set) { set(); _pageNo = 1; await LoadAsync(); }
 
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_filterCategoryId is null ? 0 : 1)
+        + new[] { _activeF, _visibleF, _stockF, _windowF, _lotteryF }.Count(x => x is not null);
+
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || new[] { _dCategory, _dActive, _dVisible, _dStock, _dWindow, _dLottery }.Any(x => x is not null);
+
+    private async Task ApplyFiltersAsync()
+    {
+        _search = _dSearch.Trim();
+        _filterCategoryId = Guid.TryParse(_dCategory, out var g) ? g : null;
+        (_activeF, _visibleF, _stockF, _windowF, _lotteryF) = (_dActive, _dVisible, _dStock, _dWindow, _dLottery);
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
     private async Task ClearFiltersAsync()
     {
-        _search = ""; _filterCategoryId = null; _activeF = _visibleF = _stockF = _windowF = _lotteryF = null; _sort = "category"; _sortDesc = false; _pageNo = 1;
-        await LoadAsync();
+        _dSearch = ""; _dCategory = _dActive = _dVisible = _dStock = _dWindow = _dLottery = null;
+        _sort = "category"; _sortDesc = false;
+        await ApplyFiltersAsync();
     }
 
     private void ToggleSelect(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
@@ -362,8 +422,6 @@
 
     private Task ToggleItemAsync(StoreItemRow i) => RunAsync(() => Store.SetItemActiveAsync(i.Id, !i.IsActive), i.IsActive ? "کالا غیرفعال شد." : "کالا فعال شد.");
 
-    private async Task FilterChangedAsync() { _pageNo = 1; await LoadAsync(); }
-    private async Task FilterCategoryAsync(string? key) { _filterCategoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

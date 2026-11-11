@@ -47,19 +47,14 @@
         </section>
     }
 
-    <section class="card list-filter">
-        <div class="admin-row-grid">
-            <div class="form-field is-grow"><label class="form-label">جستجو</label>
-                <input class="form-control" placeholder="نام یا کد کالا..." @bind="_search" @bind:event="oninput" @bind:after="SearchChangedAsync" /></div>
-        </div>
-        <div class="store-chips" role="group" aria-label="گروه کالا">
-            <button type="button" class="store-chip @(_categoryId is null ? "is-active" : "")" @onclick="() => CategoryChangedAsync(null)">همه</button>
-            @foreach (var c in _categories)
-            {
-                <button type="button" class="store-chip @(_categoryId == c.Id ? "is-active" : "")" @onclick="() => CategoryChangedAsync(c.Id.ToString())">@c.Name</button>
-            }
-        </div>
-    </section>
+    <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_categoryId is null ? 0 : 1))"
+                   CanClear="@(!string.IsNullOrWhiteSpace(_search) || _categoryId is not null || !string.IsNullOrWhiteSpace(_draftSearch) || _draftCategory is not null)"
+                   OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => new { Search = _search, CategoryId = _categoryId })">
+        <div class="admin-filter"><label class="form-label">جستجو</label>
+            <input class="form-control" placeholder="نام یا کد کالا..." @bind="_draftSearch" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">گروه کالا</label>
+            <LookupSelect Options="_categoryOptions" Value="@_draftCategory" ValueChanged="k => _draftCategory = k" Placeholder="همه" /></div>
+    </ListFilterBar>
 
     @if (_loading)
     {
@@ -148,6 +143,9 @@
 @code {
     private bool _loading = true;
     private string _search = "";
+    private string _draftSearch = "";
+    private string? _draftCategory;
+    private IReadOnlyList<(string Key, string Text)> _categoryOptions = [];
     private Guid? _categoryId;
     private int _pageNo = 1, _pageSize = 24;
     private StorePage<StoreItemRow> _page = new([], 0);
@@ -254,6 +252,7 @@
             if (_employeeId is Guid me) { _waiting = await Lottery.WaitingOfAsync(me); _outstanding = await Orders.OutstandingOfAsync(me); }
         }
         _categories = await Store.ListCategoriesAsync(false);
+        _categoryOptions = _categories.Select(c => (c.Id.ToString(), c.Name)).ToList();
         await LoadAsync();
     }
 
@@ -275,8 +274,20 @@
         }
     }
 
-    private async Task SearchChangedAsync() { _pageNo = 1; await LoadAsync(); }
-    private async Task CategoryChangedAsync(string? key) { _categoryId = Guid.TryParse(key, out var g) ? g : null; _pageNo = 1; await LoadAsync(); }
+    private async Task ApplyFiltersAsync()
+    {
+        _search = _draftSearch.Trim();
+        _categoryId = Guid.TryParse(_draftCategory, out var g) ? g : null;
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _draftSearch = "";
+        _draftCategory = null;
+        await ApplyFiltersAsync();
+    }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

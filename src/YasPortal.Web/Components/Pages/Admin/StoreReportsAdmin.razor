@@ -32,22 +32,24 @@
                 <button type="button" class="store-chip @(_key == kind.Key ? "is-active" : "")" @onclick="() => SelectAsync(kind.Key)">@kind.Name</button>
             }
         </div>
-        @if (Current.UsesDates || Current.UsesDays)
-        {
-            <div class="admin-row-grid" style="margin-top:12px">
-                @if (Current.UsesDates)
-                {
-                    <div class="form-field"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_key" Value="_from" ValueChanged="FromChangedAsync" Placeholder="تاریخ" /></div>
-                    <div class="form-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_key" Value="_to" ValueChanged="ToChangedAsync" Placeholder="تاریخ" /></div>
-                }
-                @if (Current.UsesDays)
-                {
-                    <div class="form-field"><label class="form-label">بدون گردش در</label>
-                        <LookupSelect Options="DayOptions" Value="@_days.ToString()" ValueChanged="DaysChangedAsync" Placeholder="انتخاب" /></div>
-                }
-            </div>
-        }
     </section>
+
+    @if (Current.UsesDates || Current.UsesDays)
+    {
+        <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || _dFrom is not null || _dTo is not null || _dDays != 90)"
+                       OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
+            @if (Current.UsesDates)
+            {
+                <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_key" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+                <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_key" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+            }
+            @if (Current.UsesDays)
+            {
+                <div class="admin-filter"><label class="form-label">بدون گردش در</label>
+                    <LookupSelect Options="DayOptions" Value="@_dDays.ToString()" ValueChanged="k => _dDays = int.TryParse(k, out var d) ? d : 90" Placeholder="انتخاب" /></div>
+            }
+        </ListFilterBar>
+    }
 
     @if (_loading)
     {
@@ -86,6 +88,9 @@
     private string _key = "categories";
     private DateTime? _from, _to;
     private int _days = 90;
+    // What is chosen in the filter card; it becomes the applied value above only when "جستجو" is pressed.
+    private DateTime? _dFrom, _dTo;
+    private int _dDays = 90;
     private StoreReportTable? _table;
     private static readonly IReadOnlyList<(string Key, string Text)> DayOptions = [("30", "۳۰ روز"), ("60", "۶۰ روز"), ("90", "۹۰ روز"), ("180", "۱۸۰ روز"), ("365", "یک سال")];
 
@@ -101,10 +106,27 @@
         finally { _loading = false; }
     }
 
-    private async Task SelectAsync(string key) { _key = key; await LoadAsync(); }
-    private async Task FromChangedAsync(DateTime? d) { _from = d; await LoadAsync(); }
-    private async Task ToChangedAsync(DateTime? d) { _to = d; await LoadAsync(); }
-    private async Task DaysChangedAsync(string? k) { _days = int.TryParse(k, out var d) ? d : 90; await LoadAsync(); }
+    private int FilterCount => (Current.UsesDates ? (_from is null ? 0 : 1) + (_to is null ? 0 : 1) : 0) + (Current.UsesDays && _days != 90 ? 1 : 0);
+
+    // Picking another report applies at once (it is a choice of report, not a filter); the card then shows the values in use.
+    private async Task SelectAsync(string key)
+    {
+        _key = key;
+        (_dFrom, _dTo, _dDays) = (_from, _to, _days);
+        await LoadAsync();
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        (_from, _to, _days) = (_dFrom, _dTo, _dDays);
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        (_dFrom, _dTo, _dDays) = (null, null, 90);
+        await ApplyFiltersAsync();
+    }
 
     private async Task ExportAsync()
     {
