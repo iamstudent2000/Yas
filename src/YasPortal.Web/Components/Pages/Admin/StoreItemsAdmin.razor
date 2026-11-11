@@ -139,7 +139,9 @@
             @if (_tab == "items")
             {
             <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft || _sort != "category" || _sortDesc)"
-                           OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => BuildFilter())">
+                           OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => BuildFilter())"
+                           OnExport="ExportAsync" ExportPermission="@Perm.StoreItemsView" Exporting="_exporting"
+                           SortOptions="_itemSortOptions" Sort="@SortValue" DefaultSort="category:asc" SortChanged="SortValueChangedAsync">
                 <div class="admin-filter"><label class="form-label">جستجو</label>
                     <input class="form-control" placeholder="نام یا کد..." @bind="_dSearch" @bind:event="oninput" /></div>
                 <div class="admin-filter"><label class="form-label">گروه</label>
@@ -154,16 +156,11 @@
                     <LookupSelect Options="WindowOptions" Value="@_dWindow" ValueChanged="k => _dWindow = Blank(k)" Placeholder="همه" /></div>
                 <div class="admin-filter"><label class="form-label">نوع توزیع</label>
                     <LookupSelect Options="LotteryOptions" Value="@_dLottery" ValueChanged="k => _dLottery = Blank(k)" Placeholder="همه" /></div>
-                @* Sorting never changes which rows match, so it applies at once (same as on the other lists). *@
-                <div class="admin-filter"><label class="form-label">مرتب‌سازی</label>
-                    <LookupSelect Options="SortOptions" Value="@_sort" ValueChanged="k => SortChangedAsync(k)" Placeholder="گروه" /></div>
-                <div class="admin-filter admin-row-check"><label class="check-row"><input type="checkbox" checked="@_sortDesc" @onchange="e => SetFilterAsync(() => _sortDesc = e.Value is true)" /> نزولی</label></div>
             </ListFilterBar>
 
             <section class="card">
                 <h2 class="section-title"><i class="ti @Icons.Box"></i> کالاها</h2>
                 <div class="form-actions" style="margin:10px 0">
-                    <button class="btn btn-secondary btn-sm" disabled="@(_items.Total == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button>
                     @if (_canManage)
                     {
                         <span class="muted">انتخاب‌شده: @WorkflowDisplay.ToPersianDigits(_selected.Count.ToString())</span>
@@ -269,7 +266,22 @@
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "موجود"), ("out", "ناموجود")];
     private static readonly IReadOnlyList<(string Key, string Text)> WindowOptions = [("always", "همیشه باز"), ("open", "هم‌اکنون باز"), ("notyet", "هنوز شروع نشده"), ("closed", "بسته‌شده")];
     private static readonly IReadOnlyList<(string Key, string Text)> LotteryOptions = [("yes", "قرعه‌کشی"), ("no", "بدون قرعه‌کشی")];
-    private static readonly IReadOnlyList<(string Key, string Text)> SortOptions = [("category", "گروه"), ("name", "نام"), ("code", "کد"), ("stock", "موجودی")];
+    private static readonly IReadOnlyList<(string Key, string Text)> _itemSortOptions =
+    [
+        SortSelect.Option("category:asc", "گروه (الف تا ی)"), SortSelect.Option("category:desc", "گروه (ی تا الف)"),
+        SortSelect.Option("name:asc", "نام (الف تا ی)"), SortSelect.Option("name:desc", "نام (ی تا الف)"),
+        SortSelect.Option("code:asc", "کد (صعودی)"), SortSelect.Option("code:desc", "کد (نزولی)"),
+        SortSelect.Option("stock:desc", "بیشترین موجودی"), SortSelect.Option("stock:asc", "کمترین موجودی"),
+    ];
+
+    private bool _exporting;
+    private string SortValue => $"{_sort}:{(_sortDesc ? "desc" : "asc")}";
+
+    private Task SortValueChangedAsync(string value)
+    {
+        var (key, desc) = SortSelect.Split(value);
+        return SetFilterAsync(() => { _sort = string.IsNullOrEmpty(key) ? "category" : key; _sortDesc = desc; });
+    }
 
     private static string? Blank(string? k) => string.IsNullOrEmpty(k) ? null : k;
 
@@ -282,8 +294,6 @@
         Lottery = _lotteryF switch { "yes" => true, "no" => false, _ => null },
         Window = _windowF switch { "always" => StoreWindowFilter.Always, "open" => StoreWindowFilter.Open, "notyet" => StoreWindowFilter.NotYet, "closed" => StoreWindowFilter.Closed, _ => StoreWindowFilter.Any },
     };
-
-    private Task SortChangedAsync(string? k) => SetFilterAsync(() => _sort = Blank(k) ?? "category");
 
     private async Task SetFilterAsync(Action set) { set(); _pageNo = 1; await LoadAsync(); }
 
@@ -336,6 +346,9 @@
 
     private async Task ExportAsync()
     {
+        _exporting = true;
+        try
+        {
         var rows = await Store.AllItemsAsync(BuildFilter());
         var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
             rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
@@ -343,6 +356,8 @@
                 i.RequestOpensOn is DateTime o ? StoreWhen.Format(o) : "", i.RequestClosesOn is DateTime c ? StoreWhen.Format(c) : "",
                 i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
         await JS.InvokeVoidAsync("yasDownloadFile", $"store-items-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+        }
+        finally { _exporting = false; }
     }
     private int _pageNo = 1, _pageSize = 20;
 

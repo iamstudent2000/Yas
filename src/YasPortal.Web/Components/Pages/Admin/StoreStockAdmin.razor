@@ -112,7 +112,8 @@
             {
                 <ListFilterBar Busy="_busy" ActiveCount="@((_moveItemId is null ? 0 : 1) + (_moveKind is null ? 0 : 1) + (string.IsNullOrWhiteSpace(_moveText) ? 0 : 1) + (_moveFrom is null ? 0 : 1) + (_moveTo is null ? 0 : 1))"
                                CanClear="@(_moveItemId is not null || _moveKind is not null || !string.IsNullOrWhiteSpace(_moveText) || _moveFrom is not null || _moveTo is not null || _dMoveItem is not null || _dMoveKind is not null || !string.IsNullOrWhiteSpace(_dMoveText) || _dMoveFrom is not null || _dMoveTo is not null)"
-                               OnSearch="ApplyMovesAsync" OnClear="ClearMovesAsync">
+                               OnSearch="ApplyMovesAsync" OnClear="ClearMovesAsync"
+                               OnExport="ExportMovesAsync" ExportPermission="@Perm.StoreStockView" Exporting="_exporting">
                     <div class="admin-filter"><label class="form-label">کالا</label>
                         <LookupSelect Options="ItemOptions" Value="@_dMoveItem" ValueChanged="k => _dMoveItem = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه کالاها" SearchPlaceholder="نام یا کد کالا..." /></div>
                     <div class="admin-filter"><label class="form-label">نوع</label>
@@ -124,7 +125,6 @@
                 </ListFilterBar>
                 <section class="card">
                     <h2 class="section-title print-only">گردش انبار فروشگاه</h2>
-                    <div class="form-actions no-print" style="margin:8px 0"><button class="btn btn-secondary btn-sm" disabled="@(_moves.Total == 0)" @onclick="ExportMovesAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV (همه نتایج فیلتر)</button></div>
                     <div class="data-table-wrap">
                         <table class="data-table">
                             <thead><tr><th>زمان</th><th>کالا</th><th>نوع</th><th>مقدار</th><th>مرجع</th><th>توضیح</th><th>ثبت‌کننده</th></tr></thead>
@@ -163,7 +163,16 @@
     private string? _dCategory, _dStock, _dMoveItem, _dMoveKind;
     private DateTime? _dMoveFrom, _dMoveTo;
 
+    private bool _exporting;
+
     private async Task ExportMovesAsync()
+    {
+        _exporting = true;
+        try { await ExportMovesCoreAsync(); }
+        finally { _exporting = false; }
+    }
+
+    private async Task ExportMovesCoreAsync()
     {
         var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText);
         var csv = StoreCsv.Build(["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"],

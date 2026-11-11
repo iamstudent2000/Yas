@@ -19,37 +19,25 @@
             <h1 class="page-title"><i class="ti @Icons.AuditLog"></i> گزارش‌های فروشگاه</h1>
             <p class="page-subtitle">گزارش را انتخاب کنید؛ جدول را می‌توانید چاپ کنید یا به‌صورت فایل CSV (باز شدن در اکسل) بگیرید.</p>
         </div>
-        <div class="form-actions">
-            <button type="button" class="btn btn-secondary" disabled="@(_table is null || _table.Rows.Count == 0)" @onclick="ExportAsync"><i class="ti @Icons.ExportData"></i> خروجی CSV</button>
-            <button type="button" class="btn btn-secondary" onclick="window.print()"><i class="ti @Icons.Print"></i> چاپ</button>
-        </div>
     </div>
 
-    <section class="card list-filter no-print">
-        <div class="store-chips" role="group" aria-label="نوع گزارش">
-            @foreach (var kind in StoreReportService.Kinds)
-            {
-                <button type="button" class="store-chip @(_key == kind.Key ? "is-active" : "")" @onclick="() => SelectAsync(kind.Key)">@kind.Name</button>
-            }
-        </div>
-    </section>
-
-    @if (Current.UsesDates || Current.UsesDays)
-    {
-        <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || _dFrom is not null || _dTo is not null || _dDays != 90)"
-                       OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
-            @if (Current.UsesDates)
-            {
-                <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_key" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
-                <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_key" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
-            }
-            @if (Current.UsesDays)
-            {
-                <div class="admin-filter"><label class="form-label">بدون گردش در</label>
-                    <LookupSelect Options="DayOptions" Value="@_dDays.ToString()" ValueChanged="k => _dDays = int.TryParse(k, out var d) ? d : 90" Placeholder="انتخاب" /></div>
-            }
-        </ListFilterBar>
-    }
+    @{ var draft = StoreReportService.Kinds.First(k => k.Key == _dKey); }
+    <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || _dKey != "categories" || _dFrom is not null || _dTo is not null || _dDays != 90)"
+                   OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
+                   OnExport="ExportAsync" ExportPermission="@Perm.StoreReportsView" Exporting="_exporting">
+        <div class="admin-filter"><label class="form-label">نوع گزارش</label>
+            <LookupSelect Options="KindOptions" Value="@_dKey" ValueChanged="k => { if (!string.IsNullOrEmpty(k)) _dKey = k; }" Placeholder="انتخاب گزارش" /></div>
+        @if (draft.UsesDates)
+        {
+            <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_dKey" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+            <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_dKey" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+        }
+        @if (draft.UsesDays)
+        {
+            <div class="admin-filter"><label class="form-label">بدون گردش در</label>
+                <LookupSelect Options="DayOptions" Value="@_dDays.ToString()" ValueChanged="k => _dDays = int.TryParse(k, out var d) ? d : 90" Placeholder="انتخاب" /></div>
+        }
+    </ListFilterBar>
 
     @if (_loading)
     {
@@ -86,6 +74,8 @@
 @code {
     private bool _loading = true;
     private string _key = "categories";
+    private string _dKey = "categories";
+    private bool _exporting;
     private DateTime? _from, _to;
     private int _days = 90;
     // What is chosen in the filter card; it becomes the applied value above only when "جستجو" is pressed.
@@ -93,6 +83,8 @@
     private int _dDays = 90;
     private StoreReportTable? _table;
     private static readonly IReadOnlyList<(string Key, string Text)> DayOptions = [("30", "۳۰ روز"), ("60", "۶۰ روز"), ("90", "۹۰ روز"), ("180", "۱۸۰ روز"), ("365", "یک سال")];
+
+    private static readonly IReadOnlyList<(string Key, string Text)> KindOptions = StoreReportService.Kinds.Select(k => (k.Key, k.Name)).ToList();
 
     private (string Key, string Name, bool UsesDates, bool UsesDays) Current => StoreReportService.Kinds.First(k => k.Key == _key);
 
@@ -108,30 +100,27 @@
 
     private int FilterCount => (Current.UsesDates ? (_from is null ? 0 : 1) + (_to is null ? 0 : 1) : 0) + (Current.UsesDays && _days != 90 ? 1 : 0);
 
-    // Picking another report applies at once (it is a choice of report, not a filter); the card then shows the values in use.
-    private async Task SelectAsync(string key)
-    {
-        _key = key;
-        (_dFrom, _dTo, _dDays) = (_from, _to, _days);
-        await LoadAsync();
-    }
-
     private async Task ApplyFiltersAsync()
     {
-        (_from, _to, _days) = (_dFrom, _dTo, _dDays);
+        (_key, _from, _to, _days) = (_dKey, _dFrom, _dTo, _dDays);
         await LoadAsync();
     }
 
     private async Task ClearFiltersAsync()
     {
-        (_dFrom, _dTo, _dDays) = (null, null, 90);
+        (_dKey, _dFrom, _dTo, _dDays) = ("categories", null, null, 90);
         await ApplyFiltersAsync();
     }
 
     private async Task ExportAsync()
     {
-        if (_table is null) return;
-        var bytes = StoreCsv.Build(_table.Headers, _table.Rows);
-        await JS.InvokeVoidAsync("yasDownloadFile", $"store-{_key}-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", bytes);
+        if (_table is null || _table.Rows.Count == 0) { AppState.AddToast("داده‌ای برای خروجی نیست.", ToastLevel.Info); return; }
+        _exporting = true;
+        try
+        {
+            var bytes = StoreCsv.Build(_table.Headers, _table.Rows);
+            await JS.InvokeVoidAsync("yasDownloadFile", $"store-{_key}-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", bytes);
+        }
+        finally { _exporting = false; }
     }
 }
