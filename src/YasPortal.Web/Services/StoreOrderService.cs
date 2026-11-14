@@ -211,10 +211,28 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>The person's own orders, newest first. Filtered by employee, so orders sent while acting in any position are listed.</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListMineAsync(Guid employeeId, int page, int pageSize, string? sort = null, bool descending = false, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListMineAsync(Guid employeeId, int page, int pageSize, string? sort = null, bool descending = false, string? search = null, string? status = null, DateTime? createdFromUtc = null, DateTime? createdToUtcExclusive = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.EmployeeId == employeeId);
+        if (createdFromUtc is DateTime from) q = q.Where(o => o.CreatedAtUtc >= from);
+        if (createdToUtcExclusive is DateTime to) q = q.Where(o => o.CreatedAtUtc < to);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(o => o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
+        }
+        // status: pending | waiting (approved, not handed over yet) | issued | rejected | returned | cancelled
+        q = status switch
+        {
+            "pending" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.PendingApproval)),
+            "waiting" => q.Where(o => o.IssuedAtUtc == null && db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Approved)),
+            "issued" => q.Where(o => o.IssuedAtUtc != null),
+            "rejected" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Rejected)),
+            "returned" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.ReturnedToRequester)),
+            "cancelled" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Cancelled)),
+            _ => q,
+        };
         return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
     }
 

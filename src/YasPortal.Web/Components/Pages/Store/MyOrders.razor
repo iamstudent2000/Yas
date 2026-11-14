@@ -29,10 +29,30 @@
         </div>
     </div>
 
-    @if (_lottery.Count > 0)
+    <div class="form-actions no-print">
+        <button class="btn @(_tab == "orders" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("orders"))">سفارش‌ها</button>
+        <button class="btn @(_tab == "lottery" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("lottery"))">قرعه‌کشی‌ها@(_lottery.Count > 0 ? $" ({WorkflowDisplay.ToPersianDigits(_lottery.Count.ToString())})" : "")</button>
+    </div>
+
+    <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
+        <div class="admin-filter"><label class="form-label">جستجوی کالا</label>
+            <input class="form-control" placeholder="نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">وضعیت</label>
+            <LookupSelect @key="_tab" Options="@(_tab == "orders" ? OrderStatusOptions : LotteryStatusOptions)" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه وضعیت‌ها" /></div>
+        <div class="admin-filter"><label class="form-label">@(_tab == "orders" ? "تاریخ ثبت از" : "تاریخ ثبت‌نام از")</label><PersianDatePicker @key="_tab" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_tab" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+    </ListFilterBar>
+
+    @if (_tab == "lottery")
     {
+        if (_loading) { <LoadingState /> }
+        else if (SortedLottery.Count == 0)
+        {
+            <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>@(_lottery.Count == 0 ? "در هیچ قرعه‌کشی ثبت‌نام نکرده‌اید" : "نتیجه‌ای با این فیلتر پیدا نشد")</strong></div></section>
+        }
+        else
+        {
         <section class="card">
-            <h2 class="section-title"><i class="ti @Icons.Box"></i> ثبت‌نام‌های قرعه‌کشی من</h2>
             <div class="data-table-wrap">
                 <table class="data-table">
                     <thead><tr><SortableHeader Text="کالا" Column="item" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="مقدار" Column="qty" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="تاریخ ثبت‌نام" Column="date" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /></tr></thead>
@@ -44,22 +64,22 @@
                                 <td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###")) @l.Unit</td>
                                 <td>@WorkflowDisplay.ToPersianDateTime(l.AppliedAtUtc)</td>
                                 <td><span class="badge @(l.Status == LotteryEntryStatus.Won ? "badge-success" : l.Status == LotteryEntryStatus.Applied ? "badge-info" : "badge-muted")">@StoreLottery.StatusText(l.Status)</span>
-                                    @if (l.Status == LotteryEntryStatus.Won) { <span class="muted"> — سفارش آن در فهرست پایین است</span> }</td>
+                                    @if (l.Status == LotteryEntryStatus.Won) { <span class="muted"> — سفارش آن در تب «سفارش‌ها» است</span> }</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
         </section>
+        }
     }
-
-    @if (_loading)
+    else if (_loading)
     {
         <LoadingState />
     }
     else if (_rows.Count == 0)
     {
-        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>هنوز سفارشی ثبت نکرده‌اید</strong><span>از صفحه فروشگاه برای کالای موردنیاز درخواست ثبت کنید.</span></div></section>
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>@(FilterCount > 0 ? "نتیجه‌ای با این فیلتر پیدا نشد" : "هنوز سفارشی ثبت نکرده‌اید")</strong><span>@(FilterCount > 0 ? "فیلتر را تغییر دهید یا پاک کنید." : "از صفحه فروشگاه برای کالای موردنیاز درخواست ثبت کنید.")</span></div></section>
     }
     else
     {
@@ -101,9 +121,54 @@
     private string? _sortBy, _lotSort;
     private bool _sortDesc, _lotDesc;
 
-    private IReadOnlyList<LotteryMineRow> SortedLottery => TableSort.Apply(_lottery, _lotSort, _lotDesc,
+    private string _tab = "orders";
+    // draft (typed, not applied yet) and applied filters; «جستجو» copies draft to applied
+    private string _dSearch = "", _search = "";
+    private string? _dStatus, _status;
+    private DateTime? _dFrom, _from, _dTo, _to;
+
+    private static readonly IReadOnlyList<(string Key, string Text)> OrderStatusOptions =
+    [
+        ("pending", "در انتظار تأیید"), ("waiting", "تأیید شده، در انتظار تحویل"), ("issued", "تحویل داده شد"),
+        ("returned", "بازگشت به درخواست‌کننده"), ("rejected", "رد شد"), ("cancelled", "لغو شد"),
+    ];
+    private static readonly IReadOnlyList<(string Key, string Text)> LotteryStatusOptions = Enum.GetValues<LotteryEntryStatus>()
+        .Select(s => (((int)s).ToString(), StoreLottery.StatusText(s))).ToList();
+
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null || _dFrom is not null || _dTo is not null;
+
+    private async Task SwitchTab(string tab)
+    {
+        if (_tab == tab) return;
+        _tab = tab;
+        (_dSearch, _search, _dStatus, _status, _dFrom, _from, _dTo, _to) = ("", "", null, null, null, null, null, null);
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        (_search, _status, _from, _to) = (_dSearch.Trim(), _dStatus, _dFrom, _dTo);
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        (_dSearch, _dStatus, _dFrom, _dTo) = ("", null, null, null);
+        await ApplyFiltersAsync();
+    }
+
+    private IReadOnlyList<LotteryMineRow> SortedLottery => TableSort.Apply(_lottery.Where(MatchesLottery), _lotSort, _lotDesc,
         ("item", l => l.ItemName), ("qty", l => l.Quantity), ("date", l => l.AppliedAtUtc), ("status", l => StoreLottery.StatusText(l.Status)));
     private void LotSortBy(string col) => (_lotSort, _lotDesc) = TableSort.Toggle(_lotSort, _lotDesc, col);
+    private bool MatchesLottery(LotteryMineRow l) =>
+        (string.IsNullOrWhiteSpace(_search) || l.ItemName.Contains(_search, StringComparison.CurrentCultureIgnoreCase))
+        && (_status is null || ((int)l.Status).ToString() == _status)
+        && (_from is not DateTime f || l.AppliedAtUtc >= f.Date.ToUniversalTime())
+        && (_to is not DateTime t || l.AppliedAtUtc < t.Date.AddDays(1).ToUniversalTime());
+
     private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
 
     protected override async Task OnInitializedAsync()
@@ -118,7 +183,7 @@
         _loading = true;
         if (_employeeId is Guid id)
         {
-            (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize, _sortBy, _sortDesc);
+            (_rows, _total) = await Orders.ListMineAsync(id, _pageNo, _pageSize, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
             _lottery = await Lottery.ListMineAsync(id);
         }
         _loading = false;
