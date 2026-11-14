@@ -103,6 +103,7 @@ public static class SectionNav
     [
         new("/admin/store/items", "کالاها و گروه‌ها", Icons.Box, One(Perm.StoreItemsView)),
         new("/admin/store/stock", "موجودی و گردش انبار", Icons.Store, One(Perm.StoreStockView)),
+        new("/admin/store/orders", "همه سفارش‌ها", Icons.Box, One(Perm.StoreOrdersView)),
         new("/admin/store/issue", "تحویل کالا", Icons.Send, One(Perm.StoreOrdersIssue)),
         new("/admin/store/lottery", "قرعه‌کشی", Icons.Users, One(Perm.StoreOrdersIssue)),
         new("/admin/store/order-for-others", "ثبت درخواست برای دیگران", Icons.NewRequestForOthers, One(CreateForOthersPermissions.For(WorkflowTypeCode.StoreOrder))),

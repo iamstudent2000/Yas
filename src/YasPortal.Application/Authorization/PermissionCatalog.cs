@@ -93,6 +93,8 @@ public static class Perm
     /// <summary>Hand approved store orders to the requester (this takes the goods out of stock).</summary>
     public const string StoreOrdersIssue = "Store.Orders.Issue";
     /// <summary>The store reports (summary, out of stock, issued goods, dormant goods, orders) with print and CSV export.</summary>
+    /// <summary>See every store order (any status, any employee) with filters and CSV export; read-only.</summary>
+    public const string StoreOrdersView = "Store.Orders.View";
     public const string StoreReportsView = "Store.Reports.View";
     public const string StoreItemsView = "Store.Items.View";
     /// <summary>Add and edit store categories and items. Implies the view permission.</summary>
@@ -225,6 +227,7 @@ public static class PermissionCatalog
 
             new(Perm.StoreShopView, "مشاهده فروشگاه (کالاها و موجودی)"),
             new(Perm.StoreOrdersCreate, "ثبت درخواست کالا از فروشگاه (و شرکت در قرعه‌کشی)"),
+            new(Perm.StoreOrdersView, "مشاهده همه سفارش‌های فروشگاه با فیلتر و خروجی CSV (فقط خواندنی)"),
             new(Perm.StoreOrdersIssue, "تحویل کالای سفارش‌های تأییدشده فروشگاه (کسر از موجودی)"),
             new(Perm.StoreReportsView, "مشاهده گزارش‌های فروشگاه (چاپ و خروجی CSV)"),
             new(Perm.StoreItemsView, "مشاهده مدیریت کالاها (فقط خواندنی)"),

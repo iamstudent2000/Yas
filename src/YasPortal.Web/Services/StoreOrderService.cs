@@ -222,8 +222,13 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             var s = search.Trim();
             q = q.Where(o => o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
         }
-        // status: pending | waiting (approved, not handed over yet) | issued | rejected | returned | cancelled
-        q = status switch
+        q = ApplyStatus(db, q, status);
+        return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
+    }
+
+    /// <summary>status: pending | waiting (approved, not handed over yet) | issued | rejected | returned | cancelled; anything else keeps every order.</summary>
+    private static IQueryable<StoreOrder> ApplyStatus(ApplicationDbContext db, IQueryable<StoreOrder> q, string? status) =>
+        status switch
         {
             "pending" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.PendingApproval)),
             "waiting" => q.Where(o => o.IssuedAtUtc == null && db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Approved)),
@@ -233,6 +238,20 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             "cancelled" => q.Where(o => db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Cancelled)),
             _ => q,
         };
+
+    /// <summary>Every store order, any employee and any status (the store administrator's overview); the same filters as «سفارش‌های من».</summary>
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListAllAsync(int page, int pageSize, string? sort = null, bool descending = false, string? search = null, string? status = null, DateTime? createdFromUtc = null, DateTime? createdToUtcExclusive = null, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        IQueryable<StoreOrder> q = db.StoreOrders.AsNoTracking();
+        if (createdFromUtc is DateTime from) q = q.Where(o => o.CreatedAtUtc >= from);
+        if (createdToUtcExclusive is DateTime to) q = q.Where(o => o.CreatedAtUtc < to);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(o => db.Employees.Any(e => e.Id == o.EmployeeId && e.FullName.Contains(s)) || o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
+        }
+        q = ApplyStatus(db, q, status);
         return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
     }
 

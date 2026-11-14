@@ -1,0 +1,141 @@
+@page "/admin/store/orders"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@using YasPortal.Domain.Workflows
+@using YasPortal.Infrastructure.Store
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@attribute [Authorize(Policy = Perm.StoreOrdersView)]
+@inject StoreOrderService Orders
+@inject IJSRuntime JS
+@inject AppState AppState
+
+<PageTitle>همه سفارش‌ها - فروشگاه</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <StoreAdminTabs />
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">فروشگاه</div>
+            <h1 class="page-title"><i class="ti @Icons.Box"></i> همه سفارش‌های فروشگاه</h1>
+            <p class="page-subtitle">فقط خواندنی. همهٔ سفارش‌ها با هر وضعیتی (در انتظار تأیید، رد شده، بازگشته، لغو شده، تحویل‌شده). برای خروجی CSV از منوی ⋯ کارت جستجو استفاده کنید.</p>
+        </div>
+    </div>
+
+    <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)"
+                   OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
+                   OnExport="ExportAsync" ExportPermission="@Perm.StoreOrdersView" Exporting="_exporting">
+        <div class="admin-filter"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
+            <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">وضعیت</label>
+            <LookupSelect Options="StatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه وضعیت‌ها" /></div>
+        <div class="admin-filter"><label class="form-label">تاریخ ثبت از</label><PersianDatePicker Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+        <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+    </ListFilterBar>
+
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_rows.Count == 0)
+    {
+        <section class="card"><div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Box"></i></div><strong>@(FilterCount > 0 ? "نتیجه‌ای با این فیلتر پیدا نشد" : "هنوز سفارشی ثبت نشده است")</strong></div></section>
+    }
+    else
+    {
+        <section class="card">
+            <div class="data-table-wrap">
+                <table class="data-table">
+                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ ثبت" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ تحویل" Column="issued" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var o in _rows)
+                        {
+                            <tr>
+                                <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
+                                <td>@o.RequesterName</td>
+                                <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
+                                <td>@o.Summary</td>
+                                <td><span class="badge @BadgeFor(o)">@StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null)</span></td>
+                                <td>@(o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "—")</td>
+                                <td>@(o.IssuedByName ?? "—")</td>
+                                <td><a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> برگ سفارش</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
+    [
+        ("pending", "در انتظار تأیید"), ("waiting", "تأیید شده، در انتظار تحویل"), ("issued", "تحویل داده شد"),
+        ("returned", "بازگشت به درخواست‌کننده"), ("rejected", "رد شد"), ("cancelled", "لغو شد"),
+    ];
+
+    private bool _loading = true, _exporting;
+    private int _pageNo = 1, _pageSize = 20, _total;
+    private IReadOnlyList<StoreOrderRow> _rows = [];
+    private string? _sortBy;
+    private bool _sortDesc;
+    // typed in the card (draft) vs applied by «جستجو»
+    private string _dSearch = "", _search = "";
+    private string? _dStatus, _status;
+    private DateTime? _dFrom, _from, _dTo, _to;
+
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null || _dFrom is not null || _dTo is not null;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        (_rows, _total) = await Orders.ListAllAsync(_pageNo, _pageSize, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
+        _loading = false;
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        (_search, _status, _from, _to) = (_dSearch.Trim(), _dStatus, _dFrom, _dTo);
+        _pageNo = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        (_dSearch, _dStatus, _dFrom, _dTo) = ("", null, null, null);
+        await ApplyFiltersAsync();
+    }
+
+    private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
+    private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
+    private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
+
+    /// <summary>Everything the current filter finds (not only this page), in the current sort.</summary>
+    private async Task ExportAsync()
+    {
+        _exporting = true;
+        try
+        {
+            var all = await Orders.ListAllAsync(1, 20000, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
+            var csv = StoreCsv.Build(["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "وضعیت", "تاریخ تحویل", "تحویل‌دهنده"],
+                all.Rows.Select(o => (IReadOnlyList<string>)[o.Id.ToString("N")[..8].ToUpperInvariant(), o.RequesterName ?? "", WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc), o.Summary,
+                    StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null), o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "", o.IssuedByName ?? ""]));
+            await JS.InvokeVoidAsync("yasDownloadFile", $"store-orders-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+            if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
+        }
+        finally { _exporting = false; }
+    }
+
+    private static string BadgeFor(StoreOrderRow o) => o.Status switch
+    {
+        WorkflowRequestStatus.Approved => o.IssuedAtUtc is null ? "badge-info" : "badge-success",
+        WorkflowRequestStatus.Rejected or WorkflowRequestStatus.Cancelled => "badge-danger",
+        WorkflowRequestStatus.ReturnedToRequester => "badge-warning",
+        _ => "badge-muted",
+    };
+}

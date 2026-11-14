@@ -82,7 +82,7 @@ else
         var me = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : (Guid?)null;
         var order = await Orders.GetAsync(Id);
         _isOwner = order is not null && me == order.EmployeeId;
-        var storekeeper = await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersIssue);
+        var storekeeper = await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersIssue) || await PermissionChecker.HasPermissionAsync(Perm.StoreOrdersView);
         _order = order is not null && (_isOwner || storekeeper) ? order : null;
         _loading = false;
     }

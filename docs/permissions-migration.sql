@@ -731,6 +731,10 @@ BEGIN
     DELETE FROM Permissions WHERE Id = @cfoOld; -- grants of the old row are removed by cascade
 END
 
+-- Store: see every store order (read-only, with filters and CSV export)
+IF NOT EXISTS (SELECT 1 FROM Permissions WHERE Code = N'Store.Orders.View')
+    INSERT INTO Permissions (Id, Code, Name) VALUES (NEWID(), N'Store.Orders.View', N'مشاهده همه سفارش‌های فروشگاه با فیلتر و خروجی CSV (فقط خواندنی)');
+
 -- Optional: give every administrator account all new permissions that it does not have yet (admins hold permissions only through direct grants).
 -- INSERT INTO EmployeePermissions (EmployeeId, PermissionId)
 -- SELECT e.Id, p.Id FROM Employees e CROSS JOIN Permissions p
