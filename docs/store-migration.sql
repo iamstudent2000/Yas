@@ -8,6 +8,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Store
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreItems') AND name = N'IX_StoreItems_CategoryId')
     EXEC(N'CREATE INDEX [IX_StoreItems_CategoryId] ON [dbo].[StoreItems] ([CategoryId])');
 IF COL_LENGTH(N'dbo.StoreItems', N'MinStock') IS NOT NULL ALTER TABLE [dbo].[StoreItems] DROP COLUMN [MinStock];
+IF COL_LENGTH(N'dbo.StoreItems', N'Price') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [Price] decimal(18,2) NULL; -- optional, information only
 IF COL_LENGTH(N'dbo.StoreItems', N'MaxPerRequest') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [MaxPerRequest] decimal(18,3) NOT NULL CONSTRAINT [DF_StoreItems_MaxPerRequest] DEFAULT 0;
 IF COL_LENGTH(N'dbo.StoreItems', N'RequestOpensOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestOpensOn] datetime2(0) NULL;
 IF COL_LENGTH(N'dbo.StoreItems', N'RequestClosesOn') IS NULL ALTER TABLE [dbo].[StoreItems] ADD [RequestClosesOn] datetime2(0) NULL;

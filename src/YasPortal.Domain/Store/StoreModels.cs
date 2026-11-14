@@ -67,10 +67,10 @@ public sealed class StoreItem
     {
     }
 
-    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
+    public StoreItem(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false, decimal? price = null)
     {
         Id = Guid.NewGuid();
-        Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+        Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery, price);
     }
 
     public Guid Id { get; private set; }
@@ -81,6 +81,8 @@ public sealed class StoreItem
     public string? Description { get; private set; }
     /// <summary>The most one employee may ask for of this item in a single request (0 means no limit). Enforced when ordering.</summary>
     public decimal MaxPerRequest { get; private set; }
+    /// <summary>Optional price per unit, shown as information only (a comment): it is never used in any limit, check or total.</summary>
+    public decimal? Price { get; private set; }
     /// <summary>First day (inclusive) on which the item can be requested; empty means "from the start".</summary>
     public DateTime? RequestOpensOn { get; private set; }
     /// <summary>Last day (inclusive) on which the item can be requested; empty means "no end".</summary>
@@ -104,7 +106,7 @@ public sealed class StoreItem
     /// <summary>The period is kept to the minute (local time).</summary>
     private static DateTime? ToMinute(DateTime? d) => d is DateTime v ? new DateTime(v.Year, v.Month, v.Day, v.Hour, v.Minute, 0, DateTimeKind.Unspecified) : null;
 
-    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false)
+    public void Update(string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest = 0, DateTime? requestOpensOn = null, DateTime? requestClosesOn = null, bool isLottery = false, decimal? price = null)
     {
         code = (code ?? "").Trim();
         name = (name ?? "").Trim();
@@ -116,6 +118,7 @@ public sealed class StoreItem
         if (categoryId == Guid.Empty) throw new ArgumentException("Category is required.", nameof(categoryId));
         if (description is { Length: > DescriptionMax }) throw new ArgumentException($"Description is at most {DescriptionMax} characters.", nameof(description));
         if (maxPerRequest < 0 || decimal.Round(maxPerRequest, 3) != maxPerRequest) throw new ArgumentException("Maximum per request cannot be negative (three decimals at most).", nameof(maxPerRequest));
+        if (price is < 0 || (price is decimal pv && decimal.Round(pv, 2) != pv)) throw new ArgumentException("Price cannot be negative (two decimals at most).", nameof(price));
         if (ToMinute(requestOpensOn) is DateTime o && ToMinute(requestClosesOn) is DateTime c && c < o) throw new ArgumentException("The request period ends before it starts.", nameof(requestClosesOn));
         Code = code;
         Name = name;
@@ -126,6 +129,7 @@ public sealed class StoreItem
         RequestOpensOn = ToMinute(requestOpensOn);
         RequestClosesOn = ToMinute(requestClosesOn);
         IsLottery = isLottery;
+        Price = price;
     }
 
     public void Activate() => IsActive = true;

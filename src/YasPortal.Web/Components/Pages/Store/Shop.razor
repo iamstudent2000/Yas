@@ -90,6 +90,10 @@
                             default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @StoreWhen.Format(closes)</span> } break;
                         }
                     </div>
+                    @if (item.Price is decimal price)
+                    {
+                        <dl class="store-card-facts"><dt>قیمت (جهت اطلاع)</dt><dd>@WorkflowDisplay.ToPersianDigits(price.ToString("#,0.##")) تومان</dd></dl>
+                    }
                     @if (item.MaxPerRequest > 0)
                     {
                         <dl class="store-card-facts"><dt>حداکثر در هر درخواست</dt><dd>@WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) @item.Unit</dd></dl>

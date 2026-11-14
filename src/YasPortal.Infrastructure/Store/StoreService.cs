@@ -4,7 +4,7 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
-public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false, bool IsVisible = true)
+public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false, bool IsVisible = true, decimal? Price = null)
 {
     public StoreRequestWindow WindowOn(DateTime today) => StoreItem.WindowOf(RequestOpensOn, RequestClosesOn, today);
 }
@@ -31,7 +31,7 @@ public sealed class StoreItemFilter
     /// <summary>The day "open", "not yet" and "closed" are judged on.</summary>
     /// <summary>The moment the request period is judged against (local time, with the clock).</summary>
     public DateTime Today { get; set; } = DateTime.Now;
-    /// <summary>name, code, stock, unit, max, window, active, visible, status or category (default).</summary>
+    /// <summary>name, code, stock, price, unit, max, window, active, visible, status or category (default).</summary>
     public string? Sort { get; set; }
     public bool Descending { get; set; }
 }
@@ -146,12 +146,13 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public bool IsActive { get; set; }
         public decimal Stock { get; set; }
         public decimal MaxPerRequest { get; set; }
+        public decimal? Price { get; set; }
         public DateTime? RequestOpensOn { get; set; }
         public DateTime? RequestClosesOn { get; set; }
         public bool IsLottery { get; set; }
         public bool IsVisible { get; set; }
 
-        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery, IsVisible);
+        public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery, IsVisible, Price);
     }
 
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
@@ -160,7 +161,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         select new ItemProjection
         {
             Id = i.Id, Code = i.Code, Name = i.Name, CategoryId = i.CategoryId, CategoryName = c.Name, Unit = i.Unit, Description = i.Description,
-            MaxPerRequest = i.MaxPerRequest, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsVisible = i.IsVisible, IsActive = i.IsActive,
+            MaxPerRequest = i.MaxPerRequest, Price = i.Price, RequestOpensOn = i.RequestOpensOn, RequestClosesOn = i.RequestClosesOn, IsLottery = i.IsLottery, IsVisible = i.IsVisible, IsActive = i.IsActive,
             Stock = db.StoreStockMovements.Where(m => m.ItemId == i.Id).Sum(m => (decimal?)m.Delta) ?? 0m,
         };
 
@@ -221,6 +222,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         ("code", true) => q.OrderByDescending(x => x.Code),
         ("stock", false) => q.OrderBy(x => x.Stock).ThenBy(x => x.Name),
         ("stock", true) => q.OrderByDescending(x => x.Stock).ThenBy(x => x.Name),
+        ("price", false) => q.OrderBy(x => x.Price == null).ThenBy(x => x.Price).ThenBy(x => x.Name),
+        ("price", true) => q.OrderBy(x => x.Price == null).ThenByDescending(x => x.Price).ThenBy(x => x.Name),
         ("unit", false) => q.OrderBy(x => x.Unit).ThenBy(x => x.Name),
         ("unit", true) => q.OrderByDescending(x => x.Unit).ThenBy(x => x.Name),
         ("max", false) => q.OrderBy(x => x.MaxPerRequest).ThenBy(x => x.Name),
@@ -247,7 +250,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
-    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, decimal initialStock, Guid? byEmployeeId, CancellationToken ct = default)
+    public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, decimal initialStock, Guid? byEmployeeId, decimal? price = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         code = (code ?? "").Trim();
@@ -263,7 +266,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         {
             if (id is null)
             {
-                var created = new StoreItem(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+                var created = new StoreItem(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery, price);
                 db.StoreItems.Add(created);
                 if (initialStock > 0) db.StoreStockMovements.Add(new StoreStockMovement(created.Id, StockMovementKind.Receive, initialStock, "موجودی اولیه", null, byEmployeeId));
             }
@@ -271,7 +274,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
             {
                 var item = await db.StoreItems.FirstOrDefaultAsync(x => x.Id == id, ct);
                 if (item is null) return StoreResult.Fail("کالا پیدا نشد.");
-                item.Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery);
+                item.Update(code, name, categoryId, unit, description, maxPerRequest, requestOpensOn, requestClosesOn, isLottery, price);
             }
         }
         catch (ArgumentException)
@@ -308,7 +311,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (!await db.StoreCategories.AnyAsync(x => x.Id == categoryId, ct)) return StoreResult.Fail("گروه مقصد را انتخاب کنید.");
         foreach (var item in await db.StoreItems.Where(x => ids.Contains(x.Id)).ToListAsync(ct))
-            item.Update(item.Code, item.Name, categoryId, item.Unit, item.Description, item.MaxPerRequest, item.RequestOpensOn, item.RequestClosesOn, item.IsLottery);
+            item.Update(item.Code, item.Name, categoryId, item.Unit, item.Description, item.MaxPerRequest, item.RequestOpensOn, item.RequestClosesOn, item.IsLottery, item.Price);
         await db.SaveChangesAsync(ct);
         return StoreResult.Success;
     }

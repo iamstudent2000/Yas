@@ -80,6 +80,7 @@
                         <div class="form-field"><label class="form-label">پایان دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_closesOn" ValueChanged="d => _closesOn = d" Placeholder="بدون پایان" /></div>
                         <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" value="@_closesTime" @onchange="e => _closesTime = e.Value?.ToString() ?? string.Empty" /></div>
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isLottery" /> توزیع با قرعه‌کشی</label></div>
+                        <div class="form-field"><label class="form-label">قیمت واحد (اختیاری، فقط جهت اطلاع)</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="مثلاً ۵۰۰۰۰" @bind="_price" @bind:event="oninput" /></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
                             <button class="btn btn-primary" disabled="@_busy" @onclick="SaveItemAsync"><i class="ti @Icons.Save"></i> @(_editItemId is null ? "افزودن کالا" : "ذخیره")</button>
@@ -174,7 +175,7 @@
                 </div>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="کد" Column="code" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="حداکثر در درخواست" Column="max" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="دوره درخواست" Column="window" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="در فروشگاه" Column="visible" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" />@if (_canManage) {<th></th>}</tr></thead>
+                        <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="کد" Column="code" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="قیمت" Column="price" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="حداکثر در درخواست" Column="max" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="دوره درخواست" Column="window" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="در فروشگاه" Column="visible" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" />@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
                             @foreach (var i in _items.Rows)
                             {
@@ -182,6 +183,7 @@
                                     @if (_canManage) {<td><input type="checkbox" aria-label="انتخاب" checked="@_selected.Contains(i.Id)" @onchange="e => ToggleSelect(i.Id, e.Value is true)" /></td>}
                                     <td dir="ltr" style="text-align:right">@i.Code</td><td>@i.Name</td><td>@i.CategoryName</td><td>@i.Unit</td>
                                     <td>@WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))</td>
+                                    <td>@(i.Price is decimal pp ? WorkflowDisplay.ToPersianDigits(pp.ToString("#,0.##")) : "—")</td>
                                     <td>@(i.MaxPerRequest == 0 ? "بدون محدودیت" : WorkflowDisplay.ToPersianDigits(i.MaxPerRequest.ToString("0.###")))</td>
                                     <td>@WindowText(i)@if (i.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}</td>
                                     <td>@if (i.IsActive) {<span class="badge badge-success">فعال</span>} else {<span class="badge badge-muted">غیرفعال</span>}</td>
@@ -254,7 +256,7 @@
 
     private Guid? _editItemId, _itemCategoryId;
     private string _code = "", _name = "", _unit = "", _description = "";
-    private string _initialStock = "", _maxPerRequest = "";
+    private string _initialStock = "", _maxPerRequest = "", _price = "";
     private Guid? _employeeId;
     private IReadOnlyList<(string Key, string Text)> UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList();
     private DateTime? _opensOn, _closesOn;
@@ -359,8 +361,9 @@
         try
         {
         var rows = await Store.AllItemsAsync(BuildFilter());
-        var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
+        var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "قیمت واحد", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
             rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+                i.Price is decimal pc ? pc.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "",
                 i.MaxPerRequest == 0 ? "" : i.MaxPerRequest.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                 i.RequestOpensOn is DateTime o ? StoreWhen.Format(o) : "", i.RequestClosesOn is DateTime c ? StoreWhen.Format(c) : "",
                 i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
@@ -413,21 +416,27 @@
         if (string.IsNullOrWhiteSpace(_unit)) { AppState.AddToast("واحد را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_initialStock, out var initial) || initial < 0) { AppState.AddToast("موجودی اولیه باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
         if (!StoreNumber.TryParse(_maxPerRequest, out var max) || max < 0) { AppState.AddToast("حداکثر در هر درخواست باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+        decimal? price = null;
+        if (!string.IsNullOrWhiteSpace(_price))
+        {
+            if (!StoreNumber.TryParse(_price, out var pv) || pv < 0 || decimal.Round(pv, 2) != pv) { AppState.AddToast("قیمت باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+            price = pv;
+        }
         if (_opensOn is null && !string.IsNullOrWhiteSpace(_opensTime)) { AppState.AddToast("برای ساعت شروع، تاریخ شروع را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
         if (_closesOn is null && !string.IsNullOrWhiteSpace(_closesTime)) { AppState.AddToast("برای ساعت پایان، تاریخ پایان را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
         if ((!string.IsNullOrWhiteSpace(_opensTime) && !StoreWhen.TryParseTime(_opensTime, out _)) || (!string.IsNullOrWhiteSpace(_closesTime) && !StoreWhen.TryParseTime(_closesTime, out _)))
         { AppState.AddToast("ساعت را به شکل ۰۹:۳۰ وارد کنید.", ToastLevel.Error); return Task.CompletedTask; }
-        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, StoreWhen.Combine(_opensOn, _opensTime, TimeSpan.Zero), StoreWhen.Combine(_closesOn, _closesTime, new TimeSpan(23, 59, 0)), _isLottery, _editItemId is null ? initial : 0, _employeeId), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
+        return RunAsync(() => Store.SaveItemAsync(_editItemId, _code, _name, _itemCategoryId.Value, _unit, _description, max, StoreWhen.Combine(_opensOn, _opensTime, TimeSpan.Zero), StoreWhen.Combine(_closesOn, _closesTime, new TimeSpan(23, 59, 0)), _isLottery, _editItemId is null ? initial : 0, _employeeId, price), _editItemId is null ? "کالا اضافه شد." : "کالا ذخیره شد.", ResetItem);
     }
 
-    private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = ""; _opensOn = _closesOn = null; _opensTime = _closesTime = ""; _isLottery = false; _formKey++; }
+    private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = _price = ""; _opensOn = _closesOn = null; _opensTime = _closesTime = ""; _isLottery = false; _formKey++; }
 
     private async Task EditItemAsync(StoreItemRow row)
     {
         var item = await Store.GetItemAsync(row.Id);
         if (item is null) { AppState.AddToast("این کالا دیگر وجود ندارد.", ToastLevel.Error); await LoadAsync(); return; }
         _editItemId = item.Id; _code = item.Code; _name = item.Name; _itemCategoryId = item.CategoryId; _unit = item.Unit;
-        _description = item.Description ?? ""; _maxPerRequest = Plain(item.MaxPerRequest); _opensOn = item.RequestOpensOn; _closesOn = item.RequestClosesOn; _opensTime = item.RequestOpensOn?.ToString("HH:mm") ?? ""; _closesTime = item.RequestClosesOn?.ToString("HH:mm") ?? ""; _isLottery = item.IsLottery;
+        _description = item.Description ?? ""; _maxPerRequest = Plain(item.MaxPerRequest); _price = item.Price is decimal pr ? Plain(pr) : ""; _opensOn = item.RequestOpensOn; _closesOn = item.RequestClosesOn; _opensTime = item.RequestOpensOn?.ToString("HH:mm") ?? ""; _closesTime = item.RequestClosesOn?.ToString("HH:mm") ?? ""; _isLottery = item.IsLottery;
         // an older item may carry a unit that is not in the list: keep it selectable so saving does not silently change it
         UnitOptions = StoreUnits.All.Contains(item.Unit) ? StoreUnits.All.Select(u => (u, u)).ToList() : StoreUnits.All.Append(item.Unit).Select(u => (u, u)).ToList();
         _formKey++;
