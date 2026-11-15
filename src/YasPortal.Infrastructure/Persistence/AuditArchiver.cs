@@ -9,6 +9,7 @@ namespace YasPortal.Infrastructure.Persistence;
 /// </summary>
 public sealed class AuditArchiver(IDbContextFactory<ApplicationDbContext> dbFactory)
 {
+    // How many audit rows are moved per round, to keep each database transaction small.
     private const int BatchSize = 2000;
 
     /// <summary>How many current (not yet archived) rows are older than <paramref name="cutoffUtc"/>.</summary>
@@ -26,6 +27,7 @@ public sealed class AuditArchiver(IDbContextFactory<ApplicationDbContext> dbFact
         while (true)
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Take the oldest rows that are older than the cutoff and not yet archived.
             var batch = await db.AuditEntries
                 .Where(x => x.ArchivedAtUtc == null && x.OccurredAtUtc < cutoffUtc)
                 .OrderBy(x => x.OccurredAtUtc)
@@ -33,6 +35,7 @@ public sealed class AuditArchiver(IDbContextFactory<ApplicationDbContext> dbFact
                 .ToListAsync(ct);
             if (batch.Count == 0)
                 return total;
+            // Mark each row as archived with the current time; the row itself stays in the table.
             foreach (var entry in batch)
                 entry.Archive(now);
             await db.SaveChangesAsync(ct);   // audit rows are never audited themselves, so this adds no new rows

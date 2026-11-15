@@ -1,26 +1,33 @@
 namespace YasPortal.Application.Authorization;
 
+// Business meaning: exporting a list to a CSV file is its own permission, granted list by list.
+// Having the right to view a page does not automatically allow exporting its data.
 /// <summary>
 /// One permission per list that can export a report, so access to the CSV exports can be given page by page.
 /// The codes are used by the authorization policies, the filter bar's ⋯ menu, the export service and the seeder.
 /// </summary>
 public static class ReportPermissions
 {
+    // Admin-wide request reports.
     public const string AllRequests = "Reports.AllRequests.Export";
     public const string ActiveRequests = "Reports.ActiveRequests.Export";
     public const string RejectedRequests = "Reports.RejectedRequests.Export";
+    // Requests of the person's subordinates, and the person's own requests.
     public const string TeamRequests = "Reports.TeamRequests.Export";
     public const string MyRequests = "Reports.MyRequests.Export";
+    // Administration lists: users, organizations, positions, position history, audit log, delegations.
     public const string Users = "Reports.Users.Export";
     public const string Organizations = "Reports.Organizations.Export";
     public const string Positions = "Reports.Positions.Export";
     public const string AssignmentHistory = "Reports.AssignmentHistory.Export";
     public const string AuditLog = "Reports.AuditLog.Export";
     public const string Delegations = "Reports.Delegations.Export";
+    // Notification exports: the admin report of all notifications, and the personal one.
     public const string Notifications = "Reports.Notifications.Export";
     /// <summary>Export of the signed-in person's own notifications (/notifications); separate from <see cref="Notifications"/>, the all-notifications report.</summary>
     public const string MyNotifications = "Reports.MyNotifications.Export";
 
+    // Each entry is: permission code, Persian display name, and the earlier code (empty when the permission is new).
     public static readonly IReadOnlyList<(string Code, string Name, string OldCode)> All =
     [
         (AllRequests, "خروجی گزارش درخواست‌ها (مدیریت)", "Reports.AllRequests"),

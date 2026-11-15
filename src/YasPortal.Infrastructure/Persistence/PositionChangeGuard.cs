@@ -23,9 +23,12 @@ public static class PositionChangeGuard
     /// </summary>
     public static async Task<IReadOnlyList<Blocker>> ActiveRequestsTouchingAsync(ApplicationDbContext db, IReadOnlyCollection<Guid> positionIds, CancellationToken ct = default)
     {
+        // Nothing to check when no positions were given.
         if (positionIds.Count == 0)
             return [];
 
+        // Active requests that are either submitted from one of these positions or have a step in the current round
+        // still waiting for one of them to decide. At most 200 are listed.
         var rows = await db.WorkflowRequests.AsNoTracking().Active()
             .Where(r => positionIds.Contains(r.RequesterPositionId)
                         || r.Steps.Any(s => s.Round == r.CurrentRound && s.Status == WorkflowStepStatus.Pending && positionIds.Contains(s.ApproverPositionId)))
@@ -39,6 +42,7 @@ public static class PositionChangeGuard
             .Take(200)
             .ToListAsync(ct);
 
+        // Each blocker gets a short reason: submitted from this position, or waiting for this position to decide.
         return rows.Select(r => new Blocker(r.Id, r.WorkflowType, r.AsRequester ? "ثبت‌شده از این سمت" : "در انتظار تصمیم این سمت")).ToList();
     }
 
@@ -55,6 +59,7 @@ public static class PositionChangeGuard
     /// <summary>The position plus all of its descendants (a re-parent moves the whole branch).</summary>
     public static async Task<HashSet<Guid>> SubtreeAsync(ApplicationDbContext db, Guid positionId, CancellationToken ct = default)
     {
+        // Load every position with its parent, then keep adding children of positions already collected until none is new.
         var parents = await db.Positions.AsNoTracking().Select(p => new { p.Id, p.ParentPositionId }).ToListAsync(ct);
         var result = new HashSet<Guid> { positionId };
         var added = true;
@@ -71,6 +76,8 @@ public static class PositionChangeGuard
     /// <summary>Whether the position has ever been used (spec §3.4): assignments, permissions, workflow steps, requests, steps, decisions, delegations.</summary>
     public static async Task<string?> HistoricalUsageAsync(ApplicationDbContext db, Guid positionId, CancellationToken ct = default)
     {
+        // Each check below looks for one kind of record that mentions the position and returns a short label for the
+        // first kind found: assignment, permission, workflow step, request, approval step or delegation. None means unused.
         if (await db.EmployeePositions.AnyAsync(x => x.PositionId == positionId, ct)) return "تخصیص کارمند";
         if (await db.UserPositionPermissions.AnyAsync(x => x.PositionId == positionId, ct)) return "مجوز";
         if (await db.WorkflowStepDefinitions.AnyAsync(x => x.ApproverPositionId == positionId, ct)) return "گردش‌کار";

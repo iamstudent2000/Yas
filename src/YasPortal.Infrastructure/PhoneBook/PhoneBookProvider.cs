@@ -13,6 +13,7 @@ public sealed class PhoneBookProvider(IDbContextFactory<ApplicationDbContext> db
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Load all groups and contacts, then let the tree builder keep only the active ones (unless inactive ones are requested).
             var groups = await db.ContactGroups.AsNoTracking().ToListAsync(ct);
             var contacts = await db.Contacts.AsNoTracking().ToListAsync(ct);
             return PhoneBookTree.Build(groups, contacts, includeInactive);

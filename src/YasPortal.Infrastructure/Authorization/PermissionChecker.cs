@@ -4,16 +4,20 @@ using YasPortal.Application.Authorization;
 
 namespace YasPortal.Infrastructure.Authorization;
 
+// Answers the question 'may this person do this?'. It never queries the database: it only reads the list of
+// permission codes copied into the sign-in cookie when the person logged in or switched position.
 public sealed class PermissionChecker(
     AuthenticationStateProvider authenticationStateProvider,
     CurrentUser? currentUser = null) : IPermissionChecker
 {
+    // Version for pages: finds the current user first, then uses the version below.
     public async Task<bool> HasPermissionAsync(string permissionCode, CancellationToken cancellationToken = default)
     {
         var user = (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
         return await HasPermissionAsync(user, permissionCode, cancellationToken);
     }
 
+    // Version for a known user.
     public Task<bool> HasPermissionAsync(
         ClaimsPrincipal user,
         string permissionCode,

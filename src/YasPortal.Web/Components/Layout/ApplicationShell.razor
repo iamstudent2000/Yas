@@ -3,6 +3,7 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 
+@* Hidden drawing library holding the jasmine flower icon, so any part of the page can reuse it as a logo or decoration. *@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="jasmine-bloom-outline" viewBox="0 0 100 100">
         <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
@@ -17,6 +18,8 @@
 </svg>
 
 
+@* The application shell: the frame that surrounds every page (side menu, top bar and the page itself). *@
+@* On the sign-in screen the frame is switched to a bare look with no menu or top bar. *@
 <div class="application-shell @(IsBare ? "is-bare" : "")" dir="rtl">
     <div class="application-body">
         @* The sign-in screen is bare even for someone who is still signed in (opened /login by hand, back button, an old tab): no sidebar, no top bar. *@
@@ -30,7 +33,9 @@
             </AuthorizeView>
         }
 
+        @* Right-hand side of the shell: top bar above, current page below. *@
         <div class="shell-main">
+            @* Top bar: signed-in users get the notification bell, active position, avatar, name and sign-out button; others get a sign-in button. *@
             <header class="topbar">
                 <AuthorizeView>
                     <Authorized Context="auth">
@@ -46,21 +51,27 @@
                 </AuthorizeView>
             </header>
 
+            @* The router places the page for the current address here. *@
             <main class="content">
                 <Routes />
             </main>
         </div>
     </div>
+    @* Toast messages are drawn on top of every page. *@
     <YasPortal.Web.Components.AppNotifications />
 </div>
 
 @code {
+    // True when the user is on the sign-in address; the shell then hides the menu and top bar.
     // The sign-in screen is a full-screen page of its own: no top bar, no scrolling.
     private bool IsBare => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Equals("/login", StringComparison.OrdinalIgnoreCase);
 
+    // Watch for page changes so the bare/non-bare look is re-evaluated after every navigation.
     protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
 
+    // Redraw the shell after a page change.
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
 
+    // Stop watching when the shell is disposed.
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

@@ -13,8 +13,11 @@ public sealed class PortalLinkProvider(IDbContextFactory<ApplicationDbContext> d
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Link groups form the folders of the tree.
             var groups = await db.LinkGroups.AsNoTracking().ToListAsync(ct);
+            // Only links that an administrator left switched on are included.
             var links = await db.PortalLinks.AsNoTracking().Where(x => x.IsActive).ToListAsync(ct);
+            // Put links into their groups to form the tree shown on the home page.
             return LinkTree.Build(groups, links);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

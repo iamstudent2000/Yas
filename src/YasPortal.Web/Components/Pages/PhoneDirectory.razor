@@ -7,6 +7,8 @@
 @inject PhoneBookProvider Provider
 @inject IPermissionChecker PermissionChecker
 @* Open to everyone, also before sign-in. Printing needs the PhoneBook.Directory.Print permission (and a signed-in person). *@
+@* Phone book screen: internal extension numbers and contact numbers grouped in a tree, with search across all groups. *@
+@* Anyone can read it; only people holding the print permission see an enabled print option. *@
 
 <PageTitle>دفترچه تلفن - یاس پورتال</PageTitle>
 
@@ -19,6 +21,7 @@
         </div>
     </div>
 
+    @* While the directory is loading show a spinner; afterwards the shared phone-book view draws the groups and numbers. *@
     @if (_tree is null)
     {
         <LoadingState />
@@ -30,6 +33,7 @@
 </div>
 
 @code {
+    // _tree is the whole grouped directory; _canPrint says whether this visitor may print it.
     private PhoneBookTree? _tree;
     private bool _canPrint;
 
