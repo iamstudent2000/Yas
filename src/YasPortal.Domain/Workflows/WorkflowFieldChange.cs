@@ -1,5 +1,10 @@
 namespace YasPortal.Domain.Workflows;
 
+// Field change history (spec section 11.3). The request itself only keeps the latest answers, so every
+// change to an answer
+// is also written here as a new row. Nothing here is ever edited or deleted: it is the audit trail of who
+// changed what, when.
+// Entity = a row-shaped business object stored in the database.
 /// <summary>
 /// A permanent record of one request field changing value (spec §11.3): which field, the old
 /// and new value, who changed it, from which position, and when. Rows are only ever appended —
@@ -13,10 +18,14 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowFieldChange
 {
+    // Private empty constructor: needed by the database layer to load rows; application code cannot create
+    // a blank record.
     private WorkflowFieldChange()
     {
     }
 
+    // Only the request/workflow code inside this project can create a change record, and it checks that
+    // nothing is missing.
     internal WorkflowFieldChange(
         Guid requestId,
         int round,

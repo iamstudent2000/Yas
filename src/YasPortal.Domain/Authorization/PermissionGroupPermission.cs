@@ -1,5 +1,6 @@
 namespace YasPortal.Domain.Authorization;
 
+// Joins a permission group to one permission it contains. A group is the set of all its joins.
 public sealed class PermissionGroupPermission
 {
     private PermissionGroupPermission()

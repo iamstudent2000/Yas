@@ -1,15 +1,19 @@
 namespace YasPortal.Domain.Auditing;
 
+// The audit trail is the permanent history of who did what in the portal. Each entry records one action, and entries
+// are never deleted (old ones are only moved to an archive). This file holds the fixed names used for those actions.
 /// <summary>
 /// The values stored in <see cref="AuditEntry.Action"/>. Created / Updated / Deleted are written
 /// automatically for every changed row; the rest are explicit events (sign-in, exports, ...).
 /// </summary>
 public static class AuditActions
 {
+    // Data changes: written automatically whenever a row in the database is added, changed or removed.
     public const string Created = "Created";
     public const string Updated = "Updated";
     public const string Deleted = "Deleted";
 
+    // Explicit events: things people do that are not data changes, such as signing in, switching position or exporting.
     public const string LoginSucceeded = "LoginSucceeded";
     public const string LoginFailed = "LoginFailed";
     public const string LoggedOut = "LoggedOut";
@@ -35,6 +39,7 @@ public static class AuditActions
     public const string AuditEntryViewed = "AuditEntryViewed";
     public const string AuditArchived = "AuditArchived";
 
+    // The list below is used to fill the event filter on the audit page.
     /// <summary>The explicit events, in the order the audit page offers them.</summary>
     public static readonly IReadOnlyList<string> Events =
     [
@@ -46,6 +51,7 @@ public static class AuditActions
     ];
 }
 
+// Entity types describe what an audit entry is about. Data changes use the name of the changed object instead.
 /// <summary>The <see cref="AuditEntry.EntityType"/> values used by explicit events (data changes use the entity's class name).</summary>
 public static class AuditEntityTypes
 {
@@ -65,6 +71,7 @@ public static class AuditEntityTypes
     public const string Notification = "Notification";
 }
 
+// Reasons give extra detail for a failed or refused event, for example why a sign-in did not succeed.
 /// <summary>Why an explicit event happened, stored in its details as <c>Reason</c>.</summary>
 public static class AuditReasons
 {

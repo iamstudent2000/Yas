@@ -9,6 +9,10 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Notifications are the short in-app messages that appear under the bell icon. Some are created automatically when
+// a request moves (reaches a step, is approved, rejected, returned), and some are written by hand by a person.
+// This service creates them, lists them for the recipient, lets senders take back their messages, and powers the
+// administrator's all-notifications report. Service = the class that holds the logic for one area.
 /// <summary>In-app notifications (spec §17): creating them as part of a workflow action, and reading/marking them for the recipient.</summary>
 public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> dbFactory, IPermissionChecker permissions, AuditEventWriter? audit = null)
 {
@@ -28,8 +32,10 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var shortId = request.Id.ToString("N")[..8];
         var requestLabel = $"{typeName} #{shortId}";
 
+        // The planner decides who must hear about this event: the requester, or whoever holds a target position.
         foreach (var target in WorkflowNotificationPlanner.Plan(request, evt, stepOrderBefore))
         {
+            // The requester is told the outcome of their own request and is sent to the "my requests" page.
             if (target.IsRequester)
             {
                 db.Notifications.Add(new Notification(request.RequesterEmployeeId, target.Kind, request.Id, typeName,
@@ -37,6 +43,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                 continue;
             }
 
+            // Authority belongs to positions, so the message goes to whoever holds the position now, plus today's delegates.
             var positionId = target.PositionId!.Value;
             var holders = await HoldersOfAsync(db, positionId, ct);
             // Delegates covering the position today hear about it too (spec §15) — otherwise a holder
@@ -57,6 +64,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                 continue;
             }
 
+            // Nobody holds the target position, so every active administrator is warned that the request cannot move forward.
             var positionName = await db.Positions.AsNoTracking().Where(x => x.Id == positionId).Select(x => x.Name).SingleOrDefaultAsync(ct) ?? "نامشخص";
             var admins = await db.Employees.AsNoTracking().Where(x => x.IsAdmin && x.IsActive).Select(x => x.Id).ToListAsync(ct);
             foreach (var admin in admins)
@@ -125,6 +133,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         _ => $"وضعیت درخواست {requestLabel} تغییر کرد.",
     };
 
+    // A position with no active holder counts as vacant; the people who hold it are the ones who get the work and the messages.
     /// <summary>Employees who currently, actively hold the position (inactive employees count as vacant, §4.3).</summary>
     private static async Task<List<Guid>> HoldersOfAsync(ApplicationDbContext db, Guid positionId, CancellationToken ct) =>
         await db.EmployeePositions.AsNoTracking()
@@ -132,6 +141,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             .Join(db.Employees.AsNoTracking().Where(e => e.IsActive), ep => ep.EmployeeId, e => e.Id, (ep, e) => e.Id)
             .ToListAsync(ct);
 
+    // Part 1 of 4 in this file: sending hand-written messages.
     // ---- sending by hand ----
 
     /// <summary>
@@ -145,10 +155,12 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         public bool IsEmpty => !Everyone && (EmployeeIds?.Count ?? 0) == 0 && (OrganizationIds?.Count ?? 0) == 0 && (GroupIds?.Count ?? 0) == 0;
     }
 
+    // Outcomes returned to the page: Ok or a Persian reason it failed, plus how many people were reached or rows changed.
     public sealed record SendResult(bool Ok, string? Error, int Sent = 0);
 
     public sealed record ChangeResult(bool Ok, string? Error, int Count = 0);
 
+    // Safety limits: at most 500 people picked one by one, and at most 5000 recipients for any single message.
     /// <summary>Most people that can be picked by hand for a single message.</summary>
     public const int MaxSelectedRecipients = 500;
 
@@ -156,6 +168,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public const int MaxRecipients = 5000;
 
     /// <summary>Active employees the audience resolves to, never including the sender.</summary>
+    // Works out the people an audience points to: everyone, or the union of picked people, organizations and saved groups.
+    // Inactive employees and the sender are always left out, and people ticked off in the review list are removed.
     private static IQueryable<Employee> Recipients(ApplicationDbContext db, Audience audience, Guid senderId, bool applyExclusions = true)
     {
         var query = db.Employees.AsNoTracking().Where(e => e.IsActive && e.Id != senderId);
@@ -169,6 +183,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var employeeIds = (audience.EmployeeIds ?? []).Distinct().ToList();
         var organizationIds = (audience.OrganizationIds ?? []).Distinct().ToList();
         var groupIds = (audience.GroupIds ?? []).Distinct().ToList();
+        // Only the sender's own groups count, so nobody can message through somebody else's saved list.
         // Only the sender's own groups count, whatever ids the caller passes.
         var memberIds = db.RecipientGroupMembers.AsNoTracking()
             .Where(m => groupIds.Contains(m.GroupId) && db.RecipientGroups.Any(g => g.Id == m.GroupId && g.OwnerEmployeeId == senderId))
@@ -177,6 +192,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     }
 
     /// <summary>How many people the audience would reach right now (for the preview before sending).</summary>
+    // Preview figure shown before sending: how many people the message would reach.
     public async Task<int> CountRecipientsAsync(Guid senderId, Audience audience, CancellationToken ct = default)
     {
         if (audience.IsEmpty)
@@ -208,6 +224,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// by a batch id). One permission covers all of it: <see cref="Perm.NotificationsMessageSend"/>, checked here as well as on the page.
     /// Returns the Persian reason when nothing was sent.
     /// </summary>
+    // Sends the message after checking permission, text length, audience size and that the sender exists.
+    // Each recipient gets their own copy; copies of one message share a batch id so the sender can see or take them back together.
     public async Task<SendResult> SendAsync(Guid senderId, Audience audience, string? message, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
@@ -239,6 +257,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var audienceLabel = await DescribeAsync(db, audience, senderId, recipients.Count, withoutExclusions - recipients.Count, ct);
         var batchId = recipients.Count > 1 ? Guid.NewGuid() : (Guid?)null;
 
+        // Messages are saved in chunks of 500 so a large broadcast does not become one huge database operation.
         // Administrators read their notifications on their own page (they have no position and no personal request pages).
         var done = 0;
         foreach (var chunk in recipients.Chunk(500))
@@ -248,6 +267,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             await db.SaveChangesAsync(ct);
             done += chunk.Length;
         }
+        // The audit log records who sent it and to whom, but not the message text itself.
         // Who sent it and to whom (the audience wording and head-count); the message text itself is not copied into the log.
         if (audit is not null)
             await audit.WriteAsync(AuditActions.NotificationSent, AuditEntityTypes.Notification, batchId?.ToString(),
@@ -274,10 +294,12 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return parts.Count == 0 ? null : string.Join(" + ", parts) + exclusion;
     }
 
+    // Part 2 of 4: saved recipient groups, personal lists of people that a sender can reuse for later messages.
     // ---- saved recipient groups (the sender's own; need the same send permission) ----
 
     public sealed record GroupSummary(Guid Id, string Name, int MemberCount);
 
+    // The sender's saved groups with the number of members in each.
     public async Task<List<GroupSummary>> ListGroupsAsync(Guid ownerId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -306,6 +328,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// Saves what the audience resolves to right now as a group under <paramref name="name"/>: a new group, or, when the owner already has one with
     /// that name, its members are replaced. The group is a snapshot of people (not of the organizations behind it).
     /// </summary>
+    // Creating a group saves the people the audience reaches right now; saving under an existing name replaces its members.
     public async Task<ChangeResult> SaveGroupAsync(Guid ownerId, string? name, Audience audience, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
@@ -344,6 +367,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return new(true, null, memberIds.Count);
     }
 
+    // Deletes one of the owner's own groups.
     public async Task<ChangeResult> DeleteGroupAsync(Guid ownerId, Guid groupId, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
@@ -353,6 +377,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return new(count > 0, count > 0 ? null : "گروه پیدا نشد.", count);
     }
 
+    // Part 3 of 4: what a sender has sent, and taking a message back.
     // ---- what a sender sent, and taking it back ----
 
     /// <summary>One message the person sent: a single notification, or all the copies of a message sent to several people.</summary>
@@ -361,6 +386,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public sealed record SentGroup(Guid Key, string Message, DateTime CreatedAtUtc, int Total, int Read, int Removed, string? RecipientName, string? AudienceLabel);
 
     /// <summary>The hand-written notifications this employee sent, newest first, one row per message (not per recipient).</summary>
+    // Groups copies of the same batch into one row so the sender sees one line per message with read counts.
     public async Task<(List<SentGroup> Items, int Total)> ListSentAsync(Guid senderId, int page, int pageSize, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -379,6 +405,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         var total = await groups.CountAsync(ct);
         var rows = await groups.OrderByDescending(g => g.CreatedAtUtc).ThenBy(g => g.Key).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
 
+        // When the message went to a single person, the row shows that person's name instead of an audience label.
         // A message to one person has a single row; look up that person's name for the groups that need it.
         var singleKeys = rows.Where(g => g.Total == 1).Select(g => g.Key).ToList();
         var names = singleKeys.Count == 0
@@ -394,6 +421,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// The sender takes back a message they sent: every copy of it disappears from the recipients' lists (the records stay in the report,
     /// marked removed). Only the sender's own messages are touched.
     /// </summary>
+    // Retracting hides every copy from the recipients; the records stay in the report and are only marked removed.
     public async Task<ChangeResult> RetractAsync(Guid senderId, Guid groupKey, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.NotificationsMessageSend, ct))
@@ -408,8 +436,11 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return new(true, null, count);
     }
 
+    // Part 4 of 4: administrator tools, the all-notifications report, and the recipient's own list.
     // ---- removing and restoring other people's notifications (Admin.Notifications.Manage) ----
 
+    // Common step for removing or restoring notifications: needs the manage-notifications permission and writes an audit entry.
+    // Nothing is physically deleted; a removal date and the remover are recorded so it can be undone.
     private async Task<ChangeResult> ApplyRemovalAsync(Guid actorId, Func<ApplicationDbContext, IQueryable<Notification>> select, bool removed, CancellationToken ct)
     {
         if (!await permissions.HasPermissionAsync(Perm.AdminNotificationsManage, ct))
@@ -436,6 +467,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// Removes (or restores) every notification the report currently matches. At least one filter is required, so a stray click can never
     /// remove every notification in the system.
     /// </summary>
+    // The bulk version needs at least one filter, so one careless click cannot remove every notification in the system.
     public Task<ChangeResult> SetRemovedForFilterAsync(Guid actorId, ReportFilter filter, bool removed, CancellationToken ct = default)
     {
         if (filter.Count == 0)
@@ -446,6 +478,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
 
     // ---- the all-notifications report (Admin.Notifications.View) ----
 
+    // Filter choices of the report: recipient, sender, kind, read state, text, date range and removed state.
     /// <param name="ReadState">"read", "unread", or null for both.</param>
     /// <param name="Search">Text that must appear in the message or in the "request type / sender" line.</param>
     /// <param name="From">First day (local) to include.</param>
@@ -461,6 +494,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     public sealed record ReportRow(Guid Id, DateTime CreatedAtUtc, NotificationKind Kind, string RecipientName, string RecipientUsername, string? SenderName,
         string Message, string RequestType, bool IsRead, DateTime? ReadAtUtc, DateTime? RemovedAtUtc = null, string? RemovedByName = null);
 
+    // Converts the start of a local calendar day to universal time, so date filters match what the user sees.
     private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
 
     /// <summary>Notifications matching the filter (not yet joined to names); shared by the page's list, its counters, the bulk removal and the CSV export.</summary>
@@ -495,6 +529,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                      join m in db.Employees.AsNoTracking() on n.RemovedByEmployeeId equals m.Id into removers
                      from m in removers.DefaultIfEmpty()
                      select new { n, r, s, m };
+        // Sort order chosen by the column header in the report; the notification id is added last so paging stays stable.
         var ordered = (sortBy, descending) switch
         {
             ("recipient", false) => joined.OrderBy(x => x.r.FullName),
@@ -513,6 +548,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             x.s == null ? null : x.s.FullName, x.n.Message, x.n.RequestType, x.n.IsRead, x.n.ReadAtUtc, x.n.RemovedAtUtc, x.m == null ? null : x.m.FullName));
     }
 
+    // Number of unread, not removed, notifications for the bell badge.
     public async Task<int> CountUnreadAsync(Guid? employeeId, CancellationToken ct = default)
     {
         if (employeeId is not Guid id)
@@ -521,6 +557,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
         return await db.Notifications.AsNoTracking().CountAsync(x => x.RecipientEmployeeId == id && !x.IsRead && x.RemovedAtUtc == null, ct);
     }
 
+    // One page of a person's own notifications (removed ones are hidden), optionally unread only or one kind, in the chosen order.
     public async Task<(List<Notification> Items, int Total)> ListAsync(Guid employeeId, bool unreadOnly, int page, int pageSize, NotificationKind? kind = null, bool oldestFirst = false, bool unreadFirst = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -535,6 +572,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
             ? (oldestFirst ? query.OrderBy(x => x.IsRead).ThenBy(x => x.CreatedAtUtc) : query.OrderBy(x => x.IsRead).ThenByDescending(x => x.CreatedAtUtc))
             : (oldestFirst ? query.OrderBy(x => x.CreatedAtUtc) : query.OrderByDescending(x => x.CreatedAtUtc));
         var items = await ordered.ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        // Opening the list is itself recorded in the audit log, at most once a minute for the same page view.
         // The person is looking at these notifications now. One row per page of the list (not per reload within a minute).
         if (audit is not null && await audit.ShouldLogAsync($"notifications:{page}:{pageSize}:{unreadOnly}:{kind}:{oldestFirst}:{unreadFirst}", TimeSpan.FromMinutes(1), employeeId))
             await audit.WriteAsync(AuditActions.NotificationsViewed, AuditEntityTypes.Notification, null,
@@ -564,6 +602,8 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
     /// looked at the request itself, so the same news is not counted twice (sidebar "my requests" and "notifications").
     /// Pass null to cover every request.
     /// </summary>
+    // Request-related notifications about the same requests are marked read together when the requester opens the request.
+    // Inbox and vacancy alerts are excluded because those are handled through the approver's inbox instead.
     public async Task MarkRequestsReadAsync(Guid employeeId, IReadOnlyCollection<Guid>? requestIds, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -582,6 +622,7 @@ public sealed class NotificationService(IDbContextFactory<ApplicationDbContext> 
                 new { Scope = requestIds is null ? "AllRequests" : "Requests", Count = unread.Count, Ids = string.Join(", ", unread.Select(x => x.Id)) }, employeeId: employeeId);
     }
 
+    // Marks everything unread as read for this person, and records that in the audit log.
     public async Task MarkAllReadAsync(Guid employeeId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

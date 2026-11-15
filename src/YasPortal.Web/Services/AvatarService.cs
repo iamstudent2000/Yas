@@ -3,12 +3,15 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Avatars: the 16 ready-made profile pictures (an icon on a coloured circle) people can pick on the profile page.
+// Only the short key is stored with the employee; the icon and colour come from the fixed list below.
 /// <summary>One predefined avatar: a boxicons icon on a colored circle.</summary>
 public sealed record AvatarOption(string Key, string Icon, string Color, string Label);
 
 /// <summary>The fixed set of avatars an employee can choose from. Keys are what gets stored.</summary>
 public static class AvatarCatalog
 {
+    // The complete list of avatars on offer. Keys must stay stable because they are what is saved in the database.
     public static readonly IReadOnlyList<AvatarOption> All =
     [
         new("user", "ti-user", "#2563eb", "کاربر"),
@@ -29,15 +32,19 @@ public static class AvatarCatalog
         new("music", "ti-music", "#9333ea", "موسیقی"),
     ];
 
+    // Finds an avatar by key; an empty or unknown key gives nothing, and the screen then shows the default picture.
     public static AvatarOption? Find(string? key) =>
         string.IsNullOrWhiteSpace(key) ? null : All.FirstOrDefault(x => x.Key == key);
 }
 
+// Service = the class that holds the logic for one area. This one reads and saves the chosen avatar.
 /// <summary>Loads and saves the employee's chosen avatar and tells the open page (top bar, profile) when it changes.</summary>
 public sealed class AvatarService(IDbContextFactory<ApplicationDbContext> dbFactory, ILogger<AvatarService> logger)
 {
+    // Raised after a save so the top bar and the profile page update their picture straight away.
     public event Action? Changed;
 
+    // Returns the employee's saved avatar key, or nothing if there is none or the lookup fails.
     public async Task<string?> GetKeyAsync(Guid? employeeId, CancellationToken ct = default)
     {
         if (employeeId is not Guid id)

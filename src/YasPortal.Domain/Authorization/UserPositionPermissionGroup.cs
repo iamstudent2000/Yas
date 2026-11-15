@@ -1,5 +1,6 @@
 namespace YasPortal.Domain.Authorization;
 
+// Like the single-permission version, but grants a whole permission group to an employee in one position.
 /// <summary>
 /// Assigns a reusable permission group to one Employee + Position combination.
 /// </summary>

@@ -1,5 +1,6 @@
 namespace YasPortal.Domain.Authorization;
 
+// Permission = one right, such as viewing users. This file links one administrator directly to one permission.
 /// <summary>
 /// Direct permissions assigned to an administrator. These permissions are independent
 /// of organizational positions because administrators are a different user type.

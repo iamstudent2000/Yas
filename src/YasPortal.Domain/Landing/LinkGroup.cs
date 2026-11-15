@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Landing;
 
+// Link groups organise the links on the home page into folders. A group may sit inside another group, up to
+// three levels. Switching a group off hides it and everything inside it.
 /// <summary>A group of portal links, optionally inside another group (a tree up to <see cref="MaxDepth"/> levels deep).</summary>
 public sealed class LinkGroup
 {
@@ -16,6 +18,7 @@ public sealed class LinkGroup
         Update(name, parentId, sortOrder);
     }
 
+    // Name, parent group (empty for a top-level group) and the position among its siblings.
     public Guid Id { get; private set; }
     public string Name { get; private set; } = "";
     public Guid? ParentId { get; private set; }
@@ -23,6 +26,7 @@ public sealed class LinkGroup
     /// <summary>A group that is off is hidden from the home page together with everything inside it.</summary>
     public bool IsActive { get; private set; } = true;
 
+    // Used when creating and editing. A name is required and a group can never be placed inside itself.
     public void Update(string name, Guid? parentId, int sortOrder)
     {
         name = (name ?? "").Trim();
@@ -38,6 +42,8 @@ public sealed class LinkGroup
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
+    // Helpers for the tree: how deep a group sits, which groups are below it, and whether a move is
+    // allowed.
     /// <summary>Levels from the top (a top group is 1). Stops at a missing parent or a loop.</summary>
     public static int DepthOf(Guid groupId, IReadOnlyDictionary<Guid, LinkGroup> all)
     {
@@ -68,6 +74,8 @@ public sealed class LinkGroup
         return result;
     }
 
+    // Move check: refuses a move into the group's own branch or one that would make the tree deeper than
+    // the limit.
     /// <summary>
     /// A Persian reason <paramref name="groupId"/> cannot be put under <paramref name="parentId"/>, or null when it can:
     /// not inside itself or its own subtree, and the whole branch must fit in <see cref="MaxDepth"/> levels.

@@ -5,6 +5,8 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Web.Services;
 
+// Printable forms (PDF) for each request type. A request that has been fully approved can be printed as an official form;
+// the layout of that form is defined here, one small class per request type. The shared page frame is in the PDF service.
 /// <summary>
 /// The printable form of one request type. The page header (logo, organization, title) and the footer (page numbers)
 /// are drawn for every form by <see cref="RequestPdfService"/>; a design lays out what is between them from the
@@ -20,6 +22,7 @@ public interface IRequestFormDesign
     void Compose(IContainer container, RequestReportModel model);
 }
 
+// Building blocks reused by all the forms: a titled box, a label-over-value block, the "filled by" line and the approval stamp.
 /// <summary>Layout pieces shared by the form designs.</summary>
 internal static class FormParts
 {
@@ -41,6 +44,7 @@ internal static class FormParts
             cell.Item().Text(string.IsNullOrWhiteSpace(value) ? "—" : value).Bold();
         });
 
+    // Shows who filled in a part of the form (name, position, date) when that part was completed by an approver.
     /// <summary>"ثبت‌شده توسط: name — position — date" for a part filled by an approver, or a dash.</summary>
     public static void FilledBy(IContainer container, ReportSigner? signer) =>
         container.PaddingTop(2).Text(text =>
@@ -50,6 +54,7 @@ internal static class FormParts
             text.Span(signer is null ? "—" : $"{signer.Person} — {signer.Position}" + (signer.Date.Length > 0 ? " — " + signer.Date : "")).Bold();
         });
 
+    // The top line of every form: the request number on one side and the "final approval" stamp with its date on the other.
     /// <summary>The request number on one side and the «تایید نهایی» stamp with its date on the other.</summary>
     public static void Stamp(IContainer container, RequestReportModel model) =>
         container.Row(row =>
@@ -68,6 +73,7 @@ internal static class FormParts
         });
 }
 
+// Vehicle request form. It has extra parts filled by approvers: the vehicle assignment and the security gate pass.
 /// <summary>The form of «درخواست خودرو»: trip details (requester), vehicle assignment and security gate pass (approvers), then signatures.</summary>
 public sealed class VehicleRequestFormDesign : IRequestFormDesign
 {
@@ -82,6 +88,7 @@ public sealed class VehicleRequestFormDesign : IRequestFormDesign
         container.Column(column =>
         {
             column.Spacing(10);
+            // The form is built top to bottom: stamp, requester details, trip information, vehicle assignment, gate pass, signatures.
             column.Item().Element(c => FormParts.Stamp(c, model));
 
             column.Item().Element(c => FormParts.Box(c, "مشخصات درخواست‌کننده", box =>
@@ -99,6 +106,7 @@ public sealed class VehicleRequestFormDesign : IRequestFormDesign
                 box.Item().PaddingTop(4).Element(t => FormParts.TextBlock(t, "هدف از سفر", V("purpose"), 46));
             }));
 
+            // Part 2 is filled in by the transport approver (vehicle type, plate number and driver).
             column.Item().Element(c => FormParts.Box(c, "بخش ۲ — تخصیص خودرو", box =>
             {
                 box.Item().Element(g => RequestPdfService.KeyValueGrid(g,
@@ -110,6 +118,7 @@ public sealed class VehicleRequestFormDesign : IRequestFormDesign
                 box.Item().Element(f => FormParts.FilledBy(f, Filler(2)));
             }));
 
+            // Part 3 is filled in by the security (gate) approver: the gate pass number and any security remarks.
             column.Item().Element(c => FormParts.Box(c, "بخش ۳ — مجوز خروج (حراست)", box =>
             {
                 box.Item().Element(g => RequestPdfService.KeyValueGrid(g, [new ReportField("شماره مجوز خروج", V("gatePassNumber"))], columns: 3));
@@ -117,14 +126,18 @@ public sealed class VehicleRequestFormDesign : IRequestFormDesign
                 box.Item().Element(f => FormParts.FilledBy(f, Filler(3)));
             }));
 
+            // Signature area at the bottom: one line per approval step that was completed.
             column.Item().Element(c => RequestPdfService.RenderSignatures(c, model));
         });
     }
 }
 
+// One block of a simple form: a title, how many short fields per row, the short fields and the long free-text ones.
 /// <summary>One block of a simple form: its title, how many short fields per row, the short fields and the long (free-text) ones.</summary>
 public sealed record FormSection(string Title, int Columns, string[] Keys, string[]? LongKeys = null);
 
+// Base for request types that have a single part: stamp, requester details, the listed sections and the signatures.
+// Adding a new type only needs its title and its list of sections.
 /// <summary>
 /// For single-part request types: the form is the stamp, the requester box, the sections you list (labels come from the
 /// field catalog by key), and the signatures. A new type is a few lines: set <see cref="Type"/>, <see cref="Title"/> and <see cref="Sections"/>.
@@ -164,6 +177,7 @@ public abstract class SimpleRequestFormDesign : IRequestFormDesign
     }
 }
 
+// Leave request form: leave type and dates, with the reason as free text.
 public sealed class LeaveFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.Leave;
@@ -172,6 +186,7 @@ public sealed class LeaveFormDesign : SimpleRequestFormDesign
         [new("اطلاعات مرخصی", 3, ["leaveType", "startDate", "endDate"], ["reason"])];
 }
 
+// Purchase request form: item, quantity and estimated cost, with the justification as free text.
 public sealed class PurchaseFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.Purchase;
@@ -180,6 +195,7 @@ public sealed class PurchaseFormDesign : SimpleRequestFormDesign
         [new("اطلاعات خرید", 3, ["itemName", "quantity", "estimatedCost"], ["justification"])];
 }
 
+// Access request form: which system and what level of access, with the reason as free text.
 public sealed class AccessFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.Access;
@@ -188,6 +204,7 @@ public sealed class AccessFormDesign : SimpleRequestFormDesign
         [new("اطلاعات دسترسی", 2, ["systemName", "accessLevel"], ["reason"])];
 }
 
+// Loan request form: amount and number of installments, with the reason as free text.
 public sealed class LoanFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.Loan;
@@ -196,6 +213,7 @@ public sealed class LoanFormDesign : SimpleRequestFormDesign
         [new("اطلاعات وام", 2, ["amount", "installments"], ["reason"])];
 }
 
+// Support (helpdesk) request form: request details, then the action taken by the support team.
 public sealed class HelpdeskFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.Helpdesk;
@@ -207,6 +225,7 @@ public sealed class HelpdeskFormDesign : SimpleRequestFormDesign
         ];
 }
 
+// Work report form: report date and hours spent, with the summary as free text.
 public sealed class WorkReportFormDesign : SimpleRequestFormDesign
 {
     public override WorkflowTypeCode Type => WorkflowTypeCode.WorkReport;

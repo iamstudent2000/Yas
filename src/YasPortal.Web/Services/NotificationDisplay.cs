@@ -5,6 +5,7 @@ namespace YasPortal.Web.Services;
 /// <summary>How a notification kind is named and drawn, shared by the personal list and the all-notifications report.</summary>
 public static class NotificationDisplay
 {
+    // The readable name of each kind of notification (for example a request reaching your step, an approval or a rejection).
     public static string KindLabel(NotificationKind kind) => kind switch
     {
         NotificationKind.StepReached => "رسیدن درخواست به مرحله شما",
@@ -25,6 +26,7 @@ public static class NotificationDisplay
         _ => kind.ToString(),
     };
 
+    // The icon shown beside each kind; kinds without a special icon use the plain bell.
     public static string IconFor(NotificationKind kind) => kind switch
     {
         NotificationKind.StepReached => Icons.Inbox,

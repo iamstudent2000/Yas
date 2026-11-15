@@ -2,6 +2,12 @@ using YasPortal.Domain.Organization;
 
 namespace YasPortal.Domain.Workflows;
 
+// Step resolver: turns the admin's step definitions for a request type into the real list of approver
+// positions for one
+// requester, at the moment of submission. Strict by design: it follows the configured path exactly or
+// refuses with every reason listed
+// (spec sections 23 and 24). It has no database access; the position tree is handed to it. A record = a
+// small read-only bundle of values.
 /// <summary>Why a request's approval path could not be resolved (spec §23, §24).</summary>
 public enum WorkflowResolutionErrorKind
 {
@@ -40,6 +46,7 @@ public sealed record WorkflowResolvedStep(
     ParallelRejectPolicy RejectPolicy = ParallelRejectPolicy.Immediate,
     int? FillsPart = null);
 
+// The outcome: the approval steps in order, or the list of reasons the path could not be built.
 public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Steps, IReadOnlyList<WorkflowResolutionError> Errors)
 {
     public bool Success => Errors.Count == 0;
@@ -58,6 +65,8 @@ public sealed record WorkflowResolution(IReadOnlyList<WorkflowResolvedStep> Step
 /// One definition can produce several steps: an <see cref="ApproverRuleKind.EscalateToTreeLevel"/>
 /// definition expands into one step per position between the requester and the target level.
 /// </summary>
+// Pure rules class: the same input always gives the same result, so the admin preview and real submissions
+// agree.
 public static class WorkflowStepResolver
 {
     public static WorkflowResolution Resolve(
@@ -65,6 +74,8 @@ public static class WorkflowStepResolver
         Guid requesterPositionId,
         IReadOnlyDictionary<Guid, Guid?> parentByPosition)
     {
+        // Only active definitions count, in their configured order. A type with none cannot accept
+        // requests.
         var active = definitions.Where(x => x.IsActive).OrderBy(x => x.Order).ToList();
         if (active.Count == 0)
             return new WorkflowResolution([], [new WorkflowResolutionError(WorkflowResolutionErrorKind.NoActiveSteps, null)]);
@@ -77,6 +88,7 @@ public static class WorkflowStepResolver
         // "Slot" counts live orders: one per sequential step, one per whole group, and one per
         // position an escalation expands into. It is renumbered 1..N below.
         var slot = 0;
+        // Go through the stages in order; each stage is either a parallel group or one ordinary step.
         foreach (var group in active.GroupBy(x => x.Order).OrderBy(g => g.Key))
         {
             var members = group.ToList();
@@ -88,6 +100,7 @@ public static class WorkflowStepResolver
             }
 
             var definition = members[0];
+            // Ordinary step: look at which rule the admin chose for it.
             switch (definition.ApproverRuleKind)
             {
                 case ApproverRuleKind.SpecificPosition:
@@ -135,6 +148,7 @@ public static class WorkflowStepResolver
             }
         }
 
+        // Any problem refuses the whole submission, with all reasons returned together.
         if (errors.Count > 0)
             return new WorkflowResolution([], errors);
 

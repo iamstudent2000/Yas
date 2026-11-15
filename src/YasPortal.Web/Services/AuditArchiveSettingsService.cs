@@ -5,6 +5,9 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Stores one system-wide setting: whether old audit history is archived automatically and how many months old a row
+// must be before it is archived. Audit history is never deleted; archiving only moves old rows out of the busy table.
+// Only one row of this setting exists (a "singleton"). Only users with the audit-log management permission may change it.
 /// <summary>Reads and saves the single audit-archive setting (automatic or manual, and the age in months).</summary>
 public sealed class AuditArchiveSettingsService(IDbContextFactory<ApplicationDbContext> dbFactory, IPermissionChecker permissions,
     IConfiguration configuration, ILogger<AuditArchiveSettingsService> logger)
@@ -31,6 +34,7 @@ public sealed class AuditArchiveSettingsService(IDbContextFactory<ApplicationDbC
         }
     }
 
+    // Saves the setting. Refuses unless the current user may manage the audit log, then creates the row if it is the first save.
     public async Task SaveAsync(bool automaticEnabled, int afterMonths, CancellationToken ct = default)
     {
         if (!await permissions.HasPermissionAsync(Perm.AdminAuditLogManage, ct))

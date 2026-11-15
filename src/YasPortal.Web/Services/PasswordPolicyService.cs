@@ -5,6 +5,8 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// The password rules for the whole portal (length, required character types, forbidden passwords). There is only one
+// policy row. Administrators edit it on the password policy page; the sign-in and change-password screens enforce it.
 /// <summary>Reads and saves the single system-wide password policy.</summary>
 public sealed class PasswordPolicyService(IDbContextFactory<ApplicationDbContext> dbFactory, IPermissionChecker permissions, ILogger<PasswordPolicyService> logger)
 {
@@ -24,6 +26,7 @@ public sealed class PasswordPolicyService(IDbContextFactory<ApplicationDbContext
         }
     }
 
+    // Saves the policy. Refuses unless the user may manage the password policy; the first save creates the row.
     public async Task SaveAsync(int minLength, int maxLength, bool upper, bool lower, bool digit, bool symbol,
         bool disallowUsername, bool disallowCommon, bool disallowReuse, CancellationToken ct = default)
     {

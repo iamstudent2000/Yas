@@ -5,11 +5,13 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Plain result shapes used by the dashboard page: counts by status, labelled counts, slow positions and long-waiting requests.
 public sealed record StatusCount(WorkflowRequestStatus Status, int Count);
 public sealed record LabeledCount(string Label, int Count, string? Sub = null);
 public sealed record PositionDelay(string Position, int Decisions, double AverageHours);
 public sealed record WaitingRequest(string Number, string Type, string Requester, string Stage, string Holder, double WaitHours);
 
+// Counts for one group of requests (mine, my team's or everyone's) over the chosen time range, used by the dashboard.
 /// <summary>Counts of one set of requests (mine, my team's, or all) over a time range.</summary>
 public sealed class RequestOverview
 {
@@ -23,6 +25,7 @@ public sealed class RequestOverview
     public int ApprovedSampleSize { get; init; }
 }
 
+// Extra figures only administrators see: which positions are slowest, which requests wait longest, and head-counts.
 /// <summary>System-wide figures for administrators.</summary>
 public sealed class AdminInsights
 {
@@ -36,19 +39,24 @@ public sealed class AdminInsights
     public int VacantPositions { get; init; }
 }
 
+// Service = the class that holds the logic for one area. This one computes the numbers shown on the dashboard.
+// Counting is done by the database; only waiting times are worked out here, and only over the latest 30000 decisions.
 /// <summary>
 /// The numbers behind the dashboard. Counting and grouping happen in SQL; only the figures that need the decision
 /// log (waiting times) are computed in memory over a bounded set (<see cref="MaxDecisions"/>).
 /// </summary>
 public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows)
 {
+    // Upper limit on how many approval decisions are read when working out how long requests wait at each position.
     private const int MaxDecisions = 30000;
     private static readonly string[] PersianMonths = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 
+    // Turns a range choice such as 30, 90 or 365 days into a start date; any other value (for example all) means no start date.
     /// <summary>The start of a range such as "30" (days), "90", "365", or null for "all".</summary>
     public static DateTime? RangeStartUtc(string range) =>
         int.TryParse(range, NumberStyles.None, CultureInfo.InvariantCulture, out var days) ? DateTime.UtcNow.AddDays(-days) : null;
 
+    // Builds the request counts for the dashboard: totals by status, by request type, by month, and the average approval time.
     public async Task<RequestOverview> GetOverviewAsync(Func<ApplicationDbContext, IQueryable<WorkflowRequest>> scope, DateTime? fromUtc, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -58,6 +66,7 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
         var statuses = await inRange.GroupBy(x => x.Status).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
         var types = await inRange.GroupBy(x => x.WorkflowType).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
 
+        // Count requests created in each of the last twelve Persian (Solar Hijri) months, oldest first, including empty months.
         // Twelve Persian months ending with the current one.
         var calendar = new PersianCalendar();
         var local = DateTime.Now;
@@ -71,6 +80,7 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
             .Select(i => new LabeledCount(PersianMonths[i % 12], perMonth.GetValueOrDefault(i), WorkflowDisplay.ToPersianDigits((i / 12).ToString())))
             .ToList();
 
+        // Average time from submission to the last approval, for approved requests only (at most 5000 are sampled).
         var approved = await inRange.Where(x => x.Status == WorkflowRequestStatus.Approved)
             .Select(x => new { x.CreatedAtUtc, Last = x.StepDecisions.Max(d => (DateTime?)d.ActedAtUtc) })
             .Take(5000).ToListAsync(ct);
@@ -87,12 +97,14 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
         };
     }
 
+    // Builds the administrator-only dashboard figures. The time range limits which requests are looked at.
     public async Task<AdminInsights> GetAdminInsightsAsync(DateTime? fromUtc, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var requests = db.WorkflowRequests.AsNoTracking();
         var inRange = fromUtc is DateTime from ? requests.Where(x => x.CreatedAtUtc >= from) : requests;
 
+        // Where requests wait: for each approval, time since the previous approval in the same round (or since submission).
         // ---- where requests wait: for every approval, the time since the previous approval of its round (or since submission)
         var decisions = await inRange
             .SelectMany(r => r.StepDecisions.Where(d => d.Outcome == WorkflowStepStatus.Approved)
@@ -110,21 +122,25 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
                     waits.Add((d.ApproverPositionId, (d.ActedAtUtc - since).TotalHours));
             }
         }
+        // Rank positions by average waiting time and keep the eight slowest, then look up their names.
         var slow = waits.GroupBy(w => w.Position)
             .Select(g => (Position: g.Key, Count: g.Count(), Average: g.Average(w => w.Hours)))
             .OrderByDescending(x => x.Average).Take(8).ToList();
         var slowIds = slow.Select(x => x.Position).ToList();
         var positionNames = await db.Positions.AsNoTracking().Where(p => slowIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name, ct);
 
+        // Requests still waiting for approval that have waited longest: take the oldest 100 pending, keep the five longest on their step.
         // ---- open requests that have waited longest: the oldest 100 pending ones, ranked by time on their current step
         var pending = await requests.Where(x => x.Status == WorkflowRequestStatus.PendingApproval)
             .OrderBy(x => x.CreatedAtUtc).Take(100)
             .Include(x => x.Steps).Include(x => x.StepDecisions).AsSplitQuery().ToListAsync(ct);
+        // For each, the waiting clock starts at the last approval in the current round, or at submission if there is none yet.
         var waiting = pending.Select(r =>
         {
             var lastApproval = r.StepDecisions.Where(d => d.Round == r.CurrentRound && d.Outcome == WorkflowStepStatus.Approved).Select(d => (DateTime?)d.ActedAtUtc).Max();
             return (Request: r, Since: lastApproval ?? r.CreatedAtUtc);
         }).OrderBy(x => x.Since).Take(5).ToList();
+        // Find who currently holds each waiting step's position, and the requester names, to show readable text instead of ids.
         var holderIds = waiting.SelectMany(x => x.Request.CurrentSteps).Where(s => s.Status == WorkflowStepStatus.Pending).Select(s => s.ApproverPositionId).Distinct().ToList();
         var holders = holderIds.Count == 0 ? [] : await workflows.GetCurrentHolderNamesAsync(holderIds, ct);
         var requesterIds = waiting.Select(x => x.Request.RequesterEmployeeId).Distinct().ToList();
@@ -141,6 +157,7 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
                 (DateTime.UtcNow - x.Since).TotalHours);
         }).ToList();
 
+        // Requests per organization (top eight, by the requester's position) and the five people who submitted the most requests.
         // ---- organizations and people
         var perOrganization = await inRange.Join(db.Positions.AsNoTracking(), r => r.RequesterPositionId, p => p.Id, (r, p) => p.OrganizationId)
             .GroupBy(o => o).Select(g => new { Organization = g.Key, Count = g.Count() })
@@ -153,9 +170,11 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
         var topIds = perRequester.Select(x => x.Employee).ToList();
         var topNames = await db.Employees.AsNoTracking().Where(e => topIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
 
+        // Position head-count: active positions, and how many of them currently have nobody holding them.
         var activePositions = await db.Positions.AsNoTracking().CountAsync(p => p.IsActive, ct);
         var vacant = await db.Positions.AsNoTracking().CountAsync(p => p.IsActive && !db.EmployeePositions.Any(ep => ep.PositionId == p.Id && ep.EndedAt == null), ct);
 
+        // Gather everything into the result handed to the dashboard page.
         return new AdminInsights
         {
             SlowestPositions = slow.Select(x => new PositionDelay(positionNames.GetValueOrDefault(x.Position, "—"), x.Count, x.Average)).ToList(),
@@ -169,6 +188,7 @@ public sealed class DashboardService(IDbContextFactory<ApplicationDbContext> dbF
         };
     }
 
+    // Turns a number of hours into friendly Persian text such as days and hours, hours and minutes, or minutes.
     /// <summary>"۳ روز و ۴ ساعت", "۵ ساعت و ۱۰ دقیقه" or "۲۵ دقیقه", in Persian digits.</summary>
     public static string Duration(double hours)
     {

@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Notifications;
 
+// Waiting reminders nag approvers about requests that sit too long in their inbox. Each approver sets their
+// own limit in hours; the reminder is sent as an in-app notification.
 /// <summary>
 /// One employee's own "remind me" threshold: after a request has waited this many hours for their decision, they get one
 /// in-app notification for it. Every person chooses their own number; there is no system-wide value. A person without a row
@@ -7,6 +9,7 @@ namespace YasPortal.Domain.Notifications;
 /// </summary>
 public sealed class WaitingReminderSetting
 {
+    // Allowed range for the waiting time, in hours (one hour up to 30 days).
     public const int MinHours = 1;
     public const int MaxHours = 720;   // 30 days
 
@@ -14,6 +17,8 @@ public sealed class WaitingReminderSetting
     {
     }
 
+    // Creating a setting stores the waiting time and, optionally, whether and how often to repeat the
+    // reminder.
     public WaitingReminderSetting(Guid employeeId, int afterHours, bool repeat = false, int? repeatEveryHours = null)
     {
         if (employeeId == Guid.Empty)
@@ -23,6 +28,7 @@ public sealed class WaitingReminderSetting
         Update(afterHours, repeat, repeatEveryHours);
     }
 
+    // Settings: after how many hours to remind, and when it was last changed.
     public Guid EmployeeId { get; private set; }
     public int AfterHours { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
@@ -36,6 +42,8 @@ public sealed class WaitingReminderSetting
     /// <summary>The number of hours actually used between repeats.</summary>
     public int EffectiveRepeatHours => RepeatEveryHours ?? AfterHours;
 
+    // Changing the settings. Hours outside the allowed range are refused; the repeat interval is only kept
+    // when repeating is on.
     public void Update(int afterHours, bool repeat, int? repeatEveryHours = null)
     {
         SetHours(afterHours);
@@ -54,6 +62,7 @@ public sealed class WaitingReminderSetting
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    // The returned message is shown to the person in Persian.
     /// <summary>A Persian reason the number is not allowed, or null when it is fine.</summary>
     public static string? Validate(int hours) =>
         hours is < MinHours or > MaxHours ? $"تعداد ساعت باید بین {MinHours} و {MaxHours} باشد." : null;

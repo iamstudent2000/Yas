@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Notifications;
 
+// In-app notifications tell people that something needs their attention or has happened to their request.
+// Each kind below says who receives it. The kinds are fixed choices (an enum = a fixed list of values).
 /// <summary>What happened, for the in-app notification (spec §17.2).</summary>
 public enum NotificationKind
 {
@@ -49,6 +51,9 @@ public enum NotificationKind
     WaitingReminder,
 }
 
+// The notification record itself (an entity = a row-shaped business object stored in the database). Each
+// notification belongs to one recipient, has a message and a link that opens the related page, and can be
+// marked read.
 /// <summary>
 /// One in-app notification for one employee (spec §17). Notifications are never deleted
 /// automatically (§17.4); the only change after creation is the recipient marking one as read.
@@ -59,6 +64,8 @@ public sealed class Notification
     {
     }
 
+    // A notification needs a recipient, a message and a link. The request type is kept as plain text so the
+    // line reads the same even if the type is later renamed.
     public Notification(Guid recipientEmployeeId, NotificationKind kind, Guid? requestId, string requestType, string message, string linkPath)
     {
         if (recipientEmployeeId == Guid.Empty)
@@ -77,12 +84,15 @@ public sealed class Notification
         CreatedAtUtc = DateTime.UtcNow;
     }
 
+    // Limits for hand-written messages.
     /// <summary>The longest message a person can send by hand (also the column size).</summary>
     public const int MaxMessageLength = 1000;
 
     /// <summary>The longest audience description kept with a message sent to many people.</summary>
     public const int MaxAudienceLabelLength = 300;
 
+    // Hand-written messages: one person sends a message to another. A message to several people is stored
+    // as one copy per recipient, tied together by a shared batch id. Sending to yourself is refused.
     /// <summary>
     /// A message sent by hand from <paramref name="senderEmployeeId"/> to <paramref name="recipientEmployeeId"/>.
     /// <paramref name="senderLabel"/> is kept as text (like <see cref="RequestType"/>) so the line reads the same forever.
@@ -106,6 +116,8 @@ public sealed class Notification
 
     private static string Truncate(string value, int max) => value.Length <= max ? value : value[..(max - 1)] + "…";
 
+    // Who sent it, which batch it belongs to, and to whom it was addressed (only for hand-written
+    // messages).
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid RecipientEmployeeId { get; private set; }
 
@@ -118,6 +130,8 @@ public sealed class Notification
     /// <summary>Who the message went to, as text ("همه کارکنان", "سازمان‌ها: …", "۱۲ نفر منتخب"), for messages sent to several people.</summary>
     public string? AudienceLabel { get; private set; }
 
+    // Removal hides a notification from its recipient without deleting it, so the reports and the audit
+    // history stay complete.
     /// <summary>When the message was removed (retracted by its sender, or removed by an administrator); null while it is shown. A removed notification disappears from the recipient's list but stays in the report.</summary>
     public DateTime? RemovedAtUtc { get; private set; }
     public Guid? RemovedByEmployeeId { get; private set; }
@@ -135,6 +149,7 @@ public sealed class Notification
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime? ReadAtUtc { get; private set; }
 
+    // Removing, restoring and marking as read. Read state records the time the recipient first read it.
     /// <summary>Hides the notification from its recipient (the record is kept). Removing twice keeps the first removal.</summary>
     public void Remove(Guid byEmployeeId)
     {

@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Organization;
 
+// Who held which position and when. Unlike the current assignment, which is overwritten as people move,
+// this history keeps every period, so it is always possible to see who held a position on a past date.
+// Nothing here is deleted.
 /// <summary>
 /// Historical record of an employee occupying a position during a period of time.
 /// The current EmployeePosition row remains the fast current-state relationship;
@@ -50,6 +53,7 @@ public sealed class PositionAssignmentHistory
 
     public bool IsActive => EndedAt is null;
 
+    // Ending a period stamps the end time (only once); an end time before the start time is refused.
     public void End(DateTime? endedAt = null)
     {
         if (EndedAt is not null)

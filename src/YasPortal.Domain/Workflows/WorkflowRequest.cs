@@ -2,6 +2,14 @@ using System.Text.Json;
 
 namespace YasPortal.Domain.Workflows;
 
+// The heart of the workflow engine: one request submitted by an employee (leave, purchase, helpdesk, ...).
+// It keeps the answers, the ordered approval steps and the full history. Approvers are positions, not
+// people: whoever
+// holds the position at the time may act. A "round" is one pass through the path; a request returned to the
+// requester and
+// sent again starts a new round, and older rounds stay as history. All state changes go through the methods
+// below, which
+// refuse impossible actions. Entity = a row-shaped business object stored in the database.
 /// <summary>
 /// An employee's submission of a fixed <see cref="WorkflowTypeCode"/>, carrying its
 /// field values (validated against <see cref="WorkflowFieldCatalog"/> before creation)
@@ -16,16 +24,21 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowRequest
 {
+    // Private empty constructor: needed by the database layer to load rows.
     private WorkflowRequest()
     {
     }
 
+    // Creating a request: the requester, their position, their answers and the resolved approval path are
+    // fixed at submission.
     /// <param name="fieldValuesJson">The submitted field values, serialized as JSON.</param>
     /// <param name="resolvedSteps">
     /// The request's approval path, in order, already resolved from the type's step
     /// definitions (see <see cref="Organization.PositionHierarchy"/> for resolving
     /// "N levels up" steps to a concrete position at submission time).
     /// </param>
+    // Variant taking plain tuples (one approver per step, no parallel groups); it converts them and uses
+    // the main constructor.
     public WorkflowRequest(
         WorkflowTypeCode workflowType,
         Guid requesterEmployeeId,
@@ -49,6 +62,8 @@ public sealed class WorkflowRequest
         IReadOnlyList<WorkflowResolvedStep> resolvedSteps,
         Guid? createdByEmployeeId = null)
     {
+        // A request cannot exist without a requester, an active position, answers and at least one approval
+        // step.
         if (requesterEmployeeId == Guid.Empty)
             throw new ArgumentException("Requester is required.", nameof(requesterEmployeeId));
         if (requesterPositionId == Guid.Empty)
@@ -70,6 +85,8 @@ public sealed class WorkflowRequest
         Status = WorkflowRequestStatus.PendingApproval;
         CurrentRound = 1;
 
+        // Create one step row per approver in round 1; the stage with the lowest order number is the first
+        // one waiting.
         foreach (var step in resolvedSteps.OrderBy(x => x.Order))
             Steps.Add(new WorkflowRequestStep(Id, step.StepDefinitionId, CurrentRound, step.Order, step.Name, step.ApproverPositionId, step.Mode, step.RejectPolicy, step.FillsPart));
 
@@ -77,12 +94,16 @@ public sealed class WorkflowRequest
         RequesterActions.Add(new WorkflowRequesterAction(Id, CurrentRound, WorkflowRequesterActionKind.Submitted, CreatedByEmployeeId ?? requesterEmployeeId));
     }
 
+    // Identity and ownership: the request's id, its type, who asked and from which position (the position
+    // is fixed at creation).
     public Guid Id { get; private set; } = Guid.NewGuid();
     public WorkflowTypeCode WorkflowType { get; private set; }
     public Guid RequesterEmployeeId { get; private set; }
     public Guid RequesterPositionId { get; private set; }
     /// <summary>The administrator who submitted this request on the requester's behalf, or null when the requester submitted it themselves.</summary>
     public Guid? CreatedByEmployeeId { get; private set; }
+    // The answers to the form, stored as one JSON text holding only the latest values (older values live in
+    // the change history).
     public string FieldValuesJson { get; private set; } = null!;
 
     /// <summary>
@@ -90,6 +111,8 @@ public sealed class WorkflowRequest
     /// Null when the request type has no priority field or the value is not a known level. Kept in step with <see cref="FieldValuesJson"/>.
     /// </summary>
     public int? PriorityRank { get; private set; }
+    // Creation time, overall status (waiting, approved, rejected, returned, cancelled) and the order number
+    // of the live stage.
     public DateTime CreatedAtUtc { get; private set; }
     public WorkflowRequestStatus Status { get; private set; }
     public int CurrentStepOrder { get; private set; }
@@ -148,6 +171,7 @@ public sealed class WorkflowRequest
     /// </summary>
     public int Revision { get; private set; }
 
+    // Called when the requester opens the request: clears the "you have updates" badge.
     public void MarkSeenByRequester() => RequesterHasSeenLatestUpdate = true;
 
     /// <summary>
@@ -223,6 +247,8 @@ public sealed class WorkflowRequest
         if (IsTerminal)
             throw new InvalidOperationException("This request is already closed.");
 
+        // Force-close ends as Cancelled; the force-close fields tell it apart from a requester cancel.
+        // Waiting steps become moot.
         Status = WorkflowRequestStatus.Cancelled;
         ForceClosedByEmployeeId = adminEmployeeId;
         ForceClosedAtUtc = DateTime.UtcNow;
@@ -318,6 +344,8 @@ public sealed class WorkflowRequest
         step.Approve(actingEmployeeId, comment);
         RecordDecision(step, WorkflowStepStatus.Approved, actingEmployeeId, comment, authority: authority);
 
+        // After this approval: if the stage is complete, move on (or finish); if everyone answered and
+        // someone rejected, close it.
         var group = StepsAt(step.Order);
         if (IsSatisfied(group))
             CompleteGroupAndAdvance(step.Order);
@@ -328,6 +356,8 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    // Reject: records the rejection. Under the immediate policy the request closes now; under wait-for-all
+    // it closes later.
     public void Reject(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableStep(stepId);
@@ -383,9 +413,12 @@ public sealed class WorkflowRequest
             ? group.Any(x => x.Status == WorkflowStepStatus.Approved)
             : group.All(x => x.Status == WorkflowStepStatus.Approved);
 
+    // True when nobody in the group is still waiting for a decision.
     private static bool EveryoneResponded(IReadOnlyList<WorkflowRequestStep> group) =>
         group.All(x => x.Status != WorkflowStepStatus.Pending);
 
+    // Marks the request rejected and marks steps that were still waiting as no longer needed. History is
+    // kept.
     private void CloseAsRejected()
     {
         Status = WorkflowRequestStatus.Rejected;
@@ -441,6 +474,8 @@ public sealed class WorkflowRequest
             step.Supersede();
     }
 
+    // The approver sends the whole request back to the requester, who may edit it and resubmit (which opens
+    // a new round).
     public void ReturnToRequester(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableStep(stepId);
@@ -451,6 +486,8 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    // The approver sends the request back one stage so the previous approver decides again; at the first
+    // stage it goes to the requester.
     public void ReturnToPreviousStep(Guid stepId, Guid actingEmployeeId, string? comment, WorkflowActingAuthority? authority = null)
     {
         var step = RequireActionableStep(stepId);
@@ -517,6 +554,8 @@ public sealed class WorkflowRequest
         Revision++;
     }
 
+    // Requester cancels the request. Only allowed while no step has approved yet (see CanBeCancelled); the
+    // action is logged.
     public void Cancel()
     {
         if (Steps.Count == 0)
@@ -555,6 +594,8 @@ public sealed class WorkflowRequest
             throw new ArgumentException("A workflow request needs at least one approval step.", nameof(resolvedSteps));
         ValidateParallelGroups(resolvedSteps);
 
+        // On resubmission the requester may edit only their own part of the form; the changes are written
+        // to the change history.
         var previousValues = ParseFieldValues(FieldValuesJson);
         var newValues = ParseFieldValues(fieldValuesJson);
         EnsureOnlyRequesterPartChanged(previousValues, newValues);
@@ -565,6 +606,8 @@ public sealed class WorkflowRequest
         foreach (var step in Steps.Where(x => x.Round == CurrentRound && x.Status == WorkflowStepStatus.Pending))
             step.Supersede();
 
+        // Store the new answers, raise the round number and add a fresh set of steps; the previous round
+        // stays untouched as history.
         FieldValuesJson = fieldValuesJson;
         PriorityRank = WorkflowPriority.FromFieldValues(fieldValuesJson);
         CurrentRound++;
@@ -614,8 +657,11 @@ public sealed class WorkflowRequest
         }
     }
 
+    // A blank value and a missing value are treated as the same thing, so empty optional fields never count
+    // as changes.
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    // Reads the stored JSON answers into a lookup; damaged text is treated as no previous answers.
     private static Dictionary<string, string?> ParseFieldValues(string json)
     {
         var result = new Dictionary<string, string?>(StringComparer.Ordinal);
@@ -641,6 +687,8 @@ public sealed class WorkflowRequest
         return result;
     }
 
+    // Appends one permanent row to the decision history (who decided, outcome, when, and on whose
+    // authority).
     private void RecordDecision(WorkflowRequestStep step, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null, WorkflowActingAuthority? authority = null) =>
         StepDecisions.Add(new WorkflowStepDecision(Id, step.Id, step.Round, step.Order, step.ApproverPositionId, outcome, actingEmployeeId, comment, returnTargetOrder, authority));
 
@@ -679,6 +727,9 @@ public sealed class WorkflowRequest
     }
 }
 
+// A step row = one approval the request needs in one round. Its answer (approved, rejected, returned...) is
+// kept here;
+// the permanent history of every decision is kept separately in the decision log.
 /// <summary>One entry in a <see cref="WorkflowRequest"/>'s approval trail, scoped to a single <see cref="Round"/>.</summary>
 public sealed class WorkflowRequestStep
 {
@@ -686,6 +737,7 @@ public sealed class WorkflowRequestStep
     {
     }
 
+    // Every step starts as Pending, which means still waiting for its approver.
     internal WorkflowRequestStep(Guid requestId, Guid stepDefinitionId, int round, int order, string name, Guid approverPositionId,
         ParallelApprovalMode approvalMode = ParallelApprovalMode.All, ParallelRejectPolicy rejectPolicy = ParallelRejectPolicy.Immediate, int? fillsPart = null)
     {
@@ -738,6 +790,8 @@ public sealed class WorkflowRequestStep
     public DateTime? ActedAtUtc { get; private set; }
     public string? Comment { get; private set; }
 
+    // Shortcuts for each possible decision; all go through Act, which refuses a second decision on the same
+    // step.
     public void Approve(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.Approved, actingEmployeeId, comment);
     public void Reject(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.Rejected, actingEmployeeId, comment);
     public void ReturnToRequester(Guid actingEmployeeId, string? comment) => Act(WorkflowStepStatus.ReturnedToRequester, actingEmployeeId, comment);
@@ -778,6 +832,7 @@ public sealed class WorkflowRequestStep
             Status = WorkflowStepStatus.Pending;
     }
 
+    // Records the decision with who made it and when, and refuses if the step was already decided.
     private void Act(WorkflowStepStatus status, Guid actingEmployeeId, string? comment)
     {
         if (Status != WorkflowStepStatus.Pending)

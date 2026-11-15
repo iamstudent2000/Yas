@@ -1,11 +1,15 @@
 namespace YasPortal.Domain.Organization;
 
+// A position is a seat in the organization chart, such as a manager or a clerk. Workflow steps and approval
+// authority belong to positions, not to people, so when a person leaves, the next holder inherits the
+// duties. Each position may have a parent (the higher-up manager position).
 public sealed class Position
 {
     private Position()
     {
     }
 
+    // Code and name are required, and a position can never be its own parent.
     public Position(string code, string name, Guid? parentPositionId = null)
     {
         if (string.IsNullOrWhiteSpace(code))
@@ -32,6 +36,7 @@ public sealed class Position
     {
         get; private set;
     }
+    // Active state, and the organization (department) the position sits in.
     /// <summary>
     /// False once the position was deactivated (spec §3.3). A deactivated position keeps all its history
     /// but can no longer be assigned, targeted by a workflow step or receive a delegation. Deactivating
@@ -42,10 +47,13 @@ public sealed class Position
     /// <summary>The department (organization) the position belongs to (spec §3.1); null for a root position or one not yet assigned.</summary>
     public Guid? OrganizationId { get; private set; }
 
+    // Switching a position on or off. Deactivating keeps all history; the position just can no longer be
+    // used.
     public void Deactivate() => IsActive = false;
 
     public void Activate() => IsActive = true;
 
+    // Moving the position to another organization; an empty id is refused (empty means no organization).
     public void ChangeOrganization(Guid? organizationId)
     {
         if (organizationId == Guid.Empty)
@@ -53,8 +61,10 @@ public sealed class Position
         OrganizationId = organizationId;
     }
 
+    // The child positions, that is, those that report to this one.
     public ICollection<Position> Children { get; private set; } = new List<Position>();
 
+    // Rename and recode: both values are required.
     public void Rename(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -71,6 +81,7 @@ public sealed class Position
         Code = code.Trim();
     }
 
+    // Moving the position under another parent; it still cannot be its own parent.
     public void ChangeParent(Guid? parentPositionId)
     {
         if (parentPositionId == Id)

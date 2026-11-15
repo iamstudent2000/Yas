@@ -1,5 +1,9 @@
 namespace YasPortal.Domain.Workflows;
 
+// Request attachments: files the requester adds when submitting (for example a screenshot or a document).
+// The safety limits below exist so nobody can upload something harmful or huge: only a short list of file
+// types,
+// a maximum size per file and a maximum number of files per request.
 /// <summary>
 /// A file the requester attached to a request (a screenshot of an error, a document). Kept in the database in its own
 /// table so loading a request never loads file contents. Only a short list of document and image types is accepted
@@ -8,10 +12,12 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowRequestAttachment
 {
+    // Limits: 5 MB per file, 3 files per request, and file names up to 200 characters.
     public const long MaxBytes = 5 * 1024 * 1024;
     public const int MaxFilesPerRequest = 3;
     public const int FileNameMax = 200;
 
+    // The allowed file extensions and the content type each one is stored with.
     private static readonly Dictionary<string, string> Types = new(StringComparer.OrdinalIgnoreCase)
     {
         [".pdf"] = "application/pdf",
@@ -25,10 +31,13 @@ public sealed class WorkflowRequestAttachment
     /// <summary>The accepted extensions, for the file picker.</summary>
     public static IReadOnlyCollection<string> AllowedExtensions => Types.Keys;
 
+    // Private empty constructor: needed by the database layer to load rows.
     private WorkflowRequestAttachment()
     {
     }
 
+    // Creating an attachment checks the request, the uploader and the file rules first, so an invalid file
+    // can never be stored.
     public WorkflowRequestAttachment(Guid requestId, Guid uploadedByEmployeeId, string fileName, byte[] content)
     {
         if (requestId == Guid.Empty)
@@ -57,6 +66,8 @@ public sealed class WorkflowRequestAttachment
     public byte[] Content { get; private set; } = [];
     public DateTime UploadedAtUtc { get; private set; }
 
+    // Checks one file against the rules (type, name length, not empty, size) and returns the reason it is
+    // refused, if any.
     /// <summary>A Persian reason the file cannot be attached, or null when it is fine.</summary>
     public static string? Validate(string? fileName, long sizeBytes)
     {
@@ -72,6 +83,7 @@ public sealed class WorkflowRequestAttachment
         return null;
     }
 
+    // Strips any folder path and unsafe characters from the file name that the browser sent.
     /// <summary>The file name without any folder part or control characters (what a browser may send as a path).</summary>
     public static string CleanName(string? fileName)
     {

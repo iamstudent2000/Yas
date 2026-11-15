@@ -1,5 +1,10 @@
 namespace YasPortal.Domain.Workflows;
 
+// Fixed vocabularies (enums) of the workflow engine. An enum = a closed list of named choices, so the code
+// and the
+// database can only ever hold one of these values. Together they describe the kinds of request, how
+// approvers are found,
+// how parallel approval works, and where a request or a single step currently stands.
 /// <summary>
 /// The fixed set of workflow types the system supports. Types and their fields are
 /// fixed in code (see <see cref="WorkflowFieldCatalog"/>); only the approval
@@ -7,11 +12,18 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public enum WorkflowTypeCode
 {
+    // Employee leave request.
     Leave,
+    // Purchase request for goods or services.
     Purchase,
+    // Request for access to a system or resource.
     Access,
+    // Loan request.
     Loan,
+    // IT/support helpdesk request (a two-part form: the requester describes the problem, a handler records
+    // the action taken).
     Helpdesk,
+    // Daily work report.
     WorkReport,
 
     /// <summary>Vehicle request — the first multi-part form (see <see cref="WorkflowPartDefinition"/>).</summary>
@@ -24,10 +36,15 @@ public enum WorkflowTypeCode
 /// <summary>How a single fixed field on a workflow type should be presented and validated.</summary>
 public enum WorkflowFieldType
 {
+    // Single-line free text.
     Text,
+    // Multi-line free text.
     TextArea,
+    // A number (never negative).
     Number,
+    // A calendar date.
     Date,
+    // One choice from a fixed list of options.
     Select,
 }
 
@@ -80,20 +97,32 @@ public enum ParallelRejectPolicy
 /// <summary>Overall lifecycle of a workflow request.</summary>
 public enum WorkflowRequestStatus
 {
+    // Waiting for the approver(s) of the current step to decide.
     PendingApproval,
+    // Every step was approved: the request is finished successfully.
     Approved,
+    // An approver rejected the request: finished, unless someone with the reopen permission reopens it.
     Rejected,
+    // An approver sent it back to the requester, who can edit it and send it again (this opens a new
+    // round).
     ReturnedToRequester,
+    // Ended by the requester cancelling it, or by a SuperAdmin force-closing it (told apart by the recorded
+    // reason and actor).
     Cancelled,
 }
 
 /// <summary>Outcome of a single step in a request's approval trail.</summary>
 public enum WorkflowStepStatus
 {
+    // Not decided yet.
     Pending,
+    // The approver approved this step.
     Approved,
+    // The approver rejected the request at this step.
     Rejected,
+    // The approver sent the whole request back to the requester.
     ReturnedToRequester,
+    // The approver sent the request back one step, to the previous approver.
     ReturnedToPreviousStep,
 
     /// <summary>The approver sent the request back to a chosen earlier step (spec §13.2).</summary>

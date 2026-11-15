@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Notifications;
 
+// Saved recipient lists: a person can keep a named list of colleagues to notify again later. Lists are
+// private to their owner.
 /// <summary>
 /// A named list of employees one person keeps to send notifications to again later. Private to its owner; the members are
 /// <see cref="RecipientGroupMember"/> rows. Not audited (cosmetic, per person).
@@ -19,6 +21,7 @@ public sealed class RecipientGroup
         CreatedAtUtc = UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    // Limits: name length and number of lists per person.
     /// <summary>The longest group name (also the column size).</summary>
     public const int MaxNameLength = 100;
 
@@ -31,6 +34,7 @@ public sealed class RecipientGroup
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
 
+    // The name is required and has a length limit.
     public void Rename(string name)
     {
         var value = (name ?? string.Empty).Trim();
@@ -44,6 +48,7 @@ public sealed class RecipientGroup
     public void Touch() => UpdatedAtUtc = DateTime.UtcNow;
 }
 
+// Membership: the join between a list and one employee.
 /// <summary>One employee in a <see cref="RecipientGroup"/>.</summary>
 public sealed class RecipientGroupMember
 {

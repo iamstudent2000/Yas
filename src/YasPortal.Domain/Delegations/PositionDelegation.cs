@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Delegations;
 
+// A delegation lets someone else act for a position for a while (for example during leave). The status
+// below is worked out from the dates and from whether the delegation was withdrawn: not started yet,
+// running, finished, or revoked.
 /// <summary>Where a delegation stands on a given day.</summary>
 public enum DelegationStatus
 {
@@ -9,6 +12,7 @@ public enum DelegationStatus
     Revoked,
 }
 
+// The delegation record itself (an entity = a row-shaped business object stored in the database).
 /// <summary>
 /// A temporary hand-over of one position's approval authority to another employee (spec §15, §16).
 /// Authority belongs to the <b>position</b> (§1.2): whoever holds the delegate position acts on steps assigned to that
@@ -29,6 +33,9 @@ public sealed class PositionDelegation
     {
     }
 
+    // Creating a delegation checks the basics: the positions and creator must be given, a position cannot
+    // be handed to itself, the end date cannot come before the start date, and a holder-made delegation
+    // must name the holder.
     public PositionDelegation(
         Guid positionId,
         Guid? delegatorEmployeeId,
@@ -61,6 +68,7 @@ public sealed class PositionDelegation
         CreatedAtUtc = DateTime.UtcNow;
     }
 
+    // Only the date part is kept for the start and end, so a delegation covers whole days.
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid PositionId { get; private set; }
 
@@ -76,6 +84,8 @@ public sealed class PositionDelegation
     public DateTime? RevokedAtUtc { get; private set; }
     public Guid? RevokedByEmployeeId { get; private set; }
 
+    // Revoking ends the delegation early and records who did it and when. The record itself is kept for the
+    // audit history.
     public void Revoke(Guid byEmployeeId)
     {
         if (byEmployeeId == Guid.Empty)
@@ -86,6 +96,8 @@ public sealed class PositionDelegation
         RevokedByEmployeeId = byEmployeeId;
     }
 
+    // The helpers below answer the questions the rest of the system asks: is it in force today, may it be
+    // used on this step, and what status label should be shown.
     /// <summary>True when the delegation is not revoked and <paramref name="today"/> falls inside its dates.</summary>
     public bool IsInEffectOn(DateTime today) => RevokedAtUtc is null && today.Date >= StartDate && today.Date <= EndDate;
 

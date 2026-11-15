@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Landing;
 
+// The link tree is the ready-to-show shape of the home page links: the quick-access row, the folders with
+// their links, and the links that are in no folder.
 /// <summary>One group of the home page with its visible links and visible sub-groups.</summary>
 public sealed class LinkGroupNode
 {
@@ -11,6 +13,7 @@ public sealed class LinkGroupNode
     public int TotalLinks => Links.Count + Children.Sum(x => x.TotalLinks);
 }
 
+// It is built from everything stored, hides what is switched off, and can be narrowed by a search word.
 /// <summary>What the home page shows: the quick-access links, the group tree, and the links that are in no group.</summary>
 public sealed class LinkTree
 {
@@ -51,6 +54,8 @@ public sealed class LinkTree
 
     public bool IsEmpty => QuickAccess.Count == 0 && Groups.Count == 0 && Ungrouped.Count == 0;
 
+    // Hidden items stay hidden: a switched-off group hides all links and sub-groups inside it, and empty
+    // groups are dropped.
     /// <summary>
     /// Builds the page from everything stored. Inactive links and inactive groups are left out; everything below an inactive group is
     /// hidden with it; a link whose group is gone or hidden is hidden; groups with nothing visible inside are left out.

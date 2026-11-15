@@ -1,5 +1,10 @@
 namespace YasPortal.Domain.Workflows;
 
+// Decision history: every approval, rejection or return is also written here as a permanent row. The
+// request step itself
+// only shows the latest outcome, so this table is what proves who decided what and when (audit trail).
+// Rows are only added, never changed or deleted. Entity = a row-shaped business object stored in the
+// database.
 /// <summary>
 /// A permanent record of one decision made on a <see cref="WorkflowRequestStep"/> — approve,
 /// reject, return to requester, or return to a previous step.
@@ -14,10 +19,13 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowStepDecision
 {
+    // Private empty constructor: needed by the database layer to load rows.
     private WorkflowStepDecision()
     {
     }
 
+    // Only the request code in this project can record a decision; the checks below make sure nothing
+    // essential is missing.
     internal WorkflowStepDecision(Guid requestId, Guid stepId, int round, int order, Guid approverPositionId, WorkflowStepStatus outcome, Guid actingEmployeeId, string? comment, int? returnTargetOrder = null, WorkflowActingAuthority? authority = null)
     {
         if (requestId == Guid.Empty)
@@ -31,6 +39,8 @@ public sealed class WorkflowStepDecision
         if (actingEmployeeId == Guid.Empty)
             throw new ArgumentException("Acting employee is required.", nameof(actingEmployeeId));
 
+        // The time of the decision is stamped automatically. If a delegate acted, the record also keeps
+        // whose authority was used.
         RequestId = requestId;
         StepId = stepId;
         Round = round;

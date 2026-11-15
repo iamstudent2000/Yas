@@ -2,6 +2,15 @@ using System.Globalization;
 
 namespace YasPortal.Domain.Workflows;
 
+// The field catalog: the fixed list of form fields for every request type (leave, purchase, helpdesk,
+// vehicle, ...).
+// The forms are defined in code, not in the database, because request types do not change while the system
+// runs;
+// admins only configure the approval steps. This file also validates submitted values, and splits some
+// forms into
+// parts, where part 1 is filled by the requester and later parts are filled by approvers at chosen steps.
+// A record = a small read-only bundle of values. A field key (such as startDate) is the stable internal
+// name of a field.
 /// <summary>
 /// A single fixed field on a workflow type's form. <paramref name="Part"/> says which part of the
 /// form the field belongs to: part 1 is always filled by the requester when submitting; later parts
@@ -30,6 +39,9 @@ public sealed record WorkflowFieldError(string Key, string Label, string Message
 /// </summary>
 public static class WorkflowFieldCatalog
 {
+    // The master list: for each request type its display name (Persian) and its ordered fields.
+    // The last argument of a field says which form part it belongs to; when omitted the field is in part 1
+    // (the requester's).
     private static readonly IReadOnlyDictionary<WorkflowTypeCode, (string Name, IReadOnlyList<WorkflowFieldDefinition> Fields)> Catalog =
         new Dictionary<WorkflowTypeCode, (string, IReadOnlyList<WorkflowFieldDefinition>)>
         {
@@ -103,6 +115,8 @@ public static class WorkflowFieldCatalog
             }),
         };
 
+    // Only types that appear here have several parts. Each part has a title and is filled by whichever step
+    // the admin assigns it to.
     /// <summary>
     /// The parts of each multi-part type. A type missing here has one part: everything is filled by
     /// the requester. Parts after the first are filled at the workflow steps an admin assigns them to.
@@ -123,8 +137,10 @@ public static class WorkflowFieldCatalog
             },
         };
 
+    // Used for every ordinary type: one part, filled entirely by the requester.
     private static readonly IReadOnlyList<WorkflowPartDefinition> SinglePart = new[] { new WorkflowPartDefinition(1, "اطلاعات درخواست") };
 
+    // The human-readable (Persian) name of a request type, as shown in lists and forms.
     public static string GetDisplayName(WorkflowTypeCode type) => Catalog[type].Name;
 
     /// <summary>Every field of every part of the type.</summary>
@@ -176,6 +192,7 @@ public static class WorkflowFieldCatalog
             })
             .ToList();
 
+    // Every request type that exists in the system.
     public static IReadOnlyList<WorkflowTypeCode> AllTypes { get; } = Enum.GetValues<WorkflowTypeCode>();
 
     /// <summary>The types a person can start from the generic "new request" forms (a store order is started from the store cart).</summary>
@@ -185,6 +202,7 @@ public static class WorkflowFieldCatalog
     /// Validates a submitted set of field values against the type's fixed schema.
     /// Returns the human-readable labels of any missing required fields of the requester's part (part 1).
     /// </summary>
+    // Quick check for the requester's part: lists the labels of required fields that were left empty.
     public static IReadOnlyList<string> ValidateRequiredFields(WorkflowTypeCode type, IReadOnlyDictionary<string, string?> values)
     {
         var missing = new List<string>();
@@ -250,11 +268,14 @@ public static class WorkflowFieldCatalog
             }
         }
 
+        // Unknown field names are always rejected, so nobody can sneak extra data into a request.
         // Fields are fixed in code (spec §11.1): a value for a key outside the schema is never legitimate.
         var knownKeys = fields.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
         foreach (var key in values.Keys.Where(k => !knownKeys.Contains(k)).OrderBy(k => k, StringComparer.Ordinal))
             errors.Add(new WorkflowFieldError(key, key, "این فیلد برای این نوع درخواست تعریف نشده است."));
 
+        // Date ranges (leave, vehicle trip): the end date may not be earlier than the start date. Only
+        // checked for the requester's part.
         if (part == 1 && DateRangeKeys(type) is { } range
             && values.TryGetValue(range.Start, out var startRaw) && TryParseDate(startRaw?.Trim(), out var start)
             && values.TryGetValue(range.End, out var endRaw) && TryParseDate(endRaw?.Trim(), out var end)
@@ -267,6 +288,7 @@ public static class WorkflowFieldCatalog
         return errors;
     }
 
+    // For which types an end date before the start date is an error, and which two fields form the range.
     /// <summary>The start/end date fields of a type whose end may not be before its start, or null.</summary>
     private static (string Start, string End)? DateRangeKeys(WorkflowTypeCode type) => type switch
     {

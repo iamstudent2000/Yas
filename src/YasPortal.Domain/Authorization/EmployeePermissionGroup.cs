@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Authorization;
 
+// Permission group = a named bundle of permissions. This file links one administrator directly to one group, so the
+// administrator receives every permission in the bundle.
 /// <summary>
 /// Assigns a reusable permission group directly to an administrator account.
 /// Administrators do not require an organizational position.

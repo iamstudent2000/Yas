@@ -1,13 +1,18 @@
 namespace YasPortal.Domain.Landing;
 
+// Home slides are the rotating notices on the public landing page (the page visitors see before signing
+// in). Administrators write them, choose an icon and an optional link, and may set a first and last day for
+// showing.
 /// <summary>
 /// A slide of the public landing page, written by an administrator. It is shown from <see cref="StartsOn"/> to
 /// <see cref="ExpiresOn"/> (both days inclusive; either may be empty) while it is active, in <see cref="SortOrder"/> order.
 /// </summary>
 public sealed class HomeSlide
 {
+    // Length limits for the slide fields.
     public const int TitleMax = 200, TextMax = 600, IconMax = 50, LinkTextMax = 100, LinkUrlMax = 300;
 
+    // The icons an administrator can choose from, each with a Persian label shown in the picker.
     /// <summary>The icons an administrator can pick (Tabler icon classes).</summary>
     public static readonly IReadOnlyList<(string Key, string Text)> IconChoices =
     [
@@ -41,6 +46,8 @@ public sealed class HomeSlide
     public DateTime? ExpiresOn { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
 
+    // Used when creating and editing. It refuses a missing title, over-long text, an unknown icon, an
+    // unsafe or text-less link, and an expiry date before the start date.
     public void Update(string title, string text, string icon, string? linkText, string? linkUrl, int sortOrder, DateTime? startsOn, DateTime? expiresOn)
     {
         title = (title ?? "").Trim();
@@ -72,16 +79,20 @@ public sealed class HomeSlide
         ExpiresOn = expiresOn?.Date;
     }
 
+    // A slide can be switched off without deleting it.
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
+    // Decides whether a slide appears today: it must be on, started, and not yet expired.
     /// <summary>True when the slide should be on the landing page on <paramref name="today"/> (a local date).</summary>
     public bool IsShownOn(DateTime today) =>
         IsActive && (StartsOn is null || StartsOn.Value.Date <= today.Date) && (ExpiresOn is null || ExpiresOn.Value.Date >= today.Date);
 
+    // The admin page uses this to make sure the landing page never ends up with no slide to show.
     /// <summary>True when at least one of the slides is shown on <paramref name="today"/>. The rule the admin page enforces: this must stay true.</summary>
     public static bool HasValid(IEnumerable<HomeSlide> slides, DateTime today) => slides.Any(x => x.IsShownOn(today));
 
+    // Three welcome slides used when the system is new and has no slides yet.
     /// <summary>The slides a fresh system starts with (the seeder and the migration script add them when the table is empty); an administrator can change or delete them.</summary>
     public static IReadOnlyList<HomeSlide> StarterSet() =>
     [
@@ -90,6 +101,8 @@ public sealed class HomeSlide
         new("اعلان‌ها و رویدادها", "از تصمیم‌ها و پیام‌های مهم بلافاصله باخبر شوید؛ همه رویدادهای سامانه ثبت و قابل پیگیری است.", "ti-bell-ringing", null, null, 3, null, null),
     ];
 
+    // Link safety check: only pages of this site or normal web addresses are allowed, so a link can never
+    // run a script.
     /// <summary>A page of this site ("/…", not "//…") or an absolute http/https address. Nothing else (no javascript: links).</summary>
     public static bool IsSafeLink(string url)
     {

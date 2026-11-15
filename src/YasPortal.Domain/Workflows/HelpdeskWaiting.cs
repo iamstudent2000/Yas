@@ -2,6 +2,8 @@ using System.Text.Json;
 
 namespace YasPortal.Domain.Workflows;
 
+// Helpdesk waiting time: how long a pending helpdesk request has been waiting, used on lists and the
+// helpdesk report.
 /// <summary>How long a pending helpdesk request has been waiting, and its priority label.</summary>
 public sealed record HelpdeskWaitingStatus(string? Priority, DateTime SinceUtc, TimeSpan Waited);
 
@@ -14,11 +16,13 @@ public static class HelpdeskWaiting
 {
     public const string PriorityKey = "priority";
 
+    // Returns null unless the request is a helpdesk request that is still pending approval.
     public static HelpdeskWaitingStatus? For(WorkflowRequest request, DateTime nowUtc)
     {
         if (request.WorkflowType != WorkflowTypeCode.Helpdesk || request.Status != WorkflowRequestStatus.PendingApproval)
             return null;
 
+        // The priority is one of the form answers, stored as JSON text on the request.
         string? priority = null;
         try
         {
@@ -29,6 +33,8 @@ public static class HelpdeskWaiting
             // unreadable values: still show the waiting time, just without a priority
         }
 
+        // Waiting starts at the latest submit or resubmit of the current round, so time spent with the
+        // requester is not counted.
         // The current round's start; the request's own creation time when the requester actions were not loaded.
         var since = request.RequesterActions
             .Where(a => a.Round == request.CurrentRound && a.Kind is WorkflowRequesterActionKind.Submitted or WorkflowRequesterActionKind.Resubmitted)

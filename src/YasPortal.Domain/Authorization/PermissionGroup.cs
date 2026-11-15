@@ -10,6 +10,7 @@ public sealed class PermissionGroup
     {
     }
 
+    // A group needs a code and a name; the description is optional.
     public PermissionGroup(string code, string name, string? description = null)
     {
         if (string.IsNullOrWhiteSpace(code))
@@ -29,6 +30,7 @@ public sealed class PermissionGroup
         get; private set;
     }
 
+    // Changes the visible name and description; the code stays the same.
     public void Rename(string name, string? description = null)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -37,6 +39,7 @@ public sealed class PermissionGroup
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
     }
 
+    // Changes the technical code only.
     public void ChangeCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code))

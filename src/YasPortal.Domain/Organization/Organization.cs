@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Organization;
 
+// An organization is a company or unit that employees belong to. It has a code and a name and can be
+// switched off. Switching it off also switches off all its employees, so nobody active stays under an
+// inactive organization.
 public sealed class Organization
 {
     private Organization()
@@ -25,6 +28,7 @@ public sealed class Organization
 
     public void Activate() => IsActive = true;
 
+    // Switching an organization off cascades to its employees, as the note below explains.
     /// <summary>
     /// Deactivating an organization also deactivates its employees. This prevents
     /// active employees from remaining attached to an inactive organization and
@@ -42,6 +46,8 @@ public sealed class Organization
             employee.Deactivate();
     }
 
+    // Private checks used by the creation and edit methods: both the name and the code are required and are
+    // trimmed.
     private void SetName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))

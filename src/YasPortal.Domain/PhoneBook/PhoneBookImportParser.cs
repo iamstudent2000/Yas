@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.PhoneBook;
 
+// Bulk import of contacts: an administrator pastes a list and this reads it line by line. Each line is
+// checked using the same rules as a single contact, and problems are reported per line. Nothing is saved
+// here.
 /// <summary>One line of a pasted list of contacts, checked and cleaned (numbers with Latin digits). <see cref="Error"/> is a Persian reason, or null.</summary>
 public sealed record ContactImportLine(int LineNumber, string Group, string FullName, string? JobTitle, string? Extension, string? Phone,
     string? Mobile, string? Email, string? Note, string? Error);
@@ -12,6 +15,7 @@ public sealed record ContactImportLine(int LineNumber, string Group, string Full
 /// </summary>
 public static class PhoneBookImportParser
 {
+    // The column order shown to the administrator as the expected format.
     public const string Format = "گروه | نام | سمت | داخلی | تلفن | موبایل | ایمیل | توضیح";
 
     public static IReadOnlyList<ContactImportLine> Parse(string? text)
@@ -29,6 +33,8 @@ public static class PhoneBookImportParser
 
             var group = parts[0];
             var name = Part(1) ?? "";
+            // The note is the last column and may itself contain the vertical bar, so everything after the
+            // seventh column is joined back.
             // the note is the last column and may itself contain "|"
             var note = parts.Length > 7 ? string.Join(" | ", parts.Skip(7)).Trim() : null;
             if (note is { Length: 0 })
@@ -63,6 +69,7 @@ public static class PhoneBookImportParser
         return result;
     }
 
+    // Turns a rejected field into a Persian message the administrator can understand.
     /// <summary>A Persian reason for the parameter a <see cref="Contact"/> rejected.</summary>
     public static string Describe(string? param) => param switch
     {

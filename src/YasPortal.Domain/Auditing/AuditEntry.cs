@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Auditing;
 
+// One line of the audit trail: who (employee and the position they were acting in), what happened, to which object,
+// when, and for data changes the values before and after (stored as JSON text). Entries are only ever added, never edited
+// or deleted; the only change allowed is stamping an archive date. Times are stored in UTC (universal time).
 public sealed class AuditEntry
 {
     private AuditEntry()
@@ -27,6 +30,7 @@ public sealed class AuditEntry
         OccurredAtUtc = occurredAtUtc;
     }
 
+    // Who did it: the employee and the position that was active at that moment. Empty when nobody was signed in.
     public Guid Id
     {
         get; private set;
@@ -39,12 +43,14 @@ public sealed class AuditEntry
     {
         get; private set;
     }
+    // What happened (see the list of action names) and what it happened to.
     public string Action { get; private set; } = string.Empty;
     public string EntityType { get; private set; } = string.Empty;
     public string? EntityId
     {
         get; private set;
     }
+    // For data changes: the object's values before and after the change, written as JSON text.
     public string? BeforeJson
     {
         get; private set;
