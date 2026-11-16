@@ -1,10 +1,14 @@
 @using Microsoft.AspNetCore.Components.Web
 
+@* A type-to-search drop-down for choosing ONE item from a list that is already loaded in memory (for example a short list of *@
+@* positions). The chosen item is identified by its unique id (a GUID). For very large lists the portal uses the *@
+@* server-backed picker instead. *@
 <div class="ys-search-select" @onfocusout="HandleFocusOut" tabindex="-1" dir="rtl">
     <input class="form-control ys-search-input" value="@SearchText" @oninput="HandleInput" @onfocus="Open"
            @onkeydown="HandleKeyDown" placeholder="@(_open ? SearchPlaceholder : Placeholder)" autocomplete="off"
            aria-autocomplete="list" aria-expanded="@_open" disabled="@Disabled" />
 
+    @* The list of matching items, shown only while the box is active and not disabled. *@
     @if (_open && !Disabled)
     {
         <div class="ys-search-dropdown" role="listbox">
@@ -28,6 +32,7 @@
                     </button>
                 }
 
+                @* Only the first few matches are listed; this line tells the person how many there are and asks them to type more to narrow down. *@
                 @if (FilteredOptions.Count > MaxVisibleResults)
                 {
                     <div class="ys-search-more">
@@ -41,6 +46,8 @@
 </div>
 
 @code {
+    // Parameters handed in by the page: the available items, the chosen id, the callback for a new choice, the texts shown,
+    // whether the box is disabled, and the maximum number of items listed at once.
     [Parameter, EditorRequired] public IReadOnlyList<SearchableGuidOption> Options { get; set; } = [];
     [Parameter] public Guid? Value { get; set; }
     [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
@@ -49,22 +56,27 @@
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public int MaxVisibleResults { get; set; } = 12;
 
+    // Internal state: what is typed in the box, whether the list is open, which row the keyboard arrows are on,
+    // and a flag that stops the list closing when the person clicks an item.
     private string SearchText { get; set; } = "";
     private bool _open;
     private int _activeIndex = -1;
     private bool _preventBlur;
 
+    // The items whose text contains what the person typed (all items when the box is empty).
     private List<SearchableGuidOption> FilteredOptions =>
         string.IsNullOrWhiteSpace(SearchText)
             ? Options.ToList()
             : Options.Where(x => x.Text.Contains(SearchText.Trim(), StringComparison.CurrentCultureIgnoreCase)).ToList();
 
+    // Whenever the page changes the chosen id, show its name in the box (unless the person is typing).
     protected override void OnParametersSet()
     {
         if (!_open)
             SearchText = Options.FirstOrDefault(x => x.Value == Value)?.Text ?? "";
     }
 
+    // Open the list and clear the box so the person can start typing a search.
     private void Open()
     {
         if (Disabled) return;
@@ -82,6 +94,7 @@
         _activeIndex = -1;
     }
 
+    // An item was chosen: report it to the page, show its name in the box and close the list.
     private async Task SelectAsync(Guid? value)
     {
         if (Disabled) return;
@@ -91,6 +104,7 @@
         _activeIndex = -1;
     }
 
+    // Keyboard support: Escape cancels, the up and down arrows move through the matches, Enter picks the highlighted one.
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (Disabled) return;
@@ -117,8 +131,10 @@ MaxVisibleResults))
         }
     }
 
+    // Clicking an item would normally make the box lose focus and close the list before the click registers; this flag prevents that.
     private void PreventBlur() => _preventBlur = true;
 
+    // When the person leaves the box without choosing, put the previously chosen name back and close the list.
     private async Task HandleFocusOut()
     {
         await Task.Delay(100);
@@ -132,6 +148,7 @@ MaxVisibleResults))
         _activeIndex = -1;
     }
 
+    // One choice in the list: its unique id and the text shown to the person.
     public sealed record SearchableGuidOption(Guid Value, string Text);
 }
 

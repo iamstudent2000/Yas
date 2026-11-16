@@ -1,3 +1,6 @@
+@* Pick-list widget whose choices are searched IN THE DATABASE while the person types (so it works for thousands of rows, *@
+@* such as employees). The page supplies the search function; the chosen item is identified by its unique id (a GUID). *@
+@* Fixed lists use LookupSelect instead. Both share the look defined in server-lookup.css. *@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
 @using YasPortal.Web.Services
@@ -9,6 +12,7 @@
         <button type="button" class="server-lookup-open" disabled="@Disabled" @onclick="ToggleAsync">
             <span class="server-lookup-value">@SelectedLabel</span>
         </button>
+        @* Small cross that clears the current choice. *@
         @if (Value is not null && !Disabled)
         {
             <button type="button" class="server-lookup-clear" aria-label="پاک کردن انتخاب" title="پاک کردن انتخاب"
@@ -18,6 +22,7 @@
         }
         <i class="ti @Icons.ChevronDown server-lookup-chevron"></i>
     </div>
+        @* The drop-down panel: backdrop (click to close), search box, then either a 'searching' message, a 'no result' message or the matches. *@
         @if (_open && !Disabled)
         {
             <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
@@ -56,6 +61,8 @@
     </div>
 
 @code {
+    // Parameters handed in by the page: the chosen id, the callback for a new choice, the search function (given the typed text it
+    // returns matching items), the texts shown, an optional name to display for the current choice, and the disabled flag.
     [Parameter] public Guid? Value { get; set; }
     [Parameter] public EventCallback<Guid?> ValueChanged { get; set; }
     [Parameter]
@@ -69,6 +76,8 @@
     [Parameter] public string? SelectedText { get; set; }
     [Parameter] public bool Disabled { get; set; }
 
+    // Internal state: page element references, the current matches, the typed text, the cached name of the chosen item
+    // and a token used to cancel a search that is no longer wanted.
     private ElementReference _trigger;
     private ElementReference _menu;
     private ElementReference _input;
@@ -79,10 +88,12 @@
     private CancellationTokenSource? _cts;
     private Guid? _resolvedValue;
 
+    // Text on the closed box: the chosen item's name, or the placeholder when nothing is chosen.
     private string SelectedLabel => Value is null
         ? Placeholder
         : (string.IsNullOrWhiteSpace(SelectedText) ? (_selectedDisplayText ?? Placeholder) : SelectedText);
 
+    // When the page gives an id without a name, look the name up with an empty search so the box can still display it.
     protected override async Task OnParametersSetAsync()
     {
         if (Value is null)
@@ -115,6 +126,7 @@
         }
     }
 
+    // After the list opens, ask a small browser script to place it next to the box and focus the search box.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_open || Disabled || _positioned)
@@ -132,6 +144,7 @@
         }
     }
 
+    // Open or close the list; opening loads the first matches straight away.
     private async Task ToggleAsync()
     {
         _open = !_open;
@@ -158,6 +171,8 @@
         return SearchNowAsync();
     }
 
+    // Run the database search. It waits a moment (180 ms) so fast typing does not send a request per letter,
+    // and cancels any earlier search that has not finished.
     private async Task SearchNowAsync()
     {
         _cts?.Cancel();
@@ -192,6 +207,7 @@
         return Task.CompletedTask;
     }
 
+    // An item was chosen: remember its name, close the list and report the new id to the page.
     private async Task SelectAsync(AdminQueryService.LookupItem option)
     {
         _open = false;
@@ -204,6 +220,7 @@
             await ValueChanged.InvokeAsync(option.Id);
     }
 
+    // The person pressed the cross: forget the choice and report that nothing is chosen.
     private async Task ClearAsync()
     {
         _open = false;
@@ -216,6 +233,7 @@
             await ValueChanged.InvokeAsync(null);
     }
 
+    // Cleanup when the widget disappears: cancel any running search and detach the positioning script.
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();

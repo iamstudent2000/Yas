@@ -1,3 +1,6 @@
+@* Session guard: an invisible safety check placed on every signed-in screen. *@
+@* It re-checks every 45 seconds that the person is still allowed in (account still active, same admin status, *@
+@* same active position) and, if not, sends them through a full page reload so they are signed out or refreshed. *@
 @implements IAsyncDisposable
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
@@ -21,9 +24,11 @@
     // deactivating someone quickly is the point of this component.
     private static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(45);
 
+    // The repeating clock that triggers each check, and the switch used to stop it when the page is closed.
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
 
+    // Runs once when the guard appears: starts the background checking loop.
     protected override void OnInitialized()
     {
         _cts = new CancellationTokenSource();
@@ -31,6 +36,7 @@
         _ = RunAsync(_cts.Token);
     }
 
+    // The loop: wait for the next tick, check the person, and force a reload as soon as something no longer matches.
     private async Task RunAsync(CancellationToken ct)
     {
         try
@@ -51,6 +57,8 @@
         }
     }
 
+    // Compares what the sign-in cookie claims (who, admin or not, which position) with the current database record.
+    // Returns false when they differ, for example because an administrator deactivated the account or moved the person.
     private async Task<bool> IsStillValidAsync(CancellationToken ct)
     {
         var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -68,6 +76,7 @@
         return IdentitySnapshotValidator.IsStillValid(employee, claimedIsAdmin, claimedPositionId);
     }
 
+    // Stops the timer when the guard is removed so nothing keeps running in the background.
     public async ValueTask DisposeAsync()
     {
         _cts?.Cancel();

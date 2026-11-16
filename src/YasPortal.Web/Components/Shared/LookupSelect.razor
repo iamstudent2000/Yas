@@ -1,3 +1,5 @@
+@* Pick-list widget for a FIXED list of choices (for example a status list). It looks and behaves like the database-backed *@
+@* picker (ServerSearchableGuidSelect) so every filter box in the portal feels the same. *@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
@@ -10,6 +12,7 @@
         <button type="button" class="server-lookup-open" @onclick="ToggleAsync">
             <span class="server-lookup-value">@Label</span>
         </button>
+        @* Small cross that clears the current choice; shown only when something is selected. *@
         @if (Value is not null)
         {
             <button type="button" class="server-lookup-clear" aria-label="پاک کردن انتخاب" title="پاک کردن انتخاب"
@@ -19,6 +22,7 @@
         }
         <i class="ti @Icons.ChevronDown server-lookup-chevron"></i>
     </div>
+    @* The drop-down panel: a transparent backdrop (a click on it closes the list), a search box, then the matching choices. *@
     @if (_open)
     {
         <button type="button" class="server-lookup-backdrop" aria-label="بستن فهرست انتخاب" @onclick="CloseAsync"></button>
@@ -55,15 +59,19 @@
 @code {
     /// <summary>The choices as (key, label); <see cref="Value"/> holds the key.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<(string Key, string Text)> Options { get; set; } = [];
+    // Parameters = values the page hands to this widget: the selected key (null = nothing chosen), the callback that reports a new
+    // choice back to the page, and the texts shown when nothing is chosen and inside the search box.
     [Parameter] public string? Value { get; set; }
     [Parameter] public EventCallback<string?> ValueChanged { get; set; }
     [Parameter] public string Placeholder { get; set; } = "انتخاب کنید...";
     [Parameter] public string SearchPlaceholder { get; set; } = "جستجو...";
 
+    // Internal state: references to the page elements (used to position the list), the search text and whether the list is open.
     private ElementReference _trigger, _menu, _input;
     private string _search = "";
     private bool _open, _positioned;
 
+    // The text shown on the closed box: the label of the chosen item, or the placeholder when nothing is chosen.
     private string Label
     {
         get
@@ -77,6 +85,7 @@
         }
     }
 
+    // The choices that match what the person typed in the search box (all of them when the box is empty).
     private List<(string Key, string Text)> Visible
     {
         get
@@ -88,6 +97,7 @@
         }
     }
 
+    // After the list opens, ask a small browser script to place it next to the box and put the cursor in the search box.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_open || _positioned)
@@ -103,6 +113,7 @@
         }
     }
 
+    // Open or close the list; the search text is reset each time.
     private Task ToggleAsync()
     {
         _open = !_open;
@@ -121,6 +132,7 @@
 
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
 
+    // Pressing Escape closes the list.
     private void OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Escape")
@@ -130,6 +142,7 @@
         }
     }
 
+    // The person chose an item: close the list and tell the page which key was chosen.
     private async Task PickAsync(string key)
     {
         _open = false;
@@ -138,6 +151,7 @@
         await ValueChanged.InvokeAsync(key);
     }
 
+    // The person pressed the cross: close the list and tell the page that nothing is chosen any more.
     private async Task ClearAsync()
     {
         _open = false;
@@ -146,6 +160,7 @@
         await ValueChanged.InvokeAsync(null);
     }
 
+    // Cleanup when the widget disappears: detach the positioning script if the list was still open.
     public async ValueTask DisposeAsync()
     {
         try
