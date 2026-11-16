@@ -11,8 +11,11 @@
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
+@* The notifications screen. Notifications are short messages the system sends about requests (a step reached you, a decision was made). *@
+@* The same widget serves two pages: a person's own notifications, and the administrators' alert list (admin view). *@
 <PageTitle>@(AdminView ? "اعلان‌های مدیر" : "اعلان‌ها") - یاس پورتال</PageTitle>
 
+@* Page frame with section tabs, a heading and a "mark all as read" button. *@
 <div class="requests-page" dir="rtl">
     <SectionTabs Group="notifications" />
     <div class="page-header">
@@ -26,6 +29,7 @@
         </div>
     </div>
 
+    @* Filter bar: notification type (own view only), read state, and sort. Nothing is searched until the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="@((_unreadOnly ? 1 : 0) + (_kind is null ? 0 : 1))"
                    CanClear="@(_unreadOnly || _kind is not null || _dUnread || _dKind is not null)" OnSearch="SearchAsync" OnClear="ClearAsync"
                    ExportPermission="@(ReportPermissions.MyNotifications)" OnExport="ExportAsync" Exporting="_exporting"
@@ -43,6 +47,7 @@
         </div>
     </ListFilterBar>
 
+    @* Content: a loading indicator, an empty message, or one card per notification followed by page controls. *@
     @if (_loading)
     {
         <section class="card"><LoadingState /></section>
@@ -55,6 +60,7 @@
     {
         @foreach (var item in _items)
         {
+            @* Each card: unread ones carry a "new" badge; clicking marks it read and opens the related request (hand-written messages only get marked read). *@
             <div class="request-card notification-card @(item.IsRead ? "is-read" : "is-unread")">
                 <div class="request-card-header @(item.Kind == NotificationKind.Manual && item.IsRead ? "" : "is-clickable")" role="@(item.Kind == NotificationKind.Manual ? "button" : "link")" tabindex="0" @onclick="() => OpenAsync(item)" @onkeydown="e => OnKeyAsync(e, item)">
                     <span class="request-card-icon"><i class="ti @NotificationDisplay.IconFor(item.Kind)"></i></span>
@@ -74,9 +80,11 @@
 </div>
 
 @code {
+    // When true the list shows the administrators' own alerts instead of the personal ones; set by the page that uses this widget.
     /// <summary>True on /admin/notifications: administrators' own alerts (vacant positions), without the request-event filters.</summary>
     [Parameter] public bool AdminView { get; set; }
 
+    // Applied filters (used for loading), the sort order, and the paging state of the list.
     private bool _loading = true;
     private bool _unreadOnly;
     private NotificationKind? _kind;
@@ -94,6 +102,7 @@
     private int _total;
     private int _unread;
 
+    // On start: find out who is signed in, load the first page, and start a timer that quietly refreshes the list.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -105,10 +114,12 @@
         _ = PollAsync(_cts.Token);
     }
 
+    // Every 30 seconds the list is re-read in the background so new notifications appear without a page refresh.
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
 
+    // Background loop for the refresh timer; it skips a round while a load or an export is already running.
     private async Task PollAsync(CancellationToken ct)
     {
         try
@@ -125,6 +136,7 @@
         }
     }
 
+    // Stop the background timer when the person leaves the page.
     public ValueTask DisposeAsync()
     {
         _cts?.Cancel();
@@ -133,6 +145,8 @@
         return ValueTask.CompletedTask;
     }
 
+    // Reads one page of the person's notifications with the applied filters. A quiet load does not show the loading indicator.
+    // If the person is left on a page that no longer exists (for example after reading items), it steps back to the last page.
     private async Task LoadAsync(bool quiet = false)
     {
         if (!quiet) _loading = true;
@@ -158,17 +172,20 @@
         finally { if (!quiet) _loading = false; }
     }
 
+    // Draft filter values being edited in the boxes, and a counter that clears the boxes after "clear".
     // The boxes edit the draft (_d…); "جستجو" copies it to _kind/_unreadOnly, which LoadAsync reads.
     private NotificationKind? _dKind;
     private bool _dUnread;
     private int _resetKey;
     private static readonly IReadOnlyList<(string Key, string Text)> _readOptions = [("unread", "فقط خوانده‌نشده")];
 
+    // The notification types offered in the type filter.
     private static IReadOnlyList<(string Key, string Text)> KindOptions { get; } =
         Enum.GetValues<NotificationKind>().Select(k => (k.ToString(), NotificationDisplay.KindLabel(k))).ToList();
 
     private bool _exporting;
 
+    // Download of all notifications that match the current filters and sort, not just the visible page.
     /// <summary>CSV of the signed-in person's own notifications, with the filters and sort currently applied (not just the visible page).</summary>
     private async Task ExportAsync()
     {
@@ -190,6 +207,7 @@
         finally { _exporting = false; }
     }
 
+    // Search button: copy the draft filters into the applied ones, go back to page 1 and reload.
     private async Task SearchAsync()
     {
         _kind = _dKind;
@@ -198,6 +216,7 @@
         await LoadAsync();
     }
 
+    // Clear button: empty every filter and reload from page 1.
     private async Task ClearAsync()
     {
         _kind = _dKind = null;
@@ -207,6 +226,7 @@
         await LoadAsync();
     }
 
+    // Sort changed: remember it and reload from page 1.
     private async Task OnSortChangedAsync(string value)
     {
         _sort = value;
@@ -214,6 +234,7 @@
         await LoadAsync();
     }
 
+    // Page controls: go to the chosen page, or change how many items fit on a page (limited to 1-100).
     private async Task GoToPageAsync(int page)
     {
         _page = page;
@@ -227,12 +248,14 @@
         await LoadAsync();
     }
 
+    // Keyboard support: Enter or space opens the notification like a click.
     private async Task OnKeyAsync(KeyboardEventArgs e, Notification item)
     {
         if (e.Key is "Enter" or " ")
             await OpenAsync(item);
     }
 
+    // Opening a notification marks it read, lowers the unread counters and the bell badge, and then goes to the related page.
     private async Task OpenAsync(Notification item)
     {
         if (_employeeId is Guid employeeId && !item.IsRead)
@@ -248,6 +271,7 @@
             Navigation.NavigateTo(item.LinkPath);
     }
 
+    // Mark every notification of this person as read and refresh the list and badges.
     private async Task MarkAllReadAsync()
     {
         if (_employeeId is not Guid employeeId)

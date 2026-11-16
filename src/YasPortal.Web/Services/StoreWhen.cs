@@ -1,5 +1,6 @@
 namespace YasPortal.Web.Services;
 
+// Store helpers: how the request-period start and end times of a store item are displayed and typed in.
 /// <summary>Shows a store request-period moment (local time, kept to the minute) as a Persian date and clock.</summary>
 public static class StoreWhen
 {
@@ -14,6 +15,7 @@ public static class StoreWhen
     }
 
     /// <summary>Reads "HH:mm" or "H:mm", also with Persian or Arabic digits; seconds are ignored.</summary>
+    // Accepts times typed with Persian or Arabic digits too, by converting them to ordinary digits first.
     public static bool TryParseTime(string? text, out TimeSpan time)
     {
         time = default;

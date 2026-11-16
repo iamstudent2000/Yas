@@ -6,6 +6,8 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Report builder: gathers everything about one request (requester, form values, approval history, signers) and arranges it
+// into the report model that is printed as a PDF. Extra "customizers" can then add organization-specific figures or sections.
 /// <summary>What a customizer gets to look at: the request, and a database context for anything extra it needs to read.</summary>
 public sealed record RequestReportContext(WorkflowRequest Request, ApplicationDbContext Db, IReadOnlyDictionary<Guid, string> EmployeeNames, IReadOnlyDictionary<Guid, string> PositionNames);
 
@@ -32,6 +34,7 @@ public sealed class RequestReportBuilder(
     /// <param name="holderNames">Current holder of each position that still has a pending step.</param>
     public async Task<RequestReportModel> BuildAsync(WorkflowRequest request, IReadOnlyDictionary<Guid, string> employeeNames, IReadOnlyDictionary<Guid, string> holderNames, CancellationToken ct = default)
     {
+        // Collect every person who appears anywhere on the request, so all their names can be looked up in one go.
         var employeeIds = new HashSet<Guid> { request.RequesterEmployeeId };
         if (request.CreatedByEmployeeId is Guid createdBy)
             employeeIds.Add(createdBy);
@@ -78,6 +81,7 @@ public sealed class RequestReportBuilder(
         };
         ReadLogo(model);
 
+        // Fill the report block by block, in the order they print on the page.
         FillSummary(model, data, positions.GetValueOrDefault(request.RequesterPositionId), requesterOrganization);
         FillFormSections(model, data);
         FillPartFillers(model, data);
@@ -93,6 +97,7 @@ public sealed class RequestReportBuilder(
 
     private sealed record Data(WorkflowRequest Request, Dictionary<Guid, string> Employees, Dictionary<Guid, string> Positions, IReadOnlyDictionary<Guid, string> Holders);
 
+    // The logo is taken from a report-logo image in the website's public folder if present, otherwise from the site icon.
     private void ReadLogo(RequestReportModel model)
     {
         var root = environment.WebRootPath ?? "";
@@ -110,6 +115,7 @@ public sealed class RequestReportBuilder(
             model.LogoSvg = File.ReadAllText(svg);
     }
 
+    // Summary box: requester, position, organization, status and dates. The result date appears only once the request is decided.
     private static void FillSummary(RequestReportModel model, Data data, string? requesterPosition, string? organization)
     {
         var request = data.Request;
@@ -179,6 +185,7 @@ public sealed class RequestReportBuilder(
         }
     }
 
+    // Approval history: one line per decision in order, followed by lines for steps that are still waiting for a decision.
     private static void FillHistory(RequestReportModel model, Data data)
     {
         var request = data.Request;
@@ -197,6 +204,7 @@ public sealed class RequestReportBuilder(
                     data.Holders.GetValueOrDefault(step.ApproverPositionId, "سمت خالی"), "در انتظار تصمیم", "—", ""));
     }
 
+    // Extra sections that appear only when relevant: edits made to form fields, and times the request was reopened.
     private static void FillAppendix(RequestReportModel model, Data data)
     {
         var request = data.Request;
@@ -255,6 +263,7 @@ public sealed class RequestReportBuilder(
 /// The figures every report gets by default. It is also the example to copy: read what you need from
 /// <see cref="RequestReportContext.Db"/> or the request, then add fields, sections or signers to the model.
 /// </summary>
+// Default customizer: adds the "calculations" box to every report (number of rounds, number of decisions, elapsed time).
 public sealed class DefaultRequestReportCustomizer : IRequestReportCustomizer
 {
     public Task CustomizeAsync(RequestReportContext context, RequestReportModel model, CancellationToken ct)

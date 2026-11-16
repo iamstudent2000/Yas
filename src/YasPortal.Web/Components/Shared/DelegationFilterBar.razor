@@ -1,3 +1,5 @@
+@* Filter bar above the lists of delegations (a delegation = temporarily handing a position's work to someone else). *@
+@* It reuses the shared list filter bar and adds two filters: a search by position name and a choice of delegation status. *@
 <ListFilterBar Busy="Busy" ActiveCount="State.AppliedCount" CanClear="@(State.AppliedCount > 0 || State.DraftCount > 0)" OnSearch="SearchAsync" OnClear="ClearAsync"
                ExportPermission="@(ExportPermission)" OnExport="OnExport" Exporting="Exporting" SortOptions="SortOptions" Sort="@(State.Sort)" DefaultSort="created:desc" SortChanged="OnSortAsync">
     <div class="admin-filter">
@@ -11,6 +13,8 @@
 </ListFilterBar>
 
 @code {
+    // FilterState keeps two copies of each choice: what is typed in the boxes now, and what the last search applied.
+    // The list is only re-queried when the search button is pressed (the "Applied" values), not on every keystroke.
     /// <summary>
     /// The choices of one delegation list. Search and Status are the draft the boxes edit; "جستجو" copies them to
     /// the Applied values the page queries with. Sort needs no search button, so it is used as it is.
@@ -34,17 +38,24 @@
         public void Reset() { Search = ""; Status = ""; AppliedSearch = ""; AppliedStatus = ""; }
     }
 
+    // The page hands in the filter state it owns; this bar edits it.
     [Parameter, EditorRequired] public FilterState State { get; set; } = new();
+    // True while the page is loading, so the buttons are disabled.
     [Parameter] public bool Busy { get; set; }
     /// <summary>Optional: puts "خروجی CSV" in the ⋯ menu; it exports everything the last search matched.</summary>
     [Parameter] public EventCallback OnExport { get; set; }
+    // True while an export is running.
     [Parameter] public bool Exporting { get; set; }
+    // The permission a person needs in order to see the export entry.
     [Parameter] public string ExportPermission { get; set; } = "";
+    // Tells the page that a search, clear or sort happened, so it can return to page 1 and reload.
     /// <summary>Raised after a search, clear or sort change; the page goes back to page 1 and reloads.</summary>
     [Parameter] public EventCallback Changed { get; set; }
 
+    // Changing this number rebuilds the input boxes so they appear empty after "clear".
     private int _resetKey;
 
+    // The status choices offered in the dropdown (key used internally, text shown to people).
     private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
     [
         ("Active", "فعال"),
@@ -53,6 +64,7 @@
         ("Revoked", "لغو شده"),
     ];
 
+    // The ways the list can be ordered; sorting takes effect immediately, without the search button.
     private static readonly IReadOnlyList<(string Key, string Text)> SortOptions =
     [
         SortSelect.Option("created:desc", "جدیدترین ثبت"),

@@ -2,6 +2,7 @@
 @* One group in the links menu. The top group is shown open inside its dropdown; a sub-group is a closed heading that opens (and
    closes) when clicked, so a deep tree stays short. Each level opens on its own. *@
 @if (Depth == 0)
+@* Top level: always open. Deeper levels: a folder heading with a link count that the user clicks to open or close. *@
 {
     <div class="lm-section"><LinkMenuBody Node="Node" Depth="Depth" /></div>
 }
@@ -20,8 +21,11 @@ else
 }
 
 @code {
+    // The group of the links menu to draw.
     [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
+    // How deep this group sits in the tree (0 = top group).
     [Parameter] public int Depth { get; set; }
 
+    // Whether this sub-group is currently open; each level opens independently.
     private bool _expanded;
 }

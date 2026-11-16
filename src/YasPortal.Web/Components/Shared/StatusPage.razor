@@ -16,6 +16,7 @@
     </section>
 </div>
 
+@* The page hands in the icon, headline, message and optional hint and error code; buttons are passed as inner content. *@
 @code {
     [Parameter, EditorRequired] public string Icon { get; set; } = Icons.Alert;
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;

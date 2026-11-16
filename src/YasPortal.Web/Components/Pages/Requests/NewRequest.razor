@@ -17,6 +17,9 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 
+@* New request page: an employee picks a kind of request (leave, purchase and so on), fills in its form and submits it. *@
+@* The approval path is worked out from the position they are acting in. Administrators cannot use this page; *@
+@* they register requests for others from the administration area instead. *@
 <PageTitle>درخواست جدید - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -32,12 +35,14 @@
         </div>
     </div>
 
+    @* Cases: still checking the position, no valid active position (so no request can be sent), or the normal form. *@
     @if (!_ready)
     {
         <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
     }
     else if (_requesterPositionId is null)
     {
+        @* Step 1: choose the type of request. Changing the type clears the form. *@
         <section class="card">
             <div class="empty-state"><i class="ti @Icons.Alert"></i><strong>سمت فعالی برای شما یافت نشد</strong><span>برای ثبت درخواست باید یک سمت فعال معتبر داشته باشید.</span></div>
         </section>
@@ -57,6 +62,7 @@
             </div>
         </section>
 
+        @* Step 2: the form fields for the chosen type, optional attachments for types that allow them, and the submit button. *@
         <section class="card request-form-card">
             <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
 
@@ -68,6 +74,7 @@
 
             <div class="form-actions">
                 <button class="btn btn-primary" disabled="@_submitting" @onclick="Submit">
+                    @* The button shows a progress state while saving, so a second click cannot send a duplicate request. *@
                     @if (_submitting)
                     {
                         <i class="ti @Icons.Spinner"></i>
@@ -115,6 +122,8 @@
         _files = [];
     }
 
+    // Order of work: validate the form, build the approval path from the requester's position (refused if no valid path exists),
+    // then save the request together with its attachments and the "waiting for you" notifications, and go to "my requests".
     private async Task Submit()
     {
         if (_requesterEmployeeId is not Guid employeeId || _requesterPositionId is not Guid positionId)

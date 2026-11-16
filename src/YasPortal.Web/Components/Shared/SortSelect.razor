@@ -1,3 +1,4 @@
+@* A drop-down for choosing how a list is ordered. Picking nothing returns to the page's normal order. *@
 <div class="admin-filter">
     <label class="form-label">@Label</label>
     <LookupSelect Options="Options" Value="@(IsDefault ? null : Value)" ValueChanged="OnChanged"
@@ -5,6 +6,7 @@
 </div>
 
 @code {
+    // The choices (value and label), the box label, the current value, the normal order and the notice sent when the value changes.
     /// <summary>Sort choices as (value, label). A value is "key:asc" or "key:desc"; see <see cref="Split"/>.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<(string Key, string Text)> Options { get; set; } = [];
     [Parameter] public string Label { get; set; } = "ترتیب";
@@ -13,9 +15,11 @@
     [Parameter, EditorRequired] public string Default { get; set; } = "";
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
+    // True when nothing is chosen or the choice equals the normal order; then the box shows the normal order's name.
     private bool IsDefault => string.IsNullOrEmpty(Value) || Value == Default;
     private string DefaultLabel => Options.FirstOrDefault(o => o.Key == Default).Text ?? "پیش‌فرض";
 
+    // Passes the person's choice to the page; clearing the box means going back to the normal order.
     private Task OnChanged(string? key) => ValueChanged.InvokeAsync(string.IsNullOrEmpty(key) ? Default : key);
 
     /// <summary>Splits "created:desc" into the sort key and whether it is descending.</summary>

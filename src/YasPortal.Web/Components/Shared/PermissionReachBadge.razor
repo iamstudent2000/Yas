@@ -1,5 +1,6 @@
 @* Shows whose data a permission reaches: own / assigned / team / everyone, and whether it can change it. *@
 @{
+    @* Looks up in the permission catalog how far this permission reaches and whether it lets the holder change data. *@
     var reach = PermissionCatalog.ReachOf(Code);
     var acts = PermissionCatalog.ActsOnOthers(Code);
     var (text, css) = reach switch
@@ -13,5 +14,6 @@
 <span class="reach-badge @css" title="@(reach == PermissionReach.Own ? "فقط به داده‌های خود فرد دسترسی می‌دهد" : "به داده‌های دیگران دسترسی می‌دهد")">@text</span>
 
 @code {
+    // The permission code to describe, handed in by the page.
     [Parameter, EditorRequired] public string Code { get; set; } = "";
 }

@@ -2,6 +2,7 @@
 @using YasPortal.Web.Services
 
 @* Counts per group (category or priority) for the helpdesk report. *@
+@* Table with one row per group: total, still waiting, resolved, and the average time taken to resolve (a dash if none). *@
 <div class="admin-table-wrap">
     <table class="admin-table">
         <thead><tr><th>گروه</th><th>کل</th><th>در انتظار</th><th>رسیدگی‌شده</th><th>میانگین زمان رسیدگی</th></tr></thead>
@@ -21,5 +22,6 @@
 </div>
 
 @code {
+    // The page hands in the already-calculated statistics, one row per category or priority.
     [Parameter, EditorRequired] public IReadOnlyList<HelpdeskGroupStat> Rows { get; set; } = [];
 }

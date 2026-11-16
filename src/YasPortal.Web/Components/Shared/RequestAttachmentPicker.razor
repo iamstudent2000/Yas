@@ -4,6 +4,7 @@
 @inject AppState AppState
 
 @* Choose up to a few files to send with a new request. The files stay in memory in the page's list until the request is submitted. *@
+@* The upload box is hidden once the allowed number of files is reached; below it the chosen files are listed with a remove button. *@
 <div class="form-field is-wide attachment-picker">
     <label class="form-label">
         <i class="ti @Icons.Attachment"></i> پیوست (اختیاری، حداکثر @ToPersianDigits(WorkflowRequestAttachment.MaxFilesPerRequest.ToString()) فایل، هر کدام تا @ToPersianDigits((WorkflowRequestAttachment.MaxBytes / (1024 * 1024)).ToString()) مگابایت)
@@ -28,13 +29,16 @@
     }
 </div>
 
+@* The file types the browser's file chooser accepts, and a counter that resets the chooser after every pick. *@
 @code {
     private static readonly string _accept = string.Join(",", WorkflowRequestAttachment.AllowedExtensions);
     private int _inputKey;
 
+    // The page's own list of chosen files is handed in here; this widget adds files to it and removes files from it.
     /// <summary>The page's own list; the picker adds to and removes from it.</summary>
     [Parameter, EditorRequired] public List<PendingAttachment> Files { get; set; } = [];
 
+    // Called when files are chosen: checks the count, type and size limits, shows an error message for each problem, and keeps the valid files.
     private async Task PickedAsync(InputFileChangeEventArgs e)
     {
         var room = WorkflowRequestAttachment.MaxFilesPerRequest - Files.Count;
@@ -66,6 +70,7 @@
         _inputKey++;   // a fresh input, so the same file can be picked again after removing it
     }
 
+    // Turns a byte count into a short text in kilobytes or megabytes, written with Persian digits.
     private static string SizeText(long bytes) =>
         ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
 

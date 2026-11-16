@@ -1,5 +1,6 @@
 namespace YasPortal.Web.Services;
 
+// Table sorting helper: lets a person click a column heading to sort a table, and click again to reverse it.
 /// <summary>Click-a-header sorting for small in-memory tables (the big ones sort in the query).</summary>
 public static class TableSort
 {

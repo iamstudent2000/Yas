@@ -15,14 +15,17 @@
 }
 
 @code {
+    // The section key, the link text, the icon and an optional counter bubble, all handed in by the sidebar.
     [Parameter, EditorRequired] public string Group { get; set; } = "";
     [Parameter, EditorRequired] public string Title { get; set; } = "";
     [Parameter, EditorRequired] public string Icon { get; set; } = "";
     [Parameter] public int Badge { get; set; }
 
+    // The first tab this person may open (where the link leads), and all tabs they may open.
     private SectionTab? _first;
     private IReadOnlyList<SectionTab> _tabs = [];
 
+    // The link is highlighted while the person is on any page that belongs to this section.
     private bool IsActive
     {
         get
@@ -32,6 +35,7 @@
         }
     }
 
+    // On start: find the section, keep only the tabs this person has permission for; no permitted tab means no link at all.
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
@@ -42,6 +46,7 @@
         _first = _tabs.FirstOrDefault();
     }
 
+    // Re-draw whenever the address changes so the highlight follows navigation.
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
         => await InvokeAsync(StateHasChanged);
 

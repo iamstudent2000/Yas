@@ -11,6 +11,7 @@
    - while a search runs the button shows a spinner and is disabled,
    - the whole card folds with its header (collapsed by default; the header still shows how many filters are active) on every screen size.
    Put the fields in as <div class="admin-filter"> children; the page keeps a draft and an applied copy. *@
+@* The card: a header button that folds the filter fields away, and a body holding the fields and the buttons. *@
 <section class="card request-filter list-filter @(_open ? "is-open" : "")" dir="rtl">
     <button type="button" class="request-filter-toggle" aria-expanded="@(_open ? "true" : "false")" @onclick="() => _open = !_open">
         <i class="ti @Icons.Search"></i> جستجو
@@ -20,16 +21,19 @@
         }
         <i class="ti @(_open ? Icons.ChevronUp : Icons.ChevronDown) request-filter-toggle-chevron"></i>
     </button>
+    @* Body: the fields supplied by the page, then the optional sort choice, then the search / clear / menu buttons. *@
     <div class="admin-filters request-filter-body" @onkeydown="OnKeyDownAsync">
         @ChildContent
         @if (SortOptions.Count > 0)
         {
             <SortSelect Options="SortOptions" Value="@(Sort)" Default="@(DefaultSort)" ValueChanged="SortChanged" />
         }
+        @* Button row. Search is disabled while a search runs; Enter pressed inside any field also searches. *@
         <div class="admin-filter request-filter-clear">
             <button type="button" class="btn btn-primary" disabled="@Busy" @onclick="SearchAsync" @onkeydown:stopPropagation="true">
                 <i class="ti @(Busy ? Icons.Spinner : Icons.Search)"></i> جستجو
             </button>
+            @* While a long search runs and the page allows cancelling, the clear button turns into a cancel button. *@
             @if (Busy && OnCancel.HasDelegate)
             {
                 <button type="button" class="btn btn-danger" @onclick="OnCancel" @onkeydown:stopPropagation="true"><i class="ti @Icons.CancelSearch"></i> لغو</button>
@@ -40,6 +44,7 @@
                     <i class="ti @Icons.FilterClear"></i> پاک کردن فیلترها
                 </button>
             }
+            @* The "more" menu (CSV export, step report, print) appears only if the page supports export and the person holds the report permission. *@
             @if (OnExport.HasDelegate || OnExportSteps.HasDelegate)
             {
                 <AuthorizeView Policy="@ExportPermission">
@@ -77,6 +82,7 @@
 </section>
 
 @code {
+    // The filter fields themselves are placed here by the page that uses this card.
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>True while the page is loading; shows the spinner and blocks a second search.</summary>
@@ -88,6 +94,7 @@
     /// <summary>False when there is nothing to clear (no draft and nothing applied).</summary>
     [Parameter] public bool CanClear { get; set; } = true;
 
+    // Tell the page that the person pressed search or clear; the page then reloads its list.
     [Parameter] public EventCallback OnSearch { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
 
@@ -99,6 +106,7 @@
 
     /// <summary>The report permission that shows the ⋯ menu (see ReportPermissions); every list that exports names its own.</summary>
     [Parameter] public string ExportPermission { get; set; } = "";
+    // True while an export is being produced.
     [Parameter] public bool Exporting { get; set; }
 
     /// <summary>Optional: shows "گزارش مراحل (CSV)", the detailed one-row-per-step report of the last search.</summary>
@@ -112,14 +120,17 @@
 
     /// <summary>Optional sort choices ("key:asc|desc" → label); applied immediately, the ✕ goes back to <see cref="DefaultSort"/>.</summary>
     [Parameter] public IReadOnlyList<(string Key, string Text)> SortOptions { get; set; } = [];
+    // The current sort choice and its default, and the notice sent to the page when the person changes the sort.
     [Parameter] public string Sort { get; set; } = "";
     [Parameter] public string DefaultSort { get; set; } = "";
     [Parameter] public EventCallback<string> SortChanged { get; set; }
 
+    // Whether the card is unfolded and whether the "more" menu is open.
     // Open by default; the header folds the card away to give the list the whole screen.
     private bool _open;
     private bool _menu;
 
+    // Print: close the menu first so it does not appear in the printed page, then ask the browser to print.
     private async Task PrintListAsync()
     {
         _menu = false;
@@ -128,6 +139,7 @@
         await Js.InvokeVoidAsync("yasPrintPage");
     }
 
+    // Run one of the export actions after recording which filters it covered in the audit log.
     private async Task RunAsync(EventCallback callback)
     {
         _menu = false;
@@ -136,6 +148,7 @@
         await callback.InvokeAsync();
     }
 
+    // Search: ignored if one is already running; otherwise the page reloads, and the search with its filters is written to the audit log.
     private async Task SearchAsync()
     {
         if (Busy)

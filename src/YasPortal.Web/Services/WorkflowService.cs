@@ -6,6 +6,11 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Workflow service: works out WHO has to approve a new request (turning the configured steps into real positions),
+// and decides who may act on a step now, either as the position holder or through a delegation.
+// It also answers the "how many items are waiting" questions behind the badges, and the team-history lookups.
+// Remember: authority belongs to positions, and a position may be covered by a delegate while its holder is away.
+// Service = the class that holds the logic for one area.
 /// <summary>Resolves a workflow request's approval path and applies approver actions to it.</summary>
 public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFactory)
 {
@@ -27,11 +32,13 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     public async Task<ResolveResult> ResolveStepsAsync(WorkflowTypeCode type, Guid requesterPositionId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        // Load the approval steps the administrator configured for this kind of request.
         var definitions = await db.WorkflowStepDefinitions.AsNoTracking()
             .Where(x => x.WorkflowType == type)
             .ToListAsync(ct);
         var parents = await db.Positions.AsNoTracking().Select(x => new { x.Id, x.ParentPositionId }).ToDictionaryAsync(x => x.Id, x => x.ParentPositionId, ct);
 
+        // Turn each configured step into a concrete approver position for the requester; any failure refuses the submission.
         var resolution = WorkflowStepResolver.Resolve(definitions, requesterPositionId, parents);
         if (!resolution.Success)
             return new ResolveResult(false, DescribeErrors(resolution.Errors), []);
@@ -81,6 +88,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     /// employee's authority to act on a step right before applying the action, rather than
     /// trusting a cookie claim.
     /// </summary>
+    // An assignment with no end date means the person holds the position today.
     public async Task<bool> HoldsActivePositionAsync(Guid employeeId, Guid? positionId, CancellationToken ct = default)
     {
         if (positionId is not Guid pid)
@@ -105,6 +113,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             .ToDictionaryAsync(x => x.PositionId, x => x.FullName, ct);
     }
 
+    // Subordinates are everything below a position in the organization chart, at any depth.
     public sealed record SubordinatePosition(Guid Id, string Name);
 
     /// <summary>
@@ -141,6 +150,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
         var ids = positions.Select(x => x.Id).ToList();
         var names = positions.ToDictionary(x => x.Id, x => x.Name);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        // Keep only active employees who are not administrators, since administrators never file requests themselves.
         var holders = await db.EmployeePositions.AsNoTracking()
             .Where(x => x.EndedAt == null && ids.Contains(x.PositionId))
             .Join(db.Employees.AsNoTracking().Where(e => e.IsActive && !e.IsAdmin), ep => ep.EmployeeId, e => e.Id, (ep, e) => new { ep.PositionId, EmployeeId = e.Id, e.FullName })
@@ -161,6 +171,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     }
 
     /// <summary>A delegation that gives an employee authority over a position right now.</summary>
+    // Delegation = temporary permission for another person's position to act on this position's approval steps.
     public sealed record ActiveDelegation(Guid DelegationId, Guid PositionId, Guid? DelegatorEmployeeId, bool ArrangedByAdmin);
 
     /// <summary>What lets an employee act on a step: nothing, their own position, or a delegation.</summary>
@@ -181,6 +192,8 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
             return [];
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var day = today.Date;
+        // A delegation counts today when the delegate holds their position, it is not revoked, today is inside its dates,
+        // and (unless an administrator arranged it) the delegator still holds the position being covered.
         var rows = await db.PositionDelegations.AsNoTracking()
             .Where(d => db.EmployeePositions.Any(ep => ep.EmployeeId == id && ep.PositionId == d.DelegatePositionId && ep.EndedAt == null)
                         && d.RevokedAtUtc == null
@@ -197,6 +210,8 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     /// steps of positions delegated to them (admin arrangements on any step, normal delegations only on
     /// steps that allow delegation).
     /// </summary>
+    // The inbox query: requests waiting at the current step of a position the person holds or is covering.
+    // Administrator-arranged delegations work on any step; ordinary delegations only on steps that allow delegation.
     public static IQueryable<WorkflowRequest> PendingFor(ApplicationDbContext db, Guid? ownPositionId, IReadOnlyList<ActiveDelegation> delegations)
     {
         var anyStep = delegations.Where(d => d.ArrangedByAdmin).Select(d => d.PositionId).Distinct().ToList();
@@ -217,6 +232,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
     /// <paramref name="step"/>: as the holder of its position (their active position), or through a
     /// delegation that covers it (spec §15.1: a normal delegation only if the step allows it).
     /// </summary>
+    // Checked in this order: first the person's own active position, then any delegation that covers the step.
     public async Task<ActingResult> ResolveActingAsync(Guid employeeId, Guid? activePositionId, WorkflowRequestStep step, DateTime today, CancellationToken ct = default)
     {
         if (activePositionId is Guid own && own == step.ApproverPositionId && await HoldsActivePositionAsync(employeeId, own, ct))
@@ -229,6 +245,7 @@ public sealed class WorkflowService(IDbContextFactory<ApplicationDbContext> dbFa
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var allowsDelegation = await db.WorkflowStepDefinitions.AsNoTracking().Where(d => d.Id == step.StepDefinitionId).Select(d => d.AllowDelegation).SingleOrDefaultAsync(ct);
+        // Prefer an administrator-arranged delegation when several apply.
         var match = candidates.OrderBy(d => d.ArrangedByAdmin).FirstOrDefault(d => d.ArrangedByAdmin || allowsDelegation);
         return match is null ? ActingResult.Denied : new ActingResult(true, new WorkflowActingAuthority(match.DelegatorEmployeeId, match.DelegationId));
     }

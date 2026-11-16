@@ -8,6 +8,9 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Web.Services;
 
+// Store order service overview: employees pick items in the shop and send an order. It is checked against the catalogue and stock,
+// then travels through the normal approval workflow. After approval the storekeeper hands the goods over (an "issue"),
+// which reduces stock. The small records below are read-only shapes of data handed to the pages that show orders.
 public sealed record StoreOrderLineView(string ItemCode, string ItemName, string Unit, decimal Quantity);
 
 public sealed record StoreOrderRow(Guid Id, Guid RequestId, DateTime CreatedAtUtc, WorkflowRequestStatus Status, DateTime? IssuedAtUtc, string Summary, string? RequesterName = null, string? IssuedByName = null);
@@ -30,6 +33,7 @@ public sealed record StorePlaceResult(bool Ok, string? Error = null, Guid? Order
 /// </summary>
 public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, NotificationService notifications)
 {
+    // Wording for an order's state. An approved order reads as "waiting for hand-over" until the goods are actually issued.
     public static string StatusText(WorkflowRequestStatus status, bool issued) => status switch
     {
         WorkflowRequestStatus.PendingApproval => "در انتظار تأیید",
@@ -40,12 +44,15 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         _ => status.ToString(),
     };
 
+    // Builds the bulleted item list stored on the approval request, so approvers see what is being asked for.
     public static string Summarize(IEnumerable<StoreOrderLineView> lines) =>
         string.Join("\n", lines.Select(l => $"• {l.ItemName} ({l.ItemCode}) — {l.Quantity:0.###} {l.Unit}"));
 
     /// <summary>The one place the ordering rules live: the cart page shows these messages before sending, and sending checks them again. Returns null when the line is fine.</summary>
     private static string? Validate(StoreItem? item, bool categoryActive, decimal quantity, decimal available, DateTime today, bool alreadyOnOrder = false, decimal outstanding = 0)
     {
+        // Rules applied in order: the item must still be in the shop, the quantity must make sense for its unit, the request period
+        // must be open, lottery items cannot be ordered directly, the per-person limit and the current stock must allow it.
         if (item is null || !item.IsListed || !categoryActive) return "این کالا دیگر در فروشگاه نیست؛ دیگر نمی‌توان آن را درخواست داد.";
         var name = $"«{item.Name}»";
         if (quantity <= 0) return $"مقدار {name} باید بیشتر از صفر باشد.";
@@ -103,6 +110,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return await OutstandingAsync(db, employeeId, null, ct);
     }
 
+    // Outstanding = quantities the person already asked for but has not received yet, which count towards the per-person limit.
     private static async Task<Dictionary<Guid, decimal>> OutstandingAsync(ApplicationDbContext db, Guid employeeId, Guid? exceptRequestId, CancellationToken ct)
     {
         var rows = await (from o in db.StoreOrders.AsNoTracking()
@@ -116,6 +124,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     private static async Task<Dictionary<Guid, decimal>> ExistingQuantitiesAsync(ApplicationDbContext db, Guid? requestId, CancellationToken ct) =>
         requestId is null ? [] : await db.StoreOrderLines.AsNoTracking().Where(l => db.StoreOrders.Any(o => o.Id == l.OrderId && o.RequestId == requestId)).ToDictionaryAsync(l => l.ItemId, l => l.Quantity, ct);
 
+    // Checks every wanted line and turns it into order lines; the first problem found stops everything and is reported.
     private async Task<(List<StoreOrderLine>? Lines, string? Error)> BuildLinesAsync(ApplicationDbContext db, Guid employeeId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, DateTime today, Guid? correctingRequestId, CancellationToken ct)
     {
         var existing = await ExistingQuantitiesAsync(db, correctingRequestId, ct);
@@ -147,6 +156,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     /// Sends an order that an approver returned for correction again, with the corrected items. The approval chain is worked out again from
     /// the position the order was first sent from (that is organizational), while the order stays the person's own.
     /// </summary>
+    // Used after an approver returned the order for correction: the corrected items replace the old ones and approval restarts.
     public async Task<StorePlaceResult> ResubmitAsync(Guid requestId, Guid employeeId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
     {
         if (wanted.Count == 0) return new(false, "سفارش باید دست‌کم یک کالا داشته باشد؛ اگر دیگر نیازی ندارید، درخواست را لغو کنید.");
@@ -194,6 +204,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         if (recent.Any(o => string.Join("|", o.Lines.OrderBy(l => l.ItemId).Select(l => $"{l.ItemId}:{l.Quantity}")) == signature))
             return new(false, "همین سفارش چند لحظه پیش ثبت شده است. فهرست «سفارش‌های من» را ببینید.");
 
+        // Work out the approvers from the position the person is acting in; if no valid path exists the order is refused.
         var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, positionId, ct);
         if (!resolved.Success) return new(false, resolved.Error);
 
@@ -203,6 +214,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var request = new WorkflowRequest(WorkflowTypeCode.StoreOrder, employeeId, positionId, JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList(), createdByEmployeeId: createdByEmployeeId);
         var order = new StoreOrder(request.Id, employeeId, positionId, note, lines);
 
+        // The order and its approval request are saved together with the "request submitted" notifications, all or nothing.
         db.WorkflowRequests.Add(request);
         db.StoreOrders.Add(order);
         await notifications.StageAsync(db, request, WorkflowNotificationEvent.Submitted, ct);
@@ -278,6 +290,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return await PageAsync(db, q, page, pageSize, ct, byIssueDate: true, sort: sort, descending: descending);
     }
 
+    // Shared paging helper for the order lists: counts the matches, applies the chosen column sort, then returns one page of rows.
     private static async Task<(IReadOnlyList<StoreOrderRow>, int)> PageAsync(ApplicationDbContext db, IQueryable<StoreOrder> q, int page, int pageSize, CancellationToken ct, bool oldestFirst = false, bool byIssueDate = false, string? sort = null, bool descending = false)
     {
         var total = await q.CountAsync(ct);
@@ -311,6 +324,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             string.Join("، ", r.Lines.Select(l => $"{l.ItemName} {l.Quantity:0.###} {l.Unit}")), r.Who, r.By)).ToList(), total);
     }
 
+    // Loads one order with the requester, position, hand-over person and lines for the detail and printable slip pages.
     public async Task<StoreOrderDetail?> GetAsync(Guid orderId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -369,6 +383,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     /// Hands an approved order over: one Issue movement per line and the order is closed. Nothing is written unless every line is in stock;
     /// the stock check and the writes share one serializable transaction.
     /// </summary>
+    // Stock is the sum of the movement rows, so handing over means adding one negative "Issue" row per line.
     public async Task<StoreResult> IssueAsync(Guid orderId, Guid byEmployeeId, string? note, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

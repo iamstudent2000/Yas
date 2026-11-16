@@ -4,12 +4,15 @@
 @inject NavigationManager Navigation
 @attribute [Authorize(Policy = Perm.AdminPositionsView)]
 
+@* Old-address page: two former addresses for the assignment history now forward to its current page. *@
+@* Only people allowed to view positions can reach it. It shows a short "redirecting" message meanwhile. *@
 <div dir="rtl" class="empty-state">
     <i class="ti @Icons.Spinner"></i>
     <span>در حال انتقال به سوابق تخصیص...</span>
 </div>
 
 @code {
+    // The jump happens after the first display so it works on the server-rendered page.
     protected override void OnAfterRender(bool firstRender)
     {
         if (firstRender)

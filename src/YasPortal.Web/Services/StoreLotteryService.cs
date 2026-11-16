@@ -8,6 +8,9 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Web.Services;
 
+// Lottery service overview: for scarce items the store runs a draw instead of first-come-first-served.
+// Employees apply, the storekeeper draws once the request period is over, and every winner gets a normal store order.
+// The records below are read-only shapes of data that the shop and lottery pages display.
 public sealed record LotteryMineRow(Guid EntryId, Guid ItemId, string ItemName, string Unit, decimal Quantity, LotteryEntryStatus Status, DateTime AppliedAtUtc, Guid? OrderId);
 
 /// <summary>A lottery item with applications waiting: what the storekeeper sees before drawing.</summary>
@@ -26,6 +29,8 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
 {
     private const string AlreadyApplied = "شما قبلاً برای این کالا ثبت‌نام کرده‌اید.";
 
+    // Applying: the item must still be listed and be a lottery item, the application period must be open, the quantity must suit
+    // the unit, and the person may not exceed their personal maximum or apply twice for the same item.
     public async Task<StoreResult> ApplyAsync(Guid itemId, Guid employeeId, Guid positionId, decimal quantity, DateTime today, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -107,6 +112,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             .OrderBy(r => r.Name).ToList();
     }
 
+    // The storekeeper can see who applied (with their position and quantity) before deciding to draw.
     public async Task<IReadOnlyList<LotteryApplicantRow>> ApplicantsAsync(Guid itemId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -137,6 +143,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         var stock = await db.StoreStockMovements.Where(m => m.ItemId == itemId).SumAsync(m => (decimal?)m.Delta, ct) ?? 0m;
         if (stock <= 0) return new(false, "موجودی این کالا صفر است؛ ابتدا موجودی را ثبت کنید.");
 
+        // The random draw itself lives in the domain rules; here it is given the applications and the current stock.
         var winnerIds = StoreLottery.Draw(entries.Select(e => (e.Id, e.Quantity)).ToList(), stock).ToHashSet();
         var typeName = WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder);
         var entryEmployeeIds = entries.Select(x => x.EmployeeId).Distinct().ToList();
@@ -152,6 +159,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             routed.Add((entry, resolved));
         }
 
+        // Each winner gets a store order plus an approval request, as if they had ordered normally, and is told they won.
         foreach (var (entry, resolved) in routed)
         {
             var line = new StoreOrderLine(item.Id, item.Code, item.Name, item.Unit, entry.Quantity);
@@ -166,6 +174,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             db.Notifications.Add(new Notification(entry.EmployeeId, NotificationKind.StoreLotteryResult, request.Id, typeName,
                 $"شما در قرعه‌کشی «{item.Name}» برنده شدید. سفارش شما برای تأیید ارسال شد.", "/store/orders"));
         }
+        // Everyone not drawn is marked as lost and told so.
         foreach (var entry in entries.Where(e => !winnerIds.Contains(e.Id)))
         {
             entry.MarkLost();

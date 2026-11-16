@@ -11,6 +11,8 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* My positions page: a person may hold several positions in the organization. Here they choose which one is "active"; *@
+@* permissions and the approval inbox follow the active position, because authority belongs to positions, not people. *@
 <PageTitle>سمت‌های من - یاس پورتال</PageTitle>
 
 <div class="positions-page">
@@ -23,6 +25,7 @@
         </div><span class="badge badge-muted"><i class="ti @Icons.Info"></i> انتخاب یک سمت</span>
     </div>
 
+    @* Four cases: still loading, administrator or employee with no positions, or the list with the active one highlighted. *@
     @if (_positions is null)
     {
         <section class="card">
@@ -48,6 +51,7 @@
     }
     else
     {
+        @* The currently active position is shown prominently, and the remaining positions each get a button to switch. *@
         var active = _positions.FirstOrDefault(x => x.Id == _activePositionId);
         var others = _positions.Where(x => x.Id != _activePositionId).ToList();
 
@@ -76,6 +80,7 @@
                         <div class="position-row">
                             <span class="position-row-icon"><i class="ti @Icons.Position"></i></span>
                             <span class="position-row-name">@position.Name</span>
+                            @* Switching posts to the account endpoint, which refreshes the person's session so the new position takes effect. *@
                             <form method="post" action="/account/position">
                                 <AntiforgeryToken /><input type="hidden" name="positionId" value="@position.Id" />
                                 <button class="btn btn-secondary" type="submit"><i class="ti @Icons.SwitchPosition"></i> انتخاب
@@ -90,6 +95,7 @@
 </div>
 
 @code {
+    // Only positions the person holds today (no end date) are listed. Administrators hold no organizational positions.
     private List<PositionItem>? _positions;
     private Guid? _activePositionId;
     private bool _isAdmin;

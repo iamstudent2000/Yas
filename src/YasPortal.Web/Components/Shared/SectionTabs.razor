@@ -7,9 +7,11 @@
 @inject AppState AppState
 @implements IDisposable
 @* The tab bar shared by the pages of one section (same look as the store admin): each tab shows only for people who may open it. *@
+@* The tab bar is shown only when the person may open at least two tabs of the section. *@
 @if (_tabs.Count > 1)
 {
     <nav class="store-tabs no-print" dir="rtl" aria-label="@_title">
+        @* Each tab is a link; some carry a small counter bubble (for example unseen requests or inbox items). *@
         @foreach (var tab in _tabs)
         {
             <NavLink class="store-tab" href="@tab.Href" Match="@(tab.ExactMatch ? NavLinkMatch.All : NavLinkMatch.Prefix)"><i class="ti @tab.Icon"></i> @tab.Label@if (BadgeOf(tab) > 0) {<span class="nav-badge">@BadgeOf(tab)</span>}</NavLink>
@@ -19,15 +21,19 @@
 
 @code {
     /// <summary>The section key: access, structure, request-admin or notifications.</summary>
+    // The section whose tabs are drawn, handed in by the page.
     [Parameter, EditorRequired] public string Group { get; set; } = "";
 
+    // Visible tabs, the section title, the two counters and whether we already listen for changes.
     private IReadOnlyList<SectionTab> _tabs = [];
     private string _title = "";
     private int _inboxBadge, _mineBadge;
     private bool _subscribed;
 
+    // Picks the counter for a tab, based on the kind of counter the tab asks for.
     private int BadgeOf(SectionTab tab) => tab.BadgeKey switch { "inbox" => _inboxBadge, "mine" => _mineBadge, _ => 0 };
 
+    // Each time the page hands in a section: find it and keep only the tabs the person has permission to open.
     protected override async Task OnParametersSetAsync()
     {
         var section = SectionNav.Find(Group);
@@ -42,6 +48,7 @@
         }
     }
 
+    // Reloads the two counters: requests the person submitted with news they have not seen, and requests waiting in their inbox.
     private async Task RefreshBadgesAsync(System.Security.Claims.ClaimsPrincipal? user = null)
     {
         try
@@ -58,12 +65,14 @@
         }
     }
 
+    // Called when something changes elsewhere in the app (for example a request is decided), so the counters stay current.
     private async void OnAppStateChanged()
     {
         await RefreshBadgesAsync();
         await InvokeAsync(StateHasChanged);
     }
 
+    // Stop listening for changes when the tab bar goes away.
     public void Dispose()
     {
         if (_subscribed) AppState.OnChange -= OnAppStateChanged;

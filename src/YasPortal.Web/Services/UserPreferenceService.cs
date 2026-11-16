@@ -4,6 +4,8 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Appearance settings are personal: each employee can pick theme, accent colour, font, text size and density.
+// They are stored per employee and never affect anyone else's screen.
 /// <summary>Reads and saves each employee's appearance settings (theme, accent color, font, text size, density).</summary>
 public sealed class UserPreferenceService(IDbContextFactory<ApplicationDbContext> dbFactory, ILogger<UserPreferenceService> logger)
 {
@@ -24,6 +26,7 @@ public sealed class UserPreferenceService(IDbContextFactory<ApplicationDbContext
         }
     }
 
+    // Create the employee's settings row the first time they save, otherwise update the existing one.
     public async Task<UserUiPreference> SaveAsync(Guid employeeId, UiTheme theme, UiAccent accent, UiFont font, UiTextSize textSize, UiDensity density, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -38,6 +41,7 @@ public sealed class UserPreferenceService(IDbContextFactory<ApplicationDbContext
         return pref;
     }
 
+    // Resetting simply deletes the saved row, so the employee goes back to the default look.
     public async Task ResetAsync(Guid employeeId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

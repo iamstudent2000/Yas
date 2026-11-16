@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Store;
 
+// Store catalogue and stock ledger: categories, the fixed list of units, items an employee can request, and the stock movements.
+// Admins maintain these; employees only see the listed items in the shop. Stock is never typed in as a number,
+// it is always calculated from the movements, so there is a full trail of every receipt, hand-out and correction.
 /// <summary>A group of store items (stationery, IT supplies, ...).</summary>
 public sealed class StoreCategory
 {
@@ -34,6 +37,7 @@ public sealed class StoreCategory
 }
 
 /// <summary>The units an item can be counted in. A fixed list keeps the same thing from being typed in five different ways.</summary>
+// Countable units (pieces, boxes) must be whole numbers; measured units (kg, litre, metre) may have up to three decimals.
 public static class StoreUnits
 {
     public static IReadOnlyList<string> All { get; } =
@@ -49,6 +53,7 @@ public static class StoreUnits
 }
 
 /// <summary>Whether an item can be requested on a given day.</summary>
+// Items can be limited to a request period; this says whether today falls before, inside or after that period.
 public enum StoreRequestWindow
 {
     Open,
@@ -59,6 +64,7 @@ public enum StoreRequestWindow
 }
 
 /// <summary>An item the store keeps. Its stock is never stored on the item: it is the sum of its <see cref="StoreStockMovement"/> rows.</summary>
+// Item = one thing the store keeps. Hiding or switching off an item stops new requests but keeps its history.
 public sealed class StoreItem
 {
     public const int CodeMax = 50, NameMax = 200, UnitMax = 30, DescriptionMax = 500;
@@ -96,6 +102,7 @@ public sealed class StoreItem
     /// <summary>True when the shop shows the item: it is on and the admin has chosen to show it.</summary>
     public bool IsListed => IsActive && IsVisible;
 
+    // Open if no start date is set or it has passed, and no end date is set or it has not passed yet.
     public StoreRequestWindow WindowOn(DateTime today) => WindowOf(RequestOpensOn, RequestClosesOn, today);
 
     public static StoreRequestWindow WindowOf(DateTime? opensOn, DateTime? closesOn, DateTime today) =>
@@ -137,6 +144,7 @@ public sealed class StoreItem
     public void SetVisible(bool visible) => IsVisible = visible;
 }
 
+// Why stock changed. Receive and Return add to stock, Issue removes it, Adjustment is a signed correction after a count.
 public enum StockMovementKind
 {
     /// <summary>Goods came in (positive).</summary>
@@ -150,6 +158,7 @@ public enum StockMovementKind
 }
 
 /// <summary>One line of the stock ledger. Rows are only ever added, never edited or deleted; a mistake is corrected by a new row.</summary>
+// Quantities are entered as positive numbers; an Issue is stored as a negative change so the stock is a simple sum.
 public sealed class StoreStockMovement
 {
     public const int ReferenceMax = 200, NoteMax = 300;

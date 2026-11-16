@@ -1,6 +1,7 @@
 @using System.Globalization
 @using YasPortal.Web.Services
 @* Horizontal bars, one per item, scaled to the largest value. *@
+@* Dashboard widget: a bar chart where every bar is as long as its count compared with the biggest count. *@
 @if (Items.Count == 0)
 {
     <p class="muted dash-empty">@EmptyText</p>
@@ -20,6 +21,8 @@ else
 }
 
 @code {
+    // The page hands in the label and count for each bar.
     [Parameter, EditorRequired] public IReadOnlyList<LabeledCount> Items { get; set; } = [];
+    // Text shown instead of the chart when there is nothing to draw.
     [Parameter] public string EmptyText { get; set; } = "داده‌ای برای نمایش نیست.";
 }

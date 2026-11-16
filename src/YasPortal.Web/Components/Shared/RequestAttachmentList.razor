@@ -5,6 +5,7 @@
 @* The files attached to a request, as download links. Shown only for types that accept attachments. *@
 @if (_files.Count > 0)
 {
+    @* Each file is shown with its size and a download link; the file keeps the name it was uploaded with. *@
     <div class="field-summary">
         <p class="round-heading"><i class="ti @Icons.Attachment"></i> پیوست‌ها</p>
         @foreach (var file in _files)
@@ -18,11 +19,14 @@
 }
 
 @code {
+    // The request whose attachments are listed, handed in by the page.
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
 
+    // The attachment details loaded for this request, and which request they were loaded for (to avoid reloading).
     private IReadOnlyList<AttachmentInfo> _files = [];
     private Guid _loadedFor;
 
+    // Loads the file list once per request; request types that do not accept attachments simply show nothing.
     protected override async Task OnParametersSetAsync()
     {
         if (!WorkflowFieldCatalog.SupportsAttachments(Request.WorkflowType))
@@ -36,6 +40,7 @@
         _loadedFor = Request.Id;
     }
 
+    // Turns a byte count into a short text in Persian digits, in kilobytes or megabytes.
     private static string SizeText(long bytes) =>
         WorkflowDisplay.ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
 }

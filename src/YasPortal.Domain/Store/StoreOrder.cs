@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Store;
 
+// Store orders: the request an employee sends to get items from the store. This file holds the order (header, note,
+// hand-over details) and its lines. Approval is handled by the normal workflow request, not here.
 /// <summary>
 /// What a person asked for from the store. It belongs to the person (<see cref="EmployeeId"/>, so it is visible under every position they
 /// hold) while its approval is organizational: the linked workflow request was routed from <see cref="PositionId"/>, the position the
@@ -14,6 +16,7 @@ public sealed class StoreOrder
     {
     }
 
+    // An order must contain at least one line, and each item may appear only once.
     public StoreOrder(Guid requestId, Guid employeeId, Guid positionId, string? note, IEnumerable<StoreOrderLine> lines)
     {
         if (requestId == Guid.Empty) throw new ArgumentException("Request is required.", nameof(requestId));
@@ -48,6 +51,7 @@ public sealed class StoreOrder
     public string? IssueNote { get; private set; }
     public List<StoreOrderLine> Lines { get; private set; } = [];
 
+    // Once the store has physically handed the goods over, the order is "issued" and can no longer be edited.
     public bool IsIssued => IssuedAtUtc is not null;
 
     /// <summary>Replaces the items (and the note) of an order that came back for correction. The same rules as a new order: at least one line, an item once.</summary>
@@ -73,6 +77,7 @@ public sealed class StoreOrder
         IssueNote = null;
     }
 
+    // Records who handed the goods over, when, and an optional note.
     public void MarkIssued(Guid byEmployeeId, string? note)
     {
         if (IsIssued) throw new InvalidOperationException("The order was already handed over.");

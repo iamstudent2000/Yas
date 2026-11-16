@@ -2,6 +2,7 @@
 @using YasPortal.Domain.Workflows
 @using YasPortal.Web.Services
 @* A stacked bar of request statuses with a legend. Pure CSS; the colours are the dash-st-* classes in theme.css. *@
+@* Only statuses that actually have requests are drawn; the bar width of each is its share of all requests. *@
 @{
     var total = Items.Sum(x => x.Count);
     var shown = Items.Where(x => x.Count > 0).OrderBy(x => x.Status).ToList();
@@ -12,12 +13,14 @@
 }
 else
 {
+    @* The coloured stacked bar itself. *@
     <div class="dash-stack" role="img" aria-label="سهم هر وضعیت از درخواست‌ها">
         @foreach (var item in shown)
         {
             <span class="dash-stack-seg dash-st-@item.Status" style="width:@Percent(item.Count, total)%" title="@WorkflowDisplay.StatusLabel(item.Status): @Fa(item.Count)"></span>
         }
     </div>
+    @* Legend under the bar: colour dot, status name and count. *@
     <ul class="dash-legend">
         @foreach (var item in shown)
         {
@@ -27,6 +30,7 @@ else
 }
 
 @code {
+    // The page hands in how many requests sit in each status.
     [Parameter, EditorRequired] public IReadOnlyList<StatusCount> Items { get; set; } = [];
 
     private static string Percent(int part, int total) => (part * 100.0 / total).ToString("0.##", CultureInfo.InvariantCulture);

@@ -18,6 +18,9 @@
 @inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* Delegation page: a position holder can hand their approval authority to another position for a period of dates *@
+@* (for example during leave). Decisions made by the delegate are recorded in the delegate's name, mentioning the delegator. *@
+@* Administrators with the manage permission can also arrange a temporary replacement for any position. *@
 <PageTitle>تفویض اختیار - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -30,6 +33,7 @@
         </div>
     </div>
 
+    @* Three cases: still loading, the person may neither create nor view delegations, or the normal page. *@
     @if (!_ready)
     {
         <section class="card"><LoadingState /></section>
@@ -40,6 +44,8 @@
     }
     else
     {
+        @* Form card for a new delegation: the giving position (the person's own, or any position for an administrator), *@
+        @* the receiving position, and the first and last day. Inactive positions and delegating a position to itself are refused. *@
         @if (_canCreate || _canManage)
         {
         <section class="card dlg-create">
@@ -87,6 +93,8 @@
         </section>
         }
 
+        @* Two lists side by side: delegations given (all of them for people allowed to view all) and delegations received. *@
+        @* Each list has its own filter bar, sorting, paging and export. *@
         <div class="dlg-columns">
             <div class="dlg-col">
             <DelegationFilterBar State="_mineFilter" Busy="_listBusy" Changed="OnMineFilterChangedAsync" ExportPermission="@(ReportPermissions.Delegations)" OnExport="ExportMineAsync" Exporting="_exporting" />
@@ -109,6 +117,7 @@
                                 <span class="badge badge-info">جانشین تعیین‌شده توسط مدیر</span>
                             }
                             <span class="badge @StatusClass(row.Status)">@StatusLabel(row.Status)</span>
+                            @* A delegation that is active or upcoming can be cancelled by its delegator or by an administrator; history stays visible. *@
                             @if (row.Status is DelegationStatus.Active or DelegationStatus.Upcoming && (_canManage || row.Delegation.DelegatorEmployeeId == _employeeId))
                             {
                                 <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => RevokeAsync(row.Delegation.Id)"><i class="ti @Icons.Close"></i> لغو</button>
@@ -148,6 +157,7 @@
 </div>
 
 @code {
+    // One display row: a delegation together with the readable names of its positions and delegator, and its current status.
     private sealed record Row(PositionDelegation Delegation, string PositionName, string DelegatePositionName, string? DelegatorName, DelegationStatus Status);
 
     private bool _ready, _busy, _canCreate, _canManage, _canViewAll;
@@ -181,6 +191,7 @@
         };
     }
 
+    // Sorting is done in the database. Ties are broken by id so the order is stable between pages.
     private static IQueryable<PositionDelegation> ApplySort(IQueryable<PositionDelegation> query, ApplicationDbContext db, string sort)
     {
         var (key, desc) = SortSelect.Split(sort);
@@ -202,6 +213,7 @@
     private int _receivedPage = 1, _receivedPageSize = 10, _receivedTotal;
     private bool _listBusy;
 
+    // Works out the person's permissions and which position they are acting in now (re-checked against the database).
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -231,6 +243,7 @@
         await LoadReceivedAsync();
     }
 
+    // "Mine" shows everything for people allowed to view all, otherwise only delegations the person gave.
     private async Task LoadMineAsync()
     {
         _listBusy = true;
@@ -247,6 +260,7 @@
         finally { _listBusy = false; }
     }
 
+    // "Received" lists delegations given to any position the person holds today.
     private async Task LoadReceivedAsync()
     {
         _listBusy = true;
@@ -331,6 +345,8 @@
 
     private void Fail(string message) => AppState.AddToast(message, ToastLevel.Error);
 
+    // Checks the dates and positions first. An ordinary holder may delegate only a position they hold; an administrator may pick any.
+    // The receiving side is notified when the delegation is saved.
     private async Task CreateAsync()
     {
         if (_employeeId is not Guid me) return;
@@ -377,6 +393,7 @@
         await LoadAsync();
     }
 
+    // Cancelling keeps the record (it is marked revoked, not deleted) so the history stays complete.
     private async Task RevokeAsync(Guid id)
     {
         if (_employeeId is not Guid me) return;
@@ -403,6 +420,7 @@
         await LoadAsync();
     }
 
+    // Status wording and colours: waiting to start, active, expired or cancelled.
     private static string StatusLabel(DelegationStatus s) => s switch
     {
         DelegationStatus.Upcoming => "در انتظار شروع",

@@ -3,11 +3,13 @@
    sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
    another is opened or anything outside is clicked. *@
 <nav class="lm" dir="rtl" aria-label="پیوندها">
+    @* While a dropdown is open or a search is shown, an invisible layer behind it closes everything when clicked. *@
     @if (_open is not null || Searching)
     {
         <div class="lm-backdrop" @onclick="Close"></div>
     }
     <ul class="lm-bar">
+        @* One dropdown button per top-level link group; the panel with its links appears only for the open one. *@
         @for (var i = 0; i < Tree.Groups.Count; i++)
         {
             var group = Tree.Groups[i];
@@ -22,6 +24,7 @@
                 }
             </li>
         }
+        @* Links that belong to no group are collected under one extra dropdown. *@
         @if (Tree.Ungrouped.Count > 0)
         {
             <li class="lm-item">
@@ -34,11 +37,13 @@
                 }
             </li>
         }
+        @* The search box appears only when the portal has more than 8 links in total. *@
         @if (Tree.TotalLinks > 8)
         {
             <li class="lm-item lm-search">
                 <i class="ti ti-search"></i>
                 <input type="search" placeholder="جستجو در پیوندها..." aria-label="جستجو در پیوندها" value="@_query" @oninput="OnSearch" />
+                @* Search results list every matching link together with the group path it lives in. *@
                 @if (Searching)
                 {
                     <div class="lm-panel is-flipped lm-results">
@@ -63,12 +68,15 @@
 </nav>
 
 @code {
+    // Which dropdown is open right now (nothing when closed), and the text typed in the search box.
     private const string OtherKey = "other";
     private string? _open;
     private string _query = "";
 
+    // The links tree (groups, sub-groups and ungrouped links) handed in by the home page.
     [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
 
+    // True while the search box holds some text.
     private bool Searching => _query.Trim().Length > 0;
 
     // The last dropdowns sit on the far side of the bar, so they open towards the middle instead of off the screen.

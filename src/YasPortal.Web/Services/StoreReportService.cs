@@ -6,11 +6,14 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Web.Services;
 
+// Store reports: the storekeeper's printable summaries (stock by group, out-of-stock items, goods handed out, items nobody
+// touches, order statuses, top requesters). Each report is returned as a simple table of text so one page can show, print and export all.
 public sealed record StoreReportTable(string Title, string Description, IReadOnlyList<string> Headers, IReadOnlyList<IReadOnlyList<string>> Rows);
 
 /// <summary>The store's printable reports. Every report is a plain table so the page can show it, print it and export it the same way.</summary>
 public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> dbFactory, StoreService store)
 {
+    // The list of available reports; the flags say whether a report needs a date range or a "days without movement" number.
     public static readonly IReadOnlyList<(string Key, string Name, bool UsesDates, bool UsesDays)> Kinds =
     [
         ("categories", "خلاصه گروه‌ها", false, false),
@@ -23,6 +26,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
 
     private static string Num(decimal v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
+    // Picks the right report by its key. The end date is made inclusive by moving to the start of the next day.
     public async Task<StoreReportTable> BuildAsync(string key, DateTime? from, DateTime? to, int dormantDays, CancellationToken ct = default)
     {
         var fromUtc = from?.Date.ToUniversalTime();
@@ -53,6 +57,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
         return new("خلاصه گروه‌ها", "تعداد کالاها در هر گروه و چند تا از کالاهای فعال ناموجودند.", ["گروه", "تعداد کالا", "کالای فعال", "فعال و ناموجود", "قرعه‌کشی"], rows);
     }
 
+    // Active items whose stock has reached zero, with the date of their last stock movement.
     private async Task<StoreReportTable> OutOfStockAsync(CancellationToken ct)
     {
         var items = await store.AllItemsAsync(new StoreItemFilter { Active = true, InStock = false, ActiveCategoriesOnly = true }, ct);
@@ -62,6 +67,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
         return new("کالاهای ناموجود", "کالاهای فعالی که موجودی‌شان صفر است و باید تأمین شوند.", ["کد", "کالا", "گروه", "واحد", "آخرین گردش"], rows);
     }
 
+    // Total quantity handed out per item in the period; undone hand-overs are cancelled out by their return entries.
     private async Task<StoreReportTable> IssuedAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -75,6 +81,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
         return new("کالاهای تحویل‌شده", "مقدار خارج‌شده از انبار برای هر کالا در بازهٔ انتخاب‌شده (بیشترین در بالا). واحدها فرق دارند، پس مقدارها را با هم جمع نکنید.", ["کد", "کالا", "گروه", "واحد", "مقدار تحویل", "تعداد دفعات"], rows);
     }
 
+    // "Dormant" items are in stock but have had no stock movement at all for the chosen number of days.
     private async Task<StoreReportTable> DormantAsync(int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 1, 3650);
@@ -97,6 +104,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
         return rows.Select(x => (x.EmployeeId, x.Status, x.Issued)).ToList();
     }
 
+    // Counts orders by status; approved orders are split into "waiting for hand-over" and "handed over".
     private async Task<StoreReportTable> OrdersAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -115,6 +123,7 @@ public sealed class StoreReportService(IDbContextFactory<ApplicationDbContext> d
         return new("وضعیت سفارش‌ها", "تعداد سفارش‌های ثبت‌شده در بازهٔ انتخاب‌شده به تفکیک وضعیت.", ["وضعیت", "تعداد سفارش"], table);
     }
 
+    // The 50 people with the most orders in the period, with how many were handed over and how many were rejected.
     private async Task<StoreReportTable> RequestersAsync(DateTime? fromUtc, DateTime? toUtc, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);

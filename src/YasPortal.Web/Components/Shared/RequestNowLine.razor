@@ -1,10 +1,12 @@
 @using YasPortal.Domain.Workflows
 
 @* One scannable line under a request card's title: which stage the request is at, who it waits for, and for how long. *@
+@* Shown only while the request has a current stage. The line is highlighted as late once it has waited three or more whole days. *@
 @if (_headline is not null)
 {
     <span class="rq-now @(_days >= 3 ? "is-late" : "")">
         <span class="rq-now-stage">مرحله @ToPersianDigits(_headline.StageNumber.ToString()) از @ToPersianDigits(_headline.StageCount.ToString())</span>
+        @* The names of the people or positions the request is waiting for (can be hidden by the page). *@
         @if (ShowWaitingFor)
         {
             <span class="rq-now-who"><i class="ti @Icons.Awaiting"></i> در انتظار @string.Join("، ", _headline.WaitingNames.Select(n => "«" + n + "»"))</span>
@@ -14,6 +16,7 @@
 }
 
 @code {
+    // The request to describe, handed in by the page.
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
 
     /// <summary>The approver's own inbox already names the step on the card, so it passes false to avoid saying it twice.</summary>
@@ -22,12 +25,14 @@
     private WorkflowRequestHeadline? _headline;
     private int _days;
 
+    // Worked out again each time the page hands in a request: the stage summary and how many whole days it has waited.
     protected override void OnParametersSet()
     {
         _headline = WorkflowRequestHeadline.Of(Request);
         _days = _headline is null ? 0 : WorkflowRequestHeadline.WholeDaysWaiting(_headline.WaitingSinceUtc, DateTime.UtcNow);
     }
 
+    // Wording for the waiting time: "since today", "since yesterday", or the number of days.
     private string AgeText() => _days switch
     {
         0 => "از امروز",
@@ -35,6 +40,7 @@
         _ => $"{ToPersianDigits(_days.ToString())} روز است",
     };
 
+    // Converts 0-9 into Persian digits.
     private static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";

@@ -2,6 +2,9 @@ using System.Security.Cryptography;
 
 namespace YasPortal.Domain.Store;
 
+// Lottery items in the store: some scarce items are not first-come-first-served. Employees apply during a period,
+// then a random draw picks the winners, and each winner automatically gets a store order for approval.
+// Entity = a row-shaped business object stored in the database; this file holds the application row and the draw rule.
 public enum LotteryEntryStatus
 {
     /// <summary>Waiting for the draw.</summary>
@@ -38,6 +41,7 @@ public sealed class StoreLotteryEntry
         AppliedAtUtc = DateTime.UtcNow;
     }
 
+    // Stored fields of the application: who applied, for which item, how much, and what happened after the draw.
     public Guid Id { get; private set; }
     public Guid ItemId { get; private set; }
     public Guid EmployeeId { get; private set; }
@@ -49,6 +53,7 @@ public sealed class StoreLotteryEntry
     /// <summary>The store order a win produced.</summary>
     public Guid? OrderId { get; private set; }
 
+    // Status changes are one-way: an application can only be withdrawn, won or lost while it is still waiting for the draw.
     public void Withdraw()
     {
         if (Status != LotteryEntryStatus.Applied) throw new InvalidOperationException("Only an application waiting for the draw can be withdrawn.");
@@ -73,6 +78,7 @@ public sealed class StoreLotteryEntry
 }
 
 /// <summary>The draw itself, free of storage so it can be tested.</summary>
+// The draw is pure logic with no database access, so the fairness rule can be tested and explained on its own.
 public static class StoreLottery
 {
     public static string StatusText(LotteryEntryStatus s) => s switch
@@ -91,6 +97,7 @@ public static class StoreLottery
     /// </summary>
     public static IReadOnlyList<Guid> Draw(IReadOnlyList<(Guid Id, decimal Quantity)> applicants, decimal stock, Func<int, int>? next = null)
     {
+        // Shuffle the applicants (random order), then walk through them handing out stock while enough remains.
         next ??= RandomNumberGenerator.GetInt32;
         var order = applicants.ToList();
         for (var i = order.Count - 1; i > 0; i--)

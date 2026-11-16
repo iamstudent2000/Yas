@@ -14,6 +14,9 @@
 @inject WorkflowService Workflows
 @inject IPermissionChecker Permissions
 
+@* Dashboard: the overview page for a signed-in person. It shows a greeting, the account and active position, quick links, *@
+@* and statistics blocks. Each statistics block appears only if the person holds its permission: "mine" (own requests), *@
+@* "team" (requests of subordinates) and "system" (everything, for administrators). *@
 <PageTitle>داشبورد - یاس پورتال</PageTitle>
 
 <AuthorizeView Context="auth">
@@ -33,6 +36,7 @@
                 <span class="badge badge-success"><i class="ti @Icons.Success"></i> حساب فعال</span>
             </div>
 
+            @* Welcome banner. Administrators see their access level; employees see the position they are currently acting in. *@
             <section class="dash-hero">
                 <svg class="dash-hero-bloom" viewBox="0 0 100 100" aria-hidden="true">
                     <use href="#jasmine-bloom-outline" />
@@ -61,6 +65,7 @@
             </section>
 
             <div class="dash-columns">
+                @* Short facts about the account. *@
                 <section class="dash-facts">
                     <div class="dash-fact">
                         <i class="ti @Icons.Profile"></i>
@@ -79,6 +84,7 @@
                     }
                 </section>
 
+                @* Quick links; the links offered differ between administrators and employees. *@
                 <section class="dash-links">
                     <h2 class="section-title">دسترسی سریع</h2>
                     <a class="dash-link" href="/my-profile">
@@ -105,6 +111,7 @@
                 </section>
             </div>
 
+            @* Statistics area. The time-range buttons (30 days, 90 days, one year, all) reload every block below them. *@
             <section class="dash-insights" aria-live="polite">
                 <div class="dash-insights-head">
                     <h2 class="section-title"><i class="ti @Icons.Reports"></i> آمار و گزارش‌ها</h2>
@@ -121,6 +128,7 @@
                     <LoadingState />
                 }
 
+                @* Block 1, "my requests": counts of my requests, approvals waiting for me, unseen updates and delegations given to me. *@
                 @if (_mine is not null)
                 {
                     <h3 class="dash-group-title">درخواست‌های من</h3>
@@ -136,6 +144,7 @@
                     </div>
                 }
 
+                @* Block 2, requests registered by people below me in the organization, with the average time to final approval. *@
                 @if (_team is not null)
                 {
                     <h3 class="dash-group-title">درخواست‌های زیرمجموعه</h3>
@@ -152,6 +161,8 @@
                     </div>
                 }
 
+                @* Block 3, whole system: totals, active users, organizations and vacant positions, charts, slowest approving positions, *@
+                @* requests waiting longest now, and the busiest organizations and requesters. *@
                 @if (_system is not null && _insights is not null)
                 {
                     <h3 class="dash-group-title">کل سامانه</h3>
@@ -222,6 +233,7 @@
 @code {
     private string? _activePositionName;
 
+    // The time ranges offered; "all" means no start date. Choosing one reloads the statistics.
     private static readonly (string Key, string Text)[] RangeOptions = [("30", "۳۰ روز اخیر"), ("90", "۹۰ روز اخیر"), ("365", "یک سال اخیر"), ("all", "همه")];
     private string _range = "90";
     private bool _loading;
@@ -231,6 +243,7 @@
     private AdminInsights? _insights;
     private int _inboxCount, _unseenCount, _delegationCount;
 
+    // Formats a number with thousands separators and Persian digits.
     private static string Fa(int n) => WorkflowDisplay.ToPersianDigits(n.ToString("N0", System.Globalization.CultureInfo.InvariantCulture));
 
     private async Task SetRangeAsync(string key)
@@ -272,6 +285,7 @@
     /// The name of the position the user is acting as. The sign-in only carries the position's id, so the name is looked up;
     /// when the id is missing or no longer one of the user's positions, the first current position is shown (the same fallback the top-bar picker uses).
     /// </summary>
+    // Works out who is signed in and which dashboard blocks they may see; administrators do not get the "my requests" block.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -296,6 +310,7 @@
         await LoadInsightsAsync();
     }
 
+    // Greeting by time of day (morning, noon, afternoon, evening).
     private static string GetGreeting() => DateTime.Now.Hour switch
     {
         >= 5 and < 12 => "صبح بخیر",

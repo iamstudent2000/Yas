@@ -1,6 +1,7 @@
 @using YasPortal.Domain.Landing
 @* The inside of a group of the links menu: its own links, then each sub-group as an openable section. *@
 @if (Node.Links.Count > 0)
+@* First this group's own links, then each sub-group, which is drawn as a collapsible section. *@
 {
     <ul class="lm-links">
         @foreach (var link in Node.Links)
@@ -15,6 +16,8 @@
 }
 
 @code {
+    // The group of the links menu to draw, including its links and sub-groups.
     [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
+    // How deep this group sits in the tree (0 = top group).
     [Parameter] public int Depth { get; set; }
 }

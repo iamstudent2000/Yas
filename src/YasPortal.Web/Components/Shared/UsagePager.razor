@@ -1,3 +1,4 @@
+@* Small previous / next page control. It is not drawn at all when everything fits on one page. *@
 @if (TotalPages > 1)
 {
     <div class="usage-pager">
@@ -12,11 +13,13 @@
 }
 
 @code {
+    // The page hands in the current page, the total number of items and the page size, and is told which page to show next.
     [Parameter] public int Page { get; set; } = 1;
     [Parameter] public int TotalCount { get; set; }
     [Parameter] public int PageSize { get; set; } = 6;
     [Parameter] public EventCallback<int> PageChanged { get; set; }
 
+    // Number of pages needed, never less than one.
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
 
     private Task Go(int page) => PageChanged.InvokeAsync(Math.Clamp(page, 1, TotalPages));
