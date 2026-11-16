@@ -5,10 +5,12 @@
 @{
     var stages = Steps.GroupBy(x => x.Order).OrderBy(g => g.Key).ToList();
 }
+@* Draw each stage. A stage that has several members is a parallel stage: several positions decide side by side. *@
 @foreach (var stage in stages)
 {
     var members = stage.OrderBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id).ToList();
     var parallel = members.Count > 1;
+    @* The stage is 'live' (waiting for a decision right now) only when the request is pending approval and this is its current step. *@
     var live = RequestStatus == WorkflowRequestStatus.PendingApproval && members[0].Round == CurrentRound && stage.Key == CurrentStepOrder;
     var summary = WorkflowStageSummary.Of(members, live);
     var stateClass = WorkflowDisplay.StageStateClass(summary.State);
@@ -16,6 +18,7 @@
         <div class="stage-card-head">
             <span class="rt-stage-icon @stateClass"><i class="ti @WorkflowDisplay.StageStateIcon(summary.State)"></i></span>
             <strong>مرحله @ToPersianDigits(stage.Key.ToString())</strong>
+            @* Parallel stage badges: whether one approval is enough or all are needed, whether a rejection counts at once or after everybody answered. *@
             @if (parallel)
             {
                 <span class="badge badge-info"><i class="ti @Icons.Parallel"></i> موازی</span>
@@ -28,6 +31,7 @@
             }
             <span class="badge @WorkflowDisplay.StageStateBadgeClass(summary.State) rt-stage-status">@WorkflowDisplay.StageStateLabel(summary.State)</span>
         </div>
+        @* One row per step (approver position) inside the stage, with its outcome, who decided, when, and their comment. *@
         <div class="stage-members">
             @foreach (var step in members)
             {
@@ -41,6 +45,7 @@
                     <div class="rt-member-body">
                         <div class="rt-member-title">
                             <strong>@step.Name</strong>
+                            @* Badges that point the viewer to their own step: 'your turn', or 'your decision' in history views. *@
                             @if (YourStepId == step.Id)
                             {
                                 <span class="badge badge-info">نوبت شماست</span>
@@ -75,12 +80,15 @@
                                 <span> · @actedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
                             }
                         </div>
+                        @* The comment the approver wrote with the decision, if any. *@
                         @if (!string.IsNullOrWhiteSpace(step.Comment))
                         {
                             <div class="approval-step-comment">«@step.Comment»</div>
                         }
                         @if (earlierPasses.Count > 0)
                         {
+                            @* Earlier decisions on this same step (when a later step returned the request and this step had to decide again). *@
+                            @* The audit trail keeps every pass; nothing is overwritten. *@
                             <div class="approval-step-earlier-passes">
                                 @foreach (var earlier in earlierPasses)
                                 {
@@ -108,6 +116,7 @@
             }
         </div>
     </div>
+    @* Arrow between stages (not after the last one). *@
     @if (stage.Key != stages[^1].Key)
     {
         <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
@@ -115,6 +124,8 @@
 }
 
 @code {
+    // Parameters handed in by the page: the steps to draw, the current round and step position, the request status, name lookups
+    // (people and the holders of positions) and the decision history.
     [Parameter, EditorRequired] public IEnumerable<WorkflowRequestStep> Steps { get; set; } = [];
     [Parameter] public int CurrentRound { get; set; }
     [Parameter] public int CurrentStepOrder { get; set; }
@@ -140,6 +151,7 @@
     /// <summary>Whether to show the current holder's name on the current (awaiting-action) step too, not just queued ones.</summary>
     [Parameter] public bool ShowHolderForCurrentStep { get; set; } = true;
 
+    // Shows numbers with Persian digits instead of 0-9.
     private static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";

@@ -1,11 +1,16 @@
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Services
+@* The search form above request lists (all requests, my requests, inbox history, team history). Which filters appear depends on the page: *@
+@* the page switches the optional ones on with parameters. Nothing is searched while the person types or picks; the filters only *@
+@* take effect when the search button is pressed, and the page then reloads from page 1. *@
 @inject AdminQueryService AdminQueries
 
+@* The surrounding card (search and clear buttons, optional exports, sort choice, count of active filters). The filters below go inside it. *@
 <ListFilterBar Busy="Busy" ExportPermission="@(ExportPermission)" OnExport="OnExport" OnExportSteps="OnExportSteps" Exporting="Exporting" ActiveCount="ActiveCount" CanClear="@(!(Filter.IsEmpty && _d.IsEmpty))" OnSearch="SearchAsync" OnClear="ClearAsync" FilterSnapshot="@(() => Filter)"
                SortOptions="SortOptions" Sort="@(Sort)" DefaultSort="@(DefaultSort)" SortChanged="SortChanged">
     <div class="admin-filter">
+        @* Free-text filters: part of the request id, and any text typed anywhere in the request form (for example an item name). *@
         <label class="form-label">شناسه درخواست</label>
         <input @key="_resetKey" class="form-control" placeholder="مثلا a1b2c3d4" @bind="_d.IdText" @bind:event="oninput" />
     </div>
@@ -14,6 +19,7 @@
         <input @key="_resetKey" class="form-control" placeholder="بخشی از هر فیلد، مثلا نام کالا" @bind="_d.Text" @bind:event="oninput" />
     </div>
     <div class="admin-filter">
+        @* Pick-lists with fixed choices: request type and priority. *@
         <label class="form-label">نوع درخواست</label>
         <LookupSelect @key="_resetKey" Options="_typeOptions" Value="@(_d.Type?.ToString())" ValueChanged="k => _d.Type = Enum.TryParse<WorkflowTypeCode>(k, out var t) ? t : null" Placeholder="همه انواع" />
     </div>
@@ -21,6 +27,7 @@
         <label class="form-label">اولویت</label>
         <LookupSelect @key="_resetKey" Options="_priorityChoices" Value="@(_d.PriorityRank?.ToString())" ValueChanged="k => _d.PriorityRank = int.TryParse(k, out var rank) ? rank : null" Placeholder="همه اولویت‌ها" />
     </div>
+    @* Status filter, offered only when the page lists more than one status. *@
     @if (StatusOptions.Count > 0)
     {
         <div class="admin-filter">
@@ -28,6 +35,7 @@
             <LookupSelect @key="_resetKey" Options="_statusChoices" Value="@(_d.Status?.ToString())" ValueChanged="OnStatusChanged" Placeholder="همه وضعیت‌ها" />
         </div>
     }
+    @* Requester filter: searches employees in the database while the person types. *@
     @if (ShowRequester)
     {
         <div class="admin-filter">
@@ -37,6 +45,7 @@
                                         Placeholder="همه درخواست‌کننده‌ها" SearchPlaceholder="نام، کد یا نام کاربری..." />
         </div>
     }
+    @* Current-step filter: choose among the step names used by the workflows. *@
     @if (ShowStep)
     {
         <div class="admin-filter">
@@ -44,6 +53,7 @@
             <LookupSelect @key="_resetKey" Options="_stepChoices" Value="@(_d.StepName)" ValueChanged="k => _d.StepName = k" Placeholder="همه مرحله‌ها" />
         </div>
     }
+    @* Requester-position filter with a fixed list; used where the viewer may only see part of the organisation (their subordinates). *@
     @if (PositionOptions is not null)
     {
         <div class="admin-filter">
@@ -51,6 +61,8 @@
             <LookupSelect @key="_resetKey" Options="PositionOptions" Value="@(_d.RequesterPositionId?.ToString())" ValueChanged="k => _d.RequesterPositionId = Guid.TryParse(k, out var chosenPosition) ? chosenPosition : null" Placeholder="همه سمت‌های زیرمجموعه" />
         </div>
     }
+    @* Advanced filters for administrators only: how it was cancelled (by the requester or closed by an admin), requester position and *@
+    @* organisation, which position the request is waiting on, who made a decision, and 'created by an admin for someone else'. *@
     @if (ShowAdminExtras)
     {
         <div class="admin-filter">
@@ -81,19 +93,23 @@
                                         SearchAsync="SearchEmployeesAsync" SelectedText=""
                                         Placeholder="همه" SearchPlaceholder="نام، کد یا نام کاربری..." />
         </div>
+        @* Tick box: only requests that an administrator created on behalf of the requester. *@
         <div class="admin-filter admin-filter-check">
             <label class="check-row"><input @key="_resetKey" type="checkbox" checked="@_d.CreatedByAdminOnly" @onchange="e => _d.CreatedByAdminOnly = (bool)(e.Value ?? false)" /> <span>فقط ثبت‌شده توسط مدیر</span></label>
         </div>
     }
+    @* Date range of submission (from / to), using the Persian calendar picker. *@
     <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.From" ValueChanged="d => _d.From = d" Placeholder="تاریخ شروع" /></div>
     <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_resetKey" Value="_d.To" ValueChanged="d => _d.To = d" Placeholder="تاریخ پایان" /></div>
 </ListFilterBar>
 
 @code {
+    // Parameters handed in by the page. Filter is the page's own filter object that is updated when the search button is pressed.
     [Parameter, EditorRequired] public WorkflowRequestFilter Filter { get; set; } = new();
 
     /// <summary>The statuses offered in the status filter; empty hides it (the list is already one status).</summary>
     [Parameter] public IReadOnlyList<WorkflowRequestStatus> StatusOptions { get; set; } = [];
+    // Switches that decide which optional filters are shown.
     [Parameter] public bool ShowRequester { get; set; } = true;
     [Parameter] public bool ShowStep { get; set; }
 
@@ -131,11 +147,13 @@
     [Parameter] public EventCallback OnExportSteps { get; set; }
 
     // Edits are kept in a draft and only applied to Filter when the search button is pressed — nothing searches while typing or picking.
+    // Internal state: _d is the draft copy being edited; _resetKey is bumped to rebuild the pick-lists so they show 'all' again.
     private readonly WorkflowRequestFilter _d = new();
     private string _requesterText = "", _positionText = "";
     private IReadOnlyList<string> _stepNames = [];
     private int _resetKey;
 
+    // Fixed choice lists: request types, how a request was cancelled, priorities (highest first), statuses and step names.
     private static readonly IReadOnlyList<(string Key, string Text)> _typeOptions =
         WorkflowFieldCatalog.AllTypes.Select(t => (t.ToString(), WorkflowFieldCatalog.GetDisplayName(t))).ToList();
     private static readonly IReadOnlyList<(string Key, string Text)> _cancelChoices =
@@ -148,6 +166,7 @@
     private IReadOnlyList<(string Key, string Text)> _statusChoices => StatusOptions.Select(x => (x.ToString(), WorkflowDisplay.StatusLabel(x))).ToList();
     private IReadOnlyList<(string Key, string Text)> _stepChoices => _stepNames.Select(n => (n, n)).ToList();
 
+    // On first display, copy the current filter into the draft and load the step names if the step filter is shown.
     protected override async Task OnInitializedAsync()
     {
         _d.CopyFrom(Filter);
@@ -155,12 +174,14 @@
             _stepNames = await AdminQueries.GetWorkflowStepNamesAsync();
     }
 
+    // How many filters currently have a value; shown as a counter on the filter card.
     private int ActiveCount =>
         (Filter.Status is null ? 0 : 1) + (Filter.PriorityRank is null ? 0 : 1) + (Filter.CancelledBy is null ? 0 : 1) + (Filter.Type is null ? 0 : 1) + (Filter.From is null ? 0 : 1) + (Filter.To is null ? 0 : 1)
         + (Filter.RequesterEmployeeId is null && string.IsNullOrWhiteSpace(Filter.RequesterName) ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.StepName) ? 0 : 1)
         + (string.IsNullOrWhiteSpace(Filter.IdText) ? 0 : 1) + (Filter.RequesterPositionId is null ? 0 : 1) + (Filter.CreatedByAdminOnly ? 1 : 0)
         + (Filter.RequesterOrganizationId is null ? 0 : 1) + (Filter.WaitingAtPositionId is null ? 0 : 1) + (Filter.ActedByEmployeeId is null ? 0 : 1) + (string.IsNullOrWhiteSpace(Filter.Text) ? 0 : 1);
 
+    // Database searches used by the type-to-search pickers: employees, positions and organisations.
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchEmployeesAsync(search, ct);
 
@@ -178,6 +199,7 @@
             _d.CancelledBy = null;
     }
 
+    // Choosing a cancellation kind implies the status 'cancelled'.
     private void OnCancelKindChanged(string? key)
     {
         _d.CancelledBy = Enum.TryParse<WorkflowRequestFilter.CancelKind>(key, out var k) ? k : null;
@@ -191,12 +213,14 @@
         return Task.CompletedTask;
     }
 
+    // Search button: apply the draft to the real filter and tell the page to reload.
     private async Task SearchAsync()
     {
         Filter.CopyFrom(_d);
         await Changed.InvokeAsync();
     }
 
+    // Clear button: reset every filter and tell the page to reload.
     private async Task ClearAsync()
     {
         Filter.Clear();
