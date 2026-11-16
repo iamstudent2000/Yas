@@ -14,6 +14,9 @@
 @inject AppState AppState
 @inject IJSRuntime JS
 
+@* Store admin: warehouse (address /admin/store/stock), for people with the view-stock permission. *@
+@* Two tabs: the current stock level of every item, and the movement log (every receipt, issue and correction). *@
+@* People who may manage stock can also record a movement; others only look. The page can be printed. *@
 <PageTitle>انبار فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -36,6 +39,8 @@
     else
     {
         <div class="admin-stack">
+            @* Form to record a stock movement: item, kind, quantity, reference (invoice or transfer note) and a note. *@
+            @* Pressing the check button first shows the stock before and after, so a typing mistake is caught before anything is saved. *@
             @if (_canManage)
             {
                 <section class="card admin-form-row no-print">
@@ -55,6 +60,7 @@
                             <button class="btn btn-primary" disabled="@(_busy || _preview is not null)" @onclick="PrepareAsync"><i class="ti @Icons.Save"></i> بررسی و ثبت</button>
                         </div></div>
                     </div>
+                    @* The before / after preview and the confirm and cancel buttons. *@
                     @if (_preview is not null)
                     {
                         <div class="card" style="border-color:var(--accent,#155eef);margin-top:10px">
@@ -71,12 +77,16 @@
             }
 
             <div class="form-actions no-print">
+                @* Tab switch: stock levels or movement log. *@
                 <button class="btn @(_tab == "levels" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTabAsync("levels")'>موجودی کالاها</button>
                 <button class="btn @(_tab == "moves" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTabAsync("moves")'>گردش انبار</button>
             </div>
 
+            @* Stock levels tab: filter by name or code, category and in-stock or out-of-stock; one row per item with its stock. *@
+            @* (The movement log tab is the other half of this condition.) *@
             @if (_tab == "levels")
             {
+                @* Filter card for the levels tab, applied only when the search button is pressed. *@
                 <ListFilterBar Busy="_busy" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_categoryId is null ? 0 : 1) + (_stockFilter is null ? 0 : 1))"
                                CanClear="@(!string.IsNullOrWhiteSpace(_search) || _categoryId is not null || _stockFilter is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dCategory is not null || _dStock is not null)"
                                OnSearch="ApplyLevelsAsync" OnClear="ClearLevelsAsync">
@@ -93,6 +103,7 @@
                         <table class="data-table">
                             <thead><tr><SortableHeader Text="کد" Column="code" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lSort" CurrentDescending="@_lDesc" OnSort="LevelSortBy" /></tr></thead>
                             <tbody>
+                                @* One row per item: code, name, unit and the quantity currently in stock. *@
                                 @foreach (var i in _levels.Rows)
                                 {
                                     <tr>
@@ -110,6 +121,7 @@
             }
             else
             {
+                @* Filter card for the movement log: item, kind of movement, reference text and date range. *@
                 <ListFilterBar Busy="_busy" ActiveCount="@((_moveItemId is null ? 0 : 1) + (_moveKind is null ? 0 : 1) + (string.IsNullOrWhiteSpace(_moveText) ? 0 : 1) + (_moveFrom is null ? 0 : 1) + (_moveTo is null ? 0 : 1))"
                                CanClear="@(_moveItemId is not null || _moveKind is not null || !string.IsNullOrWhiteSpace(_moveText) || _moveFrom is not null || _moveTo is not null || _dMoveItem is not null || _dMoveKind is not null || !string.IsNullOrWhiteSpace(_dMoveText) || _dMoveFrom is not null || _dMoveTo is not null)"
                                OnSearch="ApplyMovesAsync" OnClear="ClearMovesAsync"
@@ -129,6 +141,7 @@
                         <table class="data-table">
                             <thead><tr><SortableHeader Text="زمان" Column="time" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="کالا" Column="item" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="نوع" Column="kind" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="مقدار" Column="delta" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="مرجع" Column="ref" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="توضیح" Column="note" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /><SortableHeader Text="ثبت‌کننده" Column="by" CurrentSort="@_mSort" CurrentDescending="@_mDesc" OnSort="MoveSortBy" /></tr></thead>
                             <tbody>
+                                @* One row per movement: when, item, kind, quantity change, unit and the reference it came from. *@
                                 @foreach (var m in _moves.Rows)
                                 {
                                     <tr>
@@ -151,6 +164,7 @@
 </div>
 
 @code {
+    // State of the page: may the person manage stock, which tab is open, and the filters (typed values versus applied values).
     private bool _loading = true, _busy, _canManage;
     private Guid? _employeeId;
     private string _tab = "levels", _search = "";
@@ -165,6 +179,7 @@
 
     private bool _exporting;
 
+    // Export the movement log, for the current filters, as a CSV file that the browser downloads (first 20,000 rows).
     private async Task ExportMovesAsync()
     {
         _exporting = true;
@@ -186,22 +201,29 @@
     private bool _lDesc;
     private string? _mSort = "time";
     private bool _mDesc = true;
+    // Sorting by a column heading on each tab; the movement log starts with the newest first.
     private async Task LevelSortBy(string col) { (_lSort, _lDesc) = TableSort.Toggle(_lSort, _lDesc, col); _pageNo = 1; await LoadAsync(); }
     private async Task MoveSortBy(string col) { (_mSort, _mDesc) = TableSort.Toggle(_mSort, _mDesc, col); _pageNo = 1; await LoadAsync(); }
+    // Fixed choices: in stock or out of stock.
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "فقط موجود"), ("out", "فقط ناموجود")];
+    // Paging, and the current page of stock levels or movements loaded from the database.
     private int _pageNo = 1, _pageSize = 20, _formKey;
     private StorePage<StoreItemRow> _levels = new([], 0);
     private StorePage<StoreMovementRow> _moves = new([], 0);
     private IReadOnlyList<(string Key, string Text)> ItemOptions = [], CategoryOptions = [];
+    // The kinds of movement: receive, issue and adjustment.
     private static readonly IReadOnlyList<(string Key, string Text)> KindOptions =
         Enum.GetValues<StockMovementKind>().Select(k => (((int)k).ToString(), StoreService.KindLabel(k))).ToList();
 
+    // What is typed in the 'record a movement' form.
     private Guid? _formItemId;
     private StockMovementKind _formKind = StockMovementKind.Receive;
     private string _formQuantity = "", _formReference = "", _formNote = "";
 
+    // Shows a quantity with Persian digits and without needless decimals.
     private static string Num(decimal v) => WorkflowDisplay.ToPersianDigits(v.ToString("0.###"));
 
+    // On opening: find out whether the person may manage stock and who they are, load the pick-lists and the first page.
     protected override async Task OnInitializedAsync()
     {
         _canManage = await PermissionChecker.HasPermissionAsync(Perm.StoreStockManage);
@@ -212,18 +234,21 @@
         _loading = false;
     }
 
+    // Load the categories and the items used by the pick-lists.
     private async Task LoadOptionsAsync()
     {
         CategoryOptions = (await Store.ListCategoriesAsync(true)).Select(c => (c.Id.ToString(), c.Name)).ToList();
         ItemOptions = (await Store.AllItemsAsync(null, null)).Select(i => (i.Id.ToString(), $"{i.Name} ({i.Code})")).ToList();
     }
 
+    // Load the current page of the open tab (stock levels or movement log).
     private async Task LoadAsync()
     {
         if (_tab == "levels") _levels = await Store.SearchItemsAsync(new StoreItemFilter { Search = _search, CategoryId = _categoryId, InStock = _stockFilter switch { "in" => true, "out" => false, _ => null }, Sort = _lSort, Descending = _lDesc }, _pageNo, _pageSize);
         else _moves = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), _pageNo, _pageSize, _moveText, _mSort, _mDesc);
     }
 
+    // The before / after figures shown for a movement that has been checked but not yet saved.
     private sealed record MovementPreview(string ItemName, string Unit, decimal Current, decimal After);
     private MovementPreview? _preview;
 
@@ -231,6 +256,8 @@
     private void SetFormItem(string? k) { _formItemId = Guid.TryParse(k, out var g) ? g : null; _preview = null; }
     private void SetFormKind(string? k) { _formKind = Enum.TryParse<StockMovementKind>(k, out var v) ? v : StockMovementKind.Receive; _preview = null; }
 
+    // Check button: validate the form (item chosen, non-zero quantity, positive for receipts and issues, enough stock for an issue)
+    // and compute the stock after the movement.
     /// <summary>Shows what the stock will be before anything is written, so a typo (500 instead of 50) is caught by the person, not by a later report.</summary>
     private async Task PrepareAsync()
     {
@@ -246,6 +273,7 @@
         _preview = new MovementPreview(item.Name, item.Unit, current, after);
     }
 
+    // Confirm button: save the movement in the stock log as the signed-in person, then clear the form and reload.
     private async Task RecordAsync()
     {
         if (_busy) return;
@@ -264,7 +292,9 @@
         finally { _busy = false; }
     }
 
+    // Switching tab starts again from page 1.
     private async Task SwitchTabAsync(string tab) { _tab = tab; _pageNo = 1; await LoadAsync(); }
+    // Search button on the levels tab: apply the typed filters and go back to page 1.
     private async Task ApplyLevelsAsync()
     {
         _search = _dSearch.Trim();
@@ -274,8 +304,10 @@
         await LoadAsync();
     }
 
+    // Clear button on the levels tab.
     private async Task ClearLevelsAsync() { _dSearch = ""; _dCategory = _dStock = null; await ApplyLevelsAsync(); }
 
+    // Search button on the movement tab: apply the typed filters and go back to page 1.
     private async Task ApplyMovesAsync()
     {
         _moveItemId = Guid.TryParse(_dMoveItem, out var g) ? g : null;
