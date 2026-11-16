@@ -13,6 +13,9 @@
 @inject AppState AppState
 @inject ReportExportService Reports
 
+@* Admin page 'organisations' (address /admin/organizations). An organisation is a unit of the company that employees belong to. *@
+@* People with the manage permission can add and rename organisations, switch them on or off, and move employees between them. *@
+@* An organisation that still has employees cannot be switched off. *@
 <PageTitle>سازمان‌ها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -40,6 +43,7 @@
     </div>
     <div class="admin-stack">
 @if (_canManage) {
+@* Form to add a new organisation or edit the selected one (a unique code and a unique name). *@
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
@@ -61,6 +65,8 @@
     </section>
 }
 
+            @* Filters: name or code, active or inactive, whether it has employees, and a particular employee. *@
+            @* They apply when the search button is pressed. *@
             <ListFilterBar Busy="_organizationLoading" ActiveCount="OrganizationFilterCount"
                            CanClear="@(OrganizationFilterCount > 0 || _draftOrganizationSearch != "" || _dOrgStatus != "" || _dOrgEmployees != "" || _dOrgEmployeeId is not null)"
                            OnSearch="SearchOrganizationsFilterAsync" OnClear="ClearOrganizationFilterAsync" ExportPermission="@(ReportPermissions.Organizations)" OnExport="ExportOrganizationsAsync" Exporting="_orgExporting">
@@ -75,6 +81,7 @@
                                                 SearchAsync="SearchEmployeesFilterAsync" Placeholder="همه کارکنان" SearchPlaceholder="نام، کد یا نام کاربری..." /></div>
             </ListFilterBar>
 
+            @* The list of organisations, one page at a time, with buttons to edit and to switch each one on or off. *@
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
@@ -136,12 +143,15 @@
                             </table>
                         </div>
                     }
+                    @* Page navigation for the list of organisations. *@
                     <ServerPagination Page="@_organizationPage" PageSize="@_organizationPageSize"
                                       TotalCount="@_organizationTotal" Busy="@_organizationLoading" PageChanged="OrganizationPageChanged"
                                       PageSizeChanged="OrganizationPageSizeChanged" />
                 </section>
             </div>
             @if (_canManage) {
+@* Assign employees to organisations: employees are listed under their current organisation, and each row has a picker to *@
+@* move that employee to another active organisation. The change is saved at once. *@
 <section class="card organization-assignment">
                 <div class="card-toolbar">
                     <div>
@@ -183,6 +193,7 @@
                     else
                     {
                         <div class="org-assign-sections">
+                            @* One collapsible block per organisation, listing its employees. *@
                             @foreach (var group in _employeeGroups)
                             {
                                 var collapsed = _collapsedOrgGroups.Contains(group.Key);
@@ -236,8 +247,11 @@ _organizationPage = 1, _organizationPageSize = 20, _organizationTotal, _activeOr
         _allEmployees.Where(x => _orgAssignVisibleIds is null || _orgAssignVisibleIds.Contains(x.Id))
             .GroupBy(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!)
             .OrderBy(g => g.Key);
+    // On opening: find out whether the person may manage organisations, then load everything.
     protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminOrganizationsManage); await LoadAsync(); }
+    // Load the organisations, the employees and the summary numbers.
     private async Task LoadAsync() { await LoadOrganizationsAsync(); await LoadEmployeesAsync(); await LoadStatsAsync(); }
+    // Load one page of organisations for the applied filters and sort order.
     private async Task LoadOrganizationsAsync()
     {
         _organizationLoading = true; try
@@ -256,6 +270,7 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
         finally { _organizationLoading = false; }
     }
     private bool _orgExporting;
+    // Export button: download every organisation the search matched (not only this page) as a file.
     /// <summary>Exports every organization the last search matched, in the table's current order.</summary>
     private async Task ExportOrganizationsAsync()
     {
@@ -270,12 +285,14 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
         }
         finally { _orgExporting = false; }
     }
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private async Task SortOrganizationsByAsync(string column)
     {
         if (_orgSortBy == column) _orgSortDesc = !_orgSortDesc; else { _orgSortBy = column; _orgSortDesc = false; }
         _organizationPage = 1;
         await LoadOrganizationsAsync();
     }
+    // Load the employees shown in the assignment section, grouped by organisation.
     private async Task LoadEmployeesAsync()
     {
         _employeeLoading = true; try
@@ -292,6 +309,7 @@ reset.Items.ToList(); _organizationTotal = reset.TotalCount;
         }
         finally { _employeeLoading = false; }
     }
+    // Load the summary numbers shown at the top of the page.
     private async Task LoadStatsAsync()
     {
         await using var db = await
@@ -299,6 +317,7 @@ DbFactory.CreateDbContextAsync(); _activeOrganizationCount = await db.Organizati
     }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken
 ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+    // Collapse or expand one organisation block; the next buttons do it for all blocks at once.
     private void ToggleOrgGroup(string key) { if (!_collapsedOrgGroups.Add(key)) _collapsedOrgGroups.Remove(key); }
     private void ExpandAllOrgGroups() { ClearEmployeeSearch(); _collapsedOrgGroups.Clear(); }
     private void CollapseAllOrgGroups()
@@ -308,6 +327,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         foreach (var key in _allEmployees.Select(x => string.IsNullOrWhiteSpace(x.OrganizationName) ? "بدون سازمان" : x.OrganizationName!).Distinct())
             _collapsedOrgGroups.Add(key);
     }
+    // Work out which employees match the text typed in the assignment search box.
     private void RecomputeOrgAssignVisible()
     {
         var q = _employeeSearch.Trim();
@@ -332,6 +352,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
     private int OrganizationFilterCount => (_organizationSearch.Trim().Length > 0 ? 1 : 0) + (_orgStatus != "" ? 1 : 0) + (_orgEmployees != "" ? 1 : 0) + (_orgEmployeeId is null ? 0 : 1);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesFilterAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
 
+    // Search button: apply the typed filter and go back to page 1. Clear button: empty it.
     private async Task SearchOrganizationsFilterAsync()
     {
         _organizationSearch = _draftOrganizationSearch.Trim();
@@ -345,6 +366,7 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         _orgResetKey++;
         _organizationPage = 1; await LoadOrganizationsAsync();
     }
+    // The employee search box of the assignment section.
     private void EmployeeSearchChanged(KeyboardEventArgs e) => RecomputeOrgAssignVisible();
     private void ClearEmployeeSearch() { _employeeSearch = ""; _orgAssignVisibleIds = null; _orgAssignMatchCount = 0; }
     private async Task OrganizationPageChanged(int page) { _organizationPage = page; await LoadOrganizationsAsync(); }
@@ -353,8 +375,10 @@ ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
         _organizationPageSize = size; _organizationPage = 1; await
 LoadOrganizationsAsync();
     }
+    // Edit button on a row: copy that organisation into the form. Cancel returns the form to 'add a new organisation'.
     private void BeginEdit(AdminQueryService.OrganizationPageRow x) { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; }
     private void CancelEdit() { _editingId = null; _code = string.Empty; _name = string.Empty; }
+    // Save button: the code and name are required and must not be used by another organisation; then create or update it.
     private async Task SaveOrganization()
     { if (!_canManage) return;
         var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
@@ -379,6 +403,7 @@ db.Organizations.AnyAsync(x => x.Name == name && x.Id != (_editingId ?? Guid.Emp
         else { db.Organizations.Add(new Organization(code, name)); AppState.AddToast("سازمان جدید ایجاد شد.", ToastLevel.Success); }
         await db.SaveChangesAsync(); CancelEdit(); await LoadAsync();
     }
+    // Switch an organisation on or off. Switching off is refused while it still has employees.
     private async Task ToggleOrganization(Guid id)
     { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); var x = await
@@ -391,6 +416,7 @@ db.Organizations.Include(o => o.Employees).SingleAsync(x => x.Id == id); if (x.I
             x.Activate(); await db.SaveChangesAsync(); AppState.AddToast(x.IsActive ? "سازمان فعال شد." : "سازمان غیرفعال شد.",
 ToastLevel.Success); await LoadAsync();
     }
+    // Move one employee to another organisation; only an active organisation can be chosen.
     private async Task ChangeEmployeeOrganization(Guid employeeId, Guid? organizationId)
     { if (!_canManage) return;
         if (organizationId is not Guid
@@ -404,5 +430,6 @@ db.Employees.SingleAsync(x => x.Id == employeeId); employee.ChangeOrganization(o
 db.SaveChangesAsync(); AppState.AddToast($"سازمان «{organization.Name}» ثبت شد.", ToastLevel.Success); await
 LoadEmployeesAsync(); await LoadOrganizationsAsync();
     }
+    // The first letter of a name, shown in the round badge in front of it.
     private static string GetInitial(string value) => string.IsNullOrWhiteSpace(value) ? "ک" : value.Trim()[0].ToString();
 }
