@@ -12,6 +12,11 @@
 @inject WorkflowService WorkflowSvc
 @inject AppState AppState
 
+@* Admin page 'workflow steps' (address /admin/workflows). For every type of request (leave, purchase, helpdesk and so on) *@
+@* this page defines the approval path: the ordered steps a request goes through and who approves each step. *@
+@* Steps that share the same order form a parallel stage, where several approvers decide side by side. *@
+@* A step names a position (a seat in the organisation chart) or a rule such as 'the manager two levels up', never a person. *@
+@* The path of a type cannot be changed while active requests of that type exist, so running requests are not disturbed. *@
 <PageTitle>مراحل گردش‌کار - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -35,6 +40,7 @@
                 </div>
             </div>
             <div class="admin-list-rows workflow-type-list">
+                @* One card per request type, showing how many steps it has; clicking a card selects the type whose steps are shown below. *@
                 @foreach (var type in WorkflowFieldCatalog.AllTypes)
                 {
                     var selected = _selectedType == type;
@@ -55,6 +61,7 @@
             </div>
         </section>
 
+@* Form to add a step to the selected type, or edit the selected step. Shown only to people who may manage workflows. *@
 @if (_canManage) {
 <section class="card admin-form-row workflow-form-row">
             <div class="card-heading">
@@ -67,6 +74,7 @@
                         </div>
                     </div>
 
+                    @* Warning shown while active requests of this type exist; the steps cannot be changed until they are finished. *@
                     @if (_blockingCount > 0)
                     {
                         <div class="empty-state" role="alert">
@@ -99,6 +107,8 @@
                             </div>
 </div>
 
+                            @* Who approves the step, in one of three ways: a manager a chosen number of levels above the requester's position; *@
+                            @* a fixed position, whoever the requester is; or an escalation up the chain to a chosen level of the organisation tree. *@
                             @if (_ruleKind == ApproverRuleKind.RequesterManagerLevel)
                             {
 <div class="form-field">
@@ -125,6 +135,7 @@
 </div>
                             }
 
+                            @* Where a new step goes: at the end, as a new stage after an existing one, or in parallel with an existing stage. *@
                             @if (_editingId is null && _steps.Count > 0)
                             {
 <div class="form-field">
@@ -149,6 +160,8 @@
                             <p class="muted">اگر خاموش باشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
 </div>
 
+@* Some request types have a form in several parts, completed by different approvers; here a step can be chosen as the one *@
+@* that fills one of the parts. *@
 @if (WorkflowFieldCatalog.IsMultiPart(_selectedType))
 {
 <div class="form-field is-grow">
@@ -176,6 +189,7 @@
 </div></div>
 </section>
 }
+@* The approval path of the selected type, drawn stage by stage in the order a request follows. *@
 <section class="card workflow-steps-card">
 
                                 @if (!_loading && _steps.Count > 0 && WorkflowFieldCatalog.IsMultiPart(_selectedType) && PartProblems() is { Count: > 0 } partProblems)
@@ -204,6 +218,8 @@
                                     {
                                         var stages = _steps.GroupBy(x => x.Order).OrderBy(g => g.Key).ToList();
                                         <div class="stage-list">
+                                            @* One block per stage. A stage with several approvers is a parallel stage and has its own settings (whether one approval *@
+                                            @* or all are needed, and what a rejection does). The arrows, move and join/split buttons change the order or grouping. *@
                                             @foreach (var stage in stages)
                                             {
                                                 var members = stage.OrderBy(x => x.Name, StringComparer.Ordinal).ToList();
@@ -231,6 +247,8 @@
                                                         </span>
                                                     </div>
                                                     <div class="stage-members">
+                                                        @* One row per step in the stage: who approves it, and badges for switched-off steps, steps that do not allow delegation, *@
+                                                        @* and steps that fill a form part, with the edit, switch on or off and delete buttons. *@
                                                         @foreach (var step in members)
                                                         {
                                                             <div class="stage-member @(step.IsActive ? "" : "is-inactive")">
@@ -268,6 +286,8 @@
                                         </div>
                                     }
 
+                                    @* 'Try the path': pick a requester position and see, without creating anything, who the request would go to at each step, *@
+                                    @* or why it would be refused (for example a position with nobody in it). *@
                                     @if (_steps.Count > 0)
                                     {
                                         <hr class="section-divider" />
@@ -283,6 +303,7 @@
                                                                     Placeholder="سمت درخواست‌کننده را انتخاب کنید" SearchPlaceholder="نام یا کد سمت را جستجو کنید..." />
                                         @if (_preview is not null)
                                         {
+                                            @* The path cannot be resolved for this position: the reason is shown. Otherwise the stages and approvers are listed. *@
                                             @if (!_preview.Success)
                                             {
                                                 <div class="empty-state" role="alert">
@@ -314,6 +335,7 @@
                                                                         <span class="admin-list-text">
                                                                             <strong>@approver.Name</strong>
                                                                             <span>@(_previewPositionNames.TryGetValue(approver.PositionId, out var positionName) ? positionName : "؟") — @(holder ?? "سمت خالی است")</span>
+                                                                            @* Warning for an approver position that currently has nobody in it. *@
                                                                             @if (holder is null)
                                                                             {
                                                                                 <span class="badge badge-danger">سمت خالی؛ درخواست همین‌جا متوقف می‌شود</span>
@@ -376,6 +398,7 @@
     private Guid? _approverPositionId;
     private string _approverPositionSearch = "";
 
+    // On opening: find out whether the person may manage workflows, then select the first type and load its steps.
     protected override async Task OnInitializedAsync()
     { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminWorkflowsManage); 
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -384,8 +407,10 @@
         await LoadStepsAsync();
     }
 
+    // Number of steps defined for a request type, shown on its card.
     private int StepCountFor(WorkflowTypeCode type) => _stepCounts.TryGetValue(type, out var count) ? count : 0;
 
+    // A request type was chosen: forget any half-typed step and load the steps of that type.
     private async Task SelectType(WorkflowTypeCode type)
     {
         _selectedType = type;
@@ -394,6 +419,7 @@
         await LoadStepsAsync();
     }
 
+    // Load the steps of the selected type with the names of the positions and their current holders, and count the active requests.
     private async Task LoadStepsAsync()
     {
         _loading = true;
@@ -431,6 +457,8 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         return false;
     }
 
+    // Describes who approves a step in words: levels above the requester, a step-by-step escalation to a tree level,
+    // or a fixed position together with its current holder (or a note that the position is empty).
     private string DescribeRule(WorkflowStepDefinition step) => step.ApproverRuleKind switch
     {
         ApproverRuleKind.RequesterManagerLevel =>
@@ -441,6 +469,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
              $" — کارمند فعلی: {(_holderNames.TryGetValue(step.ApproverPositionId!.Value, out var holder) ? holder : "سمت خالی است")}",
     };
 
+    // Edit button on a step: copy it into the form.
     private void EditStep(WorkflowStepDefinition step)
     { if (!_canManage) return;
         _editingId = step.Id;
@@ -455,6 +484,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
 "";
     }
 
+    // Cancel: empty the form and return to 'add a step'.
     private void CancelEdit()
     {
         _editingId = null;
@@ -548,6 +578,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         AppState.AddToast("فرم افزودن در بالای صفحه برای همین محل تنظیم شد.", ToastLevel.Info);
     }
 
+    // Stage settings: whether one approver is enough or all must approve, and what a rejection does.
     private async Task SetStageApprovalModeAsync(int order, ChangeEventArgs e)
     {
         if (Enum.TryParse<ParallelApprovalMode>(e.Value?.ToString(), out var mode))
@@ -583,6 +614,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         await LoadStepsAsync();
     }
 
+    // A requester position was chosen in the 'try the path' box: show its path.
     private async Task OnPreviewPositionAsync(Guid? positionId)
     {
         _previewPositionId = positionId;
@@ -615,6 +647,8 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         _previewHolders = await WorkflowSvc.GetCurrentHolderNamesAsync(ids);
     }
 
+    // Save button of the form. Checks the change is allowed (no active requests of the type, a valid approver, a valid
+    // placement and form part), then creates the step or updates the selected one, and renumbers the order when needed.
     private async Task SaveStep()
     { if (!_canManage) return;
         var name = _name.Trim();
@@ -748,6 +782,7 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         await LoadStepsAsync();
     }
 
+    // Delete a step. Refused when it was ever used by a request: it can only be switched off, so the history stays complete.
     private async Task DeleteStep(Guid id)
     { if (!_canManage) return;
         if (!await EnsureNoBlockingRequestsAsync())
@@ -898,6 +933,7 @@ ToastLevel.Error);
         await LoadStepsAsync();
     }
 
+    // Switch a step on or off (not allowed while active requests of the type exist).
     private async Task ToggleActive(Guid id)
     { if (!_canManage) return;
         if (!await EnsureNoBlockingRequestsAsync())
@@ -918,6 +954,7 @@ ToastLevel.Error);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
 AdminQueries.SearchPositionsAsync(search, null, null, ct, activeOnly: true);
 
+    // Shows numbers with Persian digits instead of 0-9.
     private static string ToPersianDigits(string value)
     {
         var digits = "۰۱۲۳۴۵۶۷۸۹";
