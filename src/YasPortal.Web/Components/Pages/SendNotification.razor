@@ -11,6 +11,10 @@
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* 'Send a message' page (address /notifications/send), for people with the permission to send notifications. A notification is a *@
+@* short message that appears in the recipients' notification list. The sender chooses the audience (everyone, hand-picked people, *@
+@* saved groups, or a mix), can leave individual people out, writes the message and sends it. Below the form is the list of *@
+@* messages already sent, where a message can be withdrawn. *@
 <PageTitle>ارسال اعلان - یاس پورتال</PageTitle>
 
 <div class="requests-page send-page" dir="rtl">
@@ -23,9 +27,12 @@
         </div>
     </div>
 
+    @* The sending form: left, choose people from a list; right, the final list of recipients; below, groups and the message. *@
     <section class="card send-card">
         <div class="send-columns">
             <div class="send-panel">
+                @* Panel 1, 'choose people from the list': a paged list of active employees, optionally narrowed to one organisation or a search. *@
+                @* Ticking a person adds them straight to the audience. *@
                 <h3 class="send-panel-title"><i class="ti @Icons.PickFromList"></i> انتخاب افراد از فهرست</h3>
                 <div class="send-everyone">
                     <label class="check-row"><input type="checkbox" checked="@_everyone" @onchange="OnEveryoneChangedAsync" /> <i class="ti @Icons.Broadcast"></i> همه کارکنان فعال</label>
@@ -45,6 +52,7 @@
                     <button type="button" class="btn btn-secondary btn-sm" disabled="@(_browseItems.Count == 0 || _everyone)" @onclick="UntickPageAsync">برداشتن تیک این صفحه</button>
                 </div>
                 <div class="audience-browser-list">
+                    @* One row per employee on the current page, with a tick box. *@
                     @foreach (var item in _browseItems)
                     {
                         <label class="check-row">
@@ -61,8 +69,11 @@
             </div>
 
             <div class="send-panel">
+                @* Panel 2, 'recipients': everyone the message will reach (hand-picked people, members of the chosen groups, or everyone). *@
+                @* Unticking a person leaves them out of this message only. *@
                 <h3 class="send-panel-title"><i class="ti @Icons.Users"></i> فهرست گیرندگان
                     <span class="badge badge-muted">@((_recipientCount ?? 0).ToString("N0")) نفر</span>
+                    @* Shows how many people have been left out and a button to bring them all back. *@
                     @if (_excluded.Count > 0)
                     {
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="ClearExclusionsAsync">بازگرداندن @_excluded.Count.ToString("N0") نفر کنار گذاشته‌شده</button>
@@ -75,6 +86,7 @@
                 </div>
                 <small class="muted">تیک را از کسانی که نباید پیام را بگیرند بردارید.</small>
                 <div class="audience-browser-list">
+                    @* One row per recipient on the current page, with a tick box that means 'receives this message'. *@
                     @foreach (var item in _reviewItems)
                     {
                         <label class="check-row">
@@ -93,6 +105,8 @@
 
         <div class="send-groups">
             <label class="form-label"><i class="ti @Icons.RecipientGroup"></i> گروه‌های من</label>
+            @* Saved recipient groups: a group stores a list of people so the same audience can be used again. Each group can be ticked, *@
+            @* expanded to see its members, or deleted (after a confirmation). *@
             @if (_groups.Count == 0)
             {
                 <small class="muted">هنوز گروهی ندارید. گیرندگان را انتخاب کنید و با «ذخیره به‌عنوان گروه» برای دفعات بعد نگه دارید.</small>
@@ -106,6 +120,7 @@
                         <span class="audience-chip @(used ? "is-on" : "")">
                             <button type="button" class="audience-chip-main" title="@(used ? "برداشتن از گیرندگان" : "افزودن به گیرندگان")" @onclick="() => ToggleGroupAsync(group)">@group.Name (@group.MemberCount.ToString("N0"))</button>
                             <button type="button" title="بارگذاری اعضا در انتخاب دستی برای ویرایش" @onclick="() => LoadGroupMembersAsync(group)"><i class="ti @Icons.Edit"></i></button>
+                            @* Confirmation step before deleting a saved group. *@
                             @if (_deleteGroupId == group.Id)
                             {
                                 <button type="button" class="audience-chip-confirm" title="تأیید حذف گروه" disabled="@_busy" @onclick="() => DeleteGroupAsync(group)">حذف شود؟</button>
@@ -133,6 +148,7 @@
             <small class="muted">@_message.Trim().Length از @Notification.MaxMessageLength نویسه</small>
         </div>
         <div class="send-submit">
+            @* A message to several people asks for one more click before it goes out; this is that confirmation. *@
             @if (_confirming)
             {
                 <span class="muted">ارسال برای @(_recipientCount?.ToString("N0")) نفر؟ بعداً می‌توانید آن را پس بگیرید.</span>
@@ -156,6 +172,7 @@
         </div>
     </section>
 
+    @* The messages this person has already sent, one page at a time. *@
     <section class="card table-card" style="margin-top:14px">
         <div class="card-toolbar">
             <div>
@@ -179,6 +196,7 @@
                         <tr><th>گیرنده‌ها</th><th>متن</th><th>زمان ارسال</th><th>وضعیت</th><th></th></tr>
                     </thead>
                     <tbody>
+                        @* One row per sent message: when, the text, who it went to, and how many copies have been withdrawn. *@
                         @foreach (var row in _sent)
                         {
                             <tr class="@(row.Removed == row.Total ? "row-muted" : "")">
@@ -208,6 +226,7 @@
                                 <td>
                                     @if (row.Removed < row.Total)
                                     {
+                                        @* Confirmation step before withdrawing a message from its recipients' notification lists. *@
                                         @if (_retractKey == row.Key)
                                         {
                                             <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => RetractAsync(row.Key)">تأیید پس‌گرفتن</button>
@@ -224,6 +243,7 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation for the list of sent messages. *@
             <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
         }
     </section>
@@ -264,6 +284,7 @@
     private int _pageSize = 10;
     private int _total;
 
+    // On opening: find out who the sender is, then load their saved groups, the people list and the sent messages.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -299,6 +320,7 @@
         await LoadBrowseAsync();
     }
 
+    // The message can be sent only when it has some text and the audience is not empty.
     private bool CanSubmit => _message.Trim().Length > 0 && !CurrentAudience().IsEmpty;
 
     private NotificationService.Audience CurrentAudience() =>
@@ -314,6 +336,7 @@
         await RefreshRecipientsAsync();
     }
 
+    // Recount how many people the message will reach with the current choices.
     private async Task RefreshRecipientsAsync()
     {
         var audience = CurrentAudience();
@@ -328,6 +351,7 @@
         await LoadReviewAsync();
     }
 
+    // Load the sender's saved groups.
     private async Task LoadGroupsAsync()
     {
         _groups = _employeeId is Guid owner ? await NotificationSvc.ListGroupsAsync(owner) : [];
@@ -336,6 +360,7 @@
             _groupIds.Remove(gone);
     }
 
+    // The 'everyone' tick box: send to every active employee instead of hand-picked people and groups.
     private async Task OnEveryoneChangedAsync(ChangeEventArgs e)
     {
         _everyone = e.Value is true;
@@ -347,6 +372,7 @@
 
     // ---- فهرست گیرندگان ----
 
+    // Load one page of the final recipients list (with the search and paging of panel 2).
     private async Task LoadReviewAsync()
     {
         if (_employeeId is not Guid senderId) return;
@@ -385,6 +411,7 @@
         await LoadReviewAsync();
     }
 
+    // Tick or untick one recipient; unticked people are left out of this message only.
     private async Task ToggleRecipientAsync(Guid id, bool receives)
     {
         if (receives) _excluded.Remove(id);
@@ -393,6 +420,7 @@
         _recipientCount = _employeeId is Guid senderId ? await NotificationSvc.CountRecipientsAsync(senderId, CurrentAudience()) : null;
     }
 
+    // Bring back everyone that was left out.
     private async Task ClearExclusionsAsync()
     {
         _excluded.Clear();
@@ -402,6 +430,7 @@
 
     // ---- انتخاب افراد از فهرست ----
 
+    // Load one page of the people list of panel 1, with the organisation filter and search applied.
     private async Task LoadBrowseAsync()
     {
         _browsing = true;
@@ -444,6 +473,7 @@
         await LoadBrowseAsync();
     }
 
+    // Ticking and unticking people in panel 1: one person, the whole page, or everyone the current search matches.
     private bool TryPick(AdminQueryService.LookupItem item)
     {
         if (_employees.ContainsKey(item.Id)) return true;
@@ -492,6 +522,7 @@
 
     // ---- groups ----
 
+    // Tick or untick a saved group, and open or close the list of its members.
     private async Task ToggleGroupAsync(NotificationService.GroupSummary group)
     {
         if (!_groupIds.Remove(group.Id))
@@ -510,6 +541,7 @@
         await AudienceChangedAsync();
     }
 
+    // Save the current audience as a named group so it can be reused; the number of members saved is reported.
     private async Task SaveGroupAsync()
     {
         if (_busy || _employeeId is not Guid owner) return;
@@ -529,6 +561,7 @@
         finally { _busy = false; }
     }
 
+    // Delete a saved group (the people themselves are not affected).
     private async Task DeleteGroupAsync(NotificationService.GroupSummary group)
     {
         if (_busy || _employeeId is not Guid owner) return;
@@ -546,6 +579,7 @@
 
     // ---- sending and sent history ----
 
+    // Load one page of the messages this person has sent.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -580,6 +614,7 @@
         await SendAsync();
     }
 
+    // Send the message to the current audience as the signed-in person. On success the form is emptied and the sent list reloaded.
     private async Task SendAsync()
     {
         if (_busy || _employeeId is not Guid senderId) return;
@@ -608,6 +643,7 @@
         finally { _busy = false; }
     }
 
+    // Withdraw a sent message from its recipients' notification lists, and report how many lists it was removed from.
     private async Task RetractAsync(Guid key)
     {
         if (_busy || _employeeId is not Guid senderId) return;
