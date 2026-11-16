@@ -14,6 +14,9 @@
 @inject AppState AppState
 @inject IJSRuntime JS
 
+@* Store admin: items and categories (address /admin/store/items). Two tabs: categories ('groups' of goods) and the items *@
+@* themselves. People with the view permission can look and search; people with the manage permission can add, edit, *@
+@* switch on or off, show or hide, move and delete. Hiding or switching off an item keeps its history; deleting asks for confirmation. *@
 <PageTitle>مدیریت کالاهای فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -38,6 +41,7 @@
     else
     {
         <div class="admin-stack">
+            @* Form to add a category or edit the selected one (name and display order). *@
             @if (_canManage && _tab == "categories")
             {
                 <section class="card admin-form-row">
@@ -57,6 +61,8 @@
 
             }
 
+            @* Form to add an item or edit the selected one: code, name, category, unit, description, price, opening stock, *@
+            @* the most one request may take, and the dates and times between which the item can be requested. *@
             @if (_canManage && _tab == "items")
             {
                 <section class="card admin-form-row">
@@ -90,6 +96,7 @@
                 </section>
             }
 
+            @* Categories tab: a small filter (name, active or not) and the list of categories. *@
             @if (_tab == "categories")
             {
             <ListFilterBar Busy="_busy" ActiveCount="@((string.IsNullOrWhiteSpace(_cSearch) ? 0 : 1) + (_cStatus is null ? 0 : 1))"
@@ -107,6 +114,7 @@
                     <table class="data-table">
                         <thead><tr><SortableHeader Text="نام" Column="name" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" /><SortableHeader Text="ترتیب" Column="order" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_catSort" CurrentDescending="@_catDesc" OnSort="CatSortBy" />@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
+                            @* One row per category with buttons to edit, switch on or off and delete (delete needs a confirmation step). *@
                             @foreach (var c in FilteredCategories)
                             {
                                 <tr>
@@ -117,6 +125,7 @@
                                         <td><div class="form-actions">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => EditCategory(c)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleCategoryAsync(c)">@(c.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @* Confirmation step before deleting a category. *@
                                             @if (_confirmCategoryId == c.Id)
                                             {
                                                 <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteCategoryAsync(c.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -137,8 +146,11 @@
             </section>
             }
 
+            @* Items tab: filters, the list of items and the bulk actions. *@
             @if (_tab == "items")
             {
+            @* Item filters: name or code, category, active, visible in the shop, stock level, request window (open, not yet open, closed) *@
+            @* and lottery items. They apply when the search button is pressed. *@
             <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft || _sort != "category" || _sortDesc)"
                            OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => BuildFilter())"
                            OnExport="ExportAsync" ExportPermission="@Perm.StoreItemsView" Exporting="_exporting"
@@ -177,6 +189,8 @@
                     <table class="data-table">
                         <thead><tr>@if (_canManage) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_items.Rows.Count > 0 && _items.Rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="کد" Column="code" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="کالا" Column="name" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="گروه" Column="category" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="واحد" Column="unit" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="قیمت" Column="price" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="حداکثر در درخواست" Column="max" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="دوره درخواست" Column="window" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="وضعیت" Column="active" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" /><SortableHeader Text="در فروشگاه" Column="visible" CurrentSort="@_sort" CurrentDescending="@_sortDesc" OnSort="ItemSortBy" />@if (_canManage) {<th></th>}</tr></thead>
                         <tbody>
+                            @* One row per item on the current page, with a tick box for bulk actions and buttons to edit, show or hide, *@
+                            @* switch on or off and delete. *@
                             @foreach (var i in _items.Rows)
                             {
                                 <tr>
@@ -194,6 +208,7 @@
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => SetVisibleBulkAsync(!i.IsVisible, i.Id)"><i class="ti @(i.IsVisible ? Icons.EyeOff : Icons.Eye)"></i> @(i.IsVisible ? "پنهان" : "نمایش")</button>
                                             <button class="btn btn-secondary btn-sm" @onclick="() => EditItemAsync(i)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => ToggleItemAsync(i)">@(i.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                            @* Confirmation step before deleting an item. *@
                                             @if (_confirmItemId == i.Id)
                                             {
                                                 <button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => DeleteItemAsync(i.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -211,6 +226,7 @@
                         </tbody>
                     </table>
                 </div>
+                @* Page navigation for the item list. *@
                 <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_items.Total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
             </section>
             }
@@ -234,6 +250,7 @@
 
     private string? _catSort;
     private bool _catDesc;
+    // Sorting: categories are sorted here in the page, items in the database.
     private void CatSortBy(string col) => (_catSort, _catDesc) = TableSort.Toggle(_catSort, _catDesc, col);
     private Task ItemSortBy(string col)
     {
@@ -241,8 +258,10 @@
         return SetFilterAsync(() => { _sort = key; _sortDesc = desc; });
     }
 
+    // Switch between the categories tab and the items tab.
     private void SwitchTab(string tab) { _tab = tab; _confirmCategoryId = null; }
 
+    // Search and clear buttons of the categories filter.
     private Task ApplyCategoryFilter() { _cSearch = _dcSearch.Trim(); _cStatus = _dcStatus; return Task.CompletedTask; }
 
     private Task ClearCategoryFilter() { _dcSearch = ""; _dcStatus = null; return ApplyCategoryFilter(); }
@@ -277,6 +296,7 @@
     private static readonly IReadOnlyList<(string Key, string Text)> StockOptions = [("in", "موجود"), ("out", "ناموجود")];
     private static readonly IReadOnlyList<(string Key, string Text)> WindowOptions = [("always", "همیشه باز"), ("open", "هم‌اکنون باز"), ("notyet", "هنوز شروع نشده"), ("closed", "بسته‌شده")];
     private static readonly IReadOnlyList<(string Key, string Text)> LotteryOptions = [("yes", "قرعه‌کشی"), ("no", "بدون قرعه‌کشی")];
+    // The ways the item list can be sorted, and the current choice.
     private static readonly IReadOnlyList<(string Key, string Text)> _itemSortOptions =
     [
         SortSelect.Option("category:asc", "گروه (الف تا ی)"), SortSelect.Option("category:desc", "گروه (ی تا الف)"),
@@ -296,6 +316,7 @@
 
     private static string? Blank(string? k) => string.IsNullOrEmpty(k) ? null : k;
 
+    // Turn the applied filter values into the filter object that is sent to the database query.
     private StoreItemFilter BuildFilter() => new()
     {
         Search = _search, CategoryId = _filterCategoryId, Sort = _sort, Descending = _sortDesc,
@@ -308,11 +329,13 @@
 
     private async Task SetFilterAsync(Action set) { set(); _pageNo = 1; await LoadAsync(); }
 
+    // How many item filters are applied, and whether something has been typed but not searched yet.
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_filterCategoryId is null ? 0 : 1)
         + new[] { _activeF, _visibleF, _stockF, _windowF, _lotteryF }.Count(x => x is not null);
 
     private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || new[] { _dCategory, _dActive, _dVisible, _dStock, _dWindow, _dLottery }.Any(x => x is not null);
 
+    // Search button: apply the typed filters and go back to page 1. The clear button empties them.
     private async Task ApplyFiltersAsync()
     {
         _search = _dSearch.Trim();
@@ -329,10 +352,12 @@
         await ApplyFiltersAsync();
     }
 
+    // Bulk actions work on the ticked items; these helpers tick one item or the whole page.
     private void ToggleSelect(Guid id, bool on) { if (on) _selected.Add(id); else _selected.Remove(id); }
 
     private void SelectPage(bool on) { foreach (var r in _items.Rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
 
+    // Bulk actions: show or hide in the shop, switch on or off, and move to another category.
     /// <summary>Shows or hides one item (when <paramref name="only"/> is given) or every selected item.</summary>
     private async Task SetVisibleBulkAsync(bool visible, Guid? only = null)
     {
@@ -355,6 +380,7 @@
         await RunAsync(() => Store.MoveItemsToCategoryAsync(ids, category), "کالاهای انتخاب‌شده به گروه جدید منتقل شدند.", () => { _selected.Clear(); _moveTo = null; });
     }
 
+    // Export button: download the items matching the filters as a file.
     private async Task ExportAsync()
     {
         _exporting = true;
@@ -373,6 +399,7 @@
     }
     private int _pageNo = 1, _pageSize = 20;
 
+    // On opening: find out whether the person may manage the store items, then load the categories and the first page of items.
     protected override async Task OnInitializedAsync()
     {
         _canManage = await PermissionChecker.HasPermissionAsync(Perm.StoreItemsManage);
@@ -381,6 +408,7 @@
         _loading = false;
     }
 
+    // Load the categories and the current page of items.
     private async Task LoadAsync()
     {
         _categories = await Store.ListCategoriesAsync(true);
@@ -389,6 +417,8 @@
         _items = await Store.SearchItemsAsync(BuildFilter(), _pageNo, _pageSize);
     }
 
+    // Runs any change (save, delete, bulk action) through the store service. If the service refuses, its message is shown;
+    // if it succeeds, a success message is shown and the lists are reloaded. Only one change can run at a time.
     private async Task RunAsync(Func<Task<StoreResult>> action, string okMessage, Action? onOk = null)
     {
         if (_busy) return;
@@ -405,11 +435,14 @@
         finally { _busy = false; }
     }
 
+    // Category buttons: save, reset the form, edit, switch on or off.
     private Task SaveCategoryAsync() => RunAsync(() => Store.SaveCategoryAsync(_editCategoryId, _categoryName, _categoryOrder), _editCategoryId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ResetCategory);
     private void ResetCategory() { _editCategoryId = null; _categoryName = ""; _categoryOrder = 0; }
     private void EditCategory(StoreCategory c) { _editCategoryId = c.Id; _categoryName = c.Name; _categoryOrder = c.SortOrder; }
     private Task ToggleCategoryAsync(StoreCategory c) => RunAsync(() => Store.SetCategoryActiveAsync(c.Id, !c.IsActive), c.IsActive ? "گروه غیرفعال شد." : "گروه فعال شد.");
 
+    // Save button of the item form. Checks before saving: a category and a unit are chosen, the stock, maximum per request and
+    // price are valid numbers (not negative), and a time of day is only given together with a date, in the form 09:30.
     private Task SaveItemAsync()
     {
         if (_itemCategoryId is null) { AppState.AddToast("گروه کالا را انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }
@@ -431,6 +464,7 @@
 
     private void ResetItem() { UnitOptions = StoreUnits.All.Select(u => (u, u)).ToList(); _editItemId = null; _itemCategoryId = null; _code = _name = _unit = _description = ""; _initialStock = _maxPerRequest = _price = ""; _opensOn = _closesOn = null; _opensTime = _closesTime = ""; _isLottery = false; _formKey++; }
 
+    // Edit button on an item: copy it into the form.
     private async Task EditItemAsync(StoreItemRow row)
     {
         var item = await Store.GetItemAsync(row.Id);
@@ -442,10 +476,12 @@
         _formKey++;
     }
 
+    // Describes the request window of an item in words (from when until when it can be requested).
     private static string WindowText(StoreItemRow i) =>
         i.RequestOpensOn is null && i.RequestClosesOn is null ? "همیشه باز"
         : $"{(i.RequestOpensOn is DateTime o ? "از " + StoreWhen.Format(o) : "")} {(i.RequestClosesOn is DateTime c ? "تا " + StoreWhen.Format(c) : "")} ";
 
+    // Delete buttons (after confirmation). The store service decides whether the deletion is allowed.
     private Task DeleteCategoryAsync(Guid id) { _confirmCategoryId = null; return RunAsync(() => Store.DeleteCategoryAsync(id), "گروه حذف شد."); }
     private Task DeleteItemAsync(Guid id) { _confirmItemId = null; return RunAsync(() => Store.DeleteItemAsync(id), "کالا حذف شد."); }
 
@@ -453,8 +489,10 @@
 
     private static string Plain(decimal v) => v == 0 ? "" : v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
+    // Switch an item on or off.
     private Task ToggleItemAsync(StoreItemRow i) => RunAsync(() => Store.SetItemActiveAsync(i.Id, !i.IsActive), i.IsActive ? "کالا غیرفعال شد." : "کالا فعال شد.");
 
+    // Page navigation handlers: go to another page, or change how many rows are shown per page.
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }
