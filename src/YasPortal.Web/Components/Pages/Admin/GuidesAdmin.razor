@@ -18,6 +18,9 @@
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
 
+@* Guides management page (/guides/manage and /admin/guides). A guide is a written how-to article for portal users, shown on the *@
+@* Guides screen. People with the right permission can write, edit, hide or delete guides here. Someone who may only manage *@
+@* their own guides sees and edits only the guides they wrote; people with full rights see every guide. *@
 <PageTitle>مدیریت راهنماها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -34,6 +37,7 @@
     </div>
 
     <div class="admin-stack">
+        @* The write/edit form is shown only to people who may create or edit guides. *@
         @if (_canCreate)
         {
             <section class="card admin-form-row">
@@ -50,6 +54,7 @@
                         </select></div>
                     <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_sortOrder" /></div>
                 </div>
+                @* A public guide (readable without signing in) also needs a short summary that is shown under its title in the list. *@
                 @if (_visibility == GuideVisibility.Public)
                 {
                     <p class="muted" style="margin:8px 0 0"><i class="ti @Icons.Warning"></i> هر کسی که به این سامانه دسترسی شبکه‌ای داشته باشد، بدون ورود این راهنما را می‌بیند؛ مطلب غیرعمومی در آن ننویسید.</p>
@@ -61,6 +66,7 @@
                 <div style="margin-top:12px">
                     <label class="form-label">متن راهنما</label>
                     <div @key="_formKey" @ref="_host" class="guide-editor-host"></div>
+                    @* If the rich-text editor cannot start in the browser, say so (saving is switched off in that case). *@
                     @if (_editorFailed)
                     {
                         <p class="muted" style="color:var(--danger,#b42318)"><i class="ti @Icons.Alert"></i> ویرایشگر بارگذاری نشد. صفحه را دوباره باز کنید.</p>
@@ -79,6 +85,7 @@
             </section>
         }
 
+        @* The list of guides the person is allowed to see, with actions to open, edit, show/hide and delete. *@
         <section class="card table-card">
             <div class="card-toolbar">
                 <div>
@@ -101,6 +108,7 @@
                     <table class="data-table data-table-bordered-rows">
                         <thead><tr><th>ترتیب</th><th>راهنما</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
                         <tbody>
+                        @* One row per guide: order, title, author, who can read it, and the action buttons. *@
                         @foreach (var guide in _guides)
                         {
                             <tr>
@@ -112,10 +120,12 @@
                                 <td>@guide.UpdatedAtUtc.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                 <td class="action-cell">
                                     <a class="btn btn-secondary btn-sm" href="/guides/@guide.Id"><i class="ti @Icons.Details"></i> مشاهده</a>
+                                    @* Edit, hide/show and delete are offered only to someone allowed to change this particular guide. *@
                                     @if (guide.CanBeEditedBy(_canEditAll, _canEditOwn, _employeeId))
                                     {
                                         <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(guide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                         <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(guide.Id)"><i class="ti @(guide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(guide.IsActive ? "غیرفعال" : "فعال")</button>
+                                        @* Deleting asks for a second click so a guide is not removed by accident. *@
                                         @if (_confirmDeleteId == guide.Id)
                                         {
                                             <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(guide.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -157,6 +167,7 @@
     private ElementReference _host;
     private IJSObjectReference? _module;
 
+    // On opening: learn who the person is and which guide permissions they hold, then load the list.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
@@ -169,6 +180,7 @@
     }
 
     // The editor is built in the browser once its element exists (and again for every new element: a new guide, or a guide picked for editing).
+    // Starts the rich-text editor in the browser once its place on the page exists; needed again for each new form.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!_initEditor || !_canCreate) return;
@@ -190,6 +202,7 @@
         }
     }
 
+    // Load the guides this person may see (all, or only their own) together with the names of their authors.
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -206,6 +219,7 @@
         if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
     }
 
+    // Fill the form with an existing guide so it can be changed.
     private void BeginEdit(UserGuide guide)
     {
         _editingId = guide.Id;
@@ -214,12 +228,14 @@
         _formKey++; _initEditor = true;
     }
 
+    // Leave edit mode and empty the form.
     private async Task CancelEdit()
     {
         ResetForm();
         await LoadAsync();
     }
 
+    // Return the form to its empty 'new guide' state.
     private void ResetForm()
     {
         _editingId = null;
@@ -228,6 +244,8 @@
         _formKey++; _initEditor = true;
     }
 
+    // Save a new guide or the changes to an edited one. The text typed in the editor is cleaned of unsafe content first,
+    // permissions are checked again, and any problem is reported to the person as a message instead of a crash.
     private async Task SaveAsync()
     {
         if (_saving || _module is null || !_canCreate) return;
@@ -291,6 +309,7 @@
         _ => "اطلاعات راهنما معتبر نیست.",
     };
 
+    // Hide a guide from readers or show it again; the guide itself is kept.
     private async Task ToggleAsync(Guid id)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -305,6 +324,7 @@
         await LoadAsync();
     }
 
+    // Permanently delete a guide (after the confirmation click), if the person is allowed to change it.
     private async Task DeleteAsync(Guid id)
     {
         _confirmDeleteId = null;
@@ -321,6 +341,7 @@
         await LoadAsync();
     }
 
+    // Clean up the editor when the page is left.
     public async ValueTask DisposeAsync()
     {
         if (_module is null) return;
