@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace YasPortal.Web.Components.Pages.Admin;
 
+// Second half of the positions page (the screen itself is in Positions.razor). This part lets other pages link straight to a
+// person: /admin/positions?employee=... opens the page with that employee ready to be assigned, and adding &position=...
+// opens one exact position when the employee holds more than one.
 public partial class Positions
 {
     [SupplyParameterFromQuery(Name = "employee")]
@@ -22,6 +25,8 @@ public partial class Positions
     private Guid? _lastAppliedEmployeeQuery;
     private Guid? _lastAppliedPositionQuery;
 
+    // Runs when the page is opened or its address changes: reads the employee and position from the address, selects the
+    // right position in the tree, and keeps the employee ready for assignment.
     protected override async Task OnParametersSetAsync()
     {
         if (EmployeeQuery is not Guid employeeId)
