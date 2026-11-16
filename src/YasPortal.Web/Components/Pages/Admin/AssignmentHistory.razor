@@ -10,6 +10,9 @@
 @inject AdminQueryService AdminQueries
 @inject ReportExportService Reports
 
+@* Admin page 'position assignment history' (address /admin/assignment-history): who held which position and when. *@
+@* Every assignment of an employee to a position is kept, with its start and end dates; ending an assignment never deletes it. *@
+@* A position has at most one active holder at a time. Read-only, filterable, sortable and exportable. *@
 <PageTitle>سوابق تخصیص سمت‌ها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -24,6 +27,8 @@
         <div class="admin-page-actions"><a class="btn btn-secondary" href="/admin/positions"><i
             class="ti @Icons.Position"></i> مدیریت سمت‌ها</a></div>
         </div>
+        @* Filters: employee, position, the organisation of the employee or of the position, still assigned or ended, *@
+        @* and date ranges for the start and the end of the assignment. They apply only when the search button is pressed. *@
         <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || DraftCount > 0)" ExportPermission="@(ReportPermissions.AssignmentHistory)" OnExport="ExportAsync" Exporting="_exporting" OnSearch="SearchFiltersAsync" OnClear="ResetFilters" FilterSnapshot="@(() => _applied)">
             <div class="admin-filter"><label class="form-label">کارمند</label>
                 <ServerSearchableGuidSelect @key="_resetKey" Value="@_employeeId" ValueChanged="EmployeeChanged"
@@ -72,6 +77,7 @@
                         {
 
                             <div class="admin-table-wrap">
+                                @* One row per assignment: employee, position, start, end and status (an assignment without an end date is still active). *@
                                 <table class="admin-table admin-table-bordered-rows">
                                     <thead>
                                         <tr>
@@ -127,16 +133,19 @@
                     </div>
 
 @code {
+    // State of the page: the rows of the current page, and the filter values being typed.
     private List<HistoryRow> _rows = [];
     private Guid? _employeeId, _positionId;
     private string _employeeName = "", _positionName = "", _status = "all";
     private void OnStatusPicked(string? key) => _status = key ?? "all";
     // The boxes edit the draft fields; "جستجو" copies them here, and paging/sorting reload from this copy.
+    // The filter values applied by the last search, and how many of them are set.
     private sealed record HistoryFilter(Guid? EmployeeId, Guid? PositionId, string Status, Guid? EmployeeOrgId, Guid? PositionOrgId, DateTime? StartFrom, DateTime? StartTo, DateTime? EndFrom, DateTime? EndTo)
     {
         public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (Status != "all" ? 1 : 0) + (EmployeeOrgId is null ? 0 : 1) + (PositionOrgId is null ? 0 : 1)
             + (StartFrom is null ? 0 : 1) + (StartTo is null ? 0 : 1) + (EndFrom is null ? 0 : 1) + (EndTo is null ? 0 : 1);
     }
+    // The applied filter (initially nothing). The typed values only replace it when the search button is pressed.
     private static readonly HistoryFilter NoFilter = new(null, null, "all", null, null, null, null, null, null);
     private HistoryFilter _applied = NoFilter;
     private Guid? _employeeOrgId, _positionOrgId;
@@ -145,13 +154,16 @@
     private int DraftCount => Draft().Count;
     private HistoryFilter Draft() => new(_employeeId, _positionId, _status, _employeeOrgId, _positionOrgId, _startFrom, _startTo, _endFrom, _endTo);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+    // A date picked in the filter means a whole local day; this converts it to the start of that day in UTC, as stored in the database.
     private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
+    // Search button: apply the typed filters and go back to page 1.
     private async Task SearchFiltersAsync() { _applied = Draft(); _page = 1; await LoadAsync(); }
     private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فقط تخصیص‌های فعال"), ("ended", "فقط سوابق پایان‌یافته")];
     private int _page = 1, _pageSize = 20, _total;
     private bool _loading;
     private string _sortBy = "started"; private bool _sortDesc = true;
     protected override async Task OnInitializedAsync() => await LoadAsync();
+    // Load one page of the history for the applied filters and the current sort order.
     private async Task LoadAsync()
     {
         _loading = true; try
@@ -166,6 +178,7 @@
         }
         finally { _loading = false; }
     }
+    // Build the database query from the applied filters: employee, position, organisations, start and end date ranges, active or ended.
     /// <summary>The rows matching the applied filters; shared by the list and the CSV export.</summary>
     private IQueryable<PositionAssignmentHistory> BuildQuery(ApplicationDbContext db)
     {
@@ -184,6 +197,7 @@ x.EndedAt == null);
         return query;
     }
     private bool _exporting;
+    // Export: download every row matching the applied filters (not only this page) in the current sort order.
     private async Task ExportAsync()
     {
         if (_exporting) return;
@@ -199,6 +213,7 @@ x.EndedAt == null);
         }
         finally { _exporting = false; }
     }
+    // Sort order for each column heading; the default is the most recently started assignment first.
     private IOrderedQueryable<PositionAssignmentHistory> OrderHistory(IQueryable<PositionAssignmentHistory> query) => (_sortBy, _sortDesc) switch
     {
         ("employee", false) => query.OrderBy(x => x.Employee.FullName),
@@ -227,12 +242,14 @@ LoadAsync();
     }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private async Task SortByAsync(string column)
     {
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
         _page = 1;
         await LoadAsync();
     }
+    // Shows a date and time in local time, or a dash when there is none (for example an assignment that has not ended).
     private static string FormatDate(DateTime? value) => value is null ? "—" :
 value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
     private sealed record HistoryRow(Guid Id, string EmployeeName, string Username, string PositionName, DateTime?
