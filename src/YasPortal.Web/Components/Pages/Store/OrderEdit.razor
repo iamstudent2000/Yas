@@ -16,6 +16,9 @@
 @inject NavigationManager Navigation
 @* Correct an order an approver sent back. Its owner changes the items and sends it again; the approval chain is worked out again from the position the order was first sent from. *@
 
+@* Edit-and-resend page for a store order that an approver sent back (address /store/orders/edit/...). *@
+@* Only the person who made the order can open it, and only while it is in the 'returned to requester' state and not yet handed over. *@
+@* After they fix the items, the order goes through the approval steps again. *@
 <PageTitle>ویرایش سفارش - فروشگاه</PageTitle>
 
 @if (_loading)
@@ -49,6 +52,7 @@ else
             </div>
         </div>
 
+        @* Warning shown when some lines break a rule (for example not enough stock or over the allowed amount). Sending is blocked until fixed. *@
         @if (_problems > 0)
         {
             <section class="card" style="border-color:var(--danger,#d92d20)"><strong>@WorkflowDisplay.ToPersianDigits(_problems.ToString()) مورد نیاز به اصلاح دارد.</strong>
@@ -60,6 +64,7 @@ else
                 <table class="data-table">
                     <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
                     <tbody>
+                        @* One row per item in the order: change the quantity or remove the line; stock and rule checks are shown beside it. *@
                         @foreach (var line in _lines)
                         {
                             _checks.TryGetValue(line.ItemId, out var check);
@@ -83,6 +88,7 @@ else
         </section>
 
         <section class="card admin-form-row">
+            @* Add another item from the catalogue; adding an item that is already in the order increases its quantity. *@
             <h2 class="section-title"><i class="ti @Icons.Add"></i> افزودن کالا</h2>
             <div class="admin-row-grid">
                 <div class="form-field is-grow"><label class="form-label">کالا</label>
@@ -94,6 +100,7 @@ else
 
         <section class="card admin-form-row">
             <div class="admin-row-grid">
+                @* Optional note for the approvers and the send button (disabled while busy, while any line has a problem, or when the order is empty). *@
                 <div class="form-field is-grow"><label class="form-label">توضیحات (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
                 <div class="form-field admin-row-submit"><div class="form-actions">
                     <button class="btn btn-primary" disabled="@(_busy || _problems > 0 || _lines.Count == 0 || _checks.Count == 0)" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> ارسال مجدد</button>
@@ -104,10 +111,13 @@ else
 }
 
 @code {
+    // The id of the request (the workflow request behind the order) taken from the page address.
     [Parameter] public Guid RequestId { get; set; }
 
+    // One editable line of the order: which item, and how much.
     private sealed class EditLine { public Guid ItemId; public string Code = "", Name = "", Unit = ""; public decimal Quantity; }
 
+    // State of the page: the order, its editable lines, the result of the rule checks and the item being added.
     private bool _loading = true, _editable, _busy;
     private StoreOrderDetail? _order;
     private Guid? _employeeId;
@@ -121,6 +131,8 @@ else
 
     public void Dispose() { }
 
+    // Load the order for this request and make sure it belongs to the signed-in person; decide whether it can still be edited;
+    // if so, load its lines and the catalogue of items that can be added.
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -144,6 +156,7 @@ else
         _loading = false;
     }
 
+    // Re-check the whole order against the store rules (stock, periods, per-person maximums) and count the lines with problems.
     private async Task RefreshAsync()
     {
         try
@@ -154,6 +167,7 @@ else
         catch (Exception) { AppState.AddToast("بررسی اقلام انجام نشد؛ صفحه را دوباره باز کنید.", ToastLevel.Error); }
     }
 
+    // A quantity was edited: accept it if it is a positive number, then re-check.
     private async Task ChangeQuantityAsync(EditLine line, string? text)
     {
         if (!StoreNumber.TryParse(text, out var q) || q <= 0) { AppState.AddToast("مقدار باید عددی بزرگ‌تر از صفر باشد.", ToastLevel.Error); return; }
@@ -161,10 +175,12 @@ else
         await RefreshAsync();
     }
 
+    // Remove a line from the order, then re-check.
     private async Task RemoveAsync(EditLine line) { _lines.Remove(line); await RefreshAsync(); }
 
     private void PickChanged(string? key) => _pickId = Guid.TryParse(key, out var g) ? g : null;
 
+    // Add the chosen item to the order (quantity defaults to 1), then re-check.
     private async Task AddAsync()
     {
         if (_pickId is not Guid id) return;
@@ -179,6 +195,7 @@ else
         await RefreshAsync();
     }
 
+    // Send the corrected order again into approval, tell the person it was sent and go back to 'my orders'.
     private async Task SubmitAsync()
     {
         if (_busy || _employeeId is not Guid emp) return;
