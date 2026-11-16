@@ -10,6 +10,8 @@
 @inject IJSRuntime JS
 @inject AppState AppState
 
+@* Store admin: list of ALL store orders (address /admin/store/orders), for people with the view-orders permission. *@
+@* It is read-only here: the hand-over of goods happens on the separate issue page. *@
 <PageTitle>همه سفارش‌ها - فروشگاه</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -22,6 +24,7 @@
         </div>
     </div>
 
+    @* Search form (person, item name or code, status, date range); applied only when the search button is pressed. Also offers a CSV export. *@
     <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)"
                    OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
                    OnExport="ExportAsync" ExportPermission="@Perm.StoreOrdersView" Exporting="_exporting">
@@ -48,6 +51,7 @@
                 <table class="data-table">
                     <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ ثبت" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ تحویل" Column="issued" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
                     <tbody>
+                        @* One row per order: number, requester, date, items and status, with a link to the printable slip. *@
                         @foreach (var o in _rows)
                         {
                             <tr>
@@ -64,18 +68,21 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation; orders are loaded one page at a time. *@
             <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
         </section>
     }
 </div>
 
 @code {
+    // Status choices for the filter: pending approval, approved and waiting for hand-over, handed over, returned, rejected, cancelled.
     private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
     [
         ("pending", "در انتظار تأیید"), ("waiting", "تأیید شده، در انتظار تحویل"), ("issued", "تحویل داده شد"),
         ("returned", "بازگشت به درخواست‌کننده"), ("rejected", "رد شد"), ("cancelled", "لغو شد"),
     ];
 
+    // State of the page: current page of orders, sort order, and the filters (typed draft values versus the values applied by search).
     private bool _loading = true, _exporting;
     private int _pageNo = 1, _pageSize = 20, _total;
     private IReadOnlyList<StoreOrderRow> _rows = [];
@@ -86,11 +93,14 @@
     private string? _dStatus, _status;
     private DateTime? _dFrom, _from, _dTo, _to;
 
+    // Number of filters currently applied, and whether something has been typed but not searched yet.
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1);
     private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null || _dFrom is not null || _dTo is not null;
 
+    // On opening, load the first page of orders.
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    // Load one page of orders for the current filters and sort order.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -98,6 +108,7 @@
         _loading = false;
     }
 
+    // Search button: apply the typed filters and go back to page 1.
     private async Task ApplyFiltersAsync()
     {
         (_search, _status, _from, _to) = (_dSearch.Trim(), _dStatus, _dFrom, _dTo);
@@ -105,16 +116,19 @@
         await LoadAsync();
     }
 
+    // Clear button: empty the filters and reload.
     private async Task ClearFiltersAsync()
     {
         (_dSearch, _dStatus, _dFrom, _dTo) = ("", null, null, null);
         await ApplyFiltersAsync();
     }
 
+    // Column-heading sort and page navigation handlers.
     private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 
+    // Export: build a CSV file of every order the filter finds (up to 20,000 rows) and let the browser download it.
     /// <summary>Everything the current filter finds (not only this page), in the current sort.</summary>
     private async Task ExportAsync()
     {
@@ -131,6 +145,8 @@
         finally { _exporting = false; }
     }
 
+    // Colour of the status label: green once handed over, blue while approved but not yet handed over,
+    // red for rejected or cancelled, amber when returned for correction, grey otherwise.
     private static string BadgeFor(StoreOrderRow o) => o.Status switch
     {
         WorkflowRequestStatus.Approved => o.IssuedAtUtc is null ? "badge-info" : "badge-success",
