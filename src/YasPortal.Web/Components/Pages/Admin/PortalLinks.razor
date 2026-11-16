@@ -10,6 +10,9 @@
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 
+@* Admin page for the links shown on the portal home page (address /admin/links). Links are arranged in groups, and groups *@
+@* can sit inside other groups up to a limited depth. People with the view permission can look; people with the manage *@
+@* permission can add, edit, switch on or off and delete groups and links, or import many links at once. *@
 <PageTitle>پیوندهای صفحه اصلی - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -36,6 +39,8 @@
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
+                        @* Form to add a group or edit the selected one. A group can be placed under another group, but not under itself or *@
+                        @* under one of its own sub-groups. *@
                         <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
                         <p class="muted">برای ساخت زیرگروه، گروه والد را انتخاب کنید.</p>
                     </div>
@@ -53,6 +58,7 @@
 
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
+                        @* Form to add a link or edit the selected one: group, title, address (URL) and description. *@
                         <h2 class="section-title"><i class="ti @(_editingLinkId is null ? Icons.Add : Icons.Edit)"></i> @(_editingLinkId is null ? "افزودن پیوند" : "ویرایش پیوند")</h2>
                         <p class="muted">آدرس می‌تواند http، https یا ftp باشد (https لازم نیست)، یا فقط نام سرور مثل intranet/app، یا صفحه‌ای از همین سامانه مثل /login.</p>
                     </div>
@@ -68,6 +74,7 @@
                     </div>
                     <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_linkQuick" /> <span>در دسترسی سریع نمایش داده شود</span></label></div>
+                        @* Extra fields shown when the link is marked as a quick link. *@
                         @if (_linkQuick)
                         {
                             <div class="form-field"><label class="form-label">ترتیب در دسترسی سریع</label><input class="form-control" type="number" @bind="_linkQuickOrder" /></div>
@@ -81,6 +88,8 @@
 
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
+                        @* Bulk import: paste one link per line, press preview to see which lines are accepted and which have a problem, *@
+                        @* then confirm the import. *@
                         <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی پیوندها</h2>
                         <p class="muted">هر پیوند در یک خط: <span dir="ltr">گروه &gt; زیرگروه | عنوان | آدرس | توضیح (اختیاری)</span>. گروه‌های ناموجود ساخته می‌شوند و پیوندهای تکراری (همان آدرس در همان گروه) نادیده گرفته می‌شوند. خطی که با # شروع شود نادیده است.</p>
                     </div>
@@ -89,6 +98,7 @@
                         <button class="btn btn-secondary" disabled="@_busy" @onclick="PreviewImport"><i class="ti @Icons.Search"></i> پیش‌نمایش</button>
                         <button class="btn btn-primary" disabled="@(_busy || _importLines is null || _importLines.Count(x => x.Error is null) == 0)" @onclick="ImportAsync"><i class="ti @Icons.Save"></i> ورود @(_importLines is null ? "" : $"({_importLines.Count(x => x.Error is null)} پیوند)")</button>
                     </div>
+                    @* The preview table of the pasted lines, with the reason for every rejected line. *@
                     @if (_importLines is not null)
                     {
                         @if (_importLines.Count == 0)
@@ -127,6 +137,7 @@
                     </div>
                     <span class="badge badge-muted">@_groups.Count گروه</span>
                 </div>
+                @* The list of groups (sub-groups are indented), or a message when there are none yet. *@
                 @if (_groups.Count == 0)
                 {
                     <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>گروهی ثبت نشده است</strong></div>
@@ -137,6 +148,7 @@
                         <table class="data-table data-table-bordered-rows">
                             <thead><tr><th>گروه</th><th>پیوندها</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
                             <tbody>
+                            @* One row per group, indented by its depth, with buttons to edit, switch on or off and delete. *@
                             @foreach (var (group, depth) in FlatGroups())
                             {
                                 <tr>
@@ -149,6 +161,7 @@
                                         <td class="action-cell">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                                            @* Confirmation step before deleting a group. *@
                                             @if (_confirmGroupId == group.Id)
                                             {
                                                 <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -179,6 +192,7 @@
                 <div class="admin-row-grid" style="margin-bottom:10px">
                     <div class="form-field is-grow"><input class="form-control" placeholder="جستجو..." @bind="_search" @bind:event="oninput" /></div>
                 </div>
+                @* The list of links (with a search box), or a message when nothing matches. *@
                 @if (VisibleLinks.Count == 0)
                 {
                     <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>پیوندی پیدا نشد</strong></div>
@@ -189,6 +203,7 @@
                         <table class="data-table data-table-bordered-rows">
                             <thead><tr><th>عنوان</th><th>آدرس</th><th>گروه</th><th>ترتیب</th><th>دسترسی سریع</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
                             <tbody>
+                            @* One row per link: title, address, group and status, with buttons to edit, switch on or off and delete. *@
                             @foreach (var link in VisibleLinks)
                             {
                                 <tr>
@@ -203,6 +218,7 @@
                                         <td class="action-cell">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditLink(link)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                             <button class="btn btn-secondary btn-sm" @onclick="() => ToggleLinkAsync(link.Id)"><i class="ti @(link.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(link.IsActive ? "خاموش" : "روشن")</button>
+                                            @* Confirmation step before deleting a link. *@
                                             @if (_confirmLinkId == link.Id)
                                             {
                                                 <button class="btn btn-danger btn-sm" @onclick="() => DeleteLinkAsync(link.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -249,6 +265,7 @@
     private string _importText = "";
     private IReadOnlyList<ImportLine>? _importLines;
 
+    // On opening: find out whether the person may manage links, then load the groups and links.
     protected override async Task OnInitializedAsync()
     {
         _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminLinksManage);
@@ -258,6 +275,7 @@
         _loading = false;
     }
 
+    // Load all groups and links.
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -265,10 +283,12 @@
         _links = await db.PortalLinks.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
     }
 
+    // Every change re-checks the manage permission, instead of trusting the page alone.
     private Task<bool> AllowedAsync() => PermissionChecker.HasPermissionAsync(Perm.AdminLinksManage);
 
     // ---- display helpers ----
 
+    // Turns the tree of groups into one ordered list with each group's depth, so the table can indent sub-groups.
     private IEnumerable<(LinkGroup Group, int Depth)> FlatGroups(Guid? parent = null, int depth = 0)
     {
         var level = _groups.Where(x => x.ParentId == parent || (parent is null && x.ParentId is Guid p && _groups.All(g => g.Id != p)))
@@ -282,6 +302,7 @@
         }
     }
 
+    // The full name of a group, including its parents, for example 'Parent / Child'.
     private string GroupPath(Guid? groupId)
     {
         if (groupId is null) return "—";
@@ -292,6 +313,7 @@
         return names.Count == 0 ? "—" : string.Join(" › ", names);
     }
 
+    // The groups offered in the group pick-list of the link form.
     private IReadOnlyList<(string Key, string Text)> GroupOptions =>
         FlatGroups().Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).ToList();
 
@@ -300,6 +322,7 @@
         FlatGroups().Where(x => LinkGroup.CheckParent(_editingGroupId ?? Guid.Empty, x.Group.Id, _groups) is null)
             .Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).ToList();
 
+    // The links that match the search box (title, address, description or group name); all of them when the box is empty.
     private List<PortalLink> VisibleLinks
     {
         get
@@ -314,6 +337,7 @@
 
     // ---- groups ----
 
+    // Edit button on a group: copy it into the form.
     private void BeginEditGroup(LinkGroup group)
     {
         _editingGroupId = group.Id; _groupName = group.Name; _groupParentId = group.ParentId; _groupOrder = group.SortOrder;
@@ -327,6 +351,7 @@
         _groupFormKey++;
     }
 
+    // Save button of the group form: create the group or update the selected one.
     private async Task SaveGroupAsync()
     {
         if (_busy || !await AllowedAsync()) return;
@@ -357,6 +382,7 @@
         finally { _busy = false; }
     }
 
+    // Switch a group on or off.
     private async Task ToggleGroupAsync(Guid id)
     {
         if (!await AllowedAsync()) return;
@@ -370,6 +396,7 @@
         await LoadAsync();
     }
 
+    // Delete a group. Refused while it still has sub-groups or links: they must be moved or deleted first.
     private async Task DeleteGroupAsync(Guid id)
     {
         _confirmGroupId = null;
@@ -393,6 +420,7 @@
 
     // ---- links ----
 
+    // Edit button on a link: copy it into the form.
     private void BeginEditLink(PortalLink link)
     {
         _editingLinkId = link.Id; _linkTitle = link.Title; _linkUrl = link.Url; _linkDescription = link.Description ?? "";
@@ -408,6 +436,7 @@
         _linkFormKey++;
     }
 
+    // Save button of the link form: create the link or update the selected one.
     private async Task SaveLinkAsync()
     {
         if (_busy || !await AllowedAsync()) return;
@@ -449,6 +478,7 @@
         finally { _busy = false; }
     }
 
+    // Switch a link on or off.
     private async Task ToggleLinkAsync(Guid id)
     {
         if (!await AllowedAsync()) return;
@@ -462,6 +492,7 @@
         await LoadAsync();
     }
 
+    // Delete a link.
     private async Task DeleteLinkAsync(Guid id)
     {
         _confirmLinkId = null;
@@ -480,8 +511,10 @@
 
     // ---- bulk import ----
 
+    // Preview button: read the pasted text line by line and show what would be imported, without saving anything.
     private void PreviewImport() => _importLines = LinkImportParser.Parse(_importText);
 
+    // Import button: save every accepted line from the preview; lines with a problem are skipped.
     private async Task ImportAsync()
     {
         if (_busy || !await AllowedAsync()) return;
