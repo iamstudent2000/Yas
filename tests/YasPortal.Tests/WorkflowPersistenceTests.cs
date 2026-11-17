@@ -5,6 +5,7 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Tests;
 
+// Workflow saving tests: that rounds, steps, decisions and requester actions are written to the database correctly, that stale or repeated decisions are refused and that decisions survive a reopen.
 public class WorkflowPersistenceTests
 {
     [Fact]

@@ -11,6 +11,8 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Audit writer tests. Every important action is recorded in the audit log with who did it.
+// They check who is recorded as the actor, how search filters are described, that repeated 'viewed' events are not flooded, and that a failing log never breaks the real action.
 public sealed class AuditEventWriterTests
 {
     [Fact]

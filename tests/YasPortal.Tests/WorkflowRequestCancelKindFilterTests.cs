@@ -3,6 +3,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Tests for the 'how was it cancelled' filter of the requests report (cancelled by the requester versus closed by an administrator).
 public class WorkflowRequestCancelKindFilterTests
 {
     [Fact]

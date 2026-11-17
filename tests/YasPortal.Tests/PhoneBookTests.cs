@@ -3,6 +3,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Phone book tests: contact and group validation, number and email checks, digit and letter normalisation for searching, and hiding inactive entries.
 public sealed class PhoneBookTests
 {
     private static Contact C(Guid group, string name, string? ext = "100", string? phone = null, string? mobile = null,

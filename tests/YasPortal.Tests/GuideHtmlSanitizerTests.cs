@@ -3,6 +3,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Guide text safety tests. Guide text is written in a rich editor; before it is stored, anything unsafe (scripts, event handlers, strange links) must be removed while normal formatting is kept.
 public sealed class GuideHtmlSanitizerTests
 {
     [Fact]

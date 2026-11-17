@@ -8,6 +8,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Home page slide tests: when a slide is shown (dates and active flag), which links are safe, field validation, ordering and the rule that a valid slide must exist, plus the allowed attachment types and sizes.
 public sealed class HomeSlideTests
 {
     private static readonly DateTime Today = new(2026, 11, 1);

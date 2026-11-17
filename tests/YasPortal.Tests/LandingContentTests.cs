@@ -4,6 +4,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Landing content tests: the home page uses built-in text until an administrator configures its own, and a configured list fully replaces the built-in one.
 public sealed class LandingContentTests
 {
     [Fact]

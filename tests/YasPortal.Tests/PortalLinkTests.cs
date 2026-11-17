@@ -8,6 +8,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Portal links tests: which addresses are accepted, nesting of link groups (limited depth, no loops), hiding inactive items, quick-access order, filtering and importing.
 public sealed class PortalLinkTests
 {
     [Theory]

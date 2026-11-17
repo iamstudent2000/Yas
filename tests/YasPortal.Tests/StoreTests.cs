@@ -6,6 +6,8 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Tests;
 
+// Store tests: item and category validation, quantity entry with Persian digits, per-request limits, the request time window,
+// stock movements, orders, the lottery draw, hand-over, report export and the store permissions.
 public class StoreTests
 {
     private static readonly Guid Cat = Guid.NewGuid();

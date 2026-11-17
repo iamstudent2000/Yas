@@ -5,6 +5,7 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Tests;
 
+// Database integrity tests: rules that the database itself enforces, such as one active holder per position, no inactive person in a position, no loops in the position hierarchy, and history being kept.
 public sealed class PersistenceIntegrityTests
 {
     [Fact]
