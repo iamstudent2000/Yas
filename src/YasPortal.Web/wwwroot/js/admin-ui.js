@@ -1,10 +1,13 @@
 (() => {
+  // Small helpers applied automatically to every page. Drop-down lists with at least this many options get a search box,
+  // and long lists of rows are split into pages of PAGE_SIZE rows.
   const SELECT_MIN_OPTIONS = 8;
   const PAGE_SIZE = 15;
   const enhanced = new WeakSet();
   const paged = new WeakSet();
   let timer;
 
+  // Add the look of the search box and the page buttons once (it is added by this script, not by a stylesheet file).
   function styles() {
     if (document.getElementById('ys-admin-ui-style')) return;
     const s = document.createElement('style');
@@ -31,6 +34,8 @@
     document.head.appendChild(s);
   }
 
+  // Turn a long drop-down list into a box where the person types to find the option. The original list stays hidden behind it.
+  // Lists marked data-searchable="false" and the text editor's own pickers are skipped.
   function searchableSelect(select) {
     if (enhanced.has(select) || select.disabled || select.multiple || select.dataset.searchable === 'false') return;
     // the rich-text editor (guides) builds its own colour / heading pickers from hidden selects; turning those into search boxes breaks them
@@ -77,11 +82,13 @@
     sync();
   }
 
+  // The rows of a table or list that should be paged.
   function rows(container) {
     if (container.matches('tbody')) return [...container.children].filter(x=>x.tagName==='TR');
     return [...container.children].filter(x=>x.matches('.employee-row,.assignment-row,.managed-group-card,.permission-list-row,.request-row,.list-row'));
   }
 
+  // Split a long list into pages and add the previous / next and page number buttons (areas marked data-no-auto-paginate are skipped).
   function paginate(container) {
     if (paged.has(container)) return;
     if (container.closest('[data-no-auto-paginate]')) return;
@@ -107,7 +114,9 @@
     render();
   }
 
+  // Apply both improvements (search boxes and paging) to everything under the given part of the page.
   function scan(root=document){styles();root.querySelectorAll?.('select').forEach(searchableSelect);root.querySelectorAll?.('.data-table tbody,.employee-list,.position-assignment-list,.group-cards,.permission-list').forEach(paginate);}
+  // The portal redraws parts of the page often; after the page settles for a moment, scan it again for new lists to improve.
   function schedule(){clearTimeout(timer);timer=setTimeout(()=>scan(),100);}
   window.addEventListener('load',()=>{scan();new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});});
 })();

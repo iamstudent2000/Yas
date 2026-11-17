@@ -1,6 +1,9 @@
+// Positions the drop-down list of the search-as-you-type pickers (the server lookup selector). The list opens below its box,
+// or above it when there is not enough room, and stays inside the screen.
 window.serverLookupDropdown = (() => {
     const handlers = new WeakMap();
 
+    // Work out size and place of the list from the free space above and below the box, then place it.
     function position(trigger, menu) {
         if (!trigger || !menu || !document.body.contains(trigger) || !document.body.contains(menu)) return;
 
@@ -27,6 +30,7 @@ window.serverLookupDropdown = (() => {
         menu.dataset.openUp = openUp ? 'true' : 'false';
     }
 
+    // Start keeping the list in place while the window is resized or any area is scrolled.
     function attach(trigger, menu) {
         if (!trigger || !menu) return;
         detach(trigger, menu);
@@ -37,6 +41,7 @@ window.serverLookupDropdown = (() => {
         reposition();
     }
 
+    // Stop keeping the list in place (when it closes).
     function detach(trigger, menu) {
         const handler = handlers.get(menu);
         if (!handler) return;

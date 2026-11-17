@@ -1,3 +1,5 @@
+// The position drop-down in the page header. A person with several positions picks the one to act as. The list is copied to the
+// end of the page and fixed on screen so no part of the header can cut it off; clicks on the copy are passed to the real list.
 window.activePositionDropdown = (() => {
     let outsideHandler = null;
     let resizeHandler = null;
@@ -11,6 +13,7 @@ window.activePositionDropdown = (() => {
         element.style.setProperty(property, value, 'important');
     }
 
+    // Size and place the list under its button (or above, when there is more room there), always inside the screen.
     function position(trigger, dropdown) {
         if (!trigger || !dropdown || !dropdown.isConnected) return;
 
@@ -60,6 +63,7 @@ window.activePositionDropdown = (() => {
         setImportant(dropdown, 'visibility', 'visible');
     }
 
+    // Make the copy of the list that is attached directly to the page body.
     function createPortal(sourceDropdown) {
         const clone = sourceDropdown.cloneNode(true);
 
@@ -83,6 +87,7 @@ window.activePositionDropdown = (() => {
         return clone;
     }
 
+    // A click on an option of the copy triggers the same option of the real list, which tells the server.
     function bindOptionClicks(clone, sourceDropdown) {
         const cloneOptions = [...clone.querySelectorAll('.active-position-option')];
         const sourceOptions = [...sourceDropdown.querySelectorAll('.active-position-option')];
@@ -96,6 +101,7 @@ window.activePositionDropdown = (() => {
         });
     }
 
+    // Open: show the copy and close the list on Escape, on a click elsewhere, and keep it in place on resize and scroll.
     function start(trigger, dropdown, dotNetRef) {
         stop();
         if (!trigger || !dropdown || !document.body) return;
@@ -130,6 +136,7 @@ window.activePositionDropdown = (() => {
         document.addEventListener('pointerdown', outsideHandler, true);
     }
 
+    // Close: remove the copy and every listener that was added.
     function stop() {
         if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         if (scrollHandler) window.removeEventListener('scroll', scrollHandler, true);
