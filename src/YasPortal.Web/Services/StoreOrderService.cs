@@ -8,18 +8,38 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Web.Services;
 
-public sealed record StoreOrderLineView(string ItemCode, string ItemName, string Unit, decimal Quantity);
-
-public sealed record StoreOrderRow(Guid Id, Guid RequestId, DateTime CreatedAtUtc, WorkflowRequestStatus Status, DateTime? IssuedAtUtc, string Summary, string? RequesterName = null, string? IssuedByName = null);
-
-public sealed record StoreOrderDetail(Guid Id, Guid RequestId, Guid EmployeeId, string EmployeeName, string? PositionName, DateTime CreatedAtUtc, WorkflowRequestStatus Status,
-    DateTime? IssuedAtUtc, string? IssuedByName, string? Note, string? IssueNote, IReadOnlyList<StoreOrderLineView> Lines)
+/// <summary>One line of an order as shown on screen. <paramref name="UnitPrice"/> is the price copied onto the line when the order was sent (empty = no price).</summary>
+public sealed record StoreOrderLineView(string ItemCode, string ItemName, string Unit, decimal Quantity, decimal? UnitPrice = null)
 {
-    public string Number => Id.ToString("N")[..8].ToUpperInvariant();
+    /// <summary>Unit price x quantity; empty when the item had no price.</summary>
+    public decimal? LineTotal => StorePricing.LineTotal(UnitPrice, Quantity);
 }
 
-/// <summary>How one cart line stands right now: what is wrong with it (null = nothing) and the current stock.</summary>
-public sealed record StoreCartCheck(string? Problem, decimal Stock);
+/// <summary><paramref name="Total"/> is the final price of the order (zero when nothing in it had a price).</summary>
+public sealed record StoreOrderRow(Guid Id, Guid RequestId, DateTime CreatedAtUtc, WorkflowRequestStatus Status, DateTime? IssuedAtUtc, string Summary, string? RequesterName = null, string? IssuedByName = null, decimal Total = 0);
+
+/// <summary>
+/// One order with everything the slip shows. The salary-deduction fields say who agreed to the total being taken from the salary, when, and for how much
+/// (all empty when the order costs nothing).
+/// </summary>
+public sealed record StoreOrderDetail(Guid Id, Guid RequestId, Guid EmployeeId, string EmployeeName, string? PositionName, DateTime CreatedAtUtc, WorkflowRequestStatus Status,
+    DateTime? IssuedAtUtc, string? IssuedByName, string? Note, string? IssueNote, IReadOnlyList<StoreOrderLineView> Lines,
+    DateTime? DeductionAcceptedAtUtc = null, string? DeductionAcceptedByName = null, decimal? DeductionAcceptedAmount = null)
+{
+    public string Number => Id.ToString("N")[..8].ToUpperInvariant();
+
+    /// <summary>The final price of the order: the sum of the line totals.</summary>
+    public decimal Total => StorePricing.Total(Lines.Select(l => (l.UnitPrice, l.Quantity)));
+
+    /// <summary>True when the person (or an administrator for them) agreed to the salary deduction, so the slip can say who.</summary>
+    public bool HasDeductionConsent => DeductionAcceptedAtUtc is not null;
+}
+
+/// <summary>
+/// How one cart line stands right now: what is wrong with it (null = nothing), the current stock and the current unit price of the item
+/// (the price an order sent now would be charged; empty = no price). The page multiplies the price by the quantity to show the line total.
+/// </summary>
+public sealed record StoreCartCheck(string? Problem, decimal Stock, decimal? UnitPrice = null);
 
 public sealed record StorePlaceResult(bool Ok, string? Error = null, Guid? OrderId = null);
 
@@ -40,8 +60,34 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         _ => status.ToString(),
     };
 
-    public static string Summarize(IEnumerable<StoreOrderLineView> lines) =>
-        string.Join("\n", lines.Select(l => $"• {l.ItemName} ({l.ItemCode}) — {l.Quantity:0.###} {l.Unit}"));
+    /// <summary>
+    /// The text the approvers read in the request. Items that have a price show their line total, and an order that costs money ends with the final
+    /// price, so the person approving can see what will be taken from the requester's salary.
+    /// </summary>
+    public static string Summarize(IEnumerable<StoreOrderLineView> lines)
+    {
+        var list = lines.ToList();
+        var text = string.Join("\n", list.Select(l => $"• {l.ItemName} ({l.ItemCode}) — {l.Quantity:0.###} {l.Unit}"
+            + (l.LineTotal is decimal t ? $" — {StoreMoney.Plain(l.UnitPrice!.Value)} × {l.Quantity:0.###} = {StoreMoney.Plain(t)} تومان" : "")));
+        var total = StorePricing.Total(list.Select(l => (l.UnitPrice, l.Quantity)));
+        return StorePricing.NeedsDeductionConsent(total) ? text + $"\nمبلغ نهایی: {StoreMoney.Plain(total)} تومان (با موافقت درخواست‌کننده از حقوق کسر می‌شود)" : text;
+    }
+
+    /// <summary>The message shown when an order that costs money is sent without the agreement to the salary deduction.</summary>
+    public static string DeductionRequiredMessage(decimal total) =>
+        $"مبلغ این سفارش {StoreMoney.Format(total)} است و از حقوق کسر می‌شود؛ برای ادامه باید با کسر مبلغ از حقوق موافقت کنید.";
+
+    /// <summary>
+    /// The person agrees to the amount they were shown. If the amount worked out now is different (the item's price was changed while the page was open),
+    /// the agreement does not count: they agreed to another amount. Returns the message to show, or null when the amounts match or no amount was shown.
+    /// </summary>
+    public static string? ChangedAmountMessage(decimal total, decimal? shownTotal) =>
+        shownTotal is decimal shown && shown != total
+            ? $"قیمت کالا در این فاصله تغییر کرده است؛ مبلغ نهایی اکنون {StoreMoney.Format(total)} است (در صفحه {StoreMoney.Format(shown)} نشان داده شده بود). مبلغ جدید را ببینید و دوباره موافقت کنید."
+            : null;
+
+    /// <summary>The final price of the lines the person wants, as an order sent now would be charged (empty lines or items without a price add nothing).</summary>
+    private static decimal TotalOf(IEnumerable<StoreOrderLine> lines) => StorePricing.Total(lines.Select(l => (l.UnitPrice, l.Quantity)));
 
     /// <summary>The one place the ordering rules live: the cart page shows these messages before sending, and sending checks them again. Returns null when the line is fine.</summary>
     private static string? Validate(StoreItem? item, bool categoryActive, decimal quantity, decimal available, DateTime today, bool alreadyOnOrder = false, decimal outstanding = 0)
@@ -88,7 +134,7 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         {
             var item = items.FirstOrDefault(x => x.Id == itemId);
             var available = stock.GetValueOrDefault(itemId);
-            result[itemId] = new StoreCartCheck(Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, available, today, existing.TryGetValue(itemId, out var had) && quantity <= had, outstanding.GetValueOrDefault(itemId)), available);
+            result[itemId] = new StoreCartCheck(Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, available, today, existing.TryGetValue(itemId, out var had) && quantity <= had, outstanding.GetValueOrDefault(itemId)), available, item?.Price);
         }
         return result;
     }
@@ -131,7 +177,8 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             var item = items.FirstOrDefault(x => x.Id == itemId);
             var problem = Validate(item, item is not null && activeCategories.Contains(item.CategoryId), quantity, stock.GetValueOrDefault(itemId), today, existing.TryGetValue(itemId, out var had) && quantity <= had, outstanding.GetValueOrDefault(itemId));
             if (problem is not null) return (null, problem);
-            lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity));
+            // the price is copied now: a later price change in the catalogue never changes an order that was already sent
+            lines.Add(new StoreOrderLine(item!.Id, item.Code, item.Name, item.Unit, quantity, item.Price));
         }
         return (lines, null);
     }
@@ -147,7 +194,9 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     /// Sends an order that an approver returned for correction again, with the corrected items. The approval chain is worked out again from
     /// the position the order was first sent from (that is organizational), while the order stays the person's own.
     /// </summary>
-    public async Task<StorePlaceResult> ResubmitAsync(Guid requestId, Guid employeeId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, CancellationToken ct = default)
+    /// <param name="acceptSalaryDeduction">The person ticked the agreement to the salary deduction for the new total. The old agreement was for the old amount, so it has to be given again.</param>
+    /// <param name="shownTotal">The final price the page showed next to the tick box; if the price changed meanwhile the order is refused so the person can agree to the new amount.</param>
+    public async Task<StorePlaceResult> ResubmitAsync(Guid requestId, Guid employeeId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, bool acceptSalaryDeduction = false, decimal? shownTotal = null, CancellationToken ct = default)
     {
         if (wanted.Count == 0) return new(false, "سفارش باید دست‌کم یک کالا داشته باشد؛ اگر دیگر نیازی ندارید، درخواست را لغو کنید.");
         if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
@@ -162,14 +211,17 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
 
         var (lines, error) = await BuildLinesAsync(db, employeeId, wanted, today, requestId, ct);
         if (lines is null) return new(false, error);
+        var total = TotalOf(lines);
+        if (ChangedAmountMessage(total, shownTotal) is string changed) return new(false, changed);
+        if (StorePricing.NeedsDeductionConsent(total) && !acceptSalaryDeduction) return new(false, DeductionRequiredMessage(total));
         var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, request.RequesterPositionId, ct);
         if (!resolved.Success) return new(false, resolved.Error);
 
-        var fields = new Dictionary<string, string?> { ["summary"] = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity))) };
+        var fields = new Dictionary<string, string?> { ["summary"] = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity, l.UnitPrice))) };
         if (!string.IsNullOrWhiteSpace(note)) fields["note"] = note.Trim();
 
         db.StoreOrderLines.RemoveRange(order.Lines.ToList());
-        order.ReplaceLines(note, lines);
+        order.ReplaceLines(note, lines, acceptSalaryDeduction ? employeeId : null);
         request.Resubmit(JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList());
         await notifications.StageAsync(db, request, WorkflowNotificationEvent.Resubmitted, ct);
         try { await db.SaveChangesAsync(ct); }
@@ -178,7 +230,9 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
     }
 
     /// <summary>Checks the lines against the catalogue (active item, request period open today, not a lottery item, per-request maximum, stock) and sends the order for approval.</summary>
-    public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, Guid? createdByEmployeeId = null, CancellationToken ct = default)
+    /// <param name="shownTotal">The final price the page showed next to the tick box; if the price changed meanwhile the order is refused so the person can agree to the new amount.</param>
+    /// <param name="acceptSalaryDeduction">The salary-deduction box was ticked. It is only needed when the order costs money (an item with a price). When an administrator places the order for someone, the administrator is recorded as the one who accepted.</param>
+    public async Task<StorePlaceResult> PlaceAsync(Guid employeeId, Guid positionId, IReadOnlyList<(Guid ItemId, decimal Quantity)> wanted, string? note, DateTime today, Guid? createdByEmployeeId = null, bool acceptSalaryDeduction = false, decimal? shownTotal = null, CancellationToken ct = default)
     {
         if (wanted.Count == 0) return new(false, "کالایی برای درخواست انتخاب نشده است.");
         if (note is { Length: > StoreOrder.NoteMax }) return new(false, $"توضیحات حداکثر {StoreOrder.NoteMax} نویسه باشد.");
@@ -186,6 +240,9 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var (lines, error) = await BuildLinesAsync(db, employeeId, wanted, today, null, ct);
         if (lines is null) return new(false, error);
+        var total = TotalOf(lines);
+        if (ChangedAmountMessage(total, shownTotal) is string changed) return new(false, changed);
+        if (StorePricing.NeedsDeductionConsent(total) && !acceptSalaryDeduction) return new(false, DeductionRequiredMessage(total));
 
         // a double click (or a second tab) must not send the same order twice: refuse an identical order sent in the last two minutes
         var since = DateTime.UtcNow.AddMinutes(-2);
@@ -197,11 +254,12 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var resolved = await workflows.ResolveStepsAsync(WorkflowTypeCode.StoreOrder, positionId, ct);
         if (!resolved.Success) return new(false, resolved.Error);
 
-        var summary = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity)));
+        var summary = Summarize(lines.Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity, l.UnitPrice)));
         var fields = new Dictionary<string, string?> { ["summary"] = summary };
         if (!string.IsNullOrWhiteSpace(note)) fields["note"] = note.Trim();
         var request = new WorkflowRequest(WorkflowTypeCode.StoreOrder, employeeId, positionId, JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList(), createdByEmployeeId: createdByEmployeeId);
-        var order = new StoreOrder(request.Id, employeeId, positionId, note, lines);
+        // who agreed: the person themselves, or the administrator who recorded the agreement for them
+        var order = new StoreOrder(request.Id, employeeId, positionId, note, lines, acceptSalaryDeduction ? createdByEmployeeId ?? employeeId : null);
 
         db.WorkflowRequests.Add(request);
         db.StoreOrders.Add(order);
@@ -255,11 +313,21 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
     }
 
-    /// <summary>Approved orders still waiting for the goods to be handed over, oldest first.</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, string? sort = null, bool descending = false, CancellationToken ct = default)
+    /// <summary>
+    /// Approved orders still waiting for the goods to be handed over, oldest first. <paramref name="search"/> looks at the requester's name and at the
+    /// item name or code; the dates filter on the day the order was sent (the same filters as the hand-over history).
+    /// </summary>
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, string? sort = null, bool descending = false, string? search = null, DateTime? createdFromUtc = null, DateTime? createdToUtcExclusive = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc == null && db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Approved));
+        if (createdFromUtc is DateTime from) q = q.Where(o => o.CreatedAtUtc >= from);
+        if (createdToUtcExclusive is DateTime to) q = q.Where(o => o.CreatedAtUtc < to);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(o => db.Employees.Any(e => e.Id == o.EmployeeId && e.FullName.Contains(s)) || o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
+        }
         return await PageAsync(db, q, page, pageSize, ct, oldestFirst: true, sort: sort, descending: descending);
     }
 
@@ -303,12 +371,13 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
             {
                 o.Id, o.RequestId, o.CreatedAtUtc, o.IssuedAtUtc,
                 Status = db.WorkflowRequests.Where(r => r.Id == o.RequestId).Select(r => r.Status).FirstOrDefault(),
-                Lines = o.Lines.Select(l => new { l.ItemName, l.Unit, l.Quantity }).ToList(),
+                Lines = o.Lines.Select(l => new { l.ItemName, l.Unit, l.Quantity, l.UnitPrice }).ToList(),
                 Who = db.Employees.Where(e => e.Id == o.EmployeeId).Select(e => e.FullName).FirstOrDefault(),
                 By = db.Employees.Where(e => e.Id == o.IssuedByEmployeeId).Select(e => e.FullName).FirstOrDefault(),
             }).ToListAsync(ct);
         return (rows.Select(r => new StoreOrderRow(r.Id, r.RequestId, r.CreatedAtUtc, r.Status, r.IssuedAtUtc,
-            string.Join("، ", r.Lines.Select(l => $"{l.ItemName} {l.Quantity:0.###} {l.Unit}")), r.Who, r.By)).ToList(), total);
+            string.Join("، ", r.Lines.Select(l => $"{l.ItemName} {l.Quantity:0.###} {l.Unit}")), r.Who, r.By,
+            StorePricing.Total(r.Lines.Select(l => (l.UnitPrice, l.Quantity))))).ToList(), total);
     }
 
     public async Task<StoreOrderDetail?> GetAsync(Guid orderId, CancellationToken ct = default)
@@ -320,8 +389,10 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         var who = await db.Employees.Where(e => e.Id == o.EmployeeId).Select(e => e.FullName).FirstOrDefaultAsync(ct) ?? "";
         var position = await db.Positions.Where(p => p.Id == o.PositionId).Select(p => p.Name).FirstOrDefaultAsync(ct);
         var by = o.IssuedByEmployeeId is Guid bid ? await db.Employees.Where(e => e.Id == bid).Select(e => e.FullName).FirstOrDefaultAsync(ct) : null;
+        var acceptedBy = o.SalaryDeductionAcceptedByEmployeeId is Guid aid ? await db.Employees.Where(e => e.Id == aid).Select(e => e.FullName).FirstOrDefaultAsync(ct) : null;
         return new StoreOrderDetail(o.Id, o.RequestId, o.EmployeeId, who, position, o.CreatedAtUtc, status, o.IssuedAtUtc, by, o.Note, o.IssueNote,
-            o.Lines.OrderBy(l => l.ItemName).Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity)).ToList());
+            o.Lines.OrderBy(l => l.ItemName).Select(l => new StoreOrderLineView(l.ItemCode, l.ItemName, l.Unit, l.Quantity, l.UnitPrice)).ToList(),
+            o.SalaryDeductionAcceptedAtUtc, acceptedBy, o.SalaryDeductionAcceptedAmount);
     }
 
     /// <summary>
@@ -378,6 +449,8 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         if (order.IsIssued) return StoreResult.Fail("این سفارش قبلاً تحویل داده شده است.");
         var status = await db.WorkflowRequests.Where(r => r.Id == order.RequestId).Select(r => r.Status).FirstOrDefaultAsync(ct);
         if (status != WorkflowRequestStatus.Approved) return StoreResult.Fail("این سفارش هنوز تأیید نهایی نشده است.");
+        // an order that costs money is never handed over without the agreement to the salary deduction (for exactly its current total)
+        if (!order.HasValidDeductionConsent) return StoreResult.Fail("موافقت با کسر مبلغ از حقوق برای این سفارش ثبت نشده است؛ تحویل ممکن نیست.");
 
         var ids = order.Lines.Select(l => l.ItemId).ToList();
         var stock = await db.StoreStockMovements.Where(m => ids.Contains(m.ItemId)).GroupBy(m => m.ItemId)

@@ -2,12 +2,15 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.StoreOrdersIssue)]
 @inject StoreOrderService Orders
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
+@inject IJSRuntime JS
 
 <PageTitle>تحویل کالا - فروشگاه</PageTitle>
 
@@ -26,17 +29,17 @@
         <button class="btn @(_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(true)">تاریخچه تحویل</button>
     </div>
 
-    @if (_history)
-    {
-        <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1))"
-                       CanClear="@(!string.IsNullOrWhiteSpace(_search) || _from is not null || _to is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dFrom is not null || _dTo is not null)"
-                       OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
-            <div class="admin-filter"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
-                <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
-            <div class="admin-filter"><label class="form-label">تحویل از تاریخ</label><PersianDatePicker Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
-            <div class="admin-filter"><label class="form-label">تحویل تا تاریخ</label><PersianDatePicker Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
-        </ListFilterBar>
-    }
+    @* One filter bar for both tabs: search by person or item, a date range (the day the order was sent, or the day it was handed over),
+       and the ⋯ menu with CSV and PDF of everything the last search matched. *@
+    <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1))"
+                   CanClear="@(!string.IsNullOrWhiteSpace(_search) || _from is not null || _to is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dFrom is not null || _dTo is not null)"
+                   OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
+                   OnExport="ExportCsvAsync" OnExportPdf="ExportPdfAsync" ExportPermission="@Perm.StoreOrdersIssue" Exporting="_exporting">
+        <div class="admin-filter"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
+            <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
+        <div class="admin-filter"><label class="form-label">@(_history ? "تحویل از تاریخ" : "تاریخ ثبت از")</label><PersianDatePicker @key="_history" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
+        <div class="admin-filter"><label class="form-label">@(_history ? "تحویل تا تاریخ" : "تا تاریخ")</label><PersianDatePicker @key="_history" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
+    </ListFilterBar>
 
     @if (!_history && _rows.Count > 0)
     {
@@ -132,7 +135,7 @@
 </div>
 
 @code {
-    private bool _loading = true, _busy, _history;
+    private bool _loading = true, _busy, _history, _exporting;
     private string _search = "";
     private DateTime? _from, _to;
     // What is typed in the filter card; it becomes the applied filter above only when "جستجو" is pressed.
@@ -167,8 +170,61 @@
 
     private async Task LoadAsync()
     {
-        (_rows, _total) = _history ? await Orders.ListIssuedAsync(_pageNo, _pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime(), _sortBy, _sortDesc) : await Orders.ListPendingIssueAsync(_pageNo, _pageSize, _sortBy, _sortDesc);
+        (_rows, _total) = await FetchAsync(_pageNo, _pageSize);
         _loading = false;
+    }
+
+    /// <summary>The orders of the open tab that match the applied search and dates, in the current sort (one page, or everything when exporting).</summary>
+    private Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> FetchAsync(int page, int pageSize) =>
+        _history
+            ? Orders.ListIssuedAsync(page, pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime(), _sortBy, _sortDesc)
+            : Orders.ListPendingIssueAsync(page, pageSize, _sortBy, _sortDesc, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
+
+    // ---- CSV and PDF: the same rows, everything the last search matched (not only this page) ----
+
+    private const int ExportLimit = 20000;
+
+    private IReadOnlyList<string> ExportHeaders() => _history
+        ? ["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)", "تاریخ تحویل", "تحویل‌دهنده"]
+        : ["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)"];
+
+    private IReadOnlyList<IReadOnlyList<string>> ExportRows(IEnumerable<StoreOrderRow> orders) => orders.Select(o =>
+    {
+        var cells = new List<string> { o.Id.ToString("N")[..8].ToUpperInvariant(), o.RequesterName ?? "", WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc), o.Summary, o.Total > 0 ? StoreMoney.Plain(o.Total) : "" };
+        if (_history) { cells.Add(o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : ""); cells.Add(o.IssuedByName ?? ""); }
+        return (IReadOnlyList<string>)cells;
+    }).ToList();
+
+    private string ExportName() => $"store-{(_history ? "issued" : "waiting")}-{DateTime.Now:yyyyMMdd-HHmm}";
+
+    private async Task ExportCsvAsync()
+    {
+        _exporting = true;
+        try
+        {
+            var all = await FetchAsync(1, ExportLimit);
+            await JS.InvokeVoidAsync("yasDownloadFile", ExportName() + ".csv", "text/csv;charset=utf-8", StoreCsv.Build(ExportHeaders(), ExportRows(all.Rows)));
+            if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
+        }
+        catch (Exception) { AppState.AddToast("ساخت فایل CSV انجام نشد.", ToastLevel.Error); }
+        finally { _exporting = false; }
+    }
+
+    private async Task ExportPdfAsync()
+    {
+        _exporting = true;
+        try
+        {
+            var all = await FetchAsync(1, ExportLimit);
+            var title = _history ? "تاریخچه تحویل کالا" : "سفارش‌های در انتظار تحویل";
+            var filters = string.Join(" · ", new[] { string.IsNullOrWhiteSpace(_search) ? null : $"جستجو: {_search}", _from is DateTime f ? $"از {WorkflowDisplay.ToPersianDate(f)}" : null, _to is DateTime t ? $"تا {WorkflowDisplay.ToPersianDate(t)}" : null }.Where(x => x is not null));
+            float[] weights = _history ? [1.1f, 2, 1.8f, 5, 1.6f, 1.8f, 2] : [1.1f, 2.2f, 1.8f, 6, 1.8f];
+            var pdf = StoreListPdf.Render(title, filters.Length == 0 ? null : filters, ExportHeaders(), weights, ExportRows(all.Rows));
+            await JS.InvokeVoidAsync("yasDownloadFile", ExportName() + ".pdf", "application/pdf", pdf);
+            if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
+        }
+        catch (Exception) { AppState.AddToast("ساخت فایل PDF انجام نشد.", ToastLevel.Error); }
+        finally { _exporting = false; }
     }
 
     private async Task ApplyFiltersAsync()
@@ -185,7 +241,13 @@
     private bool _sortDesc;
     private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
 
-    private async Task SwitchAsync(bool history) { _history = history; _sortBy = null; _sortDesc = false; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true; await LoadAsync(); }
+    private async Task SwitchAsync(bool history)
+    {
+        _history = history; _sortBy = null; _sortDesc = false; _pageNo = 1; _confirmId = null; _confirmBulk = false; _loading = true;
+        // the dates mean "day sent" on one tab and "day handed over" on the other, so the filters start fresh on each tab
+        (_search, _dSearch, _from, _to, _dFrom, _dTo) = ("", "", null, null, null, null);
+        await LoadAsync();
+    }
 
     private readonly HashSet<Guid> _selected = [];
     private string _bulkNote = "";
@@ -195,10 +257,10 @@
     private void ToggleSelect(Guid id, bool on) { _confirmBulk = false; if (on) _selected.Add(id); else _selected.Remove(id); }
     private void SelectPage(bool on) { _confirmBulk = false; foreach (var r in _rows) { if (on) _selected.Add(r.Id); else _selected.Remove(r.Id); } }
 
-    /// <summary>Selects every order waiting for hand-over, not only the ones on this page.</summary>
+    /// <summary>Selects every order waiting for hand-over that matches the applied search and dates, not only the ones on this page.</summary>
     private async Task SelectAllPending()
     {
-        var all = await Orders.ListPendingIssueAsync(1, 1000);
+        var all = await FetchAsync(1, 1000);
         foreach (var r in all.Rows) _selected.Add(r.Id);
     }
 

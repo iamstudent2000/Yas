@@ -47,7 +47,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
     }
 
     /// <summary>Registers the license and the Persian fonts once per process.</summary>
-    private static void EnsureInitialized()
+    internal static void EnsureInitialized()
     {
         lock (InitLock)
         {

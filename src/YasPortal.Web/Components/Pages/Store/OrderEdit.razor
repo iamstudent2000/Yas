@@ -3,6 +3,7 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
@@ -58,7 +59,7 @@ else
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
+                    <thead><tr><th>کالا</th><th>مقدار</th><th>واحد</th><th>قیمت واحد</th><th>مبلغ</th><th>موجودی</th><th>وضعیت</th><th></th></tr></thead>
                     <tbody>
                         @foreach (var line in _lines)
                         {
@@ -67,6 +68,9 @@ else
                                 <td><strong>@line.Name</strong> <span class="muted" dir="ltr">@line.Code</span></td>
                                 <td><input class="form-control" style="width:90px" inputmode="decimal" autocomplete="off" aria-label="مقدار" value="@WorkflowDisplay.ToPersianDigits(line.Quantity.ToString("0.###"))" @onchange="e => ChangeQuantityAsync(line, e.Value?.ToString())" /></td>
                                 <td>@line.Unit</td>
+                                @* the price is the one an order sent now would be charged; the amount is price x quantity *@
+                                <td>@(check is null ? "…" : check.UnitPrice is decimal up ? StoreMoney.Format(up) : "—")</td>
+                                <td>@(check is null ? "…" : StoreMoney.FormatOrDash(StorePricing.LineTotal(check.UnitPrice, line.Quantity)))</td>
                                 <td>@(check is null ? "…" : WorkflowDisplay.ToPersianDigits(check.Stock.ToString("0.###")))</td>
                                 <td>
                                     @if (check is null) { <span class="muted">در حال بررسی...</span> }
@@ -76,7 +80,8 @@ else
                                 <td><button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => RemoveAsync(line)"><i class="ti @Icons.Delete"></i> حذف</button></td>
                             </tr>
                         }
-                        @if (_lines.Count == 0) { <tr><td colspan="6" class="muted">سفارش کالایی ندارد؛ یک کالا اضافه کنید.</td></tr> }
+                        @if (_lines.Count == 0) { <tr><td colspan="8" class="muted">سفارش کالایی ندارد؛ یک کالا اضافه کنید.</td></tr> }
+                        else if (NeedsConsent) { <tr><th colspan="4">مبلغ نهایی سفارش</th><td colspan="4"><strong>@StoreMoney.Format(Total)</strong></td></tr> }
                     </tbody>
                 </table>
             </div>
@@ -93,10 +98,15 @@ else
         </section>
 
         <section class="card admin-form-row">
+            @if (NeedsConsent)
+            {
+                @* the old agreement was for the old amount, so it has to be given again for this total (the tick is cleared whenever the items change) *@
+                <label class="check-row"><input type="checkbox" @bind="_accepted" /> موافقم که مبلغ نهایی @StoreMoney.Format(Total) از حقوق من کسر شود.</label>
+            }
             <div class="admin-row-grid">
                 <div class="form-field is-grow"><label class="form-label">توضیحات (اختیاری)</label><input class="form-control" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" /></div>
                 <div class="form-field admin-row-submit"><div class="form-actions">
-                    <button class="btn btn-primary" disabled="@(_busy || _problems > 0 || _lines.Count == 0 || _checks.Count == 0)" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> ارسال مجدد</button>
+                    <button class="btn btn-primary" disabled="@(_busy || _problems > 0 || _lines.Count == 0 || _checks.Count == 0 || (NeedsConsent && !_accepted))" @onclick="SubmitAsync"><i class="ti @Icons.Send"></i> ارسال مجدد</button>
                 </div></div>
             </div>
         </section>
@@ -115,11 +125,21 @@ else
     private IReadOnlyDictionary<Guid, StoreCartCheck> _checks = new Dictionary<Guid, StoreCartCheck>();
     private int _problems, _pickerKey;
     private string _note = "", _pickQty = "";
+    // the "deduct from my salary" tick for the current total
+    private bool _accepted;
     private Guid? _pickId;
     private IReadOnlyList<StoreItemRow> _catalogue = [];
     private IReadOnlyList<(string Key, string Text)> ItemOptions = [];
 
     public void Dispose() { }
+
+    /// <summary>The unit price an order sent now would be charged for a line (empty until the line has been checked, or when the item has no price).</summary>
+    private decimal? PriceOf(EditLine line) => _checks.TryGetValue(line.ItemId, out var c) ? c.UnitPrice : null;
+
+    /// <summary>The final price of the order as it stands on the page.</summary>
+    private decimal Total => StorePricing.Total(_lines.Select(l => (PriceOf(l), l.Quantity)));
+
+    private bool NeedsConsent => StorePricing.NeedsDeductionConsent(Total);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -148,6 +168,7 @@ else
     {
         try
         {
+            _accepted = false; // any change of the items changes the amount, so the agreement must be given again
             _checks = _lines.Count == 0 ? new Dictionary<Guid, StoreCartCheck>() : await Orders.CheckAsync(_employeeId ?? Guid.Empty, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), DateTime.Now, RequestId);
             _problems = _checks.Values.Count(c => c.Problem is not null);
         }
@@ -185,7 +206,7 @@ else
         _busy = true;
         try
         {
-            var result = await Orders.ResubmitAsync(RequestId, emp, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now);
+            var result = await Orders.ResubmitAsync(RequestId, emp, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now, _accepted, Total);
             if (!result.Ok) { AppState.AddToast(result.Error ?? "ارسال مجدد انجام نشد.", ToastLevel.Error); await RefreshAsync(); return; }
             AppState.AddToast("سفارش اصلاح‌شده دوباره ارسال شد.", ToastLevel.Success);
             AppState.NotifyRequestBadgesChanged();

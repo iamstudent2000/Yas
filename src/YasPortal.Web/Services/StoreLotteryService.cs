@@ -8,7 +8,11 @@ using YasPortal.Infrastructure.Store;
 
 namespace YasPortal.Web.Services;
 
-public sealed record LotteryMineRow(Guid EntryId, Guid ItemId, string ItemName, string Unit, decimal Quantity, LotteryEntryStatus Status, DateTime AppliedAtUtc, Guid? OrderId);
+/// <summary><paramref name="UnitPrice"/> is the price the person saw when they applied (empty = the item had no price); the amount is that price times the quantity.</summary>
+public sealed record LotteryMineRow(Guid EntryId, Guid ItemId, string ItemName, string Unit, decimal Quantity, LotteryEntryStatus Status, DateTime AppliedAtUtc, Guid? OrderId, decimal? UnitPrice = null)
+{
+    public decimal? Total => StorePricing.LineTotal(UnitPrice, Quantity);
+}
 
 /// <summary>A lottery item with applications waiting: what the storekeeper sees before drawing.</summary>
 public sealed record LotteryItemRow(Guid ItemId, string Code, string Name, string Unit, decimal Stock, StoreRequestWindow Window, DateTime? ClosesOn, int Applicants, decimal TotalQuantity);
@@ -26,7 +30,9 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
 {
     private const string AlreadyApplied = "شما قبلاً برای این کالا ثبت‌نام کرده‌اید.";
 
-    public async Task<StoreResult> ApplyAsync(Guid itemId, Guid employeeId, Guid positionId, decimal quantity, DateTime today, CancellationToken ct = default)
+    /// <param name="shownTotal">The amount the page showed next to the tick box; if the price changed meanwhile the application is refused so the person can agree to the new amount.</param>
+    /// <param name="acceptSalaryDeduction">The salary-deduction box was ticked. Needed only when the item has a price: a winner's order costs money, and the person must agree to that before they can take part.</param>
+    public async Task<StoreResult> ApplyAsync(Guid itemId, Guid employeeId, Guid positionId, decimal quantity, DateTime today, bool acceptSalaryDeduction = false, decimal? shownTotal = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var item = await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == itemId, ct);
@@ -51,7 +57,11 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         }
         if (await db.StoreLotteryEntries.AnyAsync(e => e.ItemId == itemId && e.EmployeeId == employeeId && e.Status == LotteryEntryStatus.Applied, ct)) return StoreResult.Fail(AlreadyApplied);
 
-        db.StoreLotteryEntries.Add(new StoreLotteryEntry(itemId, employeeId, positionId, quantity));
+        // the price shown now is the price a winner pays; the person must agree to the deduction before applying
+        var total = StorePricing.LineTotal(item.Price, quantity) ?? 0m;
+        if (StoreOrderService.ChangedAmountMessage(total, shownTotal) is string changed) return StoreResult.Fail(changed);
+        if (StorePricing.NeedsDeductionConsent(total) && !acceptSalaryDeduction) return StoreResult.Fail(StoreOrderService.DeductionRequiredMessage(total));
+        db.StoreLotteryEntries.Add(new StoreLotteryEntry(itemId, employeeId, positionId, quantity, item.Price, acceptSalaryDeduction));
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { return StoreResult.Fail(AlreadyApplied); } // the filtered unique index caught a double click
         return StoreResult.Success;
@@ -76,11 +86,11 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var rows = await db.StoreLotteryEntries.AsNoTracking().Where(e => e.EmployeeId == employeeId)
             .OrderByDescending(e => e.AppliedAtUtc).Take(200)
-            .Select(e => new { e.Id, e.ItemId, e.Quantity, e.Status, e.AppliedAtUtc, e.OrderId,
+            .Select(e => new { e.Id, e.ItemId, e.Quantity, e.Status, e.AppliedAtUtc, e.OrderId, e.UnitPrice,
                 Name = db.StoreItems.Where(i => i.Id == e.ItemId).Select(i => i.Name).FirstOrDefault(),
                 Unit = db.StoreItems.Where(i => i.Id == e.ItemId).Select(i => i.Unit).FirstOrDefault() })
             .ToListAsync(ct);
-        return rows.Select(r => new LotteryMineRow(r.Id, r.ItemId, r.Name ?? "", r.Unit ?? "", r.Quantity, r.Status, r.AppliedAtUtc, r.OrderId)).ToList();
+        return rows.Select(r => new LotteryMineRow(r.Id, r.ItemId, r.Name ?? "", r.Unit ?? "", r.Quantity, r.Status, r.AppliedAtUtc, r.OrderId, r.UnitPrice)).ToList();
     }
 
     /// <summary>Item id → (entry id, quantity) of the person's applications that still wait for a draw. Used to show «ثبت‌نام شده» on the shop.</summary>
@@ -154,11 +164,12 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
 
         foreach (var (entry, resolved) in routed)
         {
-            var line = new StoreOrderLine(item.Id, item.Code, item.Name, item.Unit, entry.Quantity);
-            var summary = StoreOrderService.Summarize([new StoreOrderLineView(item.Code, item.Name, item.Unit, entry.Quantity)]);
+            // the winner pays the price they saw when they applied, and the agreement they gave then is carried onto the order
+            var line = new StoreOrderLine(item.Id, item.Code, item.Name, item.Unit, entry.Quantity, entry.UnitPrice);
+            var summary = StoreOrderService.Summarize([new StoreOrderLineView(item.Code, item.Name, item.Unit, entry.Quantity, entry.UnitPrice)]);
             var fields = new Dictionary<string, string?> { ["summary"] = summary, ["note"] = "برنده قرعه‌کشی" };
             var request = new WorkflowRequest(WorkflowTypeCode.StoreOrder, entry.EmployeeId, entry.PositionId, JsonSerializer.Serialize(fields), resolved.Steps.Select(s => s.ToDomain()).ToList());
-            var order = new StoreOrder(request.Id, entry.EmployeeId, entry.PositionId, "برنده قرعه‌کشی", [line]);
+            var order = new StoreOrder(request.Id, entry.EmployeeId, entry.PositionId, "برنده قرعه‌کشی", [line], entry.EmployeeId, entry.DeductionAcceptedAtUtc);
             db.WorkflowRequests.Add(request);
             db.StoreOrders.Add(order);
             await notifications.StageAsync(db, request, WorkflowNotificationEvent.Submitted, ct);
