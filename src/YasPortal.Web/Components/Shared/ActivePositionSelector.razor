@@ -12,9 +12,13 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
 
+@* Active position selector: a person who holds several positions chooses which one they are acting as. Approvals and permissions *@
+@* follow the chosen position, so switching reloads the page under that position's rights. Shown only when the person has more than one. *@
 <div class="active-position-picker" @onclick:stopPropagation="true">
+    @* Nothing is drawn for a person with a single position. *@
     @if (_positions.Count > 1)
     {
+        @* A small form posted to the server (/account/position) to switch; it carries the current page and the chosen position. *@
         <form @ref="_form" method="post" action="/account/position" class="active-position-form">
             <AntiforgeryToken />
             <input type="hidden" name="returnUrl" value="@GetReturnUrl()" />
@@ -27,11 +31,13 @@
                 <i class="ti @Icons.ChevronDown active-position-chevron"></i>
             </button>
 
+            @* The drop-down list of the person's active positions. *@
             @if (_open)
             {
                 <div @ref="_dropdown" class="active-position-dropdown" role="listbox">
                     <div class="active-position-dropdown-header">انتخاب سمت فعال</div>
                     <div class="active-position-options">
+                        @* One button per position; picking one switches immediately. *@
                         @foreach (var position in _positions)
                         {
                             <button type="button"
@@ -61,6 +67,7 @@
 </div>
 
 @code {
+    // The person's currently held positions, which one is active, and drop-down/submit state.
     private List<PositionItem> _positions = [];
     private Guid _activePositionId;
     private bool _open;
@@ -73,9 +80,11 @@
     private ElementReference _dropdown;
     private DotNetObjectReference<ActivePositionSelector>? _dotNetRef;
 
+    // Name shown on the button: the active position, else the first one.
     private string ActivePositionName => _positions.FirstOrDefault(x => x.Id == _activePositionId)?.Name ??
         _positions.FirstOrDefault()?.Name ?? "انتخاب سمت";
 
+    // Read who the person is and their active position from the sign-in, then load their still-active positions.
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -94,6 +103,7 @@
             _activePositionId = _positions.FirstOrDefault()?.Id ?? Guid.Empty;
     }
 
+    // After a position is picked, send the switch form once the page has stored the choice.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -114,6 +124,7 @@
         }
     }
 
+    // Open or close the list.
     private async Task ToggleDropdown()
     {
         if (_disposed || !_jsReady)
@@ -135,6 +146,7 @@
         }
     }
 
+    // Choose a position; picking the current one does nothing.
     private async Task SelectPosition(Guid positionId)
     {
         if (_disposed)
@@ -153,6 +165,7 @@
         _submitPending = true;
     }
 
+    // Called by the browser when the person clicks outside the list, to close it.
     [JSInvokable]
     public async Task CloseDropdown()
     {
@@ -164,6 +177,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    // Stop the browser-side helper that closes the list on outside clicks.
     private async Task StopDropdownAsync()
     {
         if (!_jsReady || _disposed)
@@ -183,12 +197,14 @@
         }
     }
 
+    // The address of the current page, so the person comes back to it after switching.
     private string GetReturnUrl()
     {
         var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
         return string.IsNullOrWhiteSpace(relative) ? "/" : "/" + relative;
     }
 
+    // Clean up the browser-side helper when the widget is removed.
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
