@@ -313,11 +313,21 @@ public sealed class StoreOrderService(IDbContextFactory<ApplicationDbContext> db
         return await PageAsync(db, q, page, pageSize, ct, sort: sort, descending: descending);
     }
 
-    /// <summary>Approved orders still waiting for the goods to be handed over, oldest first.</summary>
-    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, string? sort = null, bool descending = false, CancellationToken ct = default)
+    /// <summary>
+    /// Approved orders still waiting for the goods to be handed over, oldest first. <paramref name="search"/> looks at the requester's name and at the
+    /// item name or code; the dates filter on the day the order was sent (the same filters as the hand-over history).
+    /// </summary>
+    public async Task<(IReadOnlyList<StoreOrderRow> Rows, int Total)> ListPendingIssueAsync(int page, int pageSize, string? sort = null, bool descending = false, string? search = null, DateTime? createdFromUtc = null, DateTime? createdToUtcExclusive = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var q = db.StoreOrders.AsNoTracking().Where(o => o.IssuedAtUtc == null && db.WorkflowRequests.Any(r => r.Id == o.RequestId && r.Status == WorkflowRequestStatus.Approved));
+        if (createdFromUtc is DateTime from) q = q.Where(o => o.CreatedAtUtc >= from);
+        if (createdToUtcExclusive is DateTime to) q = q.Where(o => o.CreatedAtUtc < to);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(o => db.Employees.Any(e => e.Id == o.EmployeeId && e.FullName.Contains(s)) || o.Lines.Any(l => l.ItemName.Contains(s) || l.ItemCode.Contains(s)));
+        }
         return await PageAsync(db, q, page, pageSize, ct, oldestFirst: true, sort: sort, descending: descending);
     }
 

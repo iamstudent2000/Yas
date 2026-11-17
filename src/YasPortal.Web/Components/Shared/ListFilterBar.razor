@@ -40,7 +40,7 @@
                     <i class="ti @Icons.FilterClear"></i> پاک کردن فیلترها
                 </button>
             }
-            @if (OnExport.HasDelegate || OnExportSteps.HasDelegate)
+            @if (OnExport.HasDelegate || OnExportSteps.HasDelegate || OnExportPdf.HasDelegate)
             {
                 <AuthorizeView Policy="@ExportPermission">
                 <div class="list-more">
@@ -56,6 +56,12 @@
                             {
                                 <button type="button" role="menuitem" title="همه نتایج آخرین جستجو، با همین ترتیب" @onclick="() => RunAsync(OnExport)" @onkeydown:stopPropagation="true">
                                     <i class="ti @Icons.ExportData"></i> خروجی CSV
+                                </button>
+                            }
+                            @if (OnExportPdf.HasDelegate)
+                            {
+                                <button type="button" role="menuitem" title="همه نتایج آخرین جستجو، به شکل فایل PDF" @onclick="() => RunAsync(OnExportPdf)" @onkeydown:stopPropagation="true">
+                                    <i class="ti @Icons.Pdf"></i> خروجی PDF
                                 </button>
                             }
                             @if (OnExportSteps.HasDelegate)
@@ -96,6 +102,9 @@
 
     /// <summary>Optional: shows "خروجی CSV", which exports everything the last search matched (not just this page).</summary>
     [Parameter] public EventCallback OnExport { get; set; }
+
+    /// <summary>Optional: shows "خروجی PDF", the same rows as the CSV (everything the last search matched) as a printable PDF file.</summary>
+    [Parameter] public EventCallback OnExportPdf { get; set; }
 
     /// <summary>The report permission that shows the ⋯ menu (see ReportPermissions); every list that exports names its own.</summary>
     [Parameter] public string ExportPermission { get; set; } = "";
