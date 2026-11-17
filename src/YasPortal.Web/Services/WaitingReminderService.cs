@@ -5,6 +5,8 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Waiting reminders: employees can ask on their profile page to be nudged when a request has been waiting for their
+// decision too long. This service creates those reminder notifications; the worker next to it runs it every 15 minutes.
 /// <summary>
 /// Sends the "waiting too long" reminders: for every employee who set their own number of hours, one in-app notification for each
 /// request waiting for their decision (at a position they hold, or one delegated to them) for at least that long. A request is
@@ -18,6 +20,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
     public async Task<int> RunAsync(DateTime nowUtc, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        // Only employees who switched reminders on have a setting row; everyone else is skipped.
         var settings = await db.WaitingReminderSettings.AsNoTracking().ToListAsync(ct);
         if (settings.Count == 0)
             return 0;
@@ -29,6 +32,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
         var created = 0;
         foreach (var setting in settings.Where(s => eligible.Contains(s.EmployeeId)))
         {
+            // Gather everything waiting for this person: at the positions they hold today and at positions delegated to them.
             var positions = await db.EmployeePositions.AsNoTracking()
                 .Where(p => p.EmployeeId == setting.EmployeeId && p.EndedAt == null).Select(p => p.PositionId).ToListAsync(ct);
             var delegations = await workflows.GetActiveDelegationsAsync(setting.EmployeeId, DateTime.Now, ct);
@@ -44,6 +48,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
                     requests[request.Id] = request;
             }
 
+            // Keep requests that have waited at least the person's chosen number of hours, oldest first.
             var due = requests.Values
                 .Select(r => (Request: r, Since: WaitingReminders.WaitingSince(r)))
                 .Where(x => WaitingReminders.IsDue(x.Since, setting.AfterHours, nowUtc))
@@ -53,6 +58,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
                 continue;
 
             var dueIds = due.Select(x => x.Request.Id).ToList();
+            // Look up reminders already sent for these requests, so the same request is not reminded about again too soon.
             var earlier = await db.Notifications.AsNoTracking()
                 .Where(n => n.Kind == NotificationKind.WaitingReminder && n.RecipientEmployeeId == setting.EmployeeId && n.RequestId != null && dueIds.Contains(n.RequestId.Value))
                 .Select(n => new { n.RequestId, n.CreatedAtUtc }).ToListAsync(ct);
@@ -69,6 +75,7 @@ public sealed class WaitingReminderService(IDbContextFactory<ApplicationDbContex
             var requesterIds = toSend.Select(x => x.Request.RequesterEmployeeId).Distinct().ToList();
             var names = await db.Employees.AsNoTracking().Where(e => requesterIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName, ct);
 
+            // Write one in-app notification per request, linking to the approver's inbox. Nothing is saved until all are added.
             foreach (var (request, _) in toSend)
             {
                 var typeName = WorkflowFieldCatalog.GetDisplayName(request.WorkflowType);

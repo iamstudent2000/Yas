@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Workflows;
 
+// Stage summary: works out how one stage of the approval path should be displayed. A stage is one step, or
+// a group of
+// parallel steps that share the same order number.
 /// <summary>Where one stage of a request's approval path stands, for display (a stage is one step, or a parallel group).</summary>
 public enum WorkflowStageState
 {
@@ -27,25 +30,33 @@ public enum WorkflowStageState
 /// ("2 of 3 approved"). Pure: the same rules the engine uses to decide whether a group is satisfied
 /// (<see cref="ParallelApprovalMode"/>), so the screen cannot say "approved" when the engine says otherwise.
 /// </summary>
+// State plus the counts a screen shows, for example 2 of 3 approved. A record = a small read-only bundle of
+// values.
 public sealed record WorkflowStageSummary(WorkflowStageState State, int Total, int Approved, int Rejected, int Pending)
 {
     /// <param name="stage">The steps of one round sharing one order.</param>
     /// <param name="isLive">Whether the request is pending approval and this is the stage it is waiting at.</param>
+    // Entry point: summarises the steps of one stage; isLive says whether the request is waiting at this
+    // stage right now.
     public static WorkflowStageSummary Of(IReadOnlyCollection<WorkflowRequestStep> stage, bool isLive)
     {
         ArgumentNullException.ThrowIfNull(stage);
         if (stage.Count == 0)
             throw new ArgumentException("A stage has at least one step.", nameof(stage));
 
+        // Count how many approvers approved, rejected or have not answered yet.
         var total = stage.Count;
         var approved = stage.Count(x => x.Status == WorkflowStepStatus.Approved);
         var rejected = stage.Count(x => x.Status == WorkflowStepStatus.Rejected);
         var pending = stage.Count(x => x.Status == WorkflowStepStatus.Pending);
         var returned = stage.Any(x => x.Status is WorkflowStepStatus.ReturnedToRequester or WorkflowStepStatus.ReturnedToPreviousStep or WorkflowStepStatus.ReturnedToSpecificStep);
 
+        // All = everyone must approve. Any = a single approval is enough to satisfy the stage.
         var any = stage.First().ApprovalMode == ParallelApprovalMode.Any;
         var satisfied = any ? approved > 0 : approved == total;
 
+        // Order of precedence: returned wins, then approved, then rejected (all answered, not satisfied),
+        // then waiting or queued, else skipped.
         var state =
             returned ? WorkflowStageState.Returned
             : satisfied ? WorkflowStageState.Approved

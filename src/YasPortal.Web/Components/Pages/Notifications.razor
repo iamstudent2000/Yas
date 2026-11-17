@@ -3,4 +3,6 @@
 @using YasPortal.Web.Components.Shared
 @attribute [Authorize(Policy = "NonAdmin")]
 
+@* The employee's notifications page (the bell icon destination). Administrators are excluded; they have their own page. *@
+@* The actual list is a shared widget, so this page only supplies the address and the access rule. *@
 <NotificationList />

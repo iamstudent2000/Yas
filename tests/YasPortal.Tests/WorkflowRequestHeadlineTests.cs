@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Headline tests: the one-line 'where is it now' text of a request (which stage, who is awaited, since when) and the whole-days counting.
 public class WorkflowRequestHeadlineTests
 {
     private static readonly Guid Pa = Guid.NewGuid();

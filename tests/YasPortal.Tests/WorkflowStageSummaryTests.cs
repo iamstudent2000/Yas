@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Stage summary tests: the state of one stage of parallel approvers (awaiting, approved, rejected, queued) under 'any one' and 'all' modes.
 public class WorkflowStageSummaryTests
 {
     private static readonly Guid Pa = Guid.NewGuid();

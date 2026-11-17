@@ -4,6 +4,7 @@ const base = new URL('../lib/quill/', import.meta.url);
 const version = '2.0.3';
 let loading = null;
 
+// Load the editor's own files once, only when first needed. Later calls reuse the same loading.
 function loadQuill() {
     if (window.Quill) return Promise.resolve();
     if (!loading) {
@@ -23,6 +24,7 @@ function loadQuill() {
 }
 
 let registered = false;
+// Teach the editor a left-to-right paragraph direction (once).
 function registerFormats(Quill) {
     if (registered) return;
     registered = true;
@@ -32,6 +34,7 @@ function registerFormats(Quill) {
     Quill.register({ 'formats/direction': Direction }, true);
 }
 
+// Tooltip texts (Persian) for the editor's toolbar buttons.
 const titles = {
     '.ql-header': 'قالب بند', '.ql-bold': 'ضخیم', '.ql-italic': 'کج', '.ql-underline': 'زیرخط', '.ql-strike': 'خط‌خورده',
     '.ql-color': 'رنگ نوشته', '.ql-background': 'رنگ پس‌زمینه', '.ql-align': 'تراز', '.ql-link': 'پیوند', '.ql-blockquote': 'نقل‌قول',
@@ -40,6 +43,7 @@ const titles = {
     '.ql-direction[value="rtl"]': 'راست‌به‌چپ', '.ql-direction[value="ltr"]': 'چپ‌به‌راست',
 };
 
+// Build the editor inside the given element, with the toolbar, right-to-left writing and any existing guide text.
 export async function init(host, html, placeholder) {
     await loadQuill();
     const Quill = window.Quill;
@@ -97,6 +101,7 @@ export function getHtml(host) {
     return quill.getSemanticHTML().replace(/&nbsp;/g, ' ');
 }
 
+// Remove the editor from the element when the page no longer needs it.
 export function dispose(host) {
     if (host) { host.__quill = null; host.innerHTML = ''; }
 }

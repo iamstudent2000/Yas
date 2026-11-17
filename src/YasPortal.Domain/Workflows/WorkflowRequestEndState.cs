@@ -1,5 +1,11 @@
 namespace YasPortal.Domain.Workflows;
 
+// End state of a request: for requests that are no longer waiting at an approval step, this works out the
+// label for the
+// "current step" column and who is responsible (approved, rejected at a step, returned, cancelled by the
+// requester,
+// or closed by an administrator), so the lists never show an empty cell. A record = a small read-only
+// bundle of values.
 /// <summary>
 /// What a list row should say for a request that is no longer waiting at an approval step — where it ended up and who
 /// is responsible — so the "current step" and "with" columns are never just a dash. Pure, so it can be tested.
@@ -14,6 +20,7 @@ public sealed record WorkflowRequestEndState(string StageLabel, Guid? DeciderEmp
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // Finds the latest decision of the given kind in the current round and who made it.
         Guid? LastDecider(WorkflowStepStatus outcome, out WorkflowStepDecision? decision)
         {
             decision = request.StepDecisions
@@ -23,6 +30,8 @@ public sealed record WorkflowRequestEndState(string StageLabel, Guid? DeciderEmp
             return decision?.ActedByEmployeeId;
         }
 
+        // One answer per status. Cancelled covers two cases: closed by an administrator (force-close) and
+        // cancelled by the requester.
         switch (request.Status)
         {
             case WorkflowRequestStatus.PendingApproval:

@@ -1,11 +1,14 @@
 namespace YasPortal.Domain.Preferences;
 
+// Appearance choices an employee can make for their own screen: light or dark theme, accent color, font,
+// text size and spacing. Each list below is a fixed set of choices.
 public enum UiTheme { System, Light, Dark }
 public enum UiAccent { Blue, Teal, Violet, Rose, Amber, Green }
 public enum UiFont { Vazirmatn, System, Sahel, Shabnam }
 public enum UiTextSize { Small, Normal, Large, ExtraLarge }
 public enum UiDensity { Comfortable, Compact }
 
+// Stored settings for one employee. Empty means the defaults.
 /// <summary>
 /// One employee's appearance settings (theme, accent color, font, text size, density). Purely cosmetic:
 /// nothing here affects permissions or workflow. One row per employee, created on first save.
@@ -33,6 +36,7 @@ public sealed class UserUiPreference
     public UiDensity Density { get; private set; } = UiDensity.Comfortable;
     public DateTime UpdatedAtUtc { get; private set; } = DateTime.UtcNow;
 
+    // All five values are checked to be real choices before saving.
     public void Update(UiTheme theme, UiAccent accent, UiFont font, UiTextSize textSize, UiDensity density)
     {
         if (!Enum.IsDefined(theme)) throw new ArgumentOutOfRangeException(nameof(theme));
@@ -48,9 +52,11 @@ public sealed class UserUiPreference
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    // Reset puts back the default look.
     public void Reset() => Update(UiTheme.System, UiAccent.Blue, UiFont.Vazirmatn, UiTextSize.Normal, UiDensity.Comfortable);
 }
 
+// The page reads these short words to pick the matching styles in the theme stylesheet.
 /// <summary>The values written to the page's &lt;html data-*&gt; attributes; the CSS in theme.css keys off exactly these strings.</summary>
 public sealed record UiPreferenceAttributes(string Theme, string Accent, string Font, string Size, string Density)
 {

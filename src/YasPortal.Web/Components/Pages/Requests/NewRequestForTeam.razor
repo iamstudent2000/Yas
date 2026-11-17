@@ -16,6 +16,9 @@
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* Register for team member: a manager records a request on behalf of someone who works below them in the organization chart. *@
+@* The request belongs to that employee and follows the approval path of THEIR position; the manager is recorded as the one *@
+@* who registered it, and the employee is notified. *@
 <PageTitle>ثبت درخواست برای زیرمجموعه - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -28,6 +31,7 @@
         </div>
     </div>
 
+    @* Cases: still checking, the manager has no active position, the manager has nobody below them, or the normal form. *@
     @if (!_ready)
     {
         <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
@@ -42,6 +46,7 @@
     }
     else
     {
+        @* Choose the employee. Only active, non-administrator employees holding a position below the manager's (at any depth) are listed. *@
         <section class="card admin-form-row">
             <div class="admin-form-row-head">
                 <h2 class="section-title"><i class="ti @Icons.Requester"></i> درخواست‌دهنده</h2>
@@ -53,6 +58,7 @@
             </div>
         </section>
 
+        @* After an employee is chosen: pick the request type, then fill in the form for it. *@
         @if (Selected is not null)
         {
             <section class="card">

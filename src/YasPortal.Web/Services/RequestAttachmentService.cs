@@ -13,6 +13,8 @@ public sealed record PendingAttachment(string Name, byte[] Content);
 /// <summary>A stored attachment without its contents, for lists.</summary>
 public sealed record AttachmentInfo(Guid Id, string FileName, long SizeBytes);
 
+// Files attached to requests (for example a scanned form). Files are stored in the database together with the request,
+// so they stay with its permanent history. A download is allowed only to people who are allowed to see the request.
 /// <summary>Stores, lists and gates downloads of the files attached to requests.</summary>
 public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows)
 {
@@ -23,6 +25,7 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
             db.WorkflowRequestAttachments.Add(new WorkflowRequestAttachment(requestId, uploadedByEmployeeId, file.Name, file.Content));
     }
 
+    // Lists the attachments of one request, in the order they were uploaded.
     public async Task<IReadOnlyList<AttachmentInfo>> ListAsync(Guid requestId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -39,6 +42,7 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
     /// any step of the request (or decided on it), or are a manager with the team-view permission above the requester's position.
     /// The same answer (null → 404) is given for "missing" and "not allowed" so ids cannot be probed.
     /// </summary>
+    // The checks run in order and the first one that passes allows the download.
     public async Task<WorkflowRequestAttachment?> GetForDownloadAsync(Guid id, ClaimsPrincipal user, CancellationToken ct = default)
     {
         if (user.Identity?.IsAuthenticated != true || !Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId))
@@ -49,9 +53,11 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
         if (file is null)
             return null;
 
+        // Administrators who may view all requests can always download.
         if (user.HasClaim(AuthClaimNames.Permission, Perm.AdminRequestsView))
             return file;
 
+        // The requester, and the person who registered the request for someone else, can download.
         var request = await db.WorkflowRequests.AsNoTracking()
             .Where(x => x.Id == file.RequestId)
             .Select(x => new { x.RequesterEmployeeId, x.CreatedByEmployeeId, x.RequesterPositionId })
@@ -61,6 +67,7 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
         if (request.RequesterEmployeeId == employeeId || request.CreatedByEmployeeId == employeeId)
             return file;
 
+        // Anyone who already took a decision on one of the request's steps can download.
         var steps = await db.WorkflowRequestSteps.AsNoTracking()
             .Where(x => x.RequestId == file.RequestId)
             .Select(x => new { x.ApproverPositionId, x.ActedByEmployeeId })
@@ -68,6 +75,7 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
         if (steps.Any(s => s.ActedByEmployeeId == employeeId))
             return file;
 
+        // Holders (and delegates) of a step's position can download; the held position is re-checked in the database.
         // Positions the person may act from: the active one (re-checked against the database, not trusted from the cookie) and delegated ones.
         var positions = new HashSet<Guid>();
         Guid? activePositionId = Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var pid) ? pid : null;
@@ -78,6 +86,7 @@ public sealed class RequestAttachmentService(IDbContextFactory<ApplicationDbCont
         if (steps.Any(s => positions.Contains(s.ApproverPositionId)))
             return file;
 
+        // Finally, a manager with the team-view permission can download for requests from positions below theirs.
         if (user.HasClaim(AuthClaimNames.Permission, Perm.RequestsTeamView) && positions.Contains(activePositionId ?? Guid.Empty)
             && (await workflows.GetSubordinatePositionsAsync(activePositionId!.Value, ct)).Any(p => p.Id == request.RequesterPositionId))
             return file;

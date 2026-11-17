@@ -2,6 +2,7 @@
 @using YasPortal.Web.Services
 
 @* How long a helpdesk request has been waiting, with its priority. Nothing for any other request or once it is no longer pending. *@
+@* The small badge is drawn only when the request is a helpdesk request that is still pending; hover shows since when. *@
 @if (_waiting is not null)
 {
     <span class="badge badge-muted" title="در انتظار از: @WorkflowDisplay.ToPersianDateTime(_waiting.SinceUtc)">
@@ -11,10 +12,13 @@
 }
 
 @code {
+    // The helpdesk request to describe.
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
 
+    // Waiting-time information worked out from the request; empty when no badge should be shown.
     private HelpdeskWaitingStatus? _waiting;
 
+    // Recalculated each time the page gives this widget a request.
     protected override void OnParametersSet() => _waiting = HelpdeskWaiting.For(Request, DateTime.UtcNow);
 
     private string WaitedText() => WorkflowDisplay.FormatDuration(_waiting!.Waited) + " در انتظار";

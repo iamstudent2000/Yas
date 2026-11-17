@@ -15,6 +15,9 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject AppState AppState
 
+@* Admin page for ACTIVE requests (address /admin/active-requests): requests that are still in progress. *@
+@* An administrator with the force-close permission can close one that is stuck or no longer wanted. A written reason is *@
+@* required, the closure is recorded in the request history, and the requester is notified. Nothing is deleted. *@
 <PageTitle>درخواست‌های فعال - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -31,6 +34,7 @@
         </div>
     </div>
 
+    @* The search form; it only applies when the search button is pressed. *@
     <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" Busy="_loading" ExportPermission="@(ReportPermissions.ActiveRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     @if (_loading)
@@ -57,6 +61,7 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @* One row per active request: type, requester, status, current step and holder, date, and the action buttons. *@
                     @foreach (var request in _requests)
                     {
                         // A parallel group (spec §12.2) has several positions waiting side by side.
@@ -86,6 +91,7 @@
                                 <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleDetails(request.Id)">
                                     <i class="ti @Icons.Details"></i> جزئیات
                                 </button>
+                                @* The force-close box: the administrator types the reason and confirms (or cancels). *@
                                 @if (_openReasonFor == request.Id)
                                 {
                                     <div class="force-close-panel">
@@ -115,6 +121,7 @@
                                 }
                             </td>
                         </tr>
+                        @* Expanded details of the request: its form values, approval steps, decisions and history. *@
                         @if (_detailsId == request.Id)
                         {
                             <tr>
@@ -125,11 +132,14 @@
                 </tbody>
             </table>
         </div>
+        @* Page navigation for the list. *@
         <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
     }
 </div>
 
 @code {
+    // State of the page: the current page of requests with the names of the people involved, the filter and sort order,
+    // and which request has its details or its force-close box open.
     private bool _loading = true;
     private List<WorkflowRequest> _requests = [];
     private Dictionary<Guid, string> _employeeNames = [];
@@ -145,6 +155,7 @@
     private int _pageSize = 20;
     private int _total;
 
+    // On opening: remember which administrator is signed in (recorded as the person who closes a request) and load the list.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -152,6 +163,7 @@
         await LoadAsync();
     }
 
+    // Filter, page and page-size changes all reload the list (a new search returns to page 1).
     private async Task OnFilterChangedAsync()
     {
         _page = 1;
@@ -171,6 +183,7 @@
         await LoadAsync();
     }
 
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private string _sortBy = WorkflowRequestSort.Created;
     private bool _sortDesc = false;
     private async Task SortByAsync(string column)
@@ -180,6 +193,7 @@
         await LoadAsync();
     }
 
+    // Export buttons: a step-by-step report, and a request list. Both cover everything the last search matched, not just this page.
     /// <summary>The detailed step report (one row per step) for everything the last search matched.</summary>
     private async Task ExportStepsAsync()
     {
@@ -206,6 +220,7 @@
         finally { _exporting = false; }
     }
 
+    // Load one page of active requests, with their steps and history, and the names of the people involved.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -245,11 +260,15 @@
         _loading = false;
     }
 
+    // Show or hide the details of a request, and keep the reason being typed for each request separately.
     private void ToggleDetails(Guid id) => _detailsId = _detailsId == id ? null : id;
 
     private string GetReason(Guid requestId) => _reasons.TryGetValue(requestId, out var r) ? r : "";
     private void SetReason(Guid requestId, ChangeEventArgs e) => _reasons[requestId] = e.Value?.ToString() ?? "";
 
+    // Confirm button of the force-close box. A reason is mandatory. The request is closed on behalf of the signed-in administrator,
+    // a 'closed by administrator' notification is prepared, and everything is saved together. If someone else changed the request
+    // in the meantime, nothing is overwritten: the list is refreshed and the administrator is told.
     private async Task ForceCloseAsync(Guid requestId)
     {
         if (_employeeId is not Guid adminId)

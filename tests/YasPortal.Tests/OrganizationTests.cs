@@ -3,6 +3,7 @@ using YasPortal.Domain.Organization;
 
 namespace YasPortal.Tests;
 
+// Organization tests: an organization (department or company unit) can be renamed and switched off, and each employee belongs to exactly one organization.
 public class OrganizationTests
 {
     [Fact]

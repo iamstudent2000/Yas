@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Security;
 
+// Business meaning: the administrator decides how strong passwords must be (length, character kinds, banned words)
+// on the password policy admin page. Everyone's new password is checked against this single shared rule set.
 /// <summary>
 /// The system-wide password rules an administrator can configure. There is exactly one row
 /// (<see cref="SingletonId"/>); it is created with the defaults the first time it is read.
@@ -8,17 +10,20 @@ namespace YasPortal.Domain.Security;
 /// </summary>
 public sealed class PasswordPolicy
 {
+    // Fixed limits the administrator cannot go beyond when editing the rules.
     public const int SingletonId = 1;
     public const int LowestMinLength = 4;
     public const int HighestMinLength = 64;
     public const int HardMaxLength = 128;
 
+    // Instances are created only through CreateDefault, or loaded from the database; nothing else can build one.
     private PasswordPolicy()
     {
     }
 
     public static PasswordPolicy CreateDefault() => new();
 
+    // The stored settings. Each rule below can be switched on or off by the administrator.
     public int Id { get; private set; } = SingletonId;
     public int MinLength { get; private set; } = 8;
     public int MaxLength { get; private set; } = HardMaxLength;
@@ -34,6 +39,7 @@ public sealed class PasswordPolicy
     public bool DisallowReuseOfCurrent { get; private set; } = true;
     public DateTime UpdatedAtUtc { get; private set; } = DateTime.UtcNow;
 
+    // Saves new rules from the admin form, refusing impossible values such as a maximum shorter than the minimum.
     public void Update(int minLength, int maxLength, bool requireUppercase, bool requireLowercase, bool requireDigit,
         bool requireSymbol, bool disallowUsername, bool disallowCommonPasswords, bool disallowReuseOfCurrent)
     {
@@ -53,6 +59,7 @@ public sealed class PasswordPolicy
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    // A short built-in list of very common passwords that are refused when the "common passwords" rule is on.
     private static readonly HashSet<string> Common = new(StringComparer.OrdinalIgnoreCase)
     {
         "password", "password1", "password123", "passw0rd", "123456", "1234567", "12345678", "123456789", "1234567890",
@@ -61,6 +68,7 @@ public sealed class PasswordPolicy
     };
 
     /// <summary>Persian bullet lines describing the active rules, for showing next to a password field.</summary>
+    // Builds the human-readable checklist shown beside a password box, listing only the rules currently switched on.
     public IReadOnlyList<string> Describe()
     {
         var lines = new List<string> { $"حداقل {MinLength} و حداکثر {MaxLength} نویسه" };
@@ -74,6 +82,8 @@ public sealed class PasswordPolicy
     }
 
     /// <summary>Returns the Persian reason for every rule the password breaks; empty when it is acceptable.</summary>
+    // Checks a proposed password against every active rule and collects all the problems, so the user sees them at once.
+    // The username rule only applies when the username is at least three characters, to avoid false alarms on short names.
     public IReadOnlyList<string> Validate(string? password, string? username = null)
     {
         var errors = new List<string>();

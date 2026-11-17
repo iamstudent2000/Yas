@@ -4,6 +4,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Tests for requests created by an administrator on someone's behalf: who is recorded, the notification to the requester, and the filters for such requests.
 public class WorkflowRequestCreatedByTests
 {
     private static readonly WorkflowResolvedStep[] Steps = { new(Guid.NewGuid(), 1, "مدیر", Guid.NewGuid()) };

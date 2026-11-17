@@ -12,6 +12,8 @@ namespace YasPortal.Web.Services;
 /// name, the summary, the sections, the history table, the signature boxes, and a footer with page numbers.
 /// Rendered on the server, so the result is the same in every browser and can be archived or e-mailed.
 /// </summary>
+// Printing: this service turns a request into a PDF that can be printed, archived or e-mailed. It supports a general
+// "request sheet" report for any request, and an official per-type form for the request types that have one (permission-protected).
 public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<IRequestFormDesign> forms, IPermissionChecker permissions)
 {
     private static readonly object InitLock = new();
@@ -29,6 +31,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
     public bool HasForm(WorkflowTypeCode type) => forms.Any(f => f.Type == type);
 
     /// <summary>The official form of the request's type, rendered; null when the type has no form design.</summary>
+    // A form is only produced if the type has a form design and the viewer holds the permission to print that form.
     public async Task<(byte[] Bytes, string FileName)?> BuildFormAsync(WorkflowRequest request, IReadOnlyDictionary<Guid, string> employeeNames, IReadOnlyDictionary<Guid, string> holderNames, CancellationToken ct = default)
     {
         var design = forms.FirstOrDefault(f => f.Type == request.WorkflowType);
@@ -66,6 +69,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
         }
     }
 
+    // Page layout: header (logo, organization, title, request number), the body, and a footer with print details and page numbers.
     private static void Compose(IDocumentContainer document, RequestReportModel model, IRequestFormDesign? design)
     {
         document.Page(page =>
@@ -95,6 +99,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
                 column.Item().PaddingTop(6).LineHorizontal(1).LineColor(Colors.Grey.Darken1);
             });
 
+            // If the request type has an official form design it fills the body; otherwise the standard report body is used.
             if (design is not null)
                 page.Content().PaddingVertical(4).Element(c => design.Compose(c, model));
             else
@@ -160,6 +165,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
         });
     }
 
+    // The approval history table: one row per decision (round, step, position, person, result, time and comment).
     private static void RenderHistory(IContainer container, RequestReportModel model)
     {
         container.Column(section =>
@@ -196,6 +202,7 @@ public sealed class RequestPdfService(RequestReportBuilder builder, IEnumerable<
         });
     }
 
+    // Signature boxes, three per row, for the requester and each approver, with an empty line to sign on.
     internal static void RenderSignatures(IContainer container, RequestReportModel model)
     {
         container.Column(section =>

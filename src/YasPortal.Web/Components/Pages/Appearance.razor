@@ -12,6 +12,8 @@
 @inject AppState AppState
 @inject IJSRuntime Js
 
+@* Appearance page: every employee can choose theme (light, dark or follow the device), accent colour, font, text size and *@
+@* density. Changes apply on screen immediately and are saved for that employee only. "Reset" returns to the defaults. *@
 <PageTitle>ظاهر برنامه - یاس پورتال</PageTitle>
 
 <div class="profile-page" dir="rtl">
@@ -34,6 +36,7 @@
     else
     {
         <div class="appearance-grid">
+            @* Theme choice. *@
             <section class="card appearance-group">
                 <h2>تم</h2>
                 <p>روشن، تیره، یا هماهنگ با تنظیمات دستگاه شما.</p>
@@ -45,6 +48,7 @@
                 </div>
             </section>
 
+            @* Accent colour choice (colour of buttons, links and selected items). *@
             <section class="card appearance-group">
                 <h2>رنگ اصلی</h2>
                 <p>رنگ دکمه‌ها، پیوندها و موارد انتخاب‌شده.</p>
@@ -56,6 +60,7 @@
                 </div>
             </section>
 
+            @* Font choice. *@
             <section class="card appearance-group">
                 <h2>قلم</h2>
                 <p>«وزیرمتن» قلم پیش‌فرض یاس پورتال است. «ساحل» و «شبنم» دو قلم آزاد و شناخته‌شده‌ی فارسی‌اند؛ قلم سیستم نیازی به بارگذاری ندارد.</p>
@@ -67,6 +72,7 @@
                 </div>
             </section>
 
+            @* Text size choice (scales the whole application). *@
             <section class="card appearance-group">
                 <h2>اندازه‌ی نوشته</h2>
                 <p>کل برنامه (متن، دکمه‌ها و جدول‌ها) بزرگ یا کوچک می‌شود.</p>
@@ -78,6 +84,7 @@
                 </div>
             </section>
 
+            @* Density choice: compact spacing fits more information on a page. *@
             <section class="card appearance-group">
                 <h2>تراکم</h2>
                 <p>فشرده، فاصله‌ی کمتری در جدول‌ها و کارت‌ها می‌گذارد و اطلاعات بیشتری در یک صفحه نشان می‌دهد.</p>
@@ -88,6 +95,7 @@
             </section>
         </div>
 
+        @* A sample request card so the person can see the effect of their choices while picking them. *@
         <section class="card appearance-preview">
             <h2 class="section-title">پیش‌نمایش</h2>
             <div class="request-card" style="margin-bottom:0">
@@ -109,6 +117,7 @@
 </div>
 
 @code {
+    // The fixed choices offered on the page: theme, accent colour (with its colour code), font and text size.
     private static readonly (UiTheme Value, string Label, string Icon)[] Themes =
     [
         (UiTheme.System, "مطابق دستگاه", Icons.ThemeSystem),
@@ -162,6 +171,7 @@
     }
 
     /// <summary>Applies the change on screen straight away, then saves it.</summary>
+    // Saving failure is reported with a message, but the on-screen change stays until the page is closed.
     private async Task SetAsync(UiTheme? theme = null, UiAccent? accent = null, UiFont? font = null, UiTextSize? size = null, UiDensity? density = null)
     {
         if (_employeeId is not Guid employeeId || _saving)
@@ -204,6 +214,7 @@
         finally { _saving = false; }
     }
 
+    // Pushes the chosen look to the page through a small browser script so the change is visible at once.
     private async Task ApplyAsync()
     {
         var a = UiPreferenceAttributes.From(BuildPreview());

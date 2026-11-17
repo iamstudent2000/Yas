@@ -5,10 +5,15 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject AppState AppState
 
+@* Permission group assignment widget. A permission group is a named bundle of permissions (for example everything a store keeper needs). *@
+@* This panel, used on the user screens, lets an administrator tick the groups a person holds. For an administrator account the groups *@
+@* belong to the person; for everyone else they belong to the person in one chosen position, so the same person can hold different *@
+@* rights in different positions. Groups only ever add permissions: final rights = direct permissions + all ticked groups. *@
 <section class="permission-group-assignment">
     <div class="group-assignment-header">
         <div>
             <h3 class="sub-title" style="margin:0"><i class="ti @Icons.PermissionGroup"></i> گروه‌های مجوز</h3>
+            @* Help text under the title; it differs for an administrator, for 'no position chosen yet', and for a normal position. *@
             @if (IsAdmin)
             {
                 <p class="help-text">این گروه‌ها مستقیماً به مدیر سامانه اختصاص داده می‌شوند و به هیچ سمت سازمانی وابسته
@@ -26,15 +31,18 @@
                 </div>
                 @if (CanAssign)
                 {
+                    @* Badge with the number of distinct permissions the person ends up with (direct permissions plus those from ticked groups). *@
                     <span class="effective-permission-badge">@_effectivePermissionCount مجوز نهایی</span>
                 }
             </div>
 
             @if (CanAssign)
             {
+                @* Search box that narrows the groups by name or description while typing. *@
                 <div class="group-search"><i class="ti @Icons.Search"></i><input class="form-control" placeholder="جستجوی گروه..."
                                                                                  @bind="_search" @bind:event="oninput" /></div>
                     <div class="group-assignment-grid">
+                        @* One tick tile per group; ticking or unticking saves immediately. *@
                         @foreach (var group in FilteredGroups)
                         {
                             var assigned = IsAssigned(group.Id);
@@ -49,6 +57,7 @@
                             </label>
                         }
                     </div>
+                    @* Shown when no group exists (or none matches the search). *@
                     @if (FilteredGroups.Count == 0)
                     {
                         <div class="empty-state">گروه مجوزی تعریف نشده است. از «مدیریت سامانه ← گروه‌های مجوز» یک گروه بسازید.</div>
@@ -57,6 +66,8 @@
             </section>
 
 @code {
+    // Inputs from the page: the person, the position being edited, and whether the person is a system administrator
+    // (administrators hold groups directly, without a position).
     [Parameter] public Guid EmployeeId { get; set; }
     [Parameter] public Guid PositionId { get; set; }
     [Parameter] public bool IsAdmin { get; set; }
@@ -67,17 +78,21 @@
     private bool _saving;
     private int _effectivePermissionCount;
 
+    // Groups can be changed only when a person is known and, for non-administrators, a position has been chosen.
     private bool CanAssign => EmployeeId != Guid.Empty && (IsAdmin || PositionId != Guid.Empty);
 
+    // The groups after applying the search text.
     private IReadOnlyList<GroupRow> FilteredGroups => _groups
         .Where(x => string.IsNullOrWhiteSpace(_search) || x.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
 (x.Description?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))
         .ToList();
 
+    // Reload whenever the page hands this widget a different person or position.
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private bool IsAssigned(Guid groupId) => _assignedGroupIds.Contains(groupId);
 
+    // Load every group, which ones the person holds, and work out the person's final permission count.
     private async Task LoadAsync()
     {
         if (!CanAssign)
@@ -113,6 +128,7 @@ x.PermissionId).ToListAsync();
         _effectivePermissionCount = directIds.Concat(groupPermissionIds).Distinct().Count();
     }
 
+    // Give or take away one group. For a position the position must still be active; failures are reported with a message.
     private async Task ToggleGroup(Guid groupId, bool assign)
     {
         if (!CanAssign) return;

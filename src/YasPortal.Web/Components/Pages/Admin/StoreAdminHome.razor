@@ -9,6 +9,8 @@
 <div class="admin-page" dir="rtl"><LoadingState /></div>
 
 @code {
+    // This page shows nothing itself. It sends the person straight to the first store admin tab they have permission for
+    // (items, stock, orders, hand-over, reports), or to the access-denied page when they have none.
     protected override async Task OnInitializedAsync()
     {
         string? target =

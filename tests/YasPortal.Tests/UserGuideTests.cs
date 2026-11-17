@@ -4,6 +4,7 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// User guide tests: required fields and length limits, who can read a guide (by visibility, sign-in and active flag), updating, authorship and who may edit.
 public sealed class UserGuideTests
 {
     private static UserGuide G(string title = "راهنما", string html = "<p>متن</p>", GuideVisibility visibility = GuideVisibility.SignedIn) =>

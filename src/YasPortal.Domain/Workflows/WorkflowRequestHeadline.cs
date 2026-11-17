@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Workflows;
 
+// Request headline: the quick facts for a list row of a request that is waiting for approval: which stage
+// it is at (for
+// example 2 of 4), who it is waiting for, and since when. A record = a small read-only bundle of values.
 /// <summary>
 /// The one-glance facts about a request that is waiting for approval — which stage it is at, who it is
 /// waiting for and since when — so a list row can say it without opening the request. Pure, so it can be tested.
@@ -14,15 +17,19 @@ public sealed record WorkflowRequestHeadline(int StageNumber, int StageCount, IR
     public static WorkflowRequestHeadline? Of(WorkflowRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        // Only requests still pending approval have a headline.
         if (request.Status != WorkflowRequestStatus.PendingApproval)
             return null;
 
+        // A stage = all steps sharing the same order number; parallel approvers belong to one stage. Only
+        // the current round counts.
         var roundSteps = request.Steps.Where(s => s.Round == request.CurrentRound).ToList();
         var orders = roundSteps.Select(s => s.Order).Distinct().OrderBy(o => o).ToList();
         var index = orders.IndexOf(request.CurrentStepOrder);
         if (index < 0)
             return null;
 
+        // The approvers who still have not answered in the current stage.
         var waiting = roundSteps
             .Where(s => s.Order == request.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending)
             .Select(s => s.Name)
@@ -31,6 +38,8 @@ public sealed record WorkflowRequestHeadline(int StageNumber, int StageCount, IR
         if (waiting.Count == 0)
             return null;
 
+        // Waiting since: the latest of the round start and the last time the previous stages passed the
+        // request on.
         var since = request.CreatedAtUtc;
         foreach (var action in request.RequesterActions.Where(a => a.Round == request.CurrentRound))
             if (action.AtUtc > since)
@@ -42,6 +51,7 @@ public sealed record WorkflowRequestHeadline(int StageNumber, int StageCount, IR
         return new WorkflowRequestHeadline(index + 1, orders.Count, waiting, since);
     }
 
+    // How many full days the request has been waiting (never negative).
     /// <summary>Whole days between <paramref name="sinceUtc"/> and <paramref name="nowUtc"/>; never negative.</summary>
     public static int WholeDaysWaiting(DateTime sinceUtc, DateTime nowUtc) =>
         nowUtc <= sinceUtc ? 0 : (int)Math.Floor((nowUtc - sinceUtc).TotalDays);

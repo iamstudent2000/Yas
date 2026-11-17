@@ -1,5 +1,11 @@
 namespace YasPortal.Domain.Workflows;
 
+// Requester action log: one row each time the requester (or an authorised admin) does something to the
+// request as a whole:
+// submit, resubmit after a return, cancel, or reopen after a rejection. Together with the approvers'
+// decisions this gives the
+// complete timeline. Rows are only added, never changed. Entity = a row-shaped business object stored in
+// the database.
 /// <summary>
 /// A requester-side lifecycle event on a <see cref="WorkflowRequest"/> (submit, resubmit, cancel, reopen).
 /// Stored alongside approval steps so the timeline can show a complete history without inventing
@@ -7,10 +13,13 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowRequesterAction
 {
+    // Private empty constructor: needed by the database layer to load rows.
     private WorkflowRequesterAction()
     {
     }
 
+    // Only the request code in this project can record an action; it checks that the request, round and
+    // person are present.
     internal WorkflowRequesterAction(Guid requestId, int round, WorkflowRequesterActionKind kind, Guid employeeId, string? reason = null)
     {
         if (requestId == Guid.Empty)
@@ -20,6 +29,7 @@ public sealed class WorkflowRequesterAction
         if (employeeId == Guid.Empty)
             throw new ArgumentException("Employee is required.", nameof(employeeId));
 
+        // The time is stamped automatically and an empty reason is stored as no reason.
         RequestId = requestId;
         Round = round;
         Kind = kind;

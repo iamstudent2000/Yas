@@ -3,9 +3,13 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Web.Services;
 
+// Display helpers: one place that decides how request data is shown on screen, so every page looks the same.
+// It converts dates to the Persian (Jalali) calendar and digits, and chooses the wording, colour badge and icon
+// for each request status, approval step and approval stage. It never changes any data.
 /// <summary>Presentation-only mappings shared by the request pages (icons, labels, badge classes).</summary>
 public static class WorkflowDisplay
 {
+    // Each kind of request has its own icon in lists; anything unknown gets the generic request icon.
     public static string IconFor(WorkflowTypeCode type) => type switch
     {
         WorkflowTypeCode.Leave => Icons.TypeLeave,
@@ -30,6 +34,7 @@ public static class WorkflowDisplay
         return rawValue;
     }
 
+    // Converts a normal date to the Persian calendar (year/month/day) and swaps in Persian digits.
     public static string ToPersianDate(DateTime date)
     {
         var calendar = new PersianCalendar();
@@ -61,6 +66,7 @@ public static class WorkflowDisplay
         return new string(chars);
     }
 
+    // Overall request status: the wording shown to people, and the badge colour that goes with it (green, red, amber, grey, blue).
     public static string StatusLabel(WorkflowRequestStatus status) => status switch
     {
         WorkflowRequestStatus.PendingApproval => "در انتظار تایید",
@@ -85,6 +91,8 @@ public static class WorkflowDisplay
     /// request is actually sitting at right now) as well as its own status — two Pending
     /// steps can mean "awaiting action now" vs "queued, not reached yet".
     /// </summary>
+    // Step = one approval stage in the path. The same Pending status reads differently when it is the current step
+    // (waiting for a decision now) and when it is still queued behind earlier steps.
     public static string StepLabel(WorkflowStepStatus status, bool isCurrent) => status switch
     {
         WorkflowStepStatus.Pending when isCurrent => "در انتظار تایید",
@@ -170,6 +178,7 @@ public static class WorkflowDisplay
 
     // ---- whole-stage display (a stage = one step, or a parallel group) ----
 
+    // A stage is one step of the path, or a whole group of steps that are decided in parallel; these pick its look.
     /// <summary>CSS state modifier for a stage card / icon, e.g. <c>is-awaiting</c>.</summary>
     public static string StageStateClass(WorkflowStageState state) => "is-" + state.ToString().ToLowerInvariant();
 

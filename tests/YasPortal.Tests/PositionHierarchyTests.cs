@@ -3,6 +3,7 @@ using YasPortal.Domain.Organization;
 
 namespace YasPortal.Tests;
 
+// Position hierarchy tests: finding a person's manager N levels up the chain (the tree is a CEO, then a unit manager, then an employee) and what happens when the chain is too short.
 public class PositionHierarchyTests
 {
     // ceo

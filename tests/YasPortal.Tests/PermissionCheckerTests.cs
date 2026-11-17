@@ -10,6 +10,8 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Permission checker tests. A person's rights come from their active position; these tests make sure rights are refused when the position or account is no longer valid,
+// that 'manage' implies 'view', and that rights of one position never leak into another.
 public sealed class PermissionCheckerTests
 {
     [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]

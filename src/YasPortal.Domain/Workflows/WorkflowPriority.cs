@@ -2,6 +2,9 @@ using System.Text.Json;
 
 namespace YasPortal.Domain.Workflows;
 
+// Priority levels for requests that have a priority field (such as helpdesk): low, medium, high, critical,
+// ranked 1 to 4.
+// Storing the rank as a number lets lists sort and filter by priority.
 /// <summary>
 /// The priority levels a form can ask for with a field keyed "priority", and their rank (1 = lowest). A request stores the rank in
 /// its own column (<see cref="WorkflowRequest.PriorityRank"/>), so lists can sort and filter by it in the database. Request types
@@ -14,15 +17,19 @@ public static class WorkflowPriority
     /// <summary>Labels from lowest to highest; the position plus one is the rank.</summary>
     public static readonly IReadOnlyList<string> Labels = new[] { "کم", "متوسط", "زیاد", "بحرانی" };
 
+    // Converts a priority label into its rank (1 to 4); unknown or empty labels give no rank.
     public static int? RankOf(string? label)
     {
         var index = label is null ? -1 : Labels.ToList().IndexOf(label.Trim());
         return index < 0 ? null : index + 1;
     }
 
+    // Converts a rank back into its label for display.
     public static string? LabelOf(int? rank) => rank is >= 1 and <= 4 ? Labels[rank.Value - 1] : null;
 
     /// <summary>The rank in a request's stored field values, or null when there is none.</summary>
+    // Reads the priority out of a request's stored answers (kept as JSON text); damaged text simply means
+    // no priority.
     public static int? FromFieldValues(string? fieldValuesJson)
     {
         if (string.IsNullOrWhiteSpace(fieldValuesJson))

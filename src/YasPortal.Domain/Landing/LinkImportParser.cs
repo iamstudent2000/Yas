@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Landing;
 
+// Bulk import of links: an administrator pastes a list and this reads it line by line. It only checks the
+// text and reports a problem per line; saving is done elsewhere.
 /// <summary>One line of a pasted list of links, checked.</summary>
 public sealed record ImportLine(int LineNumber, IReadOnlyList<string> GroupPath, string Title, string? Url, string? Description, string? Error);
 
@@ -10,6 +12,8 @@ public sealed record ImportLine(int LineNumber, IReadOnlyList<string> GroupPath,
 /// </summary>
 public static class LinkImportParser
 {
+    // Each line is split on the vertical bar into group path, title, address and optional description, then
+    // checked.
     public static IReadOnlyList<ImportLine> Parse(string? text)
     {
         var result = new List<ImportLine>();

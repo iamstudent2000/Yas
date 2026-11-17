@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Workflows;
 
+// One shared definition of an "active" request so every screen agrees on it. A query = a database search
+// written in code.
 /// <summary>Shared query definitions for <see cref="WorkflowRequest"/>, so "active" means one thing everywhere.</summary>
 public static class WorkflowRequestQueries
 {

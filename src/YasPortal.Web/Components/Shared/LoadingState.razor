@@ -5,6 +5,7 @@
 </div>
 
 @code {
+    // Text shown next to the spinner; pages may override the default "loading" wording.
     [Parameter] public string Text { get; set; } = "در حال بارگذاری...";
 
     /// <summary>For small inline panels (inside a card section) where the full-height box would be too big.</summary>

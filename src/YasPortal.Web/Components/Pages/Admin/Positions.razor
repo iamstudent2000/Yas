@@ -14,6 +14,10 @@
 @inject AppState AppState
 @inject ReportExportService Reports
 
+@* Admin page 'structure and assignment of positions' (address /admin/positions). A position is a seat in the organisation chart *@
+@* (for example 'head of finance') that is filled by one employee at a time. Approvals in workflows are given to positions, *@
+@* not to people, so when someone changes seat the approvals follow the position. This page shows the positions as a tree, *@
+@* lets administrators add, move, switch on or off and delete positions, and put an employee into a position. *@
 <PageTitle>سمت‌ها - یاس پورتال</PageTitle>
 
 <div dir="rtl" class="positions-page admin-page">
@@ -45,6 +49,8 @@
         </div>
     </div>
 
+        @* Form to add a position or edit the selected one: code, name, the position above it in the tree and its organisation. *@
+        @* A position sits in the same organisation as its parent. Shown only to people who may manage positions. *@
         @if (_canManage) {
 <section class="card admin-form-row position-form-row">
         <div class="admin-form-row-head">
@@ -71,6 +77,8 @@
                 </div>
             </div>
         </div>
+        @* When switching a position off is refused, the reasons are listed here (an occupant, a workflow that names it as approver, *@
+        @* or active requests waiting on it) so the administrator knows what to resolve first. *@
         @if (_blockers.Count > 0)
                                         {
                                             <div class="blocker-panel">
@@ -98,6 +106,8 @@
     </section>
 }
 
+    @* Filters for the tree: name or code, occupied or vacant, active or inactive, and organisation. They apply when the search *@
+    @* button is pressed; the parents of every match stay visible so the match can be seen in its place in the tree. *@
     <ListFilterBar Busy="_loading" ActiveCount="@((_treeSearch.Trim().Length > 0 ? 1 : 0) + (_occupancyFilter != "" ? 1 : 0) + (_activeFilter != "" ? 1 : 0) + (_organizationFilterId is null ? 0 : 1))"
                    CanClear="@(HasTreeFilter || _draftTreeSearch != "" || _draftOccupancy != "" || _draftActive != "" || _draftOrganizationId is not null)"
                    OnSearch="SearchTreeFilters" OnClear="ClearTreeFilters" ExportPermission="@(ReportPermissions.Positions)" OnExport="ExportAsync">
@@ -113,6 +123,8 @@
     </ListFilterBar>
 
     <div class="positions-layout">
+        @* The tree of positions. Each node has buttons to add a child position, edit, assign or free the position, and so on. *@
+        @* Clicking a node opens its assignment history in the panel beside the tree. *@
         <section class="card position-tree-card-wrap">
             <div class="card-toolbar positions-tree-toolbar">
                 <div>
@@ -161,6 +173,7 @@
                                         else
                                         {
                                             <div class="position-tree" role="tree" aria-label="درخت سمت‌ها">
+                                                @* Draw the tree starting from the top-level positions; each node draws its own children. *@
                                                 @foreach (var root in Roots)
                                                 {
                                                     @RenderNode(root, 0)
@@ -172,6 +185,7 @@
 
                                 </div>
 
+                                @* History panel of the selected position: who held it and when. *@
                                 @if (_selectedPositionId is Guid selectedPositionId)
                                 {
                                     <PositionAssignmentHistoryPanel PositionId="selectedPositionId" />
@@ -198,6 +212,7 @@
     private string? _selectedPositionEmployeeName;
     private bool _loading, _savingAssignment, _treeInitialized;
 
+    // The top-level positions (those with no parent), in order.
     private IEnumerable<PositionRow> Roots => _positions.Where(x => x.ParentPositionId is null
         && (_visiblePositionIds is null || _visiblePositionIds.Contains(x.Id))).OrderBy(x => x.Name);
 
@@ -255,6 +270,7 @@
         await Reports.ExportRowsAsync(ReportPermissions.Positions, "positions", ["کد", "نام سمت", "سمت والد", "مسیر", "سطح", "سازمان", "متصدی فعلی", "وضعیت"], rows);
     }
 
+    // Does this position match the occupied or vacant, active and organisation filters?
     private bool PositionMatchesFilter(PositionRow x)
     {
         var q = _treeSearch.Trim();
@@ -267,6 +283,7 @@
     private static readonly IReadOnlyList<(string Key, string Text)> _occupancyOptions = [("occupied", "دارای متصدی"), ("vacant", "خالی")];
     private static readonly IReadOnlyList<(string Key, string Text)> _activeOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
 
+    // The organisation chosen in the form.
     private Task OrganizationChanged(Guid? id)
     {
         _organizationId = id;
@@ -281,6 +298,7 @@
     private string _draftTreeSearch = "", _draftOccupancy = "", _draftActive = "";
     private Guid? _draftOrganizationId;
     private int _treeResetKey;
+    // Search, clear and clear-search buttons of the tree filter, and whether any filter is set.
     private bool HasTreeFilter => _treeSearch.Trim().Length > 0 || _occupancyFilter != "" || _activeFilter != "" || _organizationFilterId is not null;
 
     private void SearchTreeFilters()
@@ -309,8 +327,10 @@
         TreeSearchChanged();
     }
 
+    // On opening: find out whether the person may manage positions, then load the tree.
     protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPositionsManage); await LoadAsync(); }
 
+    // Load every position with its current occupant and organisation, and rebuild the tree.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -351,6 +371,7 @@
         }
     }
 
+    // Load who holds the selected position.
     private async Task LoadSelectedAssignmentAsync(Guid positionId)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -360,6 +381,7 @@
             .FirstOrDefaultAsync();
     }
 
+    // Tree helpers: does a node have children, is it expanded, expand or collapse one node, or all nodes.
     private bool HasChildren(Guid positionId) => _positions.Any(x => x.ParentPositionId == positionId);
     private bool IsExpanded(Guid positionId) => !_collapsedNodeIds.Contains(positionId);
 
@@ -380,6 +402,7 @@
             _collapsedNodeIds.Add(position.Id);
     }
 
+    // Add-child button on a node: open the form with that node as the parent.
     private void BeginCreateChild(Guid parentId)
     { if (!_canManage) return;
         _assigningPositionId = null;
@@ -393,6 +416,7 @@
         _collapsedNodeIds.Remove(parentId);
     }
 
+    // Edit button on a node: copy the position into the form.
     private void Edit(Guid id)
     { if (!_canManage) return;
         _assigningPositionId = null;
@@ -408,6 +432,7 @@
         _blockers = [];
     }
 
+    // Cancel: empty the form and return to 'add a position'.
     private void CancelEdit()
     {
         _editingId = null;
@@ -420,6 +445,7 @@
         _blockers = [];
     }
 
+    // The parent position chosen in the form.
     private Task ParentChanged(Guid? id)
     {
         _parentPositionId = id;
@@ -427,6 +453,7 @@
         return Task.CompletedTask;
     }
 
+    // The employee chosen for assignment to a position.
     private Task EmployeeChanged(Guid? id)
     {
         _employeeToAssign = id;
@@ -440,6 +467,9 @@ ct) => AdminQueries.SearchPositionsAsync(search, null, _editingId, ct);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchAssignableEmployeesAsync(string search,
 CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct);
 
+    // Save button of the form. Checks: code and name are filled in and unique; a position cannot be its own parent or sit under
+    // one of its own children; it must be in the same organisation as its parent. Moving a position moves its whole branch,
+    // so it is refused while active requests are waiting on it.
     private async Task Save()
     { if (!_canManage) return;
         var code = _code.Trim();
@@ -529,6 +559,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         await LoadAsync();
     }
 
+    // Select a position (or clear the selection) to show its assignment history.
     private async Task SelectPosition(Guid id)
     {
         _assigningPositionId = null;
@@ -546,6 +577,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         _selectedPositionEmployeeName = null;
     }
 
+    // Open or close the 'assign an employee' box of a position.
     private void ToggleAssigning(Guid positionId)
     { if (!_canManage) return;
         if (_assigningPositionId == positionId)
@@ -561,6 +593,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         _confirmingReassignPositionId = null;
     }
 
+    // When the position already has an occupant, ask for confirmation before replacing them.
     private void RequestReplaceConfirmation(Guid positionId)
     { if (!_canManage) return;
         if (_employeeToAssign is null || _savingAssignment)
@@ -568,6 +601,10 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         _confirmingReassignPositionId = positionId;
     }
 
+    // Put the chosen employee into the position. Only active employees can be assigned and not into a switched-off position.
+    // If someone else holds the position, their assignment is ended first, so there is always at most one occupant; ended
+    // assignments stay in the history. If somebody else took the position at the same moment, nothing is changed and the
+    // administrator is told.
     private async Task ReassignEmployeeAsync(Guid positionId)
     { if (!_canManage) return;
         if (_positions.FirstOrDefault(x => x.Id == positionId)?.IsActive == false)
@@ -636,6 +673,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         }
     }
 
+    // End the current occupant's assignment so the position becomes vacant and can be assigned again.
     private async Task FreePosition(Guid positionId)
     { if (!_canManage) return;
         if (_savingAssignment)
@@ -711,6 +749,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         await LoadAsync();
     }
 
+    // Switch a position back on.
     private async Task ActivateAsync(Guid id)
     { if (!_canManage) return;
         _blockers = [];
@@ -728,6 +767,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         await LoadAsync();
     }
 
+    // Delete a position, only if it was never used.
     private async Task Delete(Guid id)
     { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -753,6 +793,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         await LoadAsync();
     }
 
+    // Is one position somewhere below another in the tree? Used to stop a position being moved under its own children.
     private bool IsDescendantOf(Guid candidateId, Guid ancestorId)
     {
         var current = _positions.FirstOrDefault(x => x.Id == candidateId);
@@ -765,6 +806,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         return false;
     }
 
+    // Draws one node of the tree (name, code, organisation, occupant, status and buttons) and then its children.
     private RenderFragment RenderNode(PositionRow position, int depth) => builder =>
     {
         var children = _positions.Where(x => x.ParentPositionId == position.Id
@@ -917,6 +959,7 @@ CancellationToken ct) => AdminQueries.SearchAssignableEmployeesAsync(search, ct)
         builder.CloseElement();
     };
 
+    // Helpers that draw a node's buttons.
     private void AddButton(RenderTreeBuilder builder, ref int seq, string css, string icon, string text, Action action)
     {
         builder.OpenElement(seq++, "button");
@@ -948,6 +991,7 @@ action)
         builder.CloseElement();
     }
 
+    // One position as held in memory for the tree.
     private sealed record PositionRow(Guid Id, string Code, string Name, Guid? ParentPositionId, string? EmployeeName, bool IsActive, Guid? OrganizationId, string? OrganizationName)
     {
         public bool IsOccupied => !string.IsNullOrWhiteSpace(EmployeeName);

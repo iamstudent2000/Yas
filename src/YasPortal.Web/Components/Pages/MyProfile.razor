@@ -20,6 +20,8 @@
 @inject AppState AppState
 
 @using YasPortal.Web.Components.Shared
+@* My profile page: the signed-in person's own account details, plus the few things they may change themselves: *@
+@* profile picture, waiting-reminder setting and password. Everything else here is read-only and managed by an administrator. *@
 <PageTitle>پروفایل من - یاس پورتال</PageTitle>
 
 <div class="profile-page">
@@ -33,6 +35,7 @@
         <a class="btn btn-secondary" href="/my-positions"><i class="ti @Icons.Position"></i> سمت‌های من</a>
     </div>
 
+    @* Identity banner: picture (or the first letter of the name), full name, employee code, username and account type. *@
     <section class="profile-identity">
         @if (AvatarCatalog.Find(_avatarKey) is { } picked)
         {
@@ -58,6 +61,7 @@
     </section>
 
     <div class="profile-columns">
+        @* Account facts: employee code, username, organization and account type. *@
         <section class="profile-card">
             <h2 class="section-title">اطلاعات حساب</h2>
             <dl class="profile-facts">
@@ -68,6 +72,7 @@
             </dl>
         </section>
 
+        @* Whether the person's organization is active, and a pointer to the page for switching the active position. *@
         <section class="profile-card profile-org-card">
             <h2 class="section-title">وضعیت سازمان</h2>
             <div class="profile-org-status">
@@ -81,6 +86,7 @@
             <a class="profile-org-link" href="/my-positions">مشاهده سمت‌های من <i class="ti @Icons.ArrowGo"></i></a>
         </section>
     </div>
+    @* Profile picture: one of the ready-made pictures can be chosen; it also appears in the top bar. *@
     <section class="profile-card">
         <h2 class="section-title"><i class="ti @Icons.Avatar"></i> تصویر پروفایل</h2>
         <p class="muted">یکی از تصویرهای آماده را انتخاب کنید؛ در نوار بالای صفحه هم نمایش داده می‌شود.</p>
@@ -95,6 +101,8 @@
         </div>
     </section>
 
+    @* Waiting reminder: the employee can ask to be notified when a request has waited for their decision too long, *@
+    @* optionally repeated. It is personal and affects nobody else. Only people with request access (not administrators) see it. *@
     <AuthorizeView Policy="@Perm.RequestsOwnView">
         <AuthorizeView Policy="NonAdmin" Context="nonAdminAuth">
             <section class="profile-card">
@@ -123,6 +131,8 @@
         </AuthorizeView>
     </AuthorizeView>
 
+    @* Change password: needs the current password, and the new one must satisfy the administrator's password policy. *@
+    @* The rules that apply are listed under the form; any problems found replace that list. *@
     <section class="profile-card">
         <h2 class="section-title"><i class="ti @Icons.ChangePassword"></i> تغییر رمز عبور</h2>
         <div class="profile-security-grid">
@@ -152,6 +162,7 @@
 </div>
 
 @code {
+    // The signed-in user, handed down by the framework; used to find out who is looking at the page.
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
     private string Username { get; set; } = "کاربر";
     private string FullName { get; set; } = "کاربر";
@@ -172,6 +183,7 @@
     private List<string> _errors = new();
     private YasPortal.Domain.Security.PasswordPolicy _policy = YasPortal.Domain.Security.PasswordPolicy.CreateDefault();
 
+    // Loads the person's details, their organization, their reminder setting and the current password policy.
     protected override async Task OnInitializedAsync()
     {
         _policy = await PolicyService.GetAsync();
@@ -243,6 +255,8 @@ employeeId);
         }
     }
 
+    // Steps: check both entries match, verify the current password, check the policy, store the new password hash,
+    // then write an audit entry (the history of sensitive actions is kept and never deleted). Only a hash is stored, never the password.
     private async Task ChangePasswordAsync()
     {
         _errors = new();

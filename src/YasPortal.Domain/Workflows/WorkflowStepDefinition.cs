@@ -1,5 +1,13 @@
 namespace YasPortal.Domain.Workflows;
 
+// Step definition = one admin-configured stage of the approval path for a request type (the template, not a
+// live request).
+// The approver is described by a rule: a fixed position, N levels above the requester, or an escalation up
+// the chain.
+// Several definitions sharing one order number form a parallel group (spec section 12.2). Positions, not
+// people, are
+// used so the path keeps working when employees change roles. Entity = a row-shaped business object stored
+// in the database.
 /// <summary>
 /// One step in a <see cref="WorkflowTypeCode"/>'s approval path. Steps are ordered
 /// (<see cref="Order"/> starting at 1) and admin-managed: an admin decides, for example,
@@ -8,10 +16,13 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowStepDefinition
 {
+    // Private empty constructor: needed by the database layer to load rows.
     private WorkflowStepDefinition()
     {
     }
 
+    // Create a step whose approver is the requester's manager, a given number of levels up (1 = direct
+    // manager).
     public WorkflowStepDefinition(WorkflowTypeCode workflowType, int order, string name, int managerLevel)
     {
         WorkflowType = workflowType;
@@ -21,6 +32,7 @@ public sealed class WorkflowStepDefinition
         SetManagerLevel(managerLevel);
     }
 
+    // Create a step whose approver is always the same fixed position.
     public WorkflowStepDefinition(WorkflowTypeCode workflowType, int order, string name, Guid approverPositionId)
     {
         WorkflowType = workflowType;
@@ -48,6 +60,7 @@ public sealed class WorkflowStepDefinition
     /// 2 = its direct children, ...).
     /// </summary>
     public int? TreeLevel { get; private set; }
+    // Inactive steps are ignored when a new request is submitted.
     public bool IsActive { get; private set; } = true;
 
     /// <summary>
@@ -56,6 +69,7 @@ public sealed class WorkflowStepDefinition
     /// </summary>
     public bool AllowDelegation { get; private set; } = true;
 
+    // Switch delegation on or off for this step.
     public void SetAllowDelegation(bool allow) => AllowDelegation = allow;
 
     /// <summary>
@@ -68,6 +82,8 @@ public sealed class WorkflowStepDefinition
     /// </summary>
     public int? FillsPart { get; private set; }
 
+    // Chooses which later form part the approver fills in at this step (or none); only parts the type
+    // really has are accepted.
     public void SetFillsPart(int? part)
     {
         if (part is not null && !WorkflowFieldCatalog.GetParts(WorkflowType).Any(p => p.Part == part && p.Part > 1))
@@ -85,6 +101,7 @@ public sealed class WorkflowStepDefinition
     /// <summary>What a rejection inside the group does (spec §14.3). Same rule as <see cref="ApprovalMode"/>: identical across the group.</summary>
     public ParallelRejectPolicy RejectPolicy { get; private set; } = ParallelRejectPolicy.Immediate;
 
+    // Sets how a parallel group is satisfied (all or any) and what a rejection inside it does.
     public void SetParallelPolicy(ParallelApprovalMode approvalMode, ParallelRejectPolicy rejectPolicy)
     {
         if (!Enum.IsDefined(approvalMode))
@@ -113,6 +130,9 @@ public sealed class WorkflowStepDefinition
         return step;
     }
 
+    // Admin edits: rename, renumber, switch the approver rule, and activate or deactivate. Each rule switch
+    // clears the
+    // settings that belong to the other rules so only one rule is ever in force.
     public void Rename(string name) => Name = RequireName(name);
 
     public void SetOrder(int order)
@@ -149,6 +169,7 @@ public sealed class WorkflowStepDefinition
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
+    // Validation helpers: refuse impossible values so a bad step can never be saved.
     private void SetManagerLevel(int managerLevel)
     {
         if (managerLevel < 1)

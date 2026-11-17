@@ -2,6 +2,8 @@
 @using YasPortal.Infrastructure.Persistence
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 
+@* Position history panel: shows every person who has ever held one position, with start and end dates, newest first. *@
+@* A position can have only one holder at a time, but history is never deleted, so past holders stay listed here. *@
 <section class="position-history-panel">
     <div class="history-panel-head">
         <div>
@@ -12,6 +14,7 @@
         <div class="history-count">@_total سابقه</div>
     </div>
 
+    @* Loading message, or an empty message when the position never had a holder, or the list of past and present holders. *@
     @if (_loading)
     {
         <div class="history-loading"><i class="ti @Icons.Spinner"></i> در حال بارگذاری سوابق...</div>
@@ -28,6 +31,7 @@
     }
     else
     {
+        @* One row per holder: name, start date, end date and a status (still active, or ended). *@
         <div class="history-list">
             @foreach (var row in _rows)
             {
@@ -47,6 +51,7 @@
                         <span>پایان</span>
                         <strong>@FormatDate(row.EndedAt)</strong>
                     </div>
+                    @* No end date means the person still holds the position. *@
                     @if (row.EndedAt is null)
                     {
                         <span class="history-status active"><i class="ti @Icons.Success"></i> فعال</span>
@@ -58,12 +63,14 @@
                 </div>
             }
         </div>
+        @* Page navigation for long histories. *@
         <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_total" Busy="@_loading"
                           PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
     }
 </section>
 
 @code {
+    // Input from the page: which position's history to show.
     [Parameter] public Guid PositionId { get; set; }
 
     private List<HistoryRow> _rows = [];
@@ -73,6 +80,7 @@
 
     private string PositionName { get; set; } = "سمت";
 
+    // Load the history when the page hands this panel a (new) position.
     protected override async Task OnParametersSetAsync()
     {
         if (PositionId == Guid.Empty || PositionId == _loadedPositionId)
@@ -83,6 +91,7 @@
         await LoadAsync();
     }
 
+    // Load the position's name and one page of its holders, newest start date first.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -122,9 +131,11 @@
         }
     }
 
+    // Paging controls: move to another page or change the page size.
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
 
+    // Show a date and time in local time, or a dash when there is none.
     private static string FormatDate(DateTime? value) => value is null
         ? "—"
         : value.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");

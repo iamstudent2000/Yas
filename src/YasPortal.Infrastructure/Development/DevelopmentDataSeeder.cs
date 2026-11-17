@@ -10,12 +10,17 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Development;
 
+// Start-up data for development: creates the database, the sample organizations, positions, people, permissions,
+// home page content and default approval paths. It is safe to run on every start: it only adds what is missing,
+// and it never overwrites choices an administrator made later (for example approval steps).
 public static class DevelopmentDataSeeder
 {
+    // Entry point called when the application starts in development.
     public static async Task SeedAsync(ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, CancellationToken ct = default)
     {
         if (await db.Database.CanConnectAsync(ct))
         {
+            // The checks below ask SQL Server whether each table or column that the current version needs already exists.
             var organizationsTableExists = await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[Organizations]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct);
             var lastActivePositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Employees]', N'LastActivePositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var parentPositionColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[Positions]', N'ParentPositionId') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
@@ -36,16 +41,21 @@ public static class DevelopmentDataSeeder
             var parallelStepColumnsExist = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowStepDefinitions]', N'ApprovalMode') IS NULL OR COL_LENGTH(N'[WorkflowRequestSteps]', N'RejectPolicy') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var uiPreferencesTableExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID(N'[UiPreferences]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
             var treeLevelColumnExists = organizationsTableExists == 1 && await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN COL_LENGTH(N'[WorkflowStepDefinitions]', N'TreeLevel') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync(ct) == 1;
+            // If any required table or column is missing the old development database is outdated, so it is dropped and
+            // created again from scratch (there is no upgrade path in development).
             if (organizationsTableExists == 0 || !uiPreferencesTableExists || !parallelStepColumnsExist || !positionLifecycleColumnsExist || !delegatePositionColumnExists || !lastActivePositionColumnExists || !parentPositionColumnExists || !workflowRevisionColumnExists || !requesterActionsTableExists || !stepDecisionsTableExists || !forceCloseColumnExists || !fieldChangesTableExists || !treeLevelColumnExists || !notificationsTableExists || !reopenReasonColumnExists || !returnTargetColumnExists || !delegationsTableExists || !allowDelegationColumnExists || !onBehalfColumnExists)
                 await db.Database.EnsureDeletedAsync(ct);
         }
 
+        // Create the database and tables if needed; error 1801 means the database already exists and is ignored.
         try
         {
             await db.Database.EnsureCreatedAsync(ct);
         }
         catch (SqlException ex) when (ex.Number == 1801) { }
 
+        // Re-create the rule 'a position can have only one current occupant' as a database index. It only counts rows
+        // where the assignment has no end date, so past occupants do not block a new one.
         await db.Database.ExecuteSqlRawAsync("""
             IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions') AND name = N'IX_EmployeePositions_PositionId')
                 DROP INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions];
@@ -54,6 +64,7 @@ public static class DevelopmentDataSeeder
                 WHERE [EndedAt] IS NULL;
             """, ct);
 
+        // Sample organizations (departments).
         var organizationDefinitions = new[]
         {
             (Code: "ORG-001", Name: "ستاد مرکزی"),
@@ -61,6 +72,7 @@ public static class DevelopmentDataSeeder
             (Code: "ORG-003", Name: "امور مالی")
         };
 
+        // Add each organization only if one with that name does not exist yet.
         var organizations = new Dictionary<string, Organization>(StringComparer.OrdinalIgnoreCase);
         foreach (var definition in organizationDefinitions)
         {
@@ -74,6 +86,8 @@ public static class DevelopmentDataSeeder
         }
         await db.SaveChangesAsync(ct);
 
+        // Sample position tree: the system manager at the top, with HR manager and unit manager below, and the finance
+        // expert and the employee below the unit manager. Positions, not people, carry authority.
         var positions = new Dictionary<string, Position>(StringComparer.OrdinalIgnoreCase) {
             ["مدیر سامانه"] = await EnsurePosition(db, "POS-001", "مدیر سامانه", null, ct)
         };
@@ -185,6 +199,7 @@ public static class DevelopmentDataSeeder
             await db.SaveChangesAsync(ct);
         }
 
+        // Sample people: one administrator and four ordinary users, each with a starting password.
         var employeeDefinitions = new[]
         {
             (Code: "EMP-001", Username: "admin", FullName: "مدیر سامانه", Organization: "ستاد مرکزی", IsAdmin: true, Password: "Admin123!"),
@@ -194,6 +209,7 @@ public static class DevelopmentDataSeeder
             (Code: "EMP-005", Username: "finance", FullName: "رضا محمدی", Organization: "امور مالی", IsAdmin: false, Password: "Finance123!")
         };
 
+        // Create each person if missing; for existing ones, refresh organization and admin flag and set a password only if none.
         var employees = new Dictionary<string, Employee>(StringComparer.OrdinalIgnoreCase);
         foreach (var definition in employeeDefinitions)
         {
@@ -215,9 +231,11 @@ public static class DevelopmentDataSeeder
         }
         await db.SaveChangesAsync(ct);
 
+        // The administrator receives every permission directly (administrators act without a position).
         foreach (var permission in permissions.Values)
             await EnsureDirectPermission(db, employees["admin"], permission, ct);
 
+        // Make sure the ordinary sample users are active.
         foreach (var username in new[] { "employee", "hr", "manager", "finance" })
         {
             if (!employees[username].IsActive)
@@ -227,11 +245,13 @@ public static class DevelopmentDataSeeder
             }
         }
 
+        // Place each ordinary user into their position.
         await EnsureEmployeePosition(db, employees["employee"], positions["کارمند"], ct);
         await EnsureEmployeePosition(db, employees["hr"], positions["مدیر منابع انسانی"], ct);
         await EnsureEmployeePosition(db, employees["manager"], positions["مدیر واحد"], ct);
         await EnsureEmployeePosition(db, employees["finance"], positions["کارشناس مالی"], ct);
 
+        // Give each position's holder the permissions that role needs, such as creating requests or approving them.
         await Grant(db, employees["employee"], positions["کارمند"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnCreate, Perm.RequestsOwnView, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).ToArray(), ct);
         await Grant(db, employees["hr"], positions["مدیر منابع انسانی"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnView, Perm.RequestsDecisionApprove, Perm.RequestsDecisionReject, Perm.RequestsDecisionReturnToRequester, Perm.RequestsDecisionReturnToSpecificStep, Perm.DelegationsOwnManage }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).Append(Perm.NotificationsMessageSend).ToArray(), ct);
         await Grant(db, employees["manager"], positions["مدیر واحد"], permissions, new[] { Perm.DashboardPageView, Perm.ProfileOwnView, Perm.RequestsOwnView, Perm.RequestsDecisionApprove, Perm.RequestsDecisionReject, Perm.RequestsDecisionReturnToRequester, Perm.RequestsDecisionReturnToPreviousStep, Perm.RequestsDecisionReturnToSpecificStep, Perm.RequestsDecisionReopenOwn, Perm.DelegationsOwnManage, Perm.RequestsTeamView, Perm.RequestsTeamApprovalsView, ReportPermissions.TeamRequests, ReportPermissions.MyRequests }.Concat(FormPermissions.Codes).Append(Perm.DashboardMineView).Append(Perm.DashboardTeamView).Append(Perm.NotificationsMessageSend).Append(ReportPermissions.MyNotifications).ToArray(), ct);
@@ -267,6 +287,7 @@ public static class DevelopmentDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    // Finds the position by name or creates it, and corrects its parent if it differs.
     private static async Task<Position> EnsurePosition(ApplicationDbContext db, string code, string name, Guid? parentPositionId, CancellationToken ct)
     {
         var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
@@ -285,6 +306,8 @@ public static class DevelopmentDataSeeder
         return position;
     }
 
+    // Gives a person a position. Any other current occupant of that position is ended first, because only one
+    // person may hold a position at a time.
     private static async Task EnsureEmployeePosition(ApplicationDbContext db, Employee employee, Position position, CancellationToken ct)
     {
         var existingForEmployee = await db.EmployeePositions.SingleOrDefaultAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id, ct);
@@ -302,18 +325,21 @@ public static class DevelopmentDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    // Grants a permission directly to a person (the administrator track) unless already granted.
     private static async Task EnsureDirectPermission(ApplicationDbContext db, Employee employee, Permission permission, CancellationToken ct)
     {
         if (!await db.EmployeePermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PermissionId == permission.Id, ct))
             db.EmployeePermissions.Add(new EmployeePermission(employee.Id, permission.Id));
     }
 
+    // Grants a permission to a person for one position (the employee track) unless already granted.
     private static async Task EnsurePermission(ApplicationDbContext db, Employee employee, Position position, Permission permission, CancellationToken ct)
     {
         if (!await db.UserPositionPermissions.AnyAsync(x => x.EmployeeId == employee.Id && x.PositionId == position.Id && x.PermissionId == permission.Id, ct))
             db.UserPositionPermissions.Add(new UserPositionPermission(employee.Id, position.Id, permission.Id));
     }
 
+    // Grants several permission codes to a person for one position.
     private static async Task Grant(ApplicationDbContext db, Employee employee, Position position, IReadOnlyDictionary<string, Permission> permissions, IEnumerable<string> codes, CancellationToken ct)
     {
         foreach (var code in codes)

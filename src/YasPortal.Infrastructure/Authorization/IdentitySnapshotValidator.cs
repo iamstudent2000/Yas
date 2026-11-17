@@ -12,6 +12,8 @@ namespace YasPortal.Infrastructure.Authorization;
 /// </summary>
 public static class IdentitySnapshotValidator
 {
+    // Still valid only if: the employee exists and is active, the admin flag is unchanged since sign-in, and (for a
+    // non-admin) the position chosen at sign-in is still one of the employee's active assignments.
     public static bool IsStillValid(Employee? employee, bool claimedIsAdmin, Guid? claimedPositionId) =>
         employee is not null
         && employee.IsActive

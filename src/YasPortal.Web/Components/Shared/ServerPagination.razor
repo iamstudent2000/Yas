@@ -1,3 +1,5 @@
+@* Page navigation bar shown under long lists. The list is loaded one page at a time from the database; this widget only draws *@
+@* the controls and tells the page which page or page size the person asked for. Nothing is drawn when the list is empty. *@
 @if (TotalCount > 0)
 {
     <div class="server-pagination" dir="rtl" aria-label="صفحه‌بندی">
@@ -6,6 +8,7 @@
             <div class="server-pagination-size-wrap">
                 <select class="server-pagination-size-select" value="@PageSize" @onchange="OnPageSizeChangedAsync"
                         disabled="@Busy" aria-label="تعداد موارد در صفحه">
+                    @* Drop-down for how many rows to show per page. *@
                     @foreach (var size in PageSizes)
                     {
                         <option value="@size">@ToPersianDigits(size.ToString())</option>
@@ -18,6 +21,8 @@
         <span class="server-pagination-info"><strong>@ToPersianDigits((((Page - 1) * PageSize) +
                                                 1).ToString())–@ToPersianDigits(Math.Min(Page * PageSize, TotalCount).ToString())</strong><span
             class="server-pagination-info-muted">از @ToPersianDigits(TotalCount.ToString("N0"))</span></span>
+            @* Previous / next buttons and page numbers (at most five at a time, with first and last page and '...' for gaps). *@
+            @* Hidden when everything fits on one page. *@
             @if (TotalPages > 1)
             {
                 <div class="server-pagination-buttons">
@@ -54,6 +59,8 @@
         </div>
     }
 @code {
+    // Parameters handed in by the page: current page, rows per page, total number of rows, a busy flag that disables the controls
+    // while data is loading, the callbacks fired on a change, and the allowed page sizes.
     [Parameter] public int Page { get; set; } = 1;
     [Parameter] public int PageSize { get; set; } = 20;
     [Parameter] public int TotalCount { get; set; }
@@ -61,15 +68,20 @@
     [Parameter] public EventCallback<int> PageChanged { get; set; }
     [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
     [Parameter] public IReadOnlyList<int> PageSizes { get; set; } = new[] { 5, 10, 20, 50, 100 };
+    // Number of pages = total rows divided by rows per page, rounded up (never less than one).
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
+    // The window of up to five page numbers shown around the current page.
     private IEnumerable<int> Pages => Enumerable.Range(Math.Max(1, Math.Min(Page - 2, Math.Max(1, TotalPages - 4))),
 Math.Min(TotalPages, 5));
+    // Ask the page to load another page number (kept within the valid range).
     private Task GoAsync(int page) => PageChanged.InvokeAsync(Math.Clamp(page, 1, TotalPages));
+    // The person picked a new page size: pass it on to the page if it is one of the allowed sizes.
     private Task OnPageSizeChangedAsync(ChangeEventArgs args)
     {
         if (int.TryParse(args.Value?.ToString(), out var
 size) && PageSizes.Contains(size)) return PageSizeChanged.InvokeAsync(size); return Task.CompletedTask;
     }
+    // Shows numbers with Persian digits instead of 0-9.
     private static string ToPersianDigits(string
 value) => value.Replace('0', '۰').Replace('1', '۱').Replace('2', '۲').Replace('3', '۳').Replace('4', '۴').Replace('5',
 '۵').Replace('6', '۶').Replace('7', '۷').Replace('8', '۸').Replace('9', '۹');

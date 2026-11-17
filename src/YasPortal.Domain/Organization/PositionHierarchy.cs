@@ -1,5 +1,8 @@
 namespace YasPortal.Domain.Organization;
 
+// The organization chart is a tree of positions. These helpers answer questions about it: who is my
+// manager's position, who is above me, and who is below me. The workflow uses them to find the approver for
+// a step.
 /// <summary>
 /// Pure helper for walking the Position parent/child tree (Position.ParentPositionId
 /// points at the higher-up "manager" position). Used to resolve, e.g., "the requester's
@@ -8,6 +11,7 @@ namespace YasPortal.Domain.Organization;
 /// </summary>
 public static class PositionHierarchy
 {
+    // Goes up an exact number of levels. Returns nothing when the chart is not that deep.
     /// <summary>
     /// Walks up from <paramref name="positionId"/> by <paramref name="levelsUp"/> parent hops
     /// (1 = the position's own direct parent/"manager" position). Returns null if the chain
@@ -31,6 +35,8 @@ public static class PositionHierarchy
         return current;
     }
 
+    // Goes up as many levels as possible, up to the number requested, and returns the highest position
+    // reached.
     /// <summary>
     /// Like <see cref="GetAncestorPositionId"/>, but never fails outright on a shallow
     /// hierarchy: it walks up at most <paramref name="levelsUp"/> hops and returns whatever
@@ -58,6 +64,7 @@ public static class PositionHierarchy
         return lastAncestor;
     }
 
+    // The whole chain of managers above a position, nearest first.
     /// <summary>
     /// Every ancestor of <paramref name="positionId"/>, nearest first: the direct manager's
     /// position, then that position's manager, and so on up to the top of the tree (the last item
@@ -80,6 +87,7 @@ public static class PositionHierarchy
         return chain;
     }
 
+    // Everything below a position: direct reports, their reports, and so on.
     /// <summary>
     /// Every position below <paramref name="positionId"/> in the tree — its direct reports, theirs, and
     /// so on down to the leaves — in no particular order. The position itself is not included, and a

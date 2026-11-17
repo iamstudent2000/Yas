@@ -21,6 +21,9 @@ public static class WorkflowRequestSort
 
     public static IQueryable<WorkflowRequest> Apply(IQueryable<WorkflowRequest> query, string? sortBy, bool descending, ApplicationDbContext db)
     {
+        // Choose the ordering by key. Sorting by requester or position uses the name found through the stored id; the
+        // rejection date is the latest rejection in the current round; priority puts requests without a priority last.
+        // Anything unknown means newest first.
         IOrderedQueryable<WorkflowRequest> ordered = sortBy switch
         {
             Id => descending ? query.OrderByDescending(x => x.Id) : query.OrderBy(x => x.Id),
@@ -43,6 +46,7 @@ public static class WorkflowRequestSort
             Created => descending ? query.OrderByDescending(x => x.CreatedAtUtc) : query.OrderBy(x => x.CreatedAtUtc),
             _ => query.OrderByDescending(x => x.CreatedAtUtc),
         };
+        // Final tie-break on the request id, so paging never shows the same row twice or skips one.
         return ordered.ThenBy(x => x.Id);
     }
 
@@ -64,9 +68,11 @@ public static class WorkflowRequestSort
     {
         var row = Expression.Parameter(typeof(T), "x");
         var type = Expression.Property(row, member);
+        // All request types ordered by the name people see, using Persian alphabetical rules.
         var names = WorkflowFieldCatalog.AllTypes
             .OrderBy(t => WorkflowFieldCatalog.GetDisplayName(t), StringComparer.Create(new System.Globalization.CultureInfo("fa-IR"), ignoreCase: false))
             .ToList();
+        // Builds a chain of 'if this type then rank' conditions; a type not in the list gets the last rank.
         Expression body = Expression.Constant(names.Count);
         for (var rank = names.Count - 1; rank >= 0; rank--)
             body = Expression.Condition(Expression.Equal(type, Expression.Constant(names[rank])), Expression.Constant(rank), body);

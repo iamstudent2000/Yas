@@ -5,6 +5,8 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Web.Services;
 
+// Section navigation: related pages are grouped into "sections" that share one row of tabs (for example the store
+// administration pages). Each tab lists the permissions needed to see it, so people only see the tabs they may use.
 /// <summary>
 /// One tab of a section. A person sees it when they satisfy at least one of the alternatives, and an alternative is
 /// satisfied when every policy in it passes (so "own notifications" is one alternative of two policies, and
@@ -29,8 +31,10 @@ public sealed record SectionDef(string Key, string Title, string Icon, IReadOnly
 /// </summary>
 public static class SectionNav
 {
+    // Helper for the common case of a tab that needs one single permission.
     private static string[][] One(string policy) => [[policy]];
 
+    // Section: users, access management, password policy and permissions (administrators).
     public static readonly SectionDef Access = new("access", "مدیریت کاربران و دسترسی‌ها", Icons.AccessGroup,
     [
         new("/admin/users", "کاربران", Icons.Users, One(Perm.AdminUsersView)),
@@ -40,6 +44,7 @@ public static class SectionNav
         new("/admin/permission-groups", "گروه‌های مجوز", Icons.PermissionGroup, One(Perm.AdminPermissionsView)),
     ]);
 
+    // Section: organization structure (positions, organizations, assignment history) and delegation of authority.
     public static readonly SectionDef Structure = new("structure", "ساختار سازمانی", Icons.OrgStructure,
     [
         new("/admin/positions", "سمت‌ها", Icons.Position, One(Perm.AdminPositionsView)),
@@ -48,6 +53,7 @@ public static class SectionNav
         new("/delegations", "تفویض اختیار", Icons.Delegation, [[Perm.DelegationsOwnManage], [Perm.AdminDelegationsView]]),
     ]);
 
+    // Section: administrator tools for requests (the report, helpdesk report, creating for others, workflow steps, reopening, force-closing).
     public static readonly SectionDef RequestAdmin = new("request-admin", "مدیریت درخواست‌ها", Icons.Workflow,
     [
         new("/admin/requests", "گزارش درخواست‌ها", Icons.RequestsReport, One(Perm.AdminRequestsView), ExactMatch: true),
@@ -58,6 +64,7 @@ public static class SectionNav
         new("/admin/active-requests", "درخواست‌های فعال", Icons.ActiveRequests, One(Perm.AdminRequestsForceClose)),
     ]);
 
+    // Section: notifications. Ordinary employees see their own; administrators see theirs and the all-notifications report.
     public static readonly SectionDef Notifications = new("notifications", "اعلان‌ها", Icons.Bell,
     [
         new("/notifications", "اعلان‌ها", Icons.Bell, [[Perm.RequestsOwnView, "NonAdmin"]], ExactMatch: true),
@@ -70,6 +77,7 @@ public static class SectionNav
     private static readonly string[][] Anyone = [[]];
 
     /// <summary>The pages a person uses for their own requests. Tabs carry the approvals-inbox and my-requests counters.</summary>
+    // Section: the employee's own request pages. "NonAdmin" means administrators are kept out of these pages.
     public static readonly SectionDef MyRequests = new("my-requests", "درخواست‌ها", Icons.RequestsGroup,
     [
         new("/requests/new", "درخواست جدید", Icons.NewRequest, [[Perm.RequestsOwnCreate, "NonAdmin"]]),
@@ -79,6 +87,7 @@ public static class SectionNav
         new("/requests/team", "درخواست‌های زیرمجموعه", Icons.Subordinates, [["Requests.ViewSubordinates", "NonAdmin"]]),
     ]);
 
+    // Section: profile, appearance settings and "my positions".
     public static readonly SectionDef Account = new("account", "تنظیمات حساب", Icons.Profile,
     [
         new("/my-profile", "پروفایل من", Icons.Profile, One(Perm.ProfileOwnView)),
@@ -86,12 +95,14 @@ public static class SectionNav
         new("/my-positions", "سمت‌های من", Icons.Position, One("NonAdmin")),
     ]);
 
+    // Section: the store as seen by employees (browse and order, and see their own orders).
     public static readonly SectionDef Shop = new("store", "فروشگاه", Icons.Store,
     [
         new("/store", "فروشگاه", Icons.Store, One(Perm.StoreShopView), ExactMatch: true),
         new("/store/orders", "سفارش‌های من", Icons.MyRequests, [[Perm.StoreOrdersCreate, "NonAdmin"]]),
     ]);
 
+    // Section: administrator-managed content of the home page (links, slides) and the guides.
     public static readonly SectionDef Content = new("content-admin", "محتوای صفحه اصلی", Icons.Links,
     [
         new("/admin/links", "پیوندهای صفحه اصلی", Icons.Links, One(Perm.AdminLinksView)),
@@ -99,6 +110,7 @@ public static class SectionNav
         new("/guides/manage", "مدیریت راهنماها", Icons.Guide, One(Perm.GuidesWorkspacePolicy)),
     ]);
 
+    // Section: store administration for storekeepers (items, stock, orders, hand-over, lottery, reports).
     public static readonly SectionDef StoreAdmin = new("store-admin", "مدیریت فروشگاه", Icons.Store,
     [
         new("/admin/store/items", "کالاها و گروه‌ها", Icons.Box, One(Perm.StoreItemsView)),
@@ -115,6 +127,7 @@ public static class SectionNav
     public static SectionDef? Find(string key) => All.FirstOrDefault(x => x.Key == key);
 
     /// <summary>The tabs of a section that this person may open, in order. The first one is where the sidebar link leads.</summary>
+    // Evaluates the permission rules for the signed-in person; each rule is checked once and remembered during this call.
     public static async Task<IReadOnlyList<SectionTab>> VisibleAsync(IAuthorizationService authorization, ClaimsPrincipal user, SectionDef section)
     {
         var cache = new Dictionary<string, bool>();

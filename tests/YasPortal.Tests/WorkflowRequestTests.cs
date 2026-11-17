@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Core request tests: the life of a request (start, approve, reject, return, cancel, force close, resubmit) and the permanent decision log.
 public class WorkflowRequestTests
 {
     private static WorkflowRequest CreateTwoStepRequest(out Guid step1Id, out Guid step2Id)
@@ -738,6 +739,8 @@ public class WorkflowRequestTests
 
 }
 
+// Step definition and form field tests: the rules for configuring one approval step (manager level or fixed position)
+// and the checks applied to a request's typed form values (required, option lists, dates, numbers, unknown fields).
 public class WorkflowStepDefinitionTests
 {
     [Fact]

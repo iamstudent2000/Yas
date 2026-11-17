@@ -9,6 +9,8 @@
 @inject AuthenticationStateProvider AuthState
 @* Open to everyone, also before sign-in. A visitor sees only the guides marked public; a signed-in person sees all active guides. *@
 
+@* User guides page: a list of the help guides written by the system administrator. It is open to everyone, including visitors *@
+@* who have not signed in; they only see public guides. Each card opens one guide. *@
 <PageTitle>راهنمای کاربری - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -23,12 +25,14 @@
             {
                 <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
             }
+            @* Only people allowed to manage guides see the "manage guides" button. *@
             <AuthorizeView Policy="@Perm.GuidesWorkspacePolicy">
                 <a class="btn btn-secondary" href="/guides/manage"><i class="ti @Icons.Edit"></i> مدیریت راهنماها</a>
             </AuthorizeView>
         </div>
     </div>
 
+    @* Three states: still loading, no guides to show, or the grid of guide cards. *@
     @if (_loading)
     {
         <LoadingState />
@@ -65,6 +69,7 @@
     private bool _loading = true, _signedIn;
     private IReadOnlyList<GuideListItem> _guides = [];
 
+    // Find out whether the visitor is signed in, then load the guides they are allowed to see.
     protected override async Task OnInitializedAsync()
     {
         _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;

@@ -1,11 +1,14 @@
 namespace YasPortal.Domain.PhoneBook;
 
+// The phone book (internal directory) lists contacts, each in one group. A contact is just a directory
+// entry and has no sign-in. This class validates and stores one entry.
 /// <summary>
 /// A person or place in the phone book. It is its own record and is not linked to a system user: it can be an outside company,
 /// a reception desk or a colleague who never signs in. At least one of extension, phone or mobile is required.
 /// </summary>
 public sealed class Contact
 {
+    // Length limits for the contact fields.
     public const int NameMax = 150;
     public const int TitleMax = 150;
     public const int NumberMax = 30;
@@ -36,6 +39,8 @@ public sealed class Contact
     public int SortOrder { get; private set; }
     public bool IsActive { get; private set; } = true;
 
+    // Used when creating and editing. The group and name are required, at least one number must be given,
+    // and numbers and the email address are checked.
     public void Update(Guid groupId, string fullName, string? jobTitle, string? extension, string? phone, string? mobile,
         string? email, string? note, int sortOrder)
     {
@@ -69,6 +74,8 @@ public sealed class Contact
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
+    // Private cleaning helpers: trim text and refuse values that are too long, check numbers, check the
+    // email shape.
     private static string? Clean(string? value, int max, string param)
     {
         value = value?.Trim();

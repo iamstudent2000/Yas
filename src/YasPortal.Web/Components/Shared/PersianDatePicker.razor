@@ -1,11 +1,14 @@
 @using System.Globalization
 
 <div class="pdp" dir="rtl">
+    @* Persian date picker: a calendar pop-up that works in the Persian (Jalali) calendar, with Persian digits and month names. *@
+    @* The page gets a normal date back; the box shows the same date in Persian. Used wherever the portal asks for a date. *@
     <button type="button" class="pdp-input" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@_open">
         <span>@(_selected.HasValue ? ToPersianDate(_selected.Value) : Placeholder)</span>
         <span>📅</span>
     </button>
 
+    @* The pop-up: a backdrop that closes it, the month and year header, weekday names, the day grid and today/clear buttons. *@
     @if (_open)
     {
         <button type="button" class="pdp-backdrop" aria-label="بستن تقویم" @onclick="Close"></button>
@@ -17,6 +20,7 @@
                         <button type="button" class="pdp-select pdp-picker-button" @onclick="ToggleYearPicker">
                             @ToPersianDigits(_displayYear.ToString()) <span>⌄</span>
                         </button>
+                        @* Year list with a search box (years 1300 to 1450). *@
                         @if (_yearPickerOpen)
                         {
                             <div class="pdp-menu">
@@ -44,6 +48,7 @@
                         <button type="button" class="pdp-select pdp-picker-button" @onclick="ToggleMonthPicker">
                             @MonthNames[_displayMonth - 1] <span>⌄</span>
                         </button>
+                        @* Month list with a search box. *@
                         @if (_monthPickerOpen)
                         {
                             <div class="pdp-menu pdp-month-menu">
@@ -71,6 +76,7 @@
             </div>
 
             <div class="pdp-weekdays">
+                @* Weekday names, starting from Saturday as in Iran. *@
                 @foreach (var day in Weekdays)
                 {
                     <span>@day</span>
@@ -78,6 +84,7 @@
             </div>
 
             <div class="pdp-grid">
+                @* Day cells; the empty cells before the first day keep the days under the right weekday. *@
                 @foreach (var cell in GetCells())
                 {
                     if (cell.Day == 0)
@@ -93,6 +100,7 @@
             </div>
 
             <div class="pdp-footer">
+                @* Jump to today, or clear the chosen date. *@
                 <button type="button" class="pdp-today" @onclick="GoToday">امروز</button>
                 @if (_selected.HasValue)
                 {
@@ -104,31 +112,37 @@
 </div>
 
 @code {
+    // Inputs from the page: the chosen date (empty means none), the change notification and the placeholder text.
     [Parameter] public DateTime? Value { get; set; }
     [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
     [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ";
 
+    // Pop-up state: what is open, the search texts, the chosen date and the month being looked at.
     private bool _open, _yearPickerOpen, _monthPickerOpen;
     private string _yearSearch = "", _monthSearch = "";
     private DateTime? _selected;
     private int _displayYear, _displayMonth;
     private readonly PersianCalendar _calendar = new();
 
+    // Persian month names, and the weekday letters starting from Saturday.
     private static readonly string[] MonthNames = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان",
 "آذر", "دی", "بهمن", "اسفند"];
     private static readonly string[] Weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+    // The selectable years and the lists after applying the year or month search.
     private IEnumerable<int> YearOptions => Enumerable.Range(1300, 151);
     private IEnumerable<int> FilteredYears => string.IsNullOrWhiteSpace(NormalizeDigits(_yearSearch.Trim())) ? YearOptions :
 YearOptions.Where(y => y.ToString().Contains(NormalizeDigits(_yearSearch.Trim())));
     private IEnumerable<int> FilteredMonths => string.IsNullOrWhiteSpace(_monthSearch.Trim()) ? Enumerable.Range(1, 12) :
 Enumerable.Range(1, 12).Where(m => MonthNames[m - 1].Contains(_monthSearch.Trim(), StringComparison.OrdinalIgnoreCase));
 
+    // Start on the chosen date's month, or the current month.
     protected override void OnInitialized()
     {
         SetDisplayDate(Value ?? DateTime.Now);
         _selected = Value;
     }
 
+    // When the page changes the date from outside, follow it.
     protected override void OnParametersSet()
     {
         if (Value != _selected)
@@ -139,6 +153,7 @@ Enumerable.Range(1, 12).Where(m => MonthNames[m - 1].Contains(_monthSearch.Trim(
         EnsureDisplayDate();
     }
 
+    // Helpers that keep the viewed month valid and open, close or switch the pop-up parts.
     private void SetDisplayDate(DateTime date)
     {
         _displayYear = _calendar.GetYear(date); _displayMonth =
@@ -158,6 +173,7 @@ _calendar.GetMonth(date);
     private void SearchMonth(ChangeEventArgs e) => _monthSearch = e.Value?.ToString() ?? "";
     private void SelectYear(int year) { _displayYear = year; _yearPickerOpen = false; _yearSearch = ""; }
     private void SelectMonth(int month) { _displayMonth = month; _monthPickerOpen = false; _monthSearch = ""; }
+    // Month navigation; moving past the end of a year changes the year.
     private void PreviousMonth()
     {
         EnsureDisplayDate(); if (_displayMonth == 1)
@@ -177,12 +193,14 @@ _calendar.GetMonth(date);
             _displayMonth++;
     }
     private void GoToday() { SetDisplayDate(DateTime.Now); ClosePickers(); }
+    // Pick a day: store it, close the pop-up and tell the page. Clear works the same way with no date.
     private async Task Select(int day)
     {
         EnsureDisplayDate(); _selected = _calendar.ToDateTime(_displayYear, _displayMonth,
 day, 0, 0, 0, 0); Close(); await ValueChanged.InvokeAsync(_selected);
     }
     private async Task Clear() { _selected = null; Close(); await ValueChanged.InvokeAsync(null); }
+    // Digit and date text helpers: show Persian digits, and read them back as ordinary digits for searching.
     private string ToPersianDate(DateTime date) =>
 ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{_calendar.GetDayOfMonth(date):00}");
     private static string ToPersianDigits(string value) => value.Replace("0", "۰").Replace("1", "۱").Replace("2",
@@ -192,6 +210,7 @@ ToPersianDigits($"{_calendar.GetYear(date):0000}/{_calendar.GetMonth(date):00}/{
 "2").Replace("۳", "3").Replace("۴", "4").Replace("۵", "5").Replace("۶", "6").Replace("۷", "7").Replace("۸",
 "8").Replace("۹", "9");
 
+    // Build the day grid of the viewed month, marking the chosen day and today.
     private IEnumerable<DayCell> GetCells()
     {
         EnsureDisplayDate();

@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.Auditing;
 
+// Audit archiving keeps the live audit list short without losing history. Archived entries are kept and stay searchable.
+// This class is the single settings row for archiving (a row-shaped business object stored in the database).
 /// <summary>
 /// How old audit rows are archived. There is exactly one row (<see cref="SingletonId"/>), created with the defaults the first time
 /// it is read. The administrator picks the method: automatic (a daily job archives rows older than <see cref="AfterMonths"/>) or
@@ -7,7 +9,9 @@ namespace YasPortal.Domain.Auditing;
 /// </summary>
 public sealed class AuditArchiveSetting
 {
+    // Fixed id of the one and only settings row.
     public const int SingletonId = 1;
+    // Allowed range for the age limit, in months.
     public const int LowestMonths = 1;
     public const int HighestMonths = 120;
 
@@ -15,6 +19,7 @@ public sealed class AuditArchiveSetting
     {
     }
 
+    // Creates the settings row with its start-up values (automatic archiving after 12 months unless told otherwise).
     public static AuditArchiveSetting CreateDefault(bool automatic = true, int afterMonths = 12) => new()
     {
         AutomaticEnabled = automatic,
@@ -30,6 +35,7 @@ public sealed class AuditArchiveSetting
     public int LastAutomaticRunCount { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; } = DateTime.UtcNow;
 
+    // Saves the administrator's choice. Values outside the allowed month range are refused.
     public void Update(bool automaticEnabled, int afterMonths)
     {
         if (afterMonths < LowestMonths || afterMonths > HighestMonths)
@@ -39,6 +45,7 @@ public sealed class AuditArchiveSetting
         UpdatedAtUtc = DateTime.UtcNow;
     }
 
+    // Remembers when the daily automatic job last ran and how many entries it archived, for display on the settings page.
     public void RecordAutomaticRun(DateTime atUtc, int count)
     {
         LastAutomaticRunAtUtc = atUtc;

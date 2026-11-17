@@ -12,18 +12,22 @@ public sealed class HomeSlideProvider(IDbContextFactory<ApplicationDbContext> db
 {
     public async Task<IReadOnlyList<LandingSlide>> GetSlidesAsync(DateTime? today = null, CancellationToken ct = default)
     {
+        // Slides are judged against today's date (or a date passed in).
         var day = (today ?? DateTime.Now).Date;
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // A slide is shown when it is switched on and today lies between its optional start and end dates.
             var rows = await db.HomeSlides.AsNoTracking()
                 .Where(x => x.IsActive && (x.StartsOn == null || x.StartsOn <= day) && (x.ExpiresOn == null || x.ExpiresOn >= day))
                 .OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
                 .ToListAsync(ct);
+            // Fetch the attached file details (name and size only) for the chosen slides in one query.
             var ids = rows.Select(x => x.Id).ToList();
             // Only the file's name and size (never its contents) are read here.
             var files = ids.Count == 0 ? [] : await db.HomeSlideAttachments.AsNoTracking()
                 .Where(a => ids.Contains(a.SlideId)).Select(a => new { a.SlideId, a.FileName, a.SizeBytes }).ToListAsync(ct);
+            // Turn each slide row into the simple object the landing page displays, noting whether it has a file.
             return rows.Select(x =>
             {
                 var file = files.FirstOrDefault(f => f.SlideId == x.Id);

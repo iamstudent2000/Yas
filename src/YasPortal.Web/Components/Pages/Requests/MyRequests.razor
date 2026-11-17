@@ -17,6 +17,9 @@
 @inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* My requests page: the employee's own requests with their status and approval progress. From here they can follow a request, *@
+@* read the decisions, cancel it while that is still allowed, or correct and resend a request that an approver returned. *@
+@* Administrators cannot open this page. Lists are paged, filtered and sorted in the database. *@
 <PageTitle>درخواست‌های من - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -27,15 +30,18 @@
             <h1 class="page-title"><i class="ti @Icons.MyRequests"></i> درخواست‌های من</h1>
             <p class="page-subtitle">وضعیت و روند تایید درخواست‌های ثبت‌شده توسط شما.</p>
         </div>
+        @* "Read all" clears the "new update" marks on every request that changed since the person last looked. *@
         <div class="form-actions">
             <button class="btn btn-secondary" disabled="@(_unseenCount == 0)" @onclick="MarkAllSeenAsync"><i class="ti @Icons.ConfirmAll"></i> خواندن همه@(_unseenCount > 0 ? $" ({ToPersianDigits(_unseenCount.ToString())})" : "")</button>
             <a class="btn btn-primary" href="/requests/new"><i class="ti @Icons.NewRequest"></i> درخواست جدید</a>
         </div>
     </div>
 
+    @* Search and filter bar, with sorting and export of the matching requests to a file. *@
     <RequestFilterBar Filter="_filter" ShowRequester="false" StatusOptions="_statusOptions" Busy="_loading" Changed="OnFilterChangedAsync" ExportPermission="@(ReportPermissions.MyRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting"
                       SortOptions="_sortOptions" Sort="@(_sort)" DefaultSort="created:desc" SortChanged="OnSortChangedAsync" />
 
+    @* Cases: loading, no requests at all (with a shortcut to create one), or the list of request cards. *@
     @if (_loading)
     {
         <section class="card"><LoadingState /></section>
@@ -52,6 +58,8 @@
     }
     else
     {
+        @* Each card shows type, date, who registered it if an administrator or manager did so on the person's behalf, a "new" mark for *@
+        @* unseen updates, and the status. Clicking the header opens the card; the first card starts open. *@
         @foreach (var request in _requests)
         {
             var expanded = _expandedId == request.Id;
@@ -76,11 +84,13 @@
                     <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                 </div>
 
+                @* Opened card: the full summary (form data, approval steps and history), then the actions that apply to this request. *@
                 @if (expanded)
                 {
                     <div class="request-card-body">
                         <RequestSummary Tabbed="true" Request="request" EmployeeNames="_employeeNames" HolderNames="_holderNames" />
 
+                        @* Returned requests: the requester corrects the form and sends it again, which restarts approval along a freshly worked-out path. *@
                         @if (request.Status == WorkflowRequestStatus.ReturnedToRequester && request.WorkflowType == WorkflowTypeCode.StoreOrder)
                         {
                             @* a store order's items are edited on the store page, not through the generic text fields *@
@@ -111,6 +121,7 @@
                             </div>
                         }
 
+                        @* Cancelling is offered only while no step has approved the request yet. *@
                         @if (request.CanBeCancelled)
                         {
                             <div class="form-actions" style="margin-top:14px">
@@ -146,6 +157,7 @@
     private Guid? _expandedId;
     private Guid? _resubmittingId;
     private Guid? _cancellingId;
+    // The status choices offered in the filter. Cancelled and returned requests stay visible as history.
     private readonly WorkflowRequestFilter _filter = new();
     private readonly IReadOnlyList<WorkflowRequestStatus> _statusOptions = new[] { WorkflowRequestStatus.PendingApproval, WorkflowRequestStatus.ReturnedToRequester, WorkflowRequestStatus.Approved, WorkflowRequestStatus.Rejected, WorkflowRequestStatus.Cancelled };
     private int _page = 1;
@@ -223,6 +235,8 @@
         await LoadAsync();
     }
 
+    // Loads one page of this person's requests together with their steps and decisions, then looks up the names of everyone
+    // involved and the current holders of positions where a step is waiting.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -270,6 +284,7 @@
         finally { _loading = false; }
     }
 
+    // Opening a card with an unseen update marks it as seen and clears the matching notification, so the badges go down.
     private async Task Toggle(Guid id)
     {
         _expandedId = _expandedId == id ? null : id;
@@ -415,6 +430,7 @@
         finally { _resubmittingId = null; }
     }
 
+    // Cancelling is re-checked against the stored request: if an approver acted in the meantime, the cancel is refused.
     private async Task CancelAsync(Guid requestId)
     {
         _cancellingId = requestId;

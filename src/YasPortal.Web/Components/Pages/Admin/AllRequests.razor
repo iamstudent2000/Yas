@@ -10,6 +10,8 @@
 @inject WorkflowService Workflows
 @inject ReportExportService Reports
 
+@* Admin 'report of requests' (address /admin/requests): every request in the portal, whatever its state, for people with the *@
+@* permission to view all requests. Read-only: nothing here changes a request. The list can be filtered, sorted and exported. *@
 <PageTitle>گزارش درخواست‌ها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -26,9 +28,11 @@
         </div>
     </div>
 
+    @* The search form, with the advanced filters for administrators. It only applies when the search button is pressed. *@
     <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowStep="true" ShowAdminExtras="true" Busy="_loading" ExportPermission="@(ReportPermissions.AllRequests)" OnExport="ExportAsync" OnExportSteps="ExportStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
     <div class="admin-stack">
+        @* The result table: one row per request, loaded one page at a time. Clicking a row's details button opens its full summary. *@
         <section class="card table-card">
             <div class="card-toolbar">
                 <div>
@@ -61,6 +65,7 @@
                             </tr>
                         </thead>
                         <tbody>
+                            @* One row per request on the current page. *@
                             @foreach (var request in _requests)
                             {
                                 var waiting = request.Status is WorkflowRequestStatus.PendingApproval
@@ -73,6 +78,7 @@
                                     <td>@WorkflowFieldCatalog.GetDisplayName(request.WorkflowType)</td>
                                     <td>
                                         @(_names.TryGetValue(request.RequesterEmployeeId, out var rn) ? rn : "—")
+                                        @* Marker shown when an administrator created the request on behalf of the requester. *@
                                         @if (request.CreatedByEmployeeId is Guid by)
                                         {
                                             <span class="badge badge-muted" title="ثبت‌شده توسط دیگری"><i class="ti @Icons.NewRequestForOthers"></i> @(_names.TryGetValue(by, out var an) ? an : "مدیر")</span>
@@ -81,6 +87,8 @@
                                     <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
                                     <td>@(waiting.Count > 0 ? string.Join(" / ", waiting.Select(s => s.Name)) : end?.StageLabel ?? "—")</td>
                                     <td>
+                                        @* While a request is still waiting, show the current step and who holds it. When it is no longer waiting, the same two columns *@
+                                        @* show how it ended (approved, rejected at a step, returned to the requester, cancelled, or closed by an administrator). *@
                                         @if (waiting.Count > 0)
                                         {
                                             @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var h) ? h : "سمت خالی"))
@@ -112,6 +120,7 @@
                                         </button>
                                     </td>
                                 </tr>
+                                @* Expanded details of the request: its form values, approval steps, decisions and history. *@
                                 @if (open)
                                 {
                                     <tr>
@@ -124,6 +133,7 @@
                         </tbody>
                     </table>
                 </div>
+                @* Page navigation for the request list. *@
                 <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
             }
         </section>
@@ -131,6 +141,8 @@
 </div>
 
 @code {
+    // State of the page: the current page of requests with the names of the people involved, the filter, the sort order and
+    // which request is expanded.
     private bool _loading = true;
     private List<WorkflowRequest> _requests = [];
     private Dictionary<Guid, string> _names = [];
@@ -140,6 +152,7 @@
     private Guid? _openId;
     private string _sortBy = WorkflowRequestSort.Created;
     private bool _sortDesc = true;
+    // Clicking a column heading sorts by it; clicking again reverses the order. The list goes back to page 1.
     private async Task SortByAsync(string column)
     {
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
@@ -149,8 +162,10 @@
     }
     private int _page = 1, _pageSize = 20, _total;
 
+    // On opening, load the first page.
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    // Export buttons: a step-by-step report, and a request list. Both cover everything the last search matched, not just this page.
     /// <summary>The detailed step report (one row per step) for everything the last search matched.</summary>
     private async Task ExportStepsAsync()
     {
@@ -177,10 +192,12 @@
         finally { _exporting = false; }
     }
 
+    // Filter, page and page-size changes all reload the list (a new search returns to page 1).
     private async Task OnFilterChangedAsync() { _page = 1; _openId = null; await LoadAsync(); }
     private async Task GoToPageAsync(int page) { _page = page; _openId = null; await LoadAsync(); }
     private async Task OnPageSizeChangedAsync(int size) { _pageSize = Math.Clamp(size, 1, 100); _page = 1; _openId = null; await LoadAsync(); }
 
+    // Load one page of requests from the database for the current filter and sort order.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -188,11 +205,13 @@
         try
         {
             await using var db = await DbFactory.CreateDbContextAsync();
+            // Build the query from the filters, count all matches, and step back if the current page no longer exists.
             var query = _filter.Apply(db.WorkflowRequests.AsNoTracking(), db);
             _total = await query.CountAsync();
             if (_page > 1 && (_page - 1) * _pageSize >= _total)
                 _page = Math.Max(1, (int)Math.Ceiling(_total / (double)_pageSize));
 
+            // Fetch just the current page together with each request's steps, decisions, requester actions and field changes.
             var ordered = WorkflowRequestSort.Apply(query, _sortBy, _sortDesc, db);
             _requests = await ordered
                 .Include(x => x.Steps)
@@ -204,6 +223,7 @@
                 .Take(_pageSize)
                 .ToListAsync();
 
+            // Collect every person mentioned on these requests (requester, deciders, delegators, administrators) so their names can be shown.
             var ids = _requests.SelectMany(x => x.Steps).Where(x => x.ActedByEmployeeId is not null).Select(x => x.ActedByEmployeeId!.Value).ToList();
             ids.AddRange(_requests.SelectMany(x => x.StepDecisions).Select(x => x.ActedByEmployeeId));
             ids.AddRange(_requests.SelectMany(x => x.StepDecisions).Where(x => x.OnBehalfOfEmployeeId is not null).Select(x => x.OnBehalfOfEmployeeId!.Value));
@@ -214,6 +234,7 @@
             ids = ids.Distinct().ToList();
             _names = ids.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName);
 
+            // For requests still waiting, find the people who currently hold the positions they are waiting on.
             var pending = _requests.SelectMany(x => x.CurrentSteps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
             _holders = pending.Count == 0 ? [] : await Workflows.GetCurrentHolderNamesAsync(pending);
         }

@@ -13,10 +13,14 @@
    It waits for the interactive render, so the prerender pass does not write the same row twice. *@
 
 @code {
+    // The page route that is currently being shown; handed in by the app's router.
     [Parameter, EditorRequired] public RouteData RouteData { get; set; } = null!;
 
+    // The last address that was already recorded, so staying on the same page does not write a second row.
     private string? _lastPath;
 
+    // After each page is shown: skip the sign-in and access-denied pages and anonymous visitors, skip pages the person is not
+    // allowed to open, and otherwise record a page-view event in the audit log.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var path = new Uri(Navigation.Uri).AbsolutePath;

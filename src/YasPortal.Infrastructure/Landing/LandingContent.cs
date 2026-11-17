@@ -17,6 +17,7 @@ public sealed class LandingSlide
     public long FileSize { get; set; }
 }
 
+// One information card on the landing page (a title, a short text and an icon).
 public sealed class LandingInfo
 {
     public string Title { get; set; } = "";
@@ -28,16 +29,20 @@ public sealed class LandingInfo
 /// What the public landing page shows besides the slides (those are managed by administrators, see <c>HomeSlide</c>): general information cards (the links are managed by administrators, see <c>PortalLink</c>). These texts are not in the database. The built-in texts can be replaced from appsettings: a
 /// <c>Landing</c> section with an <c>Info</c> list (a list that is present replaces the built-in one).
 /// </summary>
+// Supplies the information cards: from settings when the site owner configured them, otherwise the built-in ones.
 public sealed class LandingContent(IConfiguration configuration)
 {
+    // The cards to display.
     public IReadOnlyList<LandingInfo> Info => Read("Landing:Info", DefaultInfo);
 
+    // Uses the configured list when it has at least one item; otherwise the built-in fallback.
     private List<T> Read<T>(string section, List<T> fallback) where T : class
     {
         var items = configuration.GetSection(section).Get<List<T>>();
         return items is { Count: > 0 } ? items : fallback;
     }
 
+    // Built-in cards: access depends on permissions, one account can hold several positions, and activity is logged.
     private static readonly List<LandingInfo> DefaultInfo =
     [
         new() { Title = "دسترسی بر اساس مجوز", Text = "پس از ورود، فقط بخش‌هایی را می‌بینید که مجوز آن‌ها را دارید. برای دسترسی بیشتر با مدیر سامانه تماس بگیرید.", Icon = "ti-shield-lock" },

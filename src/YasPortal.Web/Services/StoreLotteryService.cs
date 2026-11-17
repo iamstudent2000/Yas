@@ -117,6 +117,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             .OrderBy(r => r.Name).ToList();
     }
 
+    // The storekeeper can see who applied (with their position and quantity) before deciding to draw.
     public async Task<IReadOnlyList<LotteryApplicantRow>> ApplicantsAsync(Guid itemId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -147,6 +148,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
         var stock = await db.StoreStockMovements.Where(m => m.ItemId == itemId).SumAsync(m => (decimal?)m.Delta, ct) ?? 0m;
         if (stock <= 0) return new(false, "موجودی این کالا صفر است؛ ابتدا موجودی را ثبت کنید.");
 
+        // The random draw itself lives in the domain rules; here it is given the applications and the current stock.
         var winnerIds = StoreLottery.Draw(entries.Select(e => (e.Id, e.Quantity)).ToList(), stock).ToHashSet();
         var typeName = WorkflowFieldCatalog.GetDisplayName(WorkflowTypeCode.StoreOrder);
         var entryEmployeeIds = entries.Select(x => x.EmployeeId).Distinct().ToList();
@@ -162,6 +164,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             routed.Add((entry, resolved));
         }
 
+        // Each winner gets a store order plus an approval request, as if they had ordered normally, and is told they won.
         foreach (var (entry, resolved) in routed)
         {
             // the winner pays the price they saw when they applied, and the agreement they gave then is carried onto the order
@@ -177,6 +180,7 @@ public sealed class StoreLotteryService(IDbContextFactory<ApplicationDbContext> 
             db.Notifications.Add(new Notification(entry.EmployeeId, NotificationKind.StoreLotteryResult, request.Id, typeName,
                 $"شما در قرعه‌کشی «{item.Name}» برنده شدید. سفارش شما برای تأیید ارسال شد.", "/store/orders"));
         }
+        // Everyone not drawn is marked as lost and told so.
         foreach (var entry in entries.Where(e => !winnerIds.Contains(e.Id)))
         {
             entry.MarkLost();

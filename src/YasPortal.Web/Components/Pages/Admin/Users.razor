@@ -18,6 +18,10 @@
 @inject PasswordPolicyService PolicyService
 @inject AuditEventWriter Audit
 
+@* Admin page 'users and employees' (address /admin/users). A user is an employee who can sign in. People with the view *@
+@* permission can search the list; people with the manage permission can add, edit, activate or deactivate users. *@
+@* Users are never deleted, only deactivated, so history and audit records stay complete. Positions are not assigned here *@
+@* but on the positions page. *@
 <PageTitle>کاربران - یاس پورتال</PageTitle>
 
 <div class="admin-page">
@@ -51,6 +55,8 @@
             </div>
 
             <div class="admin-stack">
+@* Form to add a new user or edit the selected one: employee code, username, full name, organisation, password and *@
+@* 'system administrator' tick box. Shown only to people who may manage users. *@
 @if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
@@ -82,6 +88,7 @@
 }
 
 
+                @* Filters: name or username, active or inactive, organisation and position. They apply only when the search button is pressed. *@
                 <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _draft.Count > 0)" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => _applied)" ExportPermission="@(ReportPermissions.Users)" OnExport="ExportAsync" Exporting="_exporting">
                     <div class="admin-filter"><label class="form-label">جستجو</label>
                         <input class="form-control" placeholder="نام یا نام کاربری..." @bind="_draft.Search" @bind:event="oninput" /></div>
@@ -125,6 +132,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
+                                        @* One row per user on the current page: code, name, type, organisation, active positions, status and the action buttons. *@
                                         @foreach (var x in _employees)
                                         {
                                             <tr @key="x.Id">
@@ -133,6 +141,7 @@
                                                 <td><span class="badge @(x.IsAdmin ? "badge-success" : "badge-muted")">@(x.IsAdmin ? "مدیر سامانه" : "کارمند")</span></td>
                                                 <td>@x.OrganizationName</td>
                                                 <td>
+                                                    @* System administrators do not hold positions; ordinary users show their active positions as small badges. *@
                                                     @if (x.IsAdmin)
                                                     {
                                                         <span class="badge badge-muted">نیاز ندارد</span>
@@ -176,17 +185,20 @@
                                                 }
                                             </tbody>
                                         </table>
+                                        @* Message shown when the search finds nobody. *@
                                         @if (_employees.Count == 0)
                                         {
                                             <div class="empty-state">کاربری مطابق جستجو پیدا نشد.</div>
                                         }
                                     }
                                 </div>
+                                @* Page navigation for the user list. *@
                                 <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading"
                                                   PageChanged="PageChanged" PageSizeChanged="PageSizeChanged" />
                             </section>
                         </div>
 
+                        @* Notice explaining that assigning positions to users is done in one place, on the positions page. *@
                         <section class="card admin-notice-card" dir="rtl">
                             <div class="stat-icon"><i class="ti @Icons.Position"></i></div>
                             <div>
@@ -199,6 +211,8 @@
                         </div>
 
 @code {
+    // State of the page: what the person may do (manage users, set passwords), the current page of users,
+    // and the values typed in the add/edit form.
     private bool _canManage, _canSetPassword;
     private List<AdminQueryService.EmployeePageRow> _employees = [];
     private Guid? _editingId, _organizationId;
@@ -207,6 +221,7 @@
     private int _page = 1, _pageSize = 20, _totalCount, _activeCount, _adminCount;
     private string? _sortBy; private bool _sortDesc;
     // The boxes edit the draft; "جستجو" copies it to the applied filters, which is what every load (paging, sorting) uses.
+    // The filter values (search text, status, organisation, position) and how many of them are set.
     private sealed class UserFilter
     {
         public string Search = "", Status = "";
@@ -218,6 +233,7 @@
     private int _resetKey;
 
     private static readonly IReadOnlyList<(string Key, string Text)> _statusOptions = [("active", "فعال"), ("inactive", "غیرفعال")];
+    // Search button: apply the typed filters and go back to page 1. Clear button: empty the filters.
     private async Task SearchFiltersAsync() { _applied = _draft.Clone(); _page = 1; await LoadAsync(); }
     private async Task ClearFiltersAsync()
     {
@@ -227,7 +243,9 @@
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchFilterPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, null, null, ct);
 
+    // On opening: find out what the person may do, then load the first page.
     protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersManage); _canSetPassword = await PermissionChecker.HasPermissionAsync(Perm.AdminUsersPasswordSet);  _policy = await PolicyService.GetAsync(); await LoadAsync(); }
+    // Load one page of users for the applied filters, plus the total numbers of active users and administrators shown in the header.
     private async Task LoadAsync()
     {
         _loading = true; try
@@ -242,6 +260,7 @@ db.Employees.CountAsync(x => x.IsAdmin);
         finally { _loading = false; }
     }
     private bool _exporting;
+    // Export button: download every user the search matched (not only this page) as a file.
     /// <summary>Exports every user the last search matched, in the table's current order.</summary>
     private async Task ExportAsync()
     {
@@ -258,6 +277,7 @@ db.Employees.CountAsync(x => x.IsAdmin);
     }
     private async Task PageChanged(int page) { _page = page; await LoadAsync(); }
     private async Task PageSizeChanged(int size) { _pageSize = size; _page = 1; await LoadAsync(); }
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private async Task SortByAsync(string column)
     {
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
@@ -266,7 +286,9 @@ db.Employees.CountAsync(x => x.IsAdmin);
     }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchOrganizationsAsync(string search, CancellationToken
 ct) => AdminQueries.SearchOrganizationsAsync(search, true, ct);
+    // The organisation chosen in the add/edit form.
     private Task OrganizationChanged(Guid? id) { _organizationId = id; return Task.CompletedTask; }
+    // Edit button on a row: copy that user into the form. Cancel returns the form to 'add a new user'.
     private void BeginEdit(AdminQueryService.EmployeePageRow
 x)
     { if (!_canManage) return;
@@ -292,6 +314,10 @@ CancelEdit()
 false;
     }
     private YasPortal.Domain.Security.PasswordPolicy _policy = YasPortal.Domain.Security.PasswordPolicy.CreateDefault();
+    // Save button of the form. Checks, in order: code, username, name and organisation are filled in; the code is not used by
+    // someone else; only people allowed to set passwords may change one; the password follows the password policy; a new user
+    // must have a password and a unique username. When an existing user becomes a system administrator, their active
+    // position assignments are ended, because administrators hold no positions. A password reset is written to the audit log.
     private async Task
 SaveEmployee()
     { if (!_canManage) return;
@@ -344,6 +370,8 @@ Employee(code, username, _fullName, _organizationId.Value, _isAdmin);
 db.SaveChangesAsync(); if (resettingPassword) await Audit.WriteAsync(AuditActions.PasswordReset, nameof(Employee), employee.Id.ToString(), new { employee.Username }); AppState.AddToast(_editingId is null ? "کاربر جدید ایجاد شد." : "کاربر ویرایش شد.",
 ToastLevel.Success); CancelEdit(); await LoadAsync();
     }
+    // Activate or deactivate a user. Deactivating ends all of their active position assignments (the history is kept)
+    // and they can no longer use the portal (an open session is ended). Nothing is deleted.
     private async Task ToggleEmployee(Guid id)
     { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); var employee = await

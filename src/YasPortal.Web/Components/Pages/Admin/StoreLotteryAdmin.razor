@@ -11,6 +11,8 @@
 @inject AppState AppState
 @* The storekeeper's lottery desk: lottery items with applications waiting, the list of applicants, and one button that draws. *@
 
+@* Store admin: lottery desk (address /admin/store/lottery), for storekeepers who can issue goods. *@
+@* A lottery item is one where people register their wish and winners are drawn at random when demand is higher than stock. *@
 <PageTitle>قرعه‌کشی - فروشگاه</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -38,6 +40,8 @@
                 <table class="data-table">
                     <thead><tr><SortableHeader Text="کالا" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="پایان ثبت‌نام" Column="closes" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="متقاضیان" Column="applicants" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="مجموع درخواست" Column="total" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><th></th></tr></thead>
                     <tbody>
+                        @* One row per lottery item that has registrations waiting: closing date, number of applicants, total quantity wanted and stock. *@
+                        @* The buttons let the storekeeper see the applicants or run the draw (after a confirmation). *@
                         @foreach (var i in SortedItems)
                         {
                             <tr>
@@ -54,6 +58,7 @@
                                 <td>
                                     <div class="form-actions">
                                         <button class="btn btn-secondary btn-sm" @onclick="() => ToggleApplicantsAsync(i.ItemId)"><i class="ti @Icons.Users"></i> متقاضیان</button>
+                                        @* Confirmation step before drawing; the text says whether the requests exceed the stock (a real draw is needed) or not. *@
                                         @if (_confirmId == i.ItemId)
                                         {
                                             <span class="muted">@ConfirmText(i)</span>
@@ -67,6 +72,7 @@
                                     </div>
                                 </td>
                             </tr>
+                            @* Expanded list of the people who registered for this item, with their position, quantity and date. *@
                             @if (_openItemId == i.ItemId)
                             {
                                 <tr><td colspan="7">
@@ -90,6 +96,7 @@
 </div>
 
 @code {
+    // State of the page: the items waiting for a draw, the applicants of the opened item, and the sort orders.
     private bool _loading = true, _busy;
     private IReadOnlyList<LotteryItemRow> _items = [];
     private IReadOnlyList<LotteryApplicantRow> _applicants = [];
@@ -97,6 +104,7 @@
     private string? _sortBy, _aSort;
     private bool _sortDesc, _aDesc;
 
+    // Items and applicants are sorted here in the page when a column heading is clicked.
     private IReadOnlyList<LotteryItemRow> SortedItems => TableSort.Apply(_items, _sortBy, _sortDesc,
         ("name", i => i.Name), ("closes", i => i.ClosesOn), ("applicants", i => i.Applicants), ("total", i => i.TotalQuantity), ("stock", i => i.Stock),
         ("status", i => i.Window == StoreRequestWindow.Closed ? 0 : i.ClosesOn is null ? 2 : 1));
@@ -105,6 +113,7 @@
     private void SortBy(string col) => (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col);
     private void ApplicantSortBy(string col) => (_aSort, _aDesc) = TableSort.Toggle(_aSort, _aDesc, col);
 
+    // On opening, load the items that have registrations waiting.
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
@@ -114,11 +123,14 @@
         _loading = false;
     }
 
+    // Wording of the confirmation: when the total requested is more than the stock, winners will be chosen by chance;
+    // otherwise the stock covers everybody and everybody wins.
     private static string ConfirmText(LotteryItemRow i) =>
         i.TotalQuantity > i.Stock
             ? $"درخواست‌ها ({WorkflowDisplay.ToPersianDigits(i.TotalQuantity.ToString("0.###"))}) از موجودی ({WorkflowDisplay.ToPersianDigits(i.Stock.ToString("0.###"))}) بیشتر است؛ برنده‌ها تصادفی انتخاب می‌شوند. ادامه می‌دهید؟"
             : "موجودی برای همهٔ درخواست‌ها کافی است؛ همه برنده می‌شوند. ادامه می‌دهید؟";
 
+    // Show or hide the list of applicants of an item.
     private async Task ToggleApplicantsAsync(Guid itemId)
     {
         if (_openItemId == itemId) { _openItemId = null; return; }
@@ -126,6 +138,7 @@
         _openItemId = itemId;
     }
 
+    // Run the draw for one item as the signed-in storekeeper, tell them how many winners were chosen and reload the list.
     private async Task DrawAsync(LotteryItemRow item)
     {
         if (_busy) return;

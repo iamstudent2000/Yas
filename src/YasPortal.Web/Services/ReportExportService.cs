@@ -11,6 +11,9 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Web.Services;
 
+// Report export = the "download as file" buttons on the report pages. The file is a CSV (plain table text) that opens in Excel.
+// Only people who hold the export permission of that report may use it, and every export is written to the audit log.
+// Exports follow the filters and sort order currently applied on the page, not just the rows visible on screen.
 /// <summary>
 /// Exports a list as a CSV file: every row that matches the page's applied filters and sort (not just the
 /// visible page), read in batches so a large report never loads at once. The file opens in Excel
@@ -18,10 +21,13 @@ namespace YasPortal.Web.Services;
 /// </summary>
 public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState, IPermissionChecker permissions, AuditEventWriter audit, AuthenticationStateProvider authState)
 {
+    // Largest export allowed in one file; if more rows match, the first rows are exported and the user is warned.
     /// <summary>Upper limit of one export; a bigger result is cut off and the user is told.</summary>
     public const int MaxRows = 20000;
+    // Rows are read from the database 300 at a time so a very large report never has to be loaded all at once.
     private const int BatchSize = 300;
 
+    // Request list export: one row per request with type, requester, status, current step, who it is waiting with, and date.
     /// <summary>
     /// Exports the requests returned by <paramref name="build"/> (which must already be filtered and ordered),
     /// one row per request, and hands the file to the browser.
@@ -43,6 +49,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
                 return chunk.Select(request => RequestRow(request, names, positionNames, holders)).ToList();
             }, ct);
 
+    // Step-by-step export: one row per decision ever taken (all rounds) and one row per step still waiting. This uses the
+    // permanent decision log, so history stays complete even after a request was returned and sent again.
     /// <summary>
     /// The step-by-step report: one row for every decision taken on the matching requests (all rounds, from the
     /// permanent decision log) plus one row for each step still waiting, with who decided, on whose behalf,
@@ -74,6 +82,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
                 return rows;
             }, ct);
 
+    // Shared engine for the request exports: check permission, count, read in batches, build rows, then download.
     /// <summary>Reads the query in batches, turns each batch into rows, and downloads the CSV.</summary>
     private async Task ExportBatchedAsync(
         string permission,
@@ -83,6 +92,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         Func<ApplicationDbContext, List<WorkflowRequest>, CancellationToken, Task<List<IReadOnlyList<string>>>> rowsFor,
         CancellationToken ct)
     {
+        // Stop silently when the user lacks permission (the denial is logged and a message is shown by the check itself).
         if (!await AllowedAsync(permission))
             return;
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -98,6 +108,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         var rows = new List<IReadOnlyList<string>>();
         for (var skip = 0; skip < take; skip += BatchSize)
         {
+            // Each batch loads the requests together with their steps, decisions and changes so the rows can be built without extra queries.
             var chunk = await query
                 .Include(x => x.Steps)
                 .Include(x => x.RequesterActions)
@@ -115,6 +126,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             appState.AddToast($"فقط {MaxRows:N0} درخواست اول از {total:N0} درخواست در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
+    // Generic export for any list: the page supplies the query and how each record becomes a row.
     /// <summary>
     /// Exports any ordered query in batches: <paramref name="rowsFor"/> turns each batch of entities into CSV rows
     /// (looking up names as needed). The query must have a stable order (end it with the Id) so batches never overlap.
@@ -151,6 +163,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             appState.AddToast($"فقط {MaxRows:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
+    // Export for lists that can only be read page by page through a service; pages are read until all rows or the limit are reached.
     /// <summary>For lists that are only reachable through a paged service call: reads page after page and maps each item to a row.</summary>
     public async Task ExportPagedAsync<T>(
         string permission,
@@ -186,6 +199,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             appState.AddToast($"فقط {rows.Count:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
+    // Export for rows the page already has on screen, for example the positions tree.
     /// <summary>Exports rows the page already holds in memory (the positions tree, say).</summary>
     public async Task ExportRowsAsync(string permission, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {
@@ -199,6 +213,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         await DownloadAsync(permission, fileBaseName, headers, rows);
     }
 
+    // Formats a stored (universal) time as a Persian date and time in Persian digits.
     /// <summary>A UTC time as a Persian date and local time in Persian digits, or an empty cell.</summary>
     public static string Time(DateTime? utc) => utc is DateTime value ? WorkflowDisplay.ToPersianDateTime(value) : "";
 
@@ -208,12 +223,14 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return await db.Employees.AsNoTracking().Where(x => distinct.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
     }
 
+    // Names of the people currently holding each waiting step's position, shown in the "with" column.
     private async Task<Dictionary<Guid, string>> HoldersAsync(List<WorkflowRequest> chunk, CancellationToken ct)
     {
         var pending = chunk.SelectMany(x => x.CurrentSteps).Where(x => x.Status == WorkflowStepStatus.Pending).Select(x => x.ApproverPositionId).Distinct().ToList();
         return pending.Count == 0 ? [] : await workflows.GetCurrentHolderNamesAsync(pending, ct);
     }
 
+    // Builds the rows of the step report for one request: first the decisions already taken, then the steps still waiting.
     private static IEnumerable<IReadOnlyList<string>> StepRows(WorkflowRequest request, Dictionary<Guid, string> names, Dictionary<Guid, string> positionNames, Dictionary<Guid, string> holders)
     {
         var requestId = request.Id.ToString("N")[..8];
@@ -223,6 +240,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         var now = DateTime.UtcNow;
         var stepNames = request.Steps.ToDictionary(x => x.Id, x => x.Name);
 
+        // A step counts as waiting from the moment the previous step of its round was approved, or from submission for the first round.
         // The step is "waiting" from the moment the previous step of its round was approved (or, for the first
         // round's first step, from submission). Later rounds' first steps have no stored start, so they stay blank.
         DateTime? WaitingSince(int round, int order) =>
@@ -233,6 +251,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         foreach (var d in ordered)
         {
             var since = WaitingSince(d.Round, d.Order);
+            // One row per decision: who decided, on whose behalf (delegation), when, the comment and how long the step had waited.
             yield return
             [
                 requestId, type, requester, status,
@@ -248,6 +267,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             ];
         }
 
+        // Steps still waiting for a decision get a row with the current holder and the waiting time so far.
         foreach (var step in request.CurrentSteps.Where(x => x.Status == WorkflowStepStatus.Pending && request.Status == WorkflowRequestStatus.PendingApproval))
         {
             var since = WaitingSince(step.Round, step.Order);
@@ -266,6 +286,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         }
     }
 
+    // Turns a length of time into friendly Persian text (days and hours, hours and minutes, or minutes).
     private static string Duration(TimeSpan span)
     {
         if (span < TimeSpan.Zero)
@@ -276,6 +297,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return WorkflowDisplay.ToPersianDigits(text);
     }
 
+    // Builds the row of the request list export, using the same wording as the "Report of requests" page.
     private static IReadOnlyList<string> RequestRow(WorkflowRequest request, Dictionary<Guid, string> names, Dictionary<Guid, string> positionNames, Dictionary<Guid, string> holders)
     {
         // The same "current step" / "held by" wording the report page shows.
@@ -284,6 +306,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             : new List<WorkflowRequestStep>();
         var end = waiting.Count == 0 ? WorkflowRequestEndState.Of(request) : null;
 
+        // Who the request is with: the position holders if it is still moving, the requester if it was returned, or the decider.
         string heldBy;
         if (waiting.Count > 0)
             heldBy = string.Join("، ", waiting.Select(s => holders.TryGetValue(s.ApproverPositionId, out var h) ? h : "سمت خالی"));
@@ -294,6 +317,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         else
             heldBy = "—";
 
+        // Column order here must match the header list given in ExportRequestsAsync.
         return
         [
             request.Id.ToString("N")[..8],
@@ -308,8 +332,10 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         ];
     }
 
+    // Shows a dash when a person's name cannot be found.
     private static string Name(Dictionary<Guid, string> names, Guid id) => names.GetValueOrDefault(id, "—");
 
+    // The permission is checked again here because a page that was opened earlier could still show an export button.
     /// <summary>The menu is hidden without the permission, but the check is repeated here so a stale page cannot export.</summary>
     private async Task<bool> AllowedAsync(string permission)
     {
@@ -320,6 +346,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return false;
     }
 
+    // Creates the file in the browser, records the export in the audit log with the filters used and the row count, and shows a toast.
     private async Task DownloadAsync(string permission, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {
         var bytes = BuildCsv(headers, rows);
@@ -339,6 +366,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         appState.AddToast($"خروجی آماده شد ({rows.Count:N0} ردیف).", ToastLevel.Success);
     }
 
+    // Creates the CSV with a byte-order mark so Excel shows Persian letters correctly.
     /// <summary>UTF-8 with a byte-order mark so Excel reads Persian text correctly.</summary>
     public static byte[] BuildCsv(IReadOnlyList<string> headers, IEnumerable<IReadOnlyList<string>> rows)
     {
@@ -349,6 +377,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(text.ToString())).ToArray();
     }
 
+    // Makes one cell safe for CSV: quotes cells that contain commas or line breaks and neutralizes cells that look like formulas.
     private static string Escape(string value)
     {
         // A cell that starts like a formula would run in Excel; a leading apostrophe keeps it plain text.

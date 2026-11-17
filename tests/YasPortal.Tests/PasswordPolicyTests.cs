@@ -5,6 +5,7 @@ using YasPortal.Domain.Security;
 
 namespace YasPortal.Tests;
 
+// Password policy tests: the administrator-configurable rules (length, digits, character types, username and common passwords), the text that describes them, avatars, and the permissions that guard the policy page.
 public class PasswordPolicyTests
 {
     private static PasswordPolicy Make(int min = 8, int max = 128, bool upper = false, bool lower = false, bool digit = false,

@@ -7,6 +7,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @inject AuditEventWriter Audit
+@* Signed-in people get the "forbidden" screen (they lack the permission); visitors get a prompt to sign in. *@
 @if (Authenticated)
 {
     <StatusPage Icon="@Icons.AccessDenied" Tone="is-warning" Code="۴۰۳" Title="دسترسی به این بخش مجاز نیست"
@@ -25,6 +26,7 @@ else
 }
 
 @code {
+    // The page tells this widget whether the visitor is signed in.
     [Parameter] public bool Authenticated { get; set; }
 
     // Runs once the circuit is interactive, not during the prerender pass, so a denied visit is recorded once.

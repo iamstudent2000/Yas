@@ -12,6 +12,9 @@
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
 
+@* Admin page 'permission groups' (address /admin/permission-groups). A permission group is a named bundle of permissions *@
+@* that can be given to positions or to individual employees, so that access is managed in a few groups instead of one by one. *@
+@* People with the manage permission can create, rename and delete groups and choose what each group contains. *@
 <PageTitle>گروه‌های مجوز - یاس پورتال</PageTitle>
 <div class="admin-page" dir="rtl">
     <SectionTabs Group="access" />
@@ -27,6 +30,7 @@
                 دسترسی</a></div>
             </div>
             <div class="admin-stack">
+@* Form to create a new group or rename the selected one (a unique code, a unique name and a description). *@
 @if (_canManage) {
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
@@ -50,6 +54,7 @@
     </section>
 }
 
+                @* Search by group name; applied when the search button is pressed. *@
                 <ListFilterBar Busy="_groupLoading" ActiveCount="@(_groupSearch.Trim().Length > 0 ? 1 : 0)"
                                CanClear="@(_groupSearch != "" || _draftGroupSearch != "")" OnSearch="SearchGroupsFilterAsync" OnClear="ClearGroupFilterAsync">
                     <div class="admin-filter"><label class="form-label">جستجو</label>
@@ -98,11 +103,14 @@
                     </div>
                 }
             </div>
+            @* Page navigation for the list of groups. *@
             <ServerPagination Page="@_groupPage" PageSize="@_groupPageSize" TotalCount="@_groupTotal"
                               Busy="@_groupLoading" PageChanged="GroupPageChanged" PageSizeChanged="GroupPageSizeChanged" />
         }
     </section>
 </div>
+@* Permission editor for the selected group: search the permissions, show only the ticked ones, tick or clear everything listed, *@
+@* or tick one permission at a time. Each change is saved immediately. *@
 @if (_selectedGroupId is Guid gid)
 {
     <section class="card access-panel group-permission-editor">
@@ -141,6 +149,7 @@
                 <div class="permission-sections">@foreach(var area in
                     _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key)){
                         var collapsed = _collapsedAreas.Contains(area.Key);
+                        @* Permissions are grouped by area (for example requests, reports, store); each area can be collapsed. *@
                         <section class="permission-section @(collapsed ? "collapsed" : "")">
                             <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
                                 <div><i class="ti @Icons.Folder"></i><strong>@area.Key</strong></div><span class="badge badge-muted">@area.Count() مجوز</span><i class="ti @Icons.ChevronDown chevron"></i>
@@ -168,6 +177,8 @@ else
         }
     </div>
 @code {
+    // State of the page: what the person may do, the groups list and its paging, the selected group with its permissions,
+    // and the values typed in the form.
     private bool _canManage;
     private List<AdminQueryService.PermissionGroupPageRow> _groups = []; private List<AdminQueryService.PermissionPageRow>
     _permissions = []; private Guid? _editingId, _selectedGroupId; private string
@@ -177,8 +188,11 @@ else
 string
     SelectedGroupName => _groups.FirstOrDefault(x => x.Id == _selectedGroupId)?.Name ?? "گروه";
     private HashSet<string> _collapsedAreas = [];
+    // Collapse or expand one area of the permission list.
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
+    // On opening: find out whether the person may manage groups, then load the first page of groups.
     protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPermissionsManage); await LoadGroupsAsync(); }
+    // Load one page of groups; if the current page no longer exists (for example after a deletion) go back to page 1.
     private async Task LoadGroupsAsync()
     {
         _groupLoading = true; try
@@ -198,6 +212,7 @@ string
     }
     private async Task GroupPageChanged(int page) { _groupPage = page; await LoadGroupsAsync(); }
     private async Task GroupPageSizeChanged(int size) { _groupPageSize = size; _groupPage = 1; await LoadGroupsAsync(); }
+    // Load the permissions listed in the editor, filtered by the search text and optionally only the ones the group already has.
     private async Task LoadPermissionsAsync()
     {
         if (_selectedGroupId is not Guid gid) return; _permissionLoading = true; try
@@ -209,12 +224,14 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
         }
         finally { _permissionLoading = false; }
     }
+    // Clicking a group opens it in the editor and loads which permissions it contains.
     private async Task SelectGroup(Guid
     id)
     {
         if (_saving) return; _selectedGroupId = id; _permissionSearch = ""; _onlySelected = false; await
     LoadSelectedGroupAsync(id); await LoadPermissionsAsync();
     }
+    // Read the ids of the permissions that belong to the group.
     private async Task LoadSelectedGroupAsync(Guid id)
     {
         await using var db = await
@@ -223,25 +240,30 @@ _selectedPermissionIds.Contains(x.Id)).ToList(); _permissionTotal = _permissions
     }
     // The box edits the draft; "جستجو" copies it into _groupSearch, which every load (paging) uses.
     private string _draftGroupSearch = "";
+    // Search button and clear button of the group search box.
     private async Task SearchGroupsFilterAsync() { _groupSearch = _draftGroupSearch.Trim(); _groupPage = 1; await LoadGroupsAsync(); }
     private async Task ClearGroupFilterAsync() { _groupSearch = _draftGroupSearch = ""; _groupPage = 1; await LoadGroupsAsync(); }
+    // The permission search runs when the person presses Enter or Tab, or empties the box.
     private async Task PermissionSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
     "Tab" || _permissionSearch.Length == 0) await LoadPermissionsAsync();
     }
     private async Task ClearPermissionSearch() { _permissionSearch = ""; await LoadPermissionsAsync(); }
+    // 'Only selected' tick box: list only the permissions that the group already has.
     private async Task OnlySelectedChanged(ChangeEventArgs e)
     {
         _onlySelected = e.Value is bool b && b; await
     LoadPermissionsAsync();
     }
+    // Edit button on a group: copy it into the form. Cancel returns the form to 'new group'.
     private void EditGroup(AdminQueryService.PermissionGroupPageRow
     x)
     { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; _description = x.Description ?? ""; }
     private void
     CancelEdit()
     { _editingId = null; _code = _name = _description = ""; }
+    // Save button: the code and name are required and must not be used by another group; then create the group or update the selected one.
     private async Task SaveGroup()
     { if (!_canManage) return;
         var code = _code.Trim(); if (string.IsNullOrWhiteSpace(code))
@@ -266,6 +288,7 @@ ToastLevel.Error); return;
         else db.PermissionGroups.Add(new
     PermissionGroup(code, name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
     }
+    // Delete a group. Refused while the group is still given to any position or employee, so nobody loses access by accident.
     private async Task DeleteGroup(Guid id)
     { if (!_canManage) return;
         await using var db = await DbFactory.CreateDbContextAsync(); if (await
@@ -276,6 +299,7 @@ ToastLevel.Error); return;
         _groupSearch = _draftGroupSearch = ""; if (_groupPage > 1 && _groups.Count == 1) _groupPage--; await
     LoadGroupsAsync();
     }
+    // Tick or untick one permission of the selected group; the change is saved at once.
     private async Task ToggleGroupPermission(Guid groupId, Guid permissionId, bool grant)
     { if (!_canManage) return;
         _saving = true; try
@@ -302,6 +326,8 @@ ToastLevel.Error); return;
         }
         finally { _saving = false; }
     }
+    // Add every permission currently listed to the group, or remove every one listed (the list depends on the search and the
+    // 'only selected' filter).
     private async Task SetVisiblePermissions(Guid groupId, bool grant)
     { if (!_canManage) return;
         var
@@ -327,6 +353,7 @@ ToastLevel.Error); return;
         }
         finally { _saving = false; }
     }
+    // Maps the first word of a permission code to the area name shown as a heading (for example Store becomes the store area).
     private static string PermissionCategory(string code) => code.Split('.', 2)[0]
     switch
     {

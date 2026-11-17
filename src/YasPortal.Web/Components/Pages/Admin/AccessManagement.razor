@@ -12,6 +12,11 @@
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 
+@* Access management screen (administrators only): decides what each person is allowed to do in the portal. *@
+@* Permissions can be given directly, or through permission groups; the final result is the union of both. *@
+@* For an administrator the grants belong to the account itself; for an ordinary employee they belong to the *@
+@* employee AND one specific position, so the same person can have different rights in different positions. *@
+@* Viewing needs the access-view permission; changing anything needs the separate access-manage permission. *@
 <PageTitle>مدیریت دسترسی - یاس پورتال</PageTitle>
 <div class="admin-page" dir="rtl">
     <SectionTabs Group="access" />
@@ -22,6 +27,8 @@
             <p class="page-subtitle">دسترسی مستقیم، گروه و نتیجه نهایی در یک محل.</p>
         </div><a class="btn btn-secondary" href="/admin/users"><i class="ti @Icons.Users"></i> کاربران</a>
     </div>
+    @* Step 1 card: pick the person (and, for employees, the position) whose access is being edited. *@
+    @* Searches run against the database as the admin types, so only the matching names come back. *@
     <section class="card access-selector">
         <div class="selector-title">
             <div class="step-number">۱</div>
@@ -38,6 +45,7 @@
                                                 SearchPlaceholder="نام یا نام کاربری را تایپ کنید..." />
                     <div class="selector-hint">جستجو مستقیماً روی پایگاه داده انجام می‌شود و فقط نتایج لازم برمی‌گردد.</div>
                 </div>
+                @* The position picker is hidden for administrators because their access is not tied to any position. *@
                 @if (_selectedEmployee?.IsAdmin != true)
                 {
                     <div><label class="form-label">سمت</label>
@@ -52,8 +60,10 @@
                 }
             </div>
         </section>
+        @* Everything below appears only once a person (and a position, for employees) has been chosen. *@
         @if (_selectedEmployee is not null && (_selectedEmployee.IsAdmin || _positionId is not null))
         {
+            @* Summary card: who is selected plus counts of groups, direct permissions and final (combined) permissions. *@
             <section class="card subject-card">
                 <div class="subject-main">
                     <div class="subject-icon"><i class="ti @(_selectedEmployee.IsAdmin ? Icons.Admin : Icons.User)"></i>
@@ -66,6 +76,7 @@
                     <div><strong>@_effectivePermissionIds.Count</strong><span>نهایی</span></div>
                 </div>
             </section>
+            @* Step 2 card: direct permissions. Each checkbox saves immediately; permissions are grouped by area. *@
             <section class="card access-panel">
                 <div class="panel-heading">
                     <div>
@@ -120,7 +131,9 @@
                                 </div>
                             }
                         </section>
+                        @* Two side-by-side panels: step 3 (permission groups) and step 4 (the read-only final result). *@
                         <div class="access-columns">
+                            @* Step 3 panel: tick the permission groups this person or position should inherit; each tick saves at once. *@
                             <section class="card access-panel">
                                 <div class="panel-heading">
                                     <div>
@@ -156,6 +169,7 @@
                                             </div>
                                         }
                                     </section>
+                                    @* Step 4 panel: read-only list of the final permissions, labelled by whether they come from direct or group. *@
                                     <section class="card access-panel effective-panel">
                                         <div class="panel-heading">
                                             <div>
@@ -199,11 +213,13 @@
     else
                                 {
 
+                                    @* Shown while nobody is selected yet: a hint to choose a user first. *@
                                     <section class="card empty-state access-empty"><i class="ti @Icons.AccessManagement"></i><strong>ابتدا کاربر را
                                         انتخاب کنید</strong><span>برای کارمند، سپس سمت موردنظر را انتخاب کنید.</span></section>
                                     }
                                 </div>
 @code {
+    // State of the screen: who is selected, their direct permissions, groups, and the combined result.
     private Guid? _employeeId, _positionId; private AdminQueryService.EmployeeSummary? _selectedEmployee; private string
 _positionName = "";
     private HashSet<Guid> _assignedGroupIds = [], _directPermissionIds = [], _effectivePermissionIds = [],
@@ -214,15 +230,21 @@ _effectiveViaGroupIds = [];
     private int _permissionTotal, _groupTotal; private string _permissionSearch = "", _groupSearch = "", _effectiveSearch =
 "";
     private bool _permissionLoading, _groupLoading, _saving, _canManage;
+    // On load, check whether the current admin may change access (otherwise all checkboxes are disabled).
     protected override async Task OnInitializedAsync() => _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminAccessManage);
+    // Permission areas the admin has collapsed in the direct-permissions card.
     private HashSet<string> _collapsedAreas = [];
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
+    // Lookup used by the user picker: finds employees by name or username.
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken
 ct) => AdminQueries.SearchEmployeesAsync(search, ct);
+    // Lookup used by the position picker: only positions currently held by the chosen employee.
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeePositionsAsync(string search, CancellationToken
 ct) => _employeeId is Guid
 id ? AdminQueries.SearchPositionsAsync(search, id, null, ct) :
 Task.FromResult<IReadOnlyList<AdminQueryService.LookupItem>>([]);
+    // Called when a user is picked: resets the screen, then loads their access (an admin directly, an employee
+    // for the position they last used, if it is still one of their active positions).
     private async Task EmployeeChanged(Guid?
 id)
     {
@@ -245,6 +267,7 @@ null) return; if (_selectedEmployee.IsAdmin) { await LoadAdminAccessAsync(_selec
         await LoadPermissionResultsAsync(); await
             LoadGroupListAsync();
     }
+    // Called when a different position is picked for an employee: reloads the access for that pair.
     private async Task PositionChanged(Guid? id)
     {
         _positionId = id; _positionName = ""; ClearAccessState(); if (_selectedEmployee is
@@ -254,6 +277,7 @@ id)?.Text ?? "سمت"; await
 LoadEmployeePositionAccessAsync(_selectedEmployee.Id, id.Value); await LoadPermissionResultsAsync(); await
 LoadGroupListAsync();
     }
+    // Loads an administrator's direct permissions and groups (stored per account, not per position).
     private async Task LoadAdminAccessAsync(Guid employeeId)
     {
         await using var db = await
@@ -264,6 +288,7 @@ db.EmployeePermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employeeId
 x.GroupId).ToHashSetAsync(); await
 RebuildEffectiveAsync(db);
     }
+    // Loads an employee's direct permissions and groups for the chosen position only.
     private async Task LoadEmployeePositionAccessAsync(Guid employeeId, Guid positionId)
     {
         await using var db = await
@@ -274,6 +299,7 @@ db.UserPositionPermissionGroups.AsNoTracking().Where(x => x.EmployeeId == employ
 positionId).Select(x => x.GroupId).ToHashSetAsync(); await
 RebuildEffectiveAsync(db);
     }
+    // Works out the final permission list: direct permissions plus every permission inside the assigned groups.
     private async Task RebuildEffectiveAsync(ApplicationDbContext db)
     {
         var ids = _assignedGroupIds.Count == 0 ? [] : await
@@ -283,6 +309,7 @@ _directPermissionIds.Concat(ids).ToHashSet(); _effectivePermissions = await
 db.Permissions.AsNoTracking().Where(x => _effectivePermissionIds.Contains(x.Id)).OrderBy(x => x.Name).Select(x => new
 EffectivePermission(x.Id, x.Name)).ToListAsync();
     }
+    // Loads the list of all permissions shown in the direct-permissions card, filtered by the search text.
     private async Task LoadPermissionResultsAsync()
     {
         if (_selectedEmployee is
@@ -293,6 +320,7 @@ AdminQueries.GetAllPermissionsAsync(_permissionSearch)).ToList(); _permissionTot
         }
         finally { _permissionLoading = false; }
     }
+    // Loads the list of all permission groups shown in the groups card, filtered by the search text.
     private async Task LoadGroupListAsync()
     {
         if (_selectedEmployee is null) return; _groupLoading = true; try
@@ -302,6 +330,7 @@ AdminQueries.GetAllPermissionGroupsAsync(_groupSearch)).ToList(); _groupTotal = 
         }
         finally { _groupLoading = false; }
     }
+    // Search boxes only reload the list on Enter, Tab or when emptied, to avoid a database query per keystroke.
     private async Task PermissionSearchChanged(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or
@@ -316,6 +345,7 @@ LoadGroupListAsync();
     }
     private async Task ClearGroupSearch() { _groupSearch = ""; await LoadGroupListAsync(); }
     private void ClearEffectiveSearch() => _effectiveSearch = "";
+    // Ticks or unticks one direct permission and saves straight away.
     private async Task ToggleDirectAsync(Guid id, bool selected)
     { if (!_canManage) return;
         if (_saving) return;
@@ -323,6 +353,7 @@ LoadGroupListAsync();
         else
             _directPermissionIds.Remove(id); await PersistDirectAsync();
     }
+    // Bulk action: ticks or unticks every permission currently shown in the search results.
     private async Task SetDirectResultsAsync(bool selected)
     { if (!_canManage) return;
         foreach (var p in
@@ -330,6 +361,8 @@ _permissions) { if (selected) _directPermissionIds.Add(p.Id); else _directPermis
         await
 PersistDirectAsync();
     }
+    // Saves direct permissions. Only the differences are written (added or removed rows) so the audit log
+    // records exactly what changed. Administrators and employees are stored in different tables.
     private async Task PersistDirectAsync()
     {
         if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is
@@ -357,6 +390,7 @@ RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخی
         }
         finally { _saving = false; }
     }
+    // Ticks or unticks one permission group and saves straight away.
     private async Task ToggleGroupAsync(Guid id, bool selected)
     { if (!_canManage) return;
         if (_saving) return;
@@ -364,6 +398,7 @@ RebuildEffectiveAsync(db); AppState.AddToast("مجوزهای مستقیم ذخی
         else
             _assignedGroupIds.Remove(id); await PersistGroupsAsync();
     }
+    // Saves group assignments, again writing only the differences; admins and employees use different tables.
     private async Task PersistGroupsAsync()
     {
         if (_selectedEmployee is null || (!_selectedEmployee.IsAdmin && _positionId is
@@ -391,12 +426,14 @@ RebuildEffectiveAsync(db); AppState.AddToast("گروه‌های مجوز ذخی�
         }
         finally { _saving = false; }
     }
+    // Empties the permission lists when the selected person or position changes.
     private void
 ClearAccessState()
     {
         _assignedGroupIds = []; _directPermissionIds = []; _effectivePermissionIds = []; _effectiveViaGroupIds = [];
         _effectivePermissions = [];
     }
+    // Turns the first part of a permission code (for example Requests.View) into a readable area heading.
     private static string PermissionArea(string code) => code.Split('.', 2)[0]
 switch
     {
@@ -419,5 +456,6 @@ switch
         "Admin" => "مدیریت سامانه",
         _ => code.Split('.', 2)[0]
     };
+    // Small read-only pair (id, name) used for the final permission list.
     private sealed record EffectivePermission(Guid Id, string Name);
 }

@@ -18,6 +18,10 @@
 @inject NavigationManager Navigation
 @inject IPermissionChecker PermissionChecker
 
+@* Administrators can create a request on behalf of an employee (address /admin/requests/new). *@
+@* Steps: choose the employee and one of their active positions, choose the request type (only the types the administrator *@
+@* has the 'create for others' permission for), fill in the form, and send. The request goes through the normal approval *@
+@* steps, the employee is the requester, and the record keeps that an administrator created it. The requester is notified. *@
 <PageTitle>ثبت درخواست برای دیگران - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -40,6 +44,7 @@
         </div>
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">کارمند</label>
+                @* Employee search (as you type, in the database). Only people who may be requesters are offered. *@
                 <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
                                             SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeText"
                                             Placeholder="کارمند را جستجو و انتخاب کنید..." SearchPlaceholder="نام، کد یا نام کاربری..." /></div>
@@ -50,6 +55,7 @@
                 }
                 else
                 {
+                    @* Position choice: one of the employee's active positions; their main position is pre-selected. *@
                     <ServerSearchableGuidSelect @key="_employeeId" Value="@_positionId" ValueChanged="PositionChanged"
                                                 SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
                                                 Placeholder="سمت را انتخاب کنید..." SearchPlaceholder="نام یا کد سمت..." />
@@ -58,11 +64,13 @@
         </div>
     </section>
 
+    @* The request type and form appear only after both the employee and the position are chosen. *@
     @if (_employeeId is not null && _positionId is not null)
     {
         <section class="card">
             <h2 class="section-title">نوع درخواست</h2>
             <div class="request-type-grid">
+                @* One selectable card per request type this administrator is allowed to create for others. *@
                 @foreach (var type in _allowedTypes)
                 {
                     <div class="request-type-card @(type == _selectedType ? "is-selected" : "")" @onclick="() => SelectType(type)">
@@ -73,6 +81,7 @@
             </div>
         </section>
 
+        @* The form for the chosen type (its own fields come from the field catalog) and, when the type allows it, file attachments. *@
         <section class="card request-form-card">
             <h2 class="section-title">جزئیات @WorkflowFieldCatalog.GetDisplayName(_selectedType)</h2>
 
@@ -101,6 +110,7 @@
 </div>
 
 @code {
+    // State of the page: the administrator, the chosen employee and position, the chosen type, the typed values and attachments.
     private Guid? _adminId;
     private Guid? _employeeId, _positionId;
     private string _employeeText = "", _employeeName = "", _positionText = "";
@@ -111,6 +121,7 @@
     private List<PendingAttachment> _files = [];
     private bool _submitting;
 
+    // On opening: remember the administrator and find which request types they may create for others (one permission per type).
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -120,12 +131,14 @@
         if (_allowedTypes.Count > 0) _selectedType = _allowedTypes[0];
     }
 
+    // Database searches used by the type-to-search pickers (requesters, and the chosen employee's positions).
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchRequestersAsync(search, ct);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchPositionsAsync(search, _employeeId, null, ct, true);
 
+    // A different employee was chosen: clear the form and attachments, load their name and pre-select their default position.
     private async Task EmployeeChanged(Guid? id)
     {
         _employeeId = id;
@@ -145,6 +158,7 @@
         }
     }
 
+    // A different position was chosen: the form is cleared, because the approval steps depend on the position.
     private void PositionChanged(Guid? id)
     {
         _positionId = id;
@@ -152,6 +166,7 @@
         _files = [];
     }
 
+    // A different request type was chosen: start with an empty form.
     private void SelectType(WorkflowTypeCode type)
     {
         _selectedType = type;
@@ -159,6 +174,9 @@
         _files = [];
     }
 
+    // Send button. In order: check the form values; check the administrator still has the permission for this type;
+    // re-check the employee and position; work out the approval steps from the position; create the request marked as
+    // created by the administrator; save attachments and the 'submitted' notification; go to the list of active requests.
     private async Task Submit()
     {
         if (_submitting) return;

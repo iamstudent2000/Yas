@@ -4,6 +4,7 @@
 @implements IDisposable
 @inject AvatarService Avatars
 
+@* Shows the avatar the person picked on their profile page (a coloured round icon), or a plain person icon if none was picked. *@
 @if (AvatarCatalog.Find(_key) is { } avatar)
 {
     <span class="user-avatar user-avatar--picked" style="background:@avatar.Color" title="@avatar.Label"><i class="ti @avatar.Icon"></i></span>
@@ -14,9 +15,12 @@ else
 }
 
 @code {
+    // The signed-in user, supplied by the framework.
     [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    // The key of the chosen avatar.
     private string? _key;
 
+    // On start: read the chosen avatar and listen for the person changing it, so the top bar updates at once.
     protected override async Task OnInitializedAsync()
     {
         Avatars.Changed += OnChanged;
@@ -30,7 +34,9 @@ else
         _key = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? await Avatars.GetKeyAsync(id) : null;
     }
 
+    // When the avatar changes elsewhere (the profile page), reload it and redraw.
     private void OnChanged() => _ = InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
 
+    // Stop listening when the widget goes away.
     public void Dispose() => Avatars.Changed -= OnChanged;
 }

@@ -1,5 +1,7 @@
 namespace YasPortal.Web.Services;
 
+// Background worker = a task that runs by itself inside the website, without anyone clicking a button.
+// This one triggers the waiting-reminder service on a timer so reminders go out even when nobody has the site open.
 /// <summary>
 /// Every 15 minutes, sends the "waiting too long" reminders people asked for on their profile (see <see cref="WaitingReminderService"/>).
 /// The first check is two minutes after start-up. A failure is logged and tried again at the next check.

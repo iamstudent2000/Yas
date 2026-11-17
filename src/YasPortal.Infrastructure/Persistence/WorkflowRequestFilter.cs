@@ -62,10 +62,12 @@ public sealed class WorkflowRequestFilter
     /// <summary>Last day to include (the whole day).</summary>
     public DateTime? To { get; set; }
 
+    // True when no filter is set at all.
     public bool IsEmpty =>
         Status is null && PriorityRank is null && CancelledBy is null && Type is null && From is null && To is null && RequesterEmployeeId is null && RequesterOrganizationId is null && WaitingAtPositionId is null && ActedByEmployeeId is null && string.IsNullOrWhiteSpace(Text) && RequesterPositionId is null && !CreatedByAdminOnly
         && string.IsNullOrWhiteSpace(RequesterName) && string.IsNullOrWhiteSpace(StepName) && string.IsNullOrWhiteSpace(IdText);
 
+    // Resets every filter to 'no filter'.
     public void Clear()
     {
         Status = null;
@@ -86,6 +88,7 @@ public sealed class WorkflowRequestFilter
         To = null;
     }
 
+    // Copies every filter value from another filter object (used when the search button is pressed).
     public void CopyFrom(WorkflowRequestFilter other)
     {
         Status = other.Status;
@@ -106,12 +109,14 @@ public sealed class WorkflowRequestFilter
         To = other.To;
     }
 
+    // Narrows the list of requests, adding one condition per filter that is set. Everything runs in the database.
     public IQueryable<WorkflowRequest> Apply(IQueryable<WorkflowRequest> query, ApplicationDbContext db)
     {
         if (Status is WorkflowRequestStatus status)
             query = query.Where(x => x.Status == status);
         if (PriorityRank is int rank)
             query = query.Where(x => x.PriorityRank == rank);
+        // A cancelled request was either withdrawn by the requester or closed by an administrator (the latter records who closed it).
         if (CancelledBy is CancelKind kind)
             query = query.Where(x => x.Status == WorkflowRequestStatus.Cancelled
                 && (kind == CancelKind.ByAdmin ? x.ForceClosedByEmployeeId != null : x.ForceClosedByEmployeeId == null));
@@ -119,11 +124,14 @@ public sealed class WorkflowRequestFilter
             query = query.Where(x => x.WorkflowType == type);
         if (RequesterEmployeeId is Guid requesterId)
             query = query.Where(x => x.RequesterEmployeeId == requesterId);
+        // Requester organization is looked up through the requester's employee record.
         if (RequesterOrganizationId is Guid organizationId)
             query = query.Where(x => db.Employees.Any(e => e.Id == x.RequesterEmployeeId && e.OrganizationId == organizationId));
+        // Waiting at a position: the request is pending approval and its current step is waiting for that approver position.
         if (WaitingAtPositionId is Guid waitingId)
             query = query.Where(x => x.Status == WorkflowRequestStatus.PendingApproval
                 && x.Steps.Any(s => s.Round == x.CurrentRound && s.Order == x.CurrentStepOrder && s.Status == WorkflowStepStatus.Pending && s.ApproverPositionId == waitingId));
+        // Decided by a person: that employee made a decision on any step of the request.
         if (ActedByEmployeeId is Guid actorId)
             query = query.Where(x => x.StepDecisions.Any(d => d.ActedByEmployeeId == actorId));
         if (!string.IsNullOrWhiteSpace(Text))
@@ -135,8 +143,10 @@ public sealed class WorkflowRequestFilter
         }
         if (RequesterPositionId is Guid positionId)
             query = query.Where(x => x.RequesterPositionId == positionId);
+        // Created by an administrator on someone's behalf: the request records who actually created it.
         if (CreatedByAdminOnly)
             query = query.Where(x => x.CreatedByEmployeeId != null);
+        // The date range covers the whole first and whole last day.
         if (From is DateTime from)
         {
             var start = from.Date;
@@ -147,6 +157,7 @@ public sealed class WorkflowRequestFilter
             var end = to.Date.AddDays(1);
             query = query.Where(x => x.CreatedAtUtc < end);
         }
+        // Requester name is part of the full name found through the requester's employee record.
         if (!string.IsNullOrWhiteSpace(RequesterName))
         {
             var name = RequesterName.Trim();

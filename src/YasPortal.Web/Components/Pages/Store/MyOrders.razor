@@ -13,6 +13,8 @@
 @inject AuthenticationStateProvider AuthState
 @* The person's own store orders. Listed by employee, so an order sent while acting in one position is still here under another. *@
 
+@* 'My store orders' page (address /store/orders): the signed-in person's own orders and lottery registrations. *@
+@* Administrators cannot open it, and the person needs the permission to create store orders. *@
 <PageTitle>سفارش‌های من در فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -30,10 +32,12 @@
     </div>
 
     <div class="form-actions no-print">
+        @* Two tabs: ordinary orders, and lottery registrations. *@
         <button class="btn @(_tab == "orders" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("orders"))">سفارش‌ها</button>
         <button class="btn @(_tab == "lottery" ? "btn-primary" : "btn-secondary")" @onclick="@(() => SwitchTab("lottery"))">قرعه‌کشی‌ها@(_lottery.Count > 0 ? $" ({WorkflowDisplay.ToPersianDigits(_lottery.Count.ToString())})" : "")</button>
     </div>
 
+    @* Search form (item name, status, date range); it applies only when the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync">
         <div class="admin-filter"><label class="form-label">جستجوی کالا</label>
             <input class="form-control" placeholder="نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
@@ -43,6 +47,7 @@
         <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_tab" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
     </ListFilterBar>
 
+    @* Lottery tab: each registration with its status; a winning entry links to the order that was created from it. *@
     @if (_tab == "lottery")
     {
         if (_loading) { <LoadingState /> }
@@ -89,6 +94,8 @@
                 <table class="data-table">
                     <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><th>مبلغ</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
                     <tbody>
+                        @* Orders tab: one row per order with number, date and status. An order sent back for correction offers an edit button, *@
+                        @* and every order can be opened as a printable slip. *@
                         @foreach (var o in _rows)
                         {
                             <tr>
@@ -109,12 +116,14 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation for the orders list. *@
             <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
         </section>
     }
 </div>
 
 @code {
+    // State of the page: the signed-in person, the current page of orders, their lottery entries and the sort order.
     private bool _loading = true;
     private Guid? _employeeId;
     private int _pageNo = 1, _pageSize = 20, _total;
@@ -129,6 +138,8 @@
     private string? _dStatus, _status;
     private DateTime? _dFrom, _from, _dTo, _to;
 
+    // Status choices for the order filter: pending approval, approved and waiting for hand-over, handed over,
+    // returned to the requester, rejected and cancelled. Lottery entries use their own list of statuses.
     private static readonly IReadOnlyList<(string Key, string Text)> OrderStatusOptions =
     [
         ("pending", "در انتظار تأیید"), ("waiting", "تأیید شده، در انتظار تحویل"), ("issued", "تحویل داده شد"),
@@ -137,9 +148,11 @@
     private static readonly IReadOnlyList<(string Key, string Text)> LotteryStatusOptions = Enum.GetValues<LotteryEntryStatus>()
         .Select(s => (((int)s).ToString(), StoreLottery.StatusText(s))).ToList();
 
+    // Number of filters currently applied, and whether something has been typed but not searched yet.
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1);
     private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null || _dFrom is not null || _dTo is not null;
 
+    // Switching tab clears all filters and starts again from page 1.
     private async Task SwitchTab(string tab)
     {
         if (_tab == tab) return;
@@ -149,6 +162,7 @@
         await LoadAsync();
     }
 
+    // Search button: copy the typed filters into the active ones and reload from page 1.
     private async Task ApplyFiltersAsync()
     {
         (_search, _status, _from, _to) = (_dSearch.Trim(), _dStatus, _dFrom, _dTo);
@@ -156,12 +170,14 @@
         await LoadAsync();
     }
 
+    // Clear button: empty the typed filters and reload.
     private async Task ClearFiltersAsync()
     {
         (_dSearch, _dStatus, _dFrom, _dTo) = ("", null, null, null);
         await ApplyFiltersAsync();
     }
 
+    // The lottery list is small, so it is filtered and sorted here in the page instead of in the database.
     private IReadOnlyList<LotteryMineRow> SortedLottery => TableSort.Apply(_lottery.Where(MatchesLottery), _lotSort, _lotDesc,
         ("item", l => l.ItemName), ("qty", l => l.Quantity), ("date", l => l.AppliedAtUtc), ("status", l => StoreLottery.StatusText(l.Status)));
     private void LotSortBy(string col) => (_lotSort, _lotDesc) = TableSort.Toggle(_lotSort, _lotDesc, col);
@@ -171,8 +187,10 @@
         && (_from is not DateTime f || l.AppliedAtUtc >= f.Date.ToUniversalTime())
         && (_to is not DateTime t || l.AppliedAtUtc < t.Date.AddDays(1).ToUniversalTime());
 
+    // Clicking a column heading on the orders table sorts by it (clicking again reverses the order).
     private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
 
+    // On opening: find out who the person is and load their orders.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
@@ -180,6 +198,7 @@
         await LoadAsync();
     }
 
+    // Load the person's orders for the current page and filters, and all of their lottery entries.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -191,6 +210,8 @@
         _loading = false;
     }
 
+    // Colour of the status label: green once handed over, blue while approved but not yet handed over,
+    // red for rejected or cancelled, amber when returned for correction, grey otherwise.
     private static string BadgeFor(StoreOrderRow o) => o.Status switch
     {
         WorkflowRequestStatus.Approved => o.IssuedAtUtc is null ? "badge-info" : "badge-success",
@@ -199,6 +220,7 @@
         _ => "badge-muted",
     };
 
+    // Page navigation handlers: go to another page, or change how many rows are shown per page.
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

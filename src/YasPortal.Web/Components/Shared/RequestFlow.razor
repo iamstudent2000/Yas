@@ -3,6 +3,8 @@
 
 @* One round of a request as a flow: the requester's submit/resubmit event, the stage cards, and — for the live round — how it ended if it was cancelled. *@
 <div class="rt-flow">
+    @* First part of a round: round 1 starts with the original submission (and says if an admin submitted it on the requester's behalf); *@
+    @* later rounds start with a resubmission after the requester corrected a returned request. *@
     @if (RoundKey == 1)
     {
         <div class="rt-event">
@@ -48,6 +50,7 @@
         </div>
     }
 
+    @* The approval steps of this round, drawn by the step timeline widget. *@
     @if (RoundSteps.Count > 0)
     {
         <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
@@ -63,6 +66,8 @@
                               ShowHolderForCurrentStep="ShowHolderForCurrentStep" />
     }
 
+    @* Only for the live round of a cancelled request: show how it ended, either closed by a system administrator *@
+    @* (with the reason they gave) or cancelled by the requester. *@
     @if (IsCurrentRound && Request.Status == WorkflowRequestStatus.Cancelled)
     {
         <div class="stage-arrow" aria-hidden="true"><i class="ti @Icons.StageArrow"></i></div>
@@ -110,6 +115,8 @@
 </div>
 
 @code {
+    // Inputs from the page: the request, which round to draw, that round's steps, and lookup tables of names and decisions.
+    // HighlightStepId and YourStepId mark the step to emphasise and the step that belongs to the signed-in person.
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
     [Parameter, EditorRequired] public int RoundKey { get; set; }
     [Parameter] public IReadOnlyList<WorkflowRequestStep> RoundSteps { get; set; } = [];

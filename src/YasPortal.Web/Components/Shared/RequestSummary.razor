@@ -13,6 +13,10 @@
 @inject AppState AppState
 @inject ILogger<RequestSummary> Logger
 
+@* Request summary: the read-only picture of one request that is reused on the requester, approver and administrator screens. *@
+@* It shows who asked and what was asked (the form fields), the approval path with each stage's state, earlier rounds after a *@
+@* return, and every later change to the fields. It can be shown as tabs or as one long page, and can offer PDF and printable form *@
+@* downloads. Opening a request is recorded in the audit log. *@
 <div class="rs-root">
 @{
     var currentSteps = Request.Steps.Where(x => x.Round == Request.CurrentRound).ToList();
@@ -27,6 +31,9 @@
         })
         .ToList();
 }
+@* Above: the steps of the current round are grouped into stages. Steps with the same order form one stage (parallel approvers). *@
+@* Tab buttons: decision (only when the page supplies one), request data, progress, stages, earlier rounds and field changes. *@
+@* Tabs for progress, rounds and changes appear only when there is something to show. *@
 @if (Tabbed)
 {
     var hasEarlierRounds = Request.Steps.Select(x => x.Round).Distinct().Count() > 1;
@@ -51,12 +58,14 @@
             <button type="button" role="tab" class="rs-tab @(_tab == "changes" ? "is-active" : "")" @onclick='() => _tab = "changes"'><i class="ti @Icons.Edit"></i> تاریخچه تغییر فیلدها</button>
         }
     </div>
+    @* Content of the extra decision tab, supplied by the page (used by the approver inbox). *@
     @if (_tab == "action" && ActionTab is not null)
     {
         <div class="rs-tab-panel">@ActionTab</div>
     }
 }
 
+@* Progress strip: one dot per stage coloured by its state, with a one-sentence line on where the request is now. *@
 @if (stageViews.Count > 0 && Show("progress"))
 {
     var now = DescribeNow(stageViews);
@@ -91,6 +100,7 @@
     var formParts = WorkflowFieldCatalog.GetParts(Request.WorkflowType);
     var isMultiPart = formParts.Count > 1;
 }
+@* Request data: the request number and the form fields. Multi-part forms show one block per part (later parts are filled by approvers). *@
 @if (Show("info"))
 {
 <div class="field-summary">
@@ -108,9 +118,11 @@
         }
     }
 </div>
+@* Files attached to the request. *@
 <RequestAttachmentList Request="Request" />
 @if (isMultiPart)
 {
+    @* Later form parts, showing only the fields that have been filled in. *@
     @foreach (var part in formParts.Where(p => p.Part > 1))
     {
         var partFields = WorkflowFieldCatalog.GetFields(Request.WorkflowType, part.Part);
@@ -134,6 +146,7 @@
 
 }
 
+@* Change history: when the requester reopened the request, and every field that was edited, with old and new values. *@
 @if (Show("changes"))
 {
 @if (Request.RequesterActions.Any(a => a.Kind == WorkflowRequesterActionKind.Reopened))
@@ -152,6 +165,7 @@
     </div>
 }
 
+@* Field-by-field edits in time order. This log is permanent. *@
 @if (Request.FieldChanges.Count > 0)
 {
     <div class="field-summary field-history">
@@ -181,6 +195,8 @@
     var roundKeys = rounds.Select(g => g.Key).DefaultIfEmpty(1).ToList();
 }
 
+@* Approval rounds. Round 1 is the first submission; a new round starts each time the requester resubmits after a return. *@
+@* The current round is drawn open; earlier rounds are folded away and can be expanded. *@
 @foreach (var roundKey in roundKeys)
 {
     var isCurrentRound = roundKey == Request.CurrentRound;
@@ -192,6 +208,7 @@
         {
             <p class="round-heading">دور @ToPersianDigits(roundKey.ToString()) (فعلی)</p>
         }
+        @* The step-by-step approval flow of the current round. *@
         <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="true"
                      RequesterName="@requesterName" EmployeeNames="EmployeeNames" HolderNames="HolderNames"
                      Decisions="stepDecisions" HighlightStepId="HighlightStepId" YourStepId="YourStepId"
@@ -201,10 +218,12 @@
     {
         var expanded = _expandedRounds.Contains(roundKey);
         <div class="round-history">
+            @* Button that opens or closes an earlier round. *@
             <button type="button" class="round-history-toggle" @onclick="() => ToggleRound(roundKey)">
                 <i class="ti @(expanded ? Icons.ChevronUp : Icons.ChevronDown)"></i>
                 <span>دور @ToPersianDigits(roundKey.ToString()) (پیشین — بازگشت به درخواست‌کننده)</span>
             </button>
+            @* Only an expanded earlier round draws its flow. *@
             @if (expanded)
             {
                 <RequestFlow Request="Request" RoundKey="roundKey" RoundSteps="roundSteps" IsCurrentRound="false"
@@ -230,6 +249,8 @@ else
 </div>
 
 @code {
+    // Inputs from the page: the request, lookup tables of employee and position-holder names, and which step to highlight.
+    // The remaining inputs below switch tabs, the decision tab, the action bar and audit logging on or off.
     [Parameter, EditorRequired] public WorkflowRequest Request { get; set; } = null!;
     [Parameter] public Dictionary<Guid, string> EmployeeNames { get; set; } = [];
     [Parameter] public Dictionary<Guid, string> HolderNames { get; set; } = [];
@@ -273,10 +294,13 @@ else
             }
         </div>;
 
+    // Which tab is open. When tabs are off, every section is shown.
     private string? _tab;
 
+    // True when the named section should be drawn.
     private bool Show(string tab) => !Tabbed || _tab == tab;
 
+    // Choose the starting tab: the decision tab when asked, otherwise the request data.
     protected override void OnParametersSet()
     {
         _tab ??= ActionTab is not null && OpenOnAction ? "action" : "info";
@@ -284,6 +308,7 @@ else
             _tab = "info";
     }
 
+    // Which earlier rounds the person has opened, and whether a PDF is being built right now (to disable the buttons).
     private readonly HashSet<int> _expandedRounds = [];
     private bool _printing;
 
@@ -337,12 +362,14 @@ else
         finally { _printing = false; }
     }
 
+    // Open or close an earlier round.
     private void ToggleRound(int round)
     {
         if (!_expandedRounds.Add(round))
             _expandedRounds.Remove(round);
     }
 
+    // Read one typed form value of the request (the values are stored together as one text); empty when missing or unreadable.
     private string? GetFieldValue(string key)
     {
         try
@@ -360,6 +387,7 @@ else
     {
         switch (Request.Status)
         {
+            // Still waiting: say who must decide, and whether it is the viewer's turn.
             case WorkflowRequestStatus.PendingApproval:
             {
                 var live = stages.FirstOrDefault(s => s.Order == Request.CurrentStepOrder);
@@ -400,11 +428,13 @@ else
             case WorkflowRequestStatus.ReturnedToRequester:
                 return (Icons.Returned, "is-returned", "درخواست به درخواست‌کننده بازگردانده شد؛ پس از اصلاح باید دوباره ارسال شود.");
 
+            // Any other end state: the request was cancelled by the requester or closed by an administrator.
             default:
                 return (Icons.ForceClose, "is-skipped", Request.ForceClosedByEmployeeId is not null ? "درخواست توسط مدیر سامانه بسته شد." : "درخواست لغو شد.");
         }
     }
 
+    // Turn 0-9 into Persian digits for display.
     private static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";

@@ -1,5 +1,7 @@
 namespace YasPortal.Web.Services;
 
+// Report model: the plain, already-formatted content of a printed request report. The builder fills it in from a request,
+// and the PDF service prints it. Because it holds only text, it is easy to adjust or extend before printing.
 /// <summary>A label with its value, as printed in the summary boxes.</summary>
 public sealed record ReportField(string Label, string Value);
 
@@ -42,6 +44,7 @@ public sealed class RequestReportModel
     public string FileName { get; set; } = "request";
 
     /// <summary>The first box: requester, position, status, dates.</summary>
+    // The report is laid out top to bottom: summary box, form sections, calculated figures, history, appendix, signatures.
     public List<ReportField> Summary { get; } = [];
     /// <summary>Printed after the summary: the form data (one section per part) and anything you add.</summary>
     public List<ReportSection> Sections { get; } = [];

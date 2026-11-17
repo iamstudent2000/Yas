@@ -1,3 +1,4 @@
+@* A table column heading that can be clicked to sort by that column, with an arrow showing the current direction. *@
 <th class="sortable-th" @onclick="HandleClick">
     <span class="sortable-th-inner">
         @Text
@@ -17,6 +18,7 @@
     /// <summary>Raised with this header's Column when clicked; the page decides direction toggling.</summary>
     [Parameter] public EventCallback<string> OnSort { get; set; }
 
+    // The arrow only shows on the column the list is currently sorted by.
     private bool IsActive => CurrentSort == Column;
     private string IconClass => IsActive ? (CurrentDescending ? Icons.SortDescending : Icons.SortAscending) : Icons.SortNone;
 

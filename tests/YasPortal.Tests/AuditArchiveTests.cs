@@ -6,6 +6,8 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
+// Audit archive tests. Old audit rows are marked as archived (never deleted) after a chosen number of months.
+// These tests check that only old current rows are archived, that re-running changes nothing, and that the schedule and settings behave.
 public sealed class AuditArchiveTests
 {
     private static readonly DateTime Now = new(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);

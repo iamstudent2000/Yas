@@ -9,6 +9,8 @@
 @inject IJSRuntime JS
 @inject AppState AppState
 
+@* Store admin: reports (address /admin/store/reports). The person picks one report kind (for example by category), *@
+@* optionally a date range or number of days, presses search, and gets a table that can also be exported to CSV. *@
 <PageTitle>گزارش‌های فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -22,16 +24,19 @@
     </div>
 
     @{ var draft = StoreReportService.Kinds.First(k => k.Key == _dKey); }
+    @* Filter card: which report, and the extra inputs that report needs. *@
     <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || _dKey != "categories" || _dFrom is not null || _dTo is not null || _dDays != 90)"
                    OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
                    OnExport="ExportAsync" ExportPermission="@Perm.StoreReportsView" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">نوع گزارش</label>
             <LookupSelect Options="KindOptions" Value="@_dKey" ValueChanged="k => { if (!string.IsNullOrEmpty(k)) _dKey = k; }" Placeholder="انتخاب گزارش" /></div>
+        @* Date range inputs, shown only for reports that work over a period. *@
         @if (draft.UsesDates)
         {
             <div class="admin-filter"><label class="form-label">از تاریخ</label><PersianDatePicker @key="_dKey" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
             <div class="admin-filter"><label class="form-label">تا تاریخ</label><PersianDatePicker @key="_dKey" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
         }
+        @* 'Last N days' choice, shown only for reports that look back a number of days. *@
         @if (draft.UsesDays)
         {
             <div class="admin-filter"><label class="form-label">بدون گردش در</label>
@@ -48,6 +53,7 @@
         <section class="card">
             <h2 class="section-title">@_table.Title</h2>
             <p class="muted">@_table.Description</p>
+            @* The report result: a message when it is empty, otherwise a table whose columns can be sorted by clicking the headings. *@
             @if (_table.Rows.Count == 0)
             {
                 <div class="empty-state"><strong>برای این گزارش داده‌ای نیست</strong></div>
@@ -72,6 +78,7 @@
 </div>
 
 @code {
+    // State of the page: the report chosen and its inputs (applied values versus values still being edited), and the result table.
     private bool _loading = true;
     private string _key = "categories";
     private string _dKey = "categories";
@@ -85,8 +92,10 @@
     private string? _sortCol;
     private bool _sortDesc;
 
+    // Clicking a column heading sorts the rows of the table in the page.
     private Task SortByAsync(string col) { (_sortCol, _sortDesc) = TableSort.Toggle(_sortCol, _sortDesc, col); return Task.CompletedTask; }
 
+    // The result rows in the current sort order (unsorted until a heading is clicked).
     private IReadOnlyList<IReadOnlyList<string>> SortedRows
     {
         get
@@ -97,14 +106,18 @@
             return TableSort.Apply(rows, _sortCol, _sortDesc, (_sortCol!, r => c < r.Count ? r[c] : null));
         }
     }
+    // Choices for the look-back period (30, 60 days and so on) and for the report kind.
     private static readonly IReadOnlyList<(string Key, string Text)> DayOptions = [("30", "۳۰ روز"), ("60", "۶۰ روز"), ("90", "۹۰ روز"), ("180", "۱۸۰ روز"), ("365", "یک سال")];
 
     private static readonly IReadOnlyList<(string Key, string Text)> KindOptions = StoreReportService.Kinds.Select(k => (k.Key, k.Name)).ToList();
 
+    // The selected report and whether it needs dates and/or a number of days.
     private (string Key, string Name, bool UsesDates, bool UsesDays) Current => StoreReportService.Kinds.First(k => k.Key == _key);
 
+    // On opening, build the default report.
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    // Build the chosen report from the database; show an error message if it fails.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -114,20 +127,24 @@
         finally { _loading = false; }
     }
 
+    // Number of inputs currently applied; shown as a counter on the filter card.
     private int FilterCount => (Current.UsesDates ? (_from is null ? 0 : 1) + (_to is null ? 0 : 1) : 0) + (Current.UsesDays && _days != 90 ? 1 : 0);
 
+    // Search button: apply the chosen report and inputs and rebuild the table.
     private async Task ApplyFiltersAsync()
     {
         (_key, _from, _to, _days) = (_dKey, _dFrom, _dTo, _dDays);
         await LoadAsync();
     }
 
+    // Clear button: return to the default report with default inputs.
     private async Task ClearFiltersAsync()
     {
         (_dKey, _dFrom, _dTo, _dDays) = ("categories", null, null, 90);
         await ApplyFiltersAsync();
     }
 
+    // Export: download the table as it is shown (including the current sort) as a CSV file.
     private async Task ExportAsync()
     {
         if (_table is null || _table.Rows.Count == 0) { AppState.AddToast("داده‌ای برای خروجی نیست.", ToastLevel.Info); return; }

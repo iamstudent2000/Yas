@@ -3,6 +3,7 @@ using YasPortal.Domain.Organization;
 
 namespace YasPortal.Tests;
 
+// Employee tests: whether an employee can be an administrator and the default of not being one.
 public class EmployeeTests
 {
     [Fact]

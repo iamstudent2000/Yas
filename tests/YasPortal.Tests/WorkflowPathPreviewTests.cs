@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Approval path preview tests: the preview an administrator sees of a workflow, laid out stage by stage with parallel groups together, and the reasons a submission would be refused.
 public class WorkflowPathPreviewTests
 {
     private static readonly Guid Pa = Guid.NewGuid();

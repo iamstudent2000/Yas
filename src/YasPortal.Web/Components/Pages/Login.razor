@@ -2,8 +2,11 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 
+@* Sign-in page: the first screen people see. The username and password are posted to the account login endpoint, *@
+@* which checks them and starts the session. The page is split into a decorative brand panel and the login form. *@
 <PageTitle>ورود | یاس پورتال</PageTitle>
 
+@* A hidden drawing of the jasmine flower logo, reused several times as a decoration on this page. *@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="jasmine-bloom" viewBox="0 0 100 100">
         <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
@@ -19,6 +22,7 @@
 
 <div class="login-shell" dir="rtl">
     <main class="login-frame" aria-labelledby="login-title">
+        @* Left-hand brand panel: logo, short description of the portal and its main benefits. It is purely decorative. *@
         <section class="login-brandpanel" aria-hidden="true">
             <svg class="bloom bloom-a" viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
             <svg class="bloom bloom-b" viewBox="0 0 100 100"><use href="#jasmine-bloom" /></svg>
@@ -40,6 +44,7 @@
             </div>
         </section>
 
+        @* The sign-in form panel. *@
         <section class="login-formpanel">
             <div class="login-formpanel-inner">
                 <div class="login-heading">
@@ -47,6 +52,8 @@
                     <p>برای ورود به حساب کاربری خود، اطلاعات زیر را وارد کنید.</p>
                 </div>
 
+                @* Messages shown after a failed sign-in: either the person has no active position yet (an administrator must assign one), *@
+                @* or the username or password was wrong. *@
                 @if (NoPositionError)
                 {
                     <div class="login-alert login-alert-warning" role="alert">
@@ -66,6 +73,7 @@
                     </div>
                 }
 
+                @* A normal browser form post (not a live Blazor action) so the secure cookie can be set by the login endpoint. *@
                 <form class="login-form" method="post" action="/account/login">
                     <AntiforgeryToken />
 
@@ -98,6 +106,7 @@
                     <span>ورود امن به سامانه یاس پورتال</span>
                 </div>
 
+                @* A collapsible list of sample accounts for development and testing. *@
                 <details class="development-accounts">
                     <summary>
                         <i class="ti @Icons.Code" aria-hidden="true"></i>
@@ -121,6 +130,7 @@
 </div>
 
 @code {
+    // The login endpoint sends people back here with an error code in the address, which selects the message above.
     [SupplyParameterFromQuery(Name = "error")]
     private string? ErrorValue { get; set; }
 

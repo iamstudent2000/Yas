@@ -14,8 +14,11 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Only guides that an administrator left switched on are ever shown.
             var query = db.UserGuides.AsNoTracking().Where(x => x.IsActive);
+            // A visitor who is not signed in sees only public guides.
             if (!signedIn) query = query.Where(x => x.Visibility == GuideVisibility.Public);
+            // Display order set by the administrator, then oldest first.
             return await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
                 .Select(x => new GuideListItem(x.Id, x.Title, x.Summary, x.Visibility))
                 .ToListAsync(ct);
@@ -36,6 +39,8 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            // Load the guide, then show it only if the reader is allowed: full preview rights, a normal reader of its
+            // visibility level, or its own author.
             var guide = await db.UserGuides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
             return guide is not null && (canPreviewAll || guide.IsReadableBy(signedIn) || guide.IsOwnedBy(authorId)) ? guide : null;
         }

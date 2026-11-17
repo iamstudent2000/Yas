@@ -2,10 +2,13 @@
 @implements IDisposable
 @inject AppState AppState
 
+@* Pop-up messages (toasts) shown in a corner of the screen: success, information, warning and error notices. *@
+@* Each message comes from the shared application state, which pages use to announce the result of an action. *@
 <div class="app-toast-container" aria-live="polite" aria-relevant="additions removals">
     @foreach (var toast in AppState.Toasts)
     {
         var expanded = _expandedIds.Contains(toast.Id);
+        @* One card per message. Clicking the text expands or collapses a long message; the close button dismisses it. *@
         <div @key="toast.Id" class="app-toast app-toast-@toast.Level.ToString().ToLowerInvariant() @(expanded ? "app-toast-expanded" : "")" role="status">
             <div class="app-toast-icon" aria-hidden="true">
                 <i class="@GetIcon(toast.Level)"></i>
@@ -24,14 +27,17 @@
 </div>
 
 @code {
+    // Messages the user has clicked open, so long text is shown in full.
     private readonly HashSet<Guid> _expandedIds = [];
 
+    // Expand a message if it was collapsed, collapse it if it was expanded.
     private void ToggleExpanded(Guid id)
     {
         if (!_expandedIds.Add(id))
             _expandedIds.Remove(id);
     }
 
+    // Start listening so the screen refreshes whenever a new message appears or one is removed.
     protected override void OnInitialized()
     {
         AppState.OnChange += HandleStateChanged;
@@ -42,6 +48,7 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
+    // Chooses the icon that matches the kind of message.
     private static string GetIcon(ToastLevel level) => level switch
     {
         ToastLevel.Success => ("ti " + Icons.Success),
@@ -51,6 +58,7 @@
         _ => ("ti " + Icons.Info)
     };
 
+    // Chooses the short heading (success, information, warning or error) for the kind of message.
     private static string GetTitle(ToastLevel level) => level switch
     {
         ToastLevel.Success => "عملیات موفق",
@@ -60,6 +68,7 @@
         _ => "اطلاع"
     };
 
+    // Stop listening when this widget goes away, so no stale updates are delivered.
     public void Dispose()
     {
         AppState.OnChange -= HandleStateChanged;

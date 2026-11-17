@@ -20,6 +20,8 @@
 
 <PageTitle>یاس پورتال</PageTitle>
 
+@* Three views: nothing until loading is done; a short welcome (signed-in person at the root address without a dashboard); *@
+@* or the full landing page with slides, link menu, quick links, general information and a sign-in call to action. *@
 @if (!_ready)
 {
     @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
@@ -34,6 +36,7 @@ else if (!_showLanding)
 else
 {
     <div class="landing" dir="rtl">
+        @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
         @if (_slides.Count > 0)
         {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه">
@@ -74,6 +77,7 @@ else
         </section>
         }
 
+        @* The link menu and quick-access links are maintained by an administrator in the home page content section. *@
         @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
         {
             <LinkMenuBar Tree="_tree" />
@@ -92,6 +96,7 @@ else
             </section>
         }
 
+        @* General information cards. *@
         <section class="landing-section">
             <h2 class="landing-heading"><i class="ti ti-info-circle"></i> اطلاعات عمومی</h2>
             <div class="landing-info">
@@ -133,6 +138,7 @@ else
     private IReadOnlyList<LandingInfo> _info = [];
     private Timer? _timer;
 
+    // Loads the page content once. At the root address a signed-in person is redirected to the dashboard if allowed.
     protected override async Task OnInitializedAsync()
     {
         try { await LoadAsync(); }

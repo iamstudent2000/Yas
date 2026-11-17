@@ -11,6 +11,9 @@
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 
+@* Landing slides page (/admin/landing-slides). Slides are the rotating announcement panels on the public home page that people *@
+@* see before signing in. Each slide has a title, text, icon, optional link and file, an order and optional start/expiry dates. *@
+@* Rule: at least one valid slide (active and inside its dates) must always remain, so the home page is never empty. *@
 <PageTitle>اسلایدهای صفحه اصلی - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -27,6 +30,7 @@
     </div>
 
     <div class="admin-stack">
+        @* Warnings at the top: no valid slide at all, or the last valid slides are about to expire. *@
         @if (!_loading && !HomeSlide.HasValid(_slides, DateTime.Now))
         {
             <section class="card" style="border-color:var(--danger,#b42318)"><p style="margin:0;color:var(--danger,#b42318)"><i class="ti @Icons.Alert"></i> اسلاید معتبری وجود ندارد و صفحه اصلی بدون اسلاید نمایش داده می‌شود. یک اسلاید اضافه کنید.</p></section>
@@ -35,6 +39,7 @@
         {
             <section class="card"><p style="margin:0"><i class="ti @Icons.Alert"></i> همه اسلایدهای معتبر تا @days روز دیگر منقضی می‌شوند؛ پیش از آن اسلاید جدیدی اضافه یا تاریخ انقضا را تمدید کنید.</p></section>
         }
+        @* The add/edit form is shown only to people who may manage slides; others get a read-only list. *@
         @if (_canManage)
         {
             <section class="card admin-form-row">
@@ -58,6 +63,7 @@
                 <div class="admin-row-grid" style="margin-top:12px">
                     <div class="form-field is-grow"><label class="form-label">فایل پیوست (اختیاری، حداکثر @(HomeSlideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
                         <InputFile @key="_formKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
+                        @* When editing a slide that already has a file, show it and offer to remove it. *@
                         @if (_editingId is Guid editId && _files.TryGetValue(editId, out var current))
                         {
                             <label class="check-row" style="margin-top:6px"><input type="checkbox" @bind="_removeFile" /> <span>فایل فعلی (@current.Name) @(_file is null ? "حذف شود" : "با فایل انتخاب‌شده جایگزین می‌شود")</span></label>
@@ -80,6 +86,7 @@
             </section>
         }
 
+        @* The list of slides with their status, link, file and action buttons. *@
         <section class="card table-card">
             <div class="card-toolbar">
                 <div>
@@ -102,6 +109,7 @@
                     <table class="data-table data-table-bordered-rows">
                         <thead><tr><th>ترتیب</th><th>اسلاید</th><th>پیوند</th><th>فایل</th><th>شروع</th><th>انقضا</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
                         <tbody>
+                        @* One row per slide: order, title and text, link, file, validity dates, status and actions. *@
                         @foreach (var slide in _slides)
                         {
                             var status = StatusOf(slide);
@@ -113,11 +121,13 @@
                                 <td>@DateText(slide.StartsOn)</td>
                                 <td>@DateText(slide.ExpiresOn)</td>
                                 <td><span class="badge @status.Badge">@status.Text</span></td>
+                                @* Edit, switch on/off and delete buttons only for people who may manage slides. *@
                                 @if (_canManage)
                                 {
                                     <td class="action-cell">
                                         <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(slide)"><i class="ti @Icons.Edit"></i> ویرایش</button>
                                         <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(slide.Id)"><i class="ti @(slide.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(slide.IsActive ? "غیرفعال" : "فعال")</button>
+                                        @* Deleting asks for a second click. *@
                                         @if (_confirmDeleteId == slide.Id)
                                         {
                                             <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(slide.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
@@ -154,6 +164,7 @@
     private const string KeepOneMessage = "حداقل یک اسلاید معتبر (فعال و در بازه نمایش) باید باقی بماند؛ ابتدا اسلاید معتبر دیگری اضافه کنید.";
 
     // Days left until the last valid slide expires, when every valid slide has an expiry date within the coming week; otherwise null.
+    // Days left until the last valid slide expires, used for the warning at the top; empty when nothing is about to expire.
     private int? ExpiringSoon
     {
         get
@@ -166,6 +177,7 @@
         }
     }
 
+    // On opening: find out whether the person may manage slides, then load them.
     protected override async Task OnInitializedAsync()
     {
         _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage);
@@ -173,6 +185,7 @@
         _loading = false;
     }
 
+    // Load all slides (in display order) and the file name and size attached to each.
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -181,6 +194,7 @@
         _sortOrder = _editingId is null ? (_slides.Count == 0 ? 1 : _slides.Max(x => x.SortOrder) + 1) : _sortOrder;
     }
 
+    // Work out the status label of a slide: inactive, expired, waiting to start, or currently shown.
     private (string Text, string Badge) StatusOf(HomeSlide slide)
     {
         var today = DateTime.Now.Date;
@@ -190,6 +204,7 @@
         return ("در حال نمایش", "badge-success");
     }
 
+    // Show a date in the Persian calendar with Persian digits (a dash when there is no date).
     private static string DateText(DateTime? date)
     {
         if (date is not DateTime d) return "—";
@@ -197,6 +212,7 @@
         return $"{pc.GetYear(d):0000}/{pc.GetMonth(d):00}/{pc.GetDayOfMonth(d):00}".Replace("0", "۰").Replace("1", "۱").Replace("2", "۲").Replace("3", "۳").Replace("4", "۴").Replace("5", "۵").Replace("6", "۶").Replace("7", "۷").Replace("8", "۸").Replace("9", "۹");
     }
 
+    // Fill the form with an existing slide so it can be changed.
     private void BeginEdit(HomeSlide slide)
     {
         _editingId = slide.Id;
@@ -207,12 +223,14 @@
         _formKey++;
     }
 
+    // Leave edit mode and empty the form.
     private async Task CancelEdit()
     {
         ResetForm();
         await LoadAsync();
     }
 
+    // Return the form to its empty 'new slide' state.
     private void ResetForm()
     {
         _editingId = null;
@@ -223,6 +241,7 @@
         _formKey++;
     }
 
+    // Check the chosen file (type and size) as soon as it is picked and refuse it with a message if it is not allowed.
     private void FilePicked(InputFileChangeEventArgs e)
     {
         var error = HomeSlideAttachment.Validate(e.File.Name, e.File.Size);
@@ -236,6 +255,7 @@
         _file = e.File;
     }
 
+    // Save a new slide or the edits to one. An edit that would leave no valid slide is refused and nothing is saved.
     private async Task SaveAsync()
     {
         if (_saving || !_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
@@ -307,6 +327,7 @@
         _ => "اطلاعات اسلاید معتبر نیست.",
     };
 
+    // Switch a slide on or off; refused if it would leave no valid slide.
     private async Task ToggleAsync(Guid id)
     {
         if (!_canManage || !await PermissionChecker.HasPermissionAsync(Perm.AdminLandingSlidesManage)) return;
@@ -321,6 +342,7 @@
         await LoadAsync();
     }
 
+    // Delete a slide and its file (after the confirmation click); refused if it is the last valid slide.
     private async Task DeleteAsync(Guid id)
     {
         _confirmDeleteId = null;

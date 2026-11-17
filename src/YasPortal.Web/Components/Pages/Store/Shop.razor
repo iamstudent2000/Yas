@@ -16,6 +16,9 @@
 @inject AppState AppState
 @* The catalogue every signed-in person with Store.Shop.View can browse. People who may order also get the cart. *@
 
+@* Store shop page (address /store). It shows the items kept in the organisation's warehouse with their stock. *@
+@* People who are allowed to order also see a quantity box and an order button on each item card; *@
+@* administrators only browse, because they are kept out of the requester pages. *@
 <PageTitle>فروشگاه - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -36,6 +39,7 @@
 
     @if (_canOrder)
     {
+        @* Short how-to box shown only to people who can order. *@
         <section class="card" style="background:var(--accent-soft,#eef4ff)">
             <strong>چطور کالا بگیرم؟</strong>
             <ol class="muted" style="margin:6px 0 0;padding-inline-start:22px;line-height:2">
@@ -48,6 +52,7 @@
         </section>
     }
 
+    @* Search form: item name or code, and item category. As elsewhere in the portal, nothing is searched until the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_categoryId is null ? 0 : 1))"
                    CanClear="@(!string.IsNullOrWhiteSpace(_search) || _categoryId is not null || !string.IsNullOrWhiteSpace(_draftSearch) || _draftCategory is not null)"
                    OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync" FilterSnapshot="@(() => new { Search = _search, CategoryId = _categoryId })">
@@ -68,6 +73,7 @@
     else
     {
         <div class="store-grid">
+            @* One card per item on the current page: name, code, description, stock, price and the order controls. *@
             @foreach (var item in _page.Rows)
             {
                 var window = item.WindowOn(DateTime.Now);
@@ -81,9 +87,11 @@
                     </div>
                     @if (item.Description is not null) {<p class="store-card-desc">@item.Description</p>}
                     <div class="store-card-badges">
+                        @* Badges: 'out of stock', and 'lottery' for items that are drawn by lot because demand exceeds supply. *@
                         @if (item.Stock <= 0) { <span class="badge badge-danger">ناموجود</span> }
                         else { <span class="badge badge-success">موجود · @WorkflowDisplay.ToPersianDigits(item.Stock.ToString("0.###")) @item.Unit</span> }
                         @if (item.IsLottery) {<span class="badge badge-info">قرعه‌کشی</span>}
+                        @* Items can only be requested inside a set time window; this shows whether the window is open, not yet open or closed. *@
                         @switch (window)
                         {
                             case StoreRequestWindow.NotYet: <span class="badge badge-muted">درخواست از @StoreWhen.Format(item.RequestOpensOn!.Value)</span> break;
@@ -91,10 +99,12 @@
                             default: if (item.RequestClosesOn is DateTime closes) { <span class="badge badge-warning">درخواست تا @StoreWhen.Format(closes)</span> } break;
                         }
                     </div>
+                    @* Price is shown only when the item has one. *@
                     @if (item.Price is decimal price)
                     {
                         <dl class="store-card-facts"><dt>قیمت هر @item.Unit</dt><dd>@StoreMoney.Format(price)</dd></dl>
                     }
+                    @* Some items limit how much one person may take; show that limit. *@
                     @if (item.MaxPerRequest > 0)
                     {
                         <dl class="store-card-facts"><dt>حداکثر در هر درخواست</dt><dd>@WorkflowDisplay.ToPersianDigits(item.MaxPerRequest.ToString("0.###")) @item.Unit</dd></dl>
@@ -102,6 +112,8 @@
                     @if (_canOrder)
                     {
                         <div class="store-card-buy">
+                            @* Normal items: type a quantity, press request, then confirm (with an optional note). Lottery items instead register the *@
+                            @* person in the draw and allow them to withdraw before it is held. *@
                             @if (CanAdd(item))
                             {
                                 if (_confirmItemId == item.Id)
@@ -159,11 +171,14 @@
                 </article>
             }
         </div>
+        @* Page navigation; the item list is loaded one page at a time. *@
         <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_page.Total" Busy="_loading" PageSizes="@(new[] { 12, 24, 48, 96 })" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
     }
 </div>
 
 @code {
+    // State of the page: the search words, chosen category and page number, the current page of items,
+    // and the signed-in person's own context (may they order, which lottery entries are waiting).
     private bool _loading = true;
     private string _search = "";
     private string _draftSearch = "";
@@ -179,12 +194,15 @@
     private Guid? _employeeId, _positionId;
     private readonly Dictionary<Guid, string> _qty = [];
 
+    // The quantity typed on each item card is remembered per item until the order is sent.
     private void SetQty(Guid id, string? text) => _qty[id] = text ?? "";
 
     private string QtyText(Guid id) => _qty.TryGetValue(id, out var v) ? v : "";
 
+    // An item can be ordered directly only if it is not a lottery item, is in stock and its request window is open.
     private bool CanAdd(StoreItemRow item) => !item.IsLottery && item.Stock > 0 && item.WindowOn(DateTime.Now) == StoreRequestWindow.Open;
 
+    // The item (and quantity) waiting for the person's confirmation, plus the optional note.
     private Guid? _confirmItemId;
     private decimal _confirmQty;
     private string _note = "";
@@ -227,6 +245,8 @@
         finally { _busy = false; }
     }
 
+    // Confirmed: create the order for the person's active position. It then goes into the normal approval workflow
+    // and the person is told where to follow it.
     private async Task PlaceAsync(StoreItemRow item)
     {
         if (_busy) return;
@@ -248,6 +268,7 @@
         finally { _busy = false; }
     }
 
+    // Register the person in the lottery for an item (quantity defaults to 1). The result is announced later in notifications.
     private async Task ApplyAsync(StoreItemRow item)
     {
         if (_busy) return;
@@ -269,6 +290,7 @@
         finally { _busy = false; }
     }
 
+    // Cancel the person's lottery registration.
     private async Task WithdrawAsync(StoreItemRow item, Guid entryId)
     {
         if (_busy || _employeeId is not Guid emp) return;
@@ -283,6 +305,8 @@
         finally { _busy = false; }
     }
 
+    // On opening: work out whether this person may order (not an administrator and holds the order permission),
+    // load their active position and pending lottery entries, then load the categories and the first page of items.
     protected override async Task OnInitializedAsync()
     {
         // admins are kept out of the requester pages, so they do not get the cart either
@@ -299,6 +323,7 @@
         await LoadAsync();
     }
 
+    // Load the current page of active items from the database. A newer request cancels an older one that is still running.
     private async Task LoadAsync()
     {
         _cts?.Cancel();
@@ -317,6 +342,7 @@
         }
     }
 
+    // Search button: apply the typed filters and go back to page 1.
     private async Task ApplyFiltersAsync()
     {
         _search = _draftSearch.Trim();
@@ -325,12 +351,14 @@
         await LoadAsync();
     }
 
+    // Clear button: empty the filters and reload.
     private async Task ClearFiltersAsync()
     {
         _draftSearch = "";
         _draftCategory = null;
         await ApplyFiltersAsync();
     }
+    // Page navigation handlers: go to another page, or change how many items are shown per page.
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

@@ -4,13 +4,16 @@ using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Store;
 
+// One line of the item list: the item, its group, and its current stock (the total of its stock movements).
 public sealed record StoreItemRow(Guid Id, string Code, string Name, Guid CategoryId, string CategoryName, string Unit, string? Description, bool IsActive, decimal Stock, decimal MaxPerRequest = 0, DateTime? RequestOpensOn = null, DateTime? RequestClosesOn = null, bool IsLottery = false, bool IsVisible = true, decimal? Price = null)
 {
     public StoreRequestWindow WindowOn(DateTime today) => StoreItem.WindowOf(RequestOpensOn, RequestClosesOn, today);
 }
 
+// One line of the stock ledger: a single movement of an item in or out of the store.
 public sealed record StoreMovementRow(Guid Id, DateTime CreatedAtUtc, Guid ItemId, string ItemCode, string ItemName, string Unit, StockMovementKind Kind, decimal Delta, string? Reference, string? Note, string? CreatedBy);
 
+// Choices for filtering items by their request period: always open, open now, not yet open, or closed.
 public enum StoreWindowFilter { Any, Always, Open, NotYet, Closed }
 
 /// <summary>The filters of the item lists. A value left empty does not filter.</summary>
@@ -81,6 +84,7 @@ public static class StoreNumber
     }
 }
 
+// Outcome of an operation: either success, or a failure with a message the person can read.
 public sealed record StoreResult(bool Ok, string? Error = null)
 {
     public static StoreResult Success { get; } = new(true);
@@ -100,6 +104,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await q.OrderBy(x => x.SortOrder).ThenBy(x => x.Name).ToListAsync(ct);
     }
 
+    // Creates or renames a group after checking the name is filled in, not too long and not used by another group.
     public async Task<StoreResult> SaveCategoryAsync(Guid? id, string name, int sortOrder, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -118,6 +123,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    // Switches a group on or off.
     public async Task<StoreResult> SetCategoryActiveAsync(Guid id, bool active, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -176,6 +182,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         public StoreItemRow ToRow() => new(Id, Code, Name, CategoryId, CategoryName, Unit, Description, IsActive, Stock, MaxPerRequest, RequestOpensOn, RequestClosesOn, IsLottery, IsVisible, Price);
     }
 
+    // Joins each item to its group and calculates stock as the total of all its movements (zero when none).
     private static IQueryable<ItemProjection> ItemRows(ApplicationDbContext db) =>
         from i in db.StoreItems.AsNoTracking()
         join c in db.StoreCategories.AsNoTracking() on i.CategoryId equals c.Id
@@ -205,6 +212,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
     public async Task<IReadOnlyList<StoreItemRow>> AllItemsAsync(StoreItemFilter f, CancellationToken ct = default) =>
         (await SearchItemsAsync(f, 1, 100_000, ct)).Rows;
 
+    // Adds one condition per filter that is set: active, group, search text on name or code, stock, lottery, visibility,
+    // request period and whether the item can be put into a cart today.
     private static IQueryable<ItemProjection> ApplyFilter(ApplicationDbContext db, IQueryable<ItemProjection> q, StoreItemFilter f)
     {
         if (f.Active is bool active) q = q.Where(x => x.IsActive == active);
@@ -235,6 +244,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return q;
     }
 
+    // Sort choices for the item list; by default items are ordered by group and then name.
     private static IOrderedQueryable<ItemProjection> Order(IQueryable<ItemProjection> q, string? sort, bool desc) => (sort, desc) switch
     {
         ("name", false) => q.OrderBy(x => x.Name),
@@ -271,6 +281,8 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return await db.StoreItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
     }
 
+    // Creates or updates an item. Checks: unique code, valid group, a lottery item needs an end date for requests,
+    // opening stock is a valid amount, and the unit comes from the allowed list. New stock is recorded as a ledger entry.
     public async Task<StoreResult> SaveItemAsync(Guid? id, string code, string name, Guid categoryId, string unit, string? description, decimal maxPerRequest, DateTime? requestOpensOn, DateTime? requestClosesOn, bool isLottery, decimal initialStock, Guid? byEmployeeId, decimal? price = null, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -317,6 +329,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    // Switches several items on or off at once.
     public async Task<StoreResult> SetItemsActiveAsync(IReadOnlyCollection<Guid> ids, bool active, CancellationToken ct = default)
     {
         if (ids.Count == 0) return StoreResult.Fail("هیچ کالایی انتخاب نشده است.");
@@ -326,6 +339,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    // Moves several items to another group.
     public async Task<StoreResult> MoveItemsToCategoryAsync(IReadOnlyCollection<Guid> ids, Guid categoryId, CancellationToken ct = default)
     {
         if (ids.Count == 0) return StoreResult.Fail("هیچ کالایی انتخاب نشده است.");
@@ -337,6 +351,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    // Switches one item on or off.
     public async Task<StoreResult> SetItemActiveAsync(Guid id, bool active, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -349,6 +364,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
 
     // ---------- stock ----------
 
+    // Current stock of one item: the total of its movements.
     public async Task<decimal> StockOfAsync(Guid itemId, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -384,6 +400,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return StoreResult.Success;
     }
 
+    // Searches the stock ledger by item, kind, dates and text, with sorting and paging; newest first by default.
     public async Task<StorePage<StoreMovementRow>> SearchMovementsAsync(Guid? itemId, StockMovementKind? kind, DateTime? fromUtc, DateTime? toUtcExclusive, int page, int pageSize, string? text = null, string? sort = null, bool descending = false, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -428,6 +445,7 @@ public sealed class StoreService(IDbContextFactory<ApplicationDbContext> dbFacto
         return new StorePage<StoreMovementRow>(rows.Select(r => new StoreMovementRow(r.Id, r.CreatedAtUtc, r.ItemId, r.ItemCode, r.ItemName, r.Unit, r.Kind, r.Delta, r.Reference, r.Note, r.By)).ToList(), total);
     }
 
+    // Human-readable name of a movement kind.
     public static string KindLabel(StockMovementKind kind) => kind switch
     {
         StockMovementKind.Receive => "ورود به انبار",

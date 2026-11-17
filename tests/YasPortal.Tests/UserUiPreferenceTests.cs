@@ -3,6 +3,7 @@ using YasPortal.Domain.Preferences;
 
 namespace YasPortal.Tests;
 
+// Display preference tests: each person's chosen text size and font, their defaults, reset, and the codes the stylesheet expects.
 public class UserUiPreferenceTests
 {
     [Fact]

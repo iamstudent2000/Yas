@@ -3,6 +3,7 @@
 // result is right even when an ancestor changes the coordinate space (CSS zoom, transforms) or the
 // browser reports zoomed boxes differently.
 window.yasPopup = (() => {
+    // Fix the popup at the wanted spot, then measure where it really landed and nudge it by the difference (twice at most).
     function place(el, left, top, width) {
         if (!el) return;
         el.style.position = 'fixed';

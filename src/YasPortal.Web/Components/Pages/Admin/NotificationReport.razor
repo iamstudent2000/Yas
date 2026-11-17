@@ -16,6 +16,10 @@
 @inject IAuthorizationService AuthorizationService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* Notification report page (/admin/notifications/report) for administrators. It lists every notification the portal has created *@
+@* (automatic ones about requests and manual messages sent by people) so an administrator can see who received what and whether *@
+@* it was read. Nothing is loaded until the first search, because the table can be very large. People with the manage right can *@
+@* also remove a notification from the recipient's list, or restore it, one at a time or for everything the filter matches. *@
 <PageTitle>گزارش اعلان‌ها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -51,6 +55,7 @@
         </div>
     </div>
 
+    @* Filter bar: recipient, sender, kind, read state, removed state, date range and free text. Filters apply when the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || Draft().Count > 0)"
                    ExportPermission="@(ReportPermissions.Notifications)" OnExport="ExportAsync" Exporting="_exporting"
                    OnSearch="SearchAsync" OnClear="ClearAsync" FilterSnapshot="@(() => _applied)">
@@ -83,6 +88,8 @@
         </div>
     </ListFilterBar>
 
+    @* Bulk action box: remove or restore all notifications matched by the current filter, after a confirmation. *@
+    @* It appears only when a filter is applied, so it can never act on the whole table by accident. *@
     @if (_canManage && _hasSearched && _applied.Count > 0 && _total > 0)
     {
         <section class="card" style="margin-top:14px">
@@ -92,6 +99,7 @@
                     <p class="muted">اعلان‌های حذف‌شده از فهرست گیرنده پنهان می‌شوند ولی در گزارش می‌مانند و قابل بازگردانی‌اند.</p>
                 </div>
                 <div class="form-actions">
+                    @* First the two choices (remove or restore); after one is chosen the page asks 'are you sure?'. *@
                     @if (_confirmBulk is null)
                     {
                         <button class="btn btn-secondary" disabled="@_busy" @onclick="@(() => _confirmBulk = true)"><i class="ti @Icons.Retract"></i> حذف همه‌ی نتیجه‌ها از فهرست گیرندگان</button>
@@ -108,6 +116,7 @@
         </section>
     }
 
+    @* The result table (or a hint to search first, or a loading indicator). *@
     <section class="card table-card" style="margin-top:14px">
         @if (!_hasSearched)
         {
@@ -140,6 +149,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        @* One row per notification: time, kind, recipient, sender, text, status and, for managers, a remove/restore button. *@
                         @foreach (var row in _rows)
                         {
                             <tr class="@(row.RemovedAtUtc is null ? "" : "row-muted")">
@@ -154,6 +164,7 @@
                                     }
                                 </td>
                                 <td>
+                                    @* Status: read (with when) or still unread. *@
                                     @if (row.IsRead)
                                     {
                                         <span class="badge badge-success" title="@(row.ReadAtUtc is DateTime readAt ? WorkflowDisplay.ToPersianDateTime(readAt) : "")"><i class="ti @Icons.ConfirmAll"></i> خوانده شد</span>
@@ -162,6 +173,7 @@
                                     {
                                         <span class="badge badge-muted"><i class="ti @Icons.Awaiting"></i> خوانده‌نشده</span>
                                     }
+                                    @* A removed notification no longer shows in the recipient's list; the row is kept here for the record. *@
                                     @if (row.RemovedAtUtc is DateTime removedAt)
                                     {
                                         <br /><span class="badge badge-warning" title="@WorkflowDisplay.ToPersianDateTime(removedAt)"><i class="ti @Icons.Retract"></i> حذف‌شده@(row.RemovedByName is null ? "" : " توسط " + row.RemovedByName)</span>
@@ -185,6 +197,7 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation and page size for the table. *@
             <ServerPagination Page="_page" PageSize="_pageSize" TotalCount="_total" Busy="_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
         }
     </section>
@@ -216,6 +229,7 @@
     // null = no bulk action pending; true = confirm removing the filtered notifications; false = confirm restoring them.
     private bool? _confirmBulk;
 
+    // On opening: find the signed-in administrator and whether they may manage (remove/restore) notifications.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -223,6 +237,7 @@
         _canManage = (await AuthorizationService.AuthorizeAsync(user, Perm.AdminNotificationsManage)).Succeeded;
     }
 
+    // Remove one notification from the recipient's list, or restore it, and record who did it.
     private async Task SetRemovedAsync(Guid id, bool removed)
     {
         if (_busy || _actorId is not Guid actor) return;
@@ -236,6 +251,7 @@
         finally { _busy = false; }
     }
 
+    // Remove or restore every notification matched by the applied filter, then reload the table.
     private async Task ConfirmBulkAsync()
     {
         if (_busy || _confirmBulk is not bool removed || _actorId is not Guid actor) return;
@@ -250,10 +266,12 @@
         finally { _busy = false; }
     }
 
+    // Collect the current filter boxes into one filter object.
     private NotificationService.ReportFilter Draft() => new(_recipientId, _senderId, _kind, _readState, _search, _from, _to, _removedState);
 
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
 
+    // Load one page of the report plus the totals (all, unread, manual) for the applied filter.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -271,6 +289,7 @@
         finally { _loading = false; }
     }
 
+    // The search button: apply the draft filters, go back to page 1 and load.
     private async Task SearchAsync()
     {
         _applied = Draft();
@@ -279,6 +298,7 @@
         await LoadAsync();
     }
 
+    // Clear every filter and the table.
     private Task ClearAsync()
     {
         _recipientId = _senderId = null;
@@ -296,6 +316,7 @@
         return Task.CompletedTask;
     }
 
+    // Sort by the clicked column; clicking the same column again reverses the order.
     private async Task SortByAsync(string column)
     {
         if (_sortBy == column) _sortDesc = !_sortDesc;
@@ -304,12 +325,14 @@
         if (_hasSearched) await LoadAsync();
     }
 
+    // Move to another page of results.
     private async Task GoToPageAsync(int page)
     {
         _page = page;
         if (_hasSearched) await LoadAsync();
     }
 
+    // Change how many rows appear per page.
     private async Task OnPageSizeChangedAsync(int size)
     {
         _pageSize = Math.Clamp(size, 1, 100);
@@ -317,6 +340,7 @@
         if (_hasSearched) await LoadAsync();
     }
 
+    // Export every row matched by the applied filter (not only the visible page) to a spreadsheet file.
     private async Task ExportAsync()
     {
         if (_exporting) return;

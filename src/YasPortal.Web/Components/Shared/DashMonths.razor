@@ -1,6 +1,7 @@
 @using System.Globalization
 @using YasPortal.Web.Services
 @* A column chart of requests per month. *@
+@* Dashboard widget: one column per month, tallest column is the busiest month. Hovering a column shows its details. *@
 @{
     var max = Math.Max(1, Items.Count == 0 ? 1 : Items.Max(x => x.Count));
 }
@@ -16,5 +17,6 @@
 </div>
 
 @code {
+    // The page hands in the month label and the number of requests for each column.
     [Parameter, EditorRequired] public IReadOnlyList<LabeledCount> Items { get; set; } = [];
 }

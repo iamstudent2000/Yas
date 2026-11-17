@@ -1,11 +1,14 @@
 @using System.Globalization
 @using YasPortal.Domain.Workflows
 
+@* Draws the input fields of a request form. The list of fields comes from the field catalog for the chosen *@
+@* request type and form part, so each type of request shows its own questions (text, number, date or a pick list). *@
 <div class="form-grid">
 @foreach (var field in WorkflowFieldCatalog.GetFields(Type, Part))
 {
     <div class="form-field @(field.FieldType == WorkflowFieldType.TextArea ? "is-wide" : "")">
     <label class="form-label">@field.Label @(field.Required ? "*" : "")</label>
+    @* Choose the right kind of input box for this field: large text area, number, calendar date, drop-down, or plain text. *@
     @switch (field.FieldType)
     {
         case WorkflowFieldType.TextArea:
@@ -33,13 +36,17 @@
     </div>
 }
 </div>
+@* Reminder under the form that fields marked with a star must be filled in before the request can be submitted. *@
 <p class="request-form-hint">فیلدهای دارای علامت * برای ثبت الزامی هستند.</p>
+@* Only on part 1 of a multi-part form: tell the requester that the later parts are completed by approvers. *@
 @if (Part == 1 && WorkflowFieldCatalog.IsMultiPart(Type))
 {
     <p class="request-form-hint">این فرم چندبخشی است؛ بخش‌های بعدی در مراحل تایید توسط تاییدکنندگان تکمیل می‌شود.</p>
 }
 
 @code {
+    // Inputs from the page using this widget: the request type, the form part, and the dictionary that holds the typed values.
+    // ValuesChanged is how the widget tells the page that the person has typed something.
     [Parameter, EditorRequired] public WorkflowTypeCode Type { get; set; }
 
     /// <summary>Which part of the form to show; part 1 is the requester's, later parts belong to approvers.</summary>
@@ -47,14 +54,17 @@
     [Parameter, EditorRequired] public Dictionary<string, string?> Values { get; set; } = [];
     [Parameter] public EventCallback ValuesChanged { get; set; }
 
+    // Read the current text of a field (empty when nothing has been typed yet).
     private string GetValue(string key) => Values.TryGetValue(key, out var v) ? v ?? "" : "";
 
+    // Store what the person typed and notify the page.
     private async Task SetValue(string key, ChangeEventArgs e)
     {
         Values[key] = e.Value?.ToString();
         await ValuesChanged.InvokeAsync();
     }
 
+    // Dates are kept as text in the form values; these two helpers convert between that text and a real date for the calendar widget.
     private DateTime? GetDateValue(string key) =>
         Values.TryGetValue(key, out var v) && DateTime.TryParse(v, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 

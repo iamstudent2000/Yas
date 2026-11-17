@@ -2,15 +2,20 @@
 @using YasPortal.Web.Components.Shared
 @inject NavigationManager Navigation
 
+@* The router: looks at the address typed in the browser and shows the page that owns it. *@
+@* If the user lacks the needed permission the access-denied view is shown, and unknown addresses show a "page not found" screen. *@
 <Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
+        @* Records which page was opened so the portal can remember the last visited page. *@
         <RoutePageTracker RouteData="routeData" />
+        @* Checks the page's access rule before showing it. *@
         <AuthorizeRouteView RouteData="routeData">
             <NotAuthorized Context="state">
                 <AccessDeniedView @key="Navigation.Uri" Authenticated="@(state.User.Identity?.IsAuthenticated == true)" />
             </NotAuthorized>
         </AuthorizeRouteView>
     </Found>
+    @* Page-not-found screen with buttons to go back or to the home page. *@
     <NotFound>
         <StatusPage Icon="@Icons.NotFound" Tone="is-info" Code="۴۰۴" Title="صفحه‌ای پیدا نشد"
                     Message="نشانی واردشده وجود ندارد یا این صفحه جابه‌جا شده است.">

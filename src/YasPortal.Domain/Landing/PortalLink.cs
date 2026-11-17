@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace YasPortal.Domain.Landing;
 
+// Portal links are the shortcuts on the public home page. Only safe address forms are accepted, so a link
+// can never run a script or open a local file.
 /// <summary>
 /// A link to a site or page, shown on the public home page. A link marked <see cref="IsQuickAccess"/> also appears in the quick-access row
 /// (in <see cref="QuickOrder"/> order). The address may be http, https or ftp (https is not required), a bare host such as
@@ -9,6 +11,7 @@ namespace YasPortal.Domain.Landing;
 /// </summary>
 public sealed partial class PortalLink
 {
+    // Length limits for the title, the address and the description.
     public const int TitleMax = 150, UrlMax = 500, DescriptionMax = 300;
 
     private PortalLink()
@@ -32,6 +35,8 @@ public sealed partial class PortalLink
     public bool IsQuickAccess { get; private set; }
     public int QuickOrder { get; private set; }
 
+    // Used when creating and editing. The address is cleaned up (for example a bare host name gets http://
+    // in front) and refused when it is not acceptable.
     public void Update(string title, string url, string? description, Guid? groupId, int sortOrder, bool isQuickAccess, int quickOrder)
     {
         title = (title ?? "").Trim();
@@ -55,6 +60,8 @@ public sealed partial class PortalLink
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
 
+    // Patterns that recognise a bare host name, with an optional port and path, that has no http:// in
+    // front.
     [GeneratedRegex(@"^[A-Za-z0-9]([A-Za-z0-9.\-]*[A-Za-z0-9])?(:\d{1,5})?([/?#]\S*)?$")]
     private static partial Regex HostLike();
 
@@ -87,6 +94,7 @@ public sealed partial class PortalLink
 
     public static bool IsExternal(string url) => !url.StartsWith('/');
 
+    // Starting set of quick-access links for a new system.
     /// <summary>The quick-access links a fresh system starts with (pages of this site); an administrator can change or delete them.</summary>
     public static IReadOnlyList<PortalLink> StarterQuickLinks() =>
     [

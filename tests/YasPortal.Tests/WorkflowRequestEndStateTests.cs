@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// End-state tests: how a finished request is described (approved by whom, rejected at which step, cancelled by the requester or closed by an administrator).
 public class WorkflowRequestEndStateTests
 {
     private static WorkflowRequest Make() =>

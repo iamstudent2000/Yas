@@ -12,6 +12,10 @@
 @inject AdminQueryService AdminQueries
 @inject AppState AppState
 
+@* Admin page 'permissions' (address /admin/permissions). A permission is one single right, for example 'view all requests'. *@
+@* The permissions themselves are defined by the application, so this page is mostly a reference list: for every permission it shows *@
+@* where it is used (which groups contain it and who has it directly). People with the manage permission can change a *@
+@* permission's display name, but never its code. *@
 <PageTitle>مجوزها - یاس پورتال</PageTitle>
 
 <div class="admin-page">
@@ -48,6 +52,7 @@
         </div>
 
         <div class="admin-stack">
+@* Rename form, opened by the edit button of a permission; shown only to people who may manage permissions. *@
 @if (_editingId is not null)
         {
         @if (_canManage) {
@@ -71,6 +76,7 @@
         }
 
 
+                        @* Filters: search by name or code, and used or unused permissions. They apply when the search button is pressed. *@
                         <ListFilterBar Busy="_loading" ActiveCount="@((_search.Trim().Length > 0 ? 1 : 0) + (_usageFilter != "" ? 1 : 0))"
                                        CanClear="@(_search != "" || _usageFilter != "" || _draftSearch != "" || _draftUsage != "")" OnSearch="SearchFiltersAsync" OnClear="ClearFiltersAsync">
                             <div class="admin-filter"><label class="form-label">جستجو</label>
@@ -106,6 +112,7 @@
                                             _permissions.GroupBy(x => PermissionCategory(x.Code)).OrderBy(x => x.Key))
                                             {
                                                 var collapsed = _collapsedAreas.Contains(area.Key) && string.IsNullOrWhiteSpace(_search);
+                                                @* Permissions are grouped by area (for example requests, reports, store); each area can be collapsed. *@
                                                 <section class="permission-section @(collapsed ? "collapsed" : "")">
                                                     <div class="permission-section-heading" @onclick="() => ToggleArea(area.Key)">
                                                         <div><i class="ti @Icons.Folder"></i><strong>@area.Key</strong></div>
@@ -114,6 +121,7 @@
                                                     </div>
                                                     <div class="permission-section-body">
                                                         <div class="admin-list-table-head"><span>مجوز</span><span>استفاده</span><span>عملیات</span></div>
+                                        @* One row per permission: its code and name, with buttons to rename it and to expand where it is used. *@
                                         @foreach (var x in area)
                                         {
                                             var isExpanded = _expandedPermissionId == x.Id;
@@ -139,6 +147,7 @@
                                                             </div>
                                                         </div>
 
+                                                        @* Usage of the permission: the groups that contain it, and the positions and employees that were given it directly. *@
                                                         @if (isExpanded)
                                                         {
                                                             <div class="admin-detail">
@@ -272,6 +281,7 @@
                                                                     </section>
                                                                 </div>
 
+                                                                @* Short explanatory note shown at the bottom of the page. *@
                                                                 <section class="card admin-note">
                                                                     <div class="admin-note-icon"><i class="ti @Icons.AccessManagement"></i></div>
                                                                     <div><strong>مدل دسترسی یاس پورتال</strong>
@@ -292,8 +302,10 @@
     private HashSet<string> _collapsedAreas = [];
     private const int UsagePageSize = 6;
 
+    // On opening: find out whether the person may manage permissions, then load the list.
     protected override async Task OnInitializedAsync() { _canManage = await PermissionChecker.HasPermissionAsync(Perm.AdminPermissionsManage); await LoadAsync(); }
 
+    // Collapse or expand one area; the next two buttons do it for all areas at once.
     private void ToggleArea(string key) { if (!_collapsedAreas.Add(key)) _collapsedAreas.Remove(key); }
     private async Task ExpandAllAreas()
     {
@@ -306,6 +318,7 @@
         _collapsedAreas = _permissions.Select(x => PermissionCategory(x.Code)).ToHashSet();
     }
 
+    // Load the permissions for the applied filters.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -321,6 +334,7 @@
         finally { _loading = false; }
     }
 
+    // Expand or collapse the usage of one permission; opening it loads who and what uses it.
     private async Task ToggleUsage(Guid id)
     {
         if (_expandedPermissionId == id) { _expandedPermissionId = null; _usage = null; return; }
@@ -360,6 +374,7 @@
     // The boxes edit the draft; "جستجو" copies it into _search/_usageFilter, which every load uses.
     private string _draftSearch = "", _draftUsage = "";
 
+    // Search button: apply the typed filters. Clear button: empty them.
     private async Task SearchFiltersAsync()
     {
         _search = _draftSearch.Trim();
@@ -379,6 +394,7 @@
 
     private static readonly IReadOnlyList<(string Key, string Text)> _usageOptions = [("used", "در حال استفاده"), ("unused", "بدون استفاده")];
 
+    // Maps the first word of a permission code to the area heading shown on the page.
     private static string PermissionCategory(string code) => code.Split('.', 2)[0] switch
     {
         "Dashboard" => "داشبورد",
@@ -397,9 +413,11 @@
         _ => code.Split('.', 2)[0]
     };
 
+    // Edit button: copy the permission into the rename form. Cancel closes the form.
     private void Edit(AdminQueryService.PermissionPageRow x) { if (!_canManage) return; _editingId = x.Id; _code = x.Code; _name = x.Name; }
     private void Cancel() { _editingId = null; _code = _name = ""; }
 
+    // Save button: the new name is required; only the display name changes, the code stays the same.
     private async Task Save()
     { if (!_canManage) return;
         var name = _name.Trim();

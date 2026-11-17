@@ -31,6 +31,7 @@
         </div>
     </div>
 
+    @* Nothing to show: a message that no contacts have been entered yet. *@
     @if (Tree.IsEmpty)
     {
         <div class="empty-state"><div class="empty-icon"><i class="ti ti-address-book"></i></div><strong>@EmptyText</strong></div>
@@ -42,12 +43,14 @@
     else
     {
         <div class="pb-groups @(TwoColumns ? "is-two-columns" : "")">
+        @* One collapsible card per contact group (a department or section); the list already reflects the search text. *@
         @foreach (var entry in Shown.Groups)
         {
             var group = entry.Group;
             var open = Searching || _open.Contains(group.Id);
             var groupQuery = _groupQueries.GetValueOrDefault(group.Id, "");
             var contacts = PhoneBookTree.FilterContacts(entry.Contacts, groupQuery);
+            @* A group card. A group switched off by an administrator is still drawn here, marked as off. *@
             <section class="pb-group card @(open ? "is-open" : "") @(group.IsActive ? "" : "is-off")" @key="group.Id">
                 <div class="pb-group-head">
                     <button type="button" class="pb-group-toggle" aria-expanded="@(open ? "true" : "false")" @onclick="() => Toggle(group.Id)">
@@ -70,6 +73,7 @@
                 @if (open)
                 {
                     <div class="pb-group-body">
+                        @* Empty group, or no contact in it matches the group's own search. *@
                         @if (contacts.Count == 0)
                         {
                             <p class="muted pb-none">@(entry.Contacts.Count == 0 ? "مخاطبی در این گروه نیست." : "مخاطبی با این عبارت پیدا نشد.")</p>
@@ -90,6 +94,7 @@
                                         @if (ContactActions is not null) { <th>عملیات</th> }
                                     </tr></thead>
                                     <tbody>
+                                    @* One row per contact: name, job title, extension, phone, mobile and email. *@
                                     @foreach (var c in rows)
                                     {
                                         <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
@@ -114,6 +119,7 @@
     }
 </div>
 
+@* Print layout: a hidden A4 two-column list (names, extensions, phones) that only appears when the browser prints. *@
 @if (CanPrint)
 {
     <div class="print-only pb-print" dir="rtl">
@@ -151,6 +157,7 @@ else if (PrintBlocked)
 </div>
 
 @code {
+    // Inputs from the page: the groups and contacts to show, an empty-state text, optional admin buttons and the print switches.
     [Parameter, EditorRequired] public PhoneBookTree Tree { get; set; } = new();
     [Parameter] public string EmptyText { get; set; } = "هنوز مخاطبی ثبت نشده است";
     /// <summary>Buttons shown in a group's header (admin page).</summary>
@@ -166,6 +173,7 @@ else if (PrintBlocked)
     /// <summary>The person may not print: the screen content is left out of a printed page, which says printing is not allowed.</summary>
     [Parameter] public bool PrintBlocked { get; set; }
 
+    // Screen state: the general search text, which groups are open, each group's own search text and sort, and print-watching flags.
     private string _query = "";
     private readonly HashSet<Guid> _open = [];
     private readonly Dictionary<Guid, string> _groupQueries = [];
@@ -173,12 +181,15 @@ else if (PrintBlocked)
     private bool _started, _watching;
     private DotNetObjectReference<PhoneBookView>? _self;
 
+    // Line printed under the title: the search text (if any) and the print date.
     private string PrintNote =>
         (Searching ? $"نتیجه جستجوی «{_query.Trim()}» — " : "") + "تاریخ چاپ: " + WorkflowDisplay.ToPersianDate(DateTime.Now);
 
     private bool Searching => !string.IsNullOrWhiteSpace(_query);
+    // The phone book after applying the general search.
     private PhoneBookTree Shown => Tree.Filter(_query);
 
+    // Open every group the first time data arrives, when the page asks for that.
     protected override void OnParametersSet()
     {
         if (StartExpanded && !_started && Tree.Groups.Count > 0)
@@ -188,6 +199,7 @@ else if (PrintBlocked)
         }
     }
 
+    // Start listening to the browser's print event so every printout can be recorded in the audit log.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Watch the browser's print event (button or Ctrl+P) only for people who may print; the first live render, not the prerender.
@@ -204,6 +216,7 @@ else if (PrintBlocked)
         }
     }
 
+    // The print button: ask the browser to print.
     private async Task PrintAsync() => await JS.InvokeVoidAsync("yasPrintPage");
 
     /// <summary>The browser is about to print: record it in the audit log (the same print is recorded once).</summary>
@@ -217,8 +230,10 @@ else if (PrintBlocked)
             new { Groups = shown.Groups.Count(x => x.Contacts.Count > 0), Contacts = shown.TotalContacts, Search = Searching ? _query.Trim() : null });
     }
 
+    // Store what was typed in the general search box.
     private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 
+    // Open or close one group (not while a general search is active).
     private void Toggle(Guid id)
     {
         if (Searching)
@@ -227,12 +242,14 @@ else if (PrintBlocked)
             _open.Add(id);
     }
 
+    // Open every group.
     private void OpenAll()
     {
         foreach (var g in Tree.Groups)
             _open.Add(g.Group.Id);
     }
 
+    // Close every group and clear the general search.
     private void CloseAll()
     {
         _open.Clear();
@@ -252,8 +269,10 @@ else if (PrintBlocked)
             _sorts.Remove(groupId);
     }
 
+    // Show a dash for an empty field.
     private static string Dash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
 
+    // Remember (or forget) the search text of one group.
     private void SetGroupQuery(Guid id, string? value)
     {
         if (string.IsNullOrEmpty(value))
@@ -262,6 +281,7 @@ else if (PrintBlocked)
             _groupQueries[id] = value;
     }
 
+    // Stop listening to the print event when the page is left.
     public async ValueTask DisposeAsync()
     {
         try

@@ -20,6 +20,13 @@ using YasPortal.Infrastructure.PhoneBook;
 using YasPortal.Infrastructure.Persistence;
 using YasPortal.Web.Services;
 
+// Application start-up file. Everything the portal needs is switched on here, in this order:
+// 1) register the services (the business-logic classes) and the sign-in and permission rules,
+// 2) in development only, create and patch the database and load demo data,
+// 3) set up the web pipeline and the sign-in, sign-out, position-switch and file-download addresses,
+// 4) helper functions at the bottom that keep the signed-in cookie in step with the database.
+// Authority belongs to positions, not people: the cookie carries a snapshot of the permissions of
+// the position the person is currently working in (administrators carry their own direct grants).
 var builder = WebApplication.CreateBuilder(args);
 
 // Claim type used to throttle how often OnValidatePrincipal / SessionGuard actually hit the
@@ -29,10 +36,13 @@ var builder = WebApplication.CreateBuilder(args);
 // local function that closes over it, regardless of when that lambda actually runs.
 const string LastValidatedClaimType = "yas_last_validated_utc";
 
+// Blazor Server: pages are built on the server and the browser keeps a live connection to it.
 builder.Services.AddRazorComponents().AddInteractiveServerComponents()
     // A guide's text travels from the editor to the server in one message; the 32 KB default is too small for a long guide.
     .AddHubOptions(options => options.MaximumReceiveMessageSize = 1024 * 1024);
 builder.Services.AddHttpContextAccessor();
+// Sign-in uses a cookie named YasPortal.Auth that lasts 8 hours and is renewed while the person is active.
+// People who are not signed in are sent to the login page; people lacking a permission to the access-denied page.
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options => {
     options.Cookie.Name = "YasPortal.Auth";
     options.LoginPath = "/login";
@@ -47,6 +57,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.Events = new CookieAuthenticationEvents { OnValidatePrincipal = ValidateAndRefreshPrincipalAsync };
 });
 builder.Services.AddAuthorization(options => {
+    // Every permission code in the catalog automatically becomes a policy of the same name. A page that
+    // asks for a policy is only opened for people whose cookie carries that permission.
     foreach (var permission in PermissionCatalog.Codes)
         options.AddPolicy(permission, policy => policy.Requirements.Add(new PermissionRequirement(permission)));
     // Administrator accounts have no organizational position, so the personal request pages (new / mine / inbox) are not for them.
@@ -56,40 +68,54 @@ builder.Services.AddAuthorization(options => {
     // The guides workspace is open to anyone who holds one of the three guide permissions; the page then limits what each person can see and change.
     options.AddPolicy(CreateForOthersPermissions.AnyPolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => CreateForOthersPermissions.IsOne(c.Value))));
+    // The store administration area opens for anyone who holds at least one store-related permission.
     options.AddPolicy(Perm.StoreAdminPolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.StoreItemsView or Perm.StoreItemsManage or Perm.StoreStockView or Perm.StoreStockManage or Perm.StoreOrdersIssue or Perm.StoreOrdersView or Perm.StoreReportsView)));
     options.AddPolicy(Perm.GuidesWorkspacePolicy, policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx =>
         ctx.User.FindAll(AuthClaimNames.Permission).Any(c => c.Value is Perm.AdminGuidesView or Perm.AdminGuidesManage or Perm.GuidesOwnManage)));
+    // "NonAdmin" blocks administrator accounts (they hold no position), and "AdminOnly" below allows only them.
     options.AddPolicy("NonAdmin", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => !ctx.User.HasClaim("yas_is_admin", "True")));
     // Administrators' own notifications (vacant-position alerts) live on /admin/notifications; /notifications is for everyone else.
     options.AddPolicy("AdminOnly", policy => policy.RequireAuthenticatedUser().RequireAssertion(ctx => ctx.User.HasClaim("yas_is_admin", "True")));
 });
+// The handler that decides whether a policy is satisfied by reading the permission claims in the cookie.
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+// Makes the signed-in user available to every page and component without passing it around by hand.
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+// Services below are registered as scoped (one instance per signed-in browser connection) unless noted.
+// AppState holds small per-user screen state; the audit classes write the permanent history of actions.
 builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
+// Content and helpers for the public home page, user guides, the store, portal links and the phone book.
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
+// Audit archiving: old audit entries are moved to an archive on a schedule by a background worker (hosted service).
 builder.Services.AddScoped<AuditArchiveSettingsService>();
 builder.Services.AddHostedService<AuditArchiveWorker>();
+// Waiting reminders: a background worker nudges approvers about requests that have waited too long.
 builder.Services.AddScoped<WaitingReminderService>();
 builder.Services.AddHostedService<WaitingReminderWorker>();
 
+// The database connection string comes from appsettings.json; start-up stops with an error if it is missing.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+// Each page asks for its own short-lived database context, which avoids clashes inside long-lived Blazor connections.
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
+// CurrentUser and the permission checker read who is signed in and what they may do from the cookie, not the database.
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<ICurrentUser>(sp => sp.GetRequiredService<CurrentUser>());
 builder.Services.AddScoped<PermissionChecker>();
 builder.Services.AddScoped<IPermissionChecker>(sp => sp.GetRequiredService<PermissionChecker>());
+// Password hashing: passwords are stored only as one-way hashes.
 builder.Services.AddScoped<IPasswordHasher<Employee>, PasswordHasher<Employee>>();
+// Business-logic services: admin queries, request workflow, attachments, notifications, store, reports, dashboard, PDFs.
 builder.Services.AddScoped<AdminQueryService>();
 builder.Services.AddScoped<WorkflowService>();
 builder.Services.AddScoped<RequestAttachmentService>();
@@ -111,18 +137,25 @@ builder.Services.AddScoped<IRequestFormDesign, AccessFormDesign>();
 builder.Services.AddScoped<IRequestFormDesign, LoanFormDesign>();
 builder.Services.AddScoped<IRequestFormDesign, HelpdeskFormDesign>();
 builder.Services.AddScoped<IRequestFormDesign, WorkReportFormDesign>();
+// Per-user preferences, the password policy, and the avatar picker.
 builder.Services.AddScoped<UserPreferenceService>();
 builder.Services.AddScoped<PasswordPolicyService>();
 builder.Services.AddScoped<AvatarService>();
 
+// Everything above only registers things; building the app below makes them live.
 var app = builder.Build();
 
+// Development only: create the database if needed, then patch it with idempotent SQL and load demo data.
+// Production has no automatic step; it needs the equivalent SQL run by hand. Do not change the SQL text below.
 if (app.Environment.IsDevelopment())
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<Employee>>();
+    // Creates any tables that do not exist yet from the data model (there is no migration workflow in this project).
     await db.Database.EnsureCreatedAsync();
+    // Patch 1: history table of who held which position and when, so past assignments are never lost.
+    // The raw SQL strings below are exact database commands and must not be edited or annotated inside.
     await db.Database.ExecuteSqlRawAsync("""
         IF OBJECT_ID(N'dbo.PositionAssignmentHistories', N'U') IS NULL
         BEGIN
@@ -132,15 +165,19 @@ if (app.Environment.IsDevelopment())
             CREATE UNIQUE INDEX [IX_PositionAssignmentHistories_PositionId] ON [dbo].[PositionAssignmentHistories] ([PositionId]) WHERE [EndedAt] IS NULL;
         END;
         """);
+    // Patch 2: copy existing position assignments into the history table, skipping ones already copied.
     await db.Database.ExecuteSqlRawAsync("""
         INSERT INTO [dbo].[PositionAssignmentHistories] ([Id], [EmployeeId], [PositionId], [StartedAt], [EndedAt])
         SELECT NEWID(), ep.[EmployeeId], ep.[PositionId], NULL, ep.[EndedAt] FROM [dbo].[EmployeePositions] ep
         WHERE NOT EXISTS (SELECT 1 FROM [dbo].[PositionAssignmentHistories] h WHERE h.[EmployeeId] = ep.[EmployeeId] AND h.[PositionId] = ep.[PositionId] AND ((h.[EndedAt] IS NULL AND ep.[EndedAt] IS NULL) OR (h.[EndedAt] = ep.[EndedAt])));
         """);
+    // Patch 3: a position can have only one active occupant at a time (unique index on open assignments).
     await db.Database.ExecuteSqlRawAsync("""
         IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions') AND name = N'IX_EmployeePositions_PositionId') DROP INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions];
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.EmployeePositions') AND name = N'IX_EmployeePositions_PositionId') CREATE UNIQUE INDEX [IX_EmployeePositions_PositionId] ON [dbo].[EmployeePositions] ([PositionId]) WHERE [EndedAt] IS NULL;
         """);
+    // Patch 4: adds newer columns and tables to older databases: avatars, requests created for others, notification
+    // batches and recipient groups, and the password policy table. Each step only runs if it is still missing.
     await db.Database.ExecuteSqlRawAsync("""
         IF COL_LENGTH(N'dbo.Employees', N'AvatarKey') IS NULL ALTER TABLE [dbo].[Employees] ADD [AvatarKey] nvarchar(40) NULL;
         IF COL_LENGTH(N'dbo.WorkflowRequests', N'CreatedByEmployeeId') IS NULL
@@ -189,6 +226,8 @@ if (app.Environment.IsDevelopment())
         IF OBJECT_ID(N'dbo.PasswordPolicies', N'U') IS NULL
             CREATE TABLE [dbo].[PasswordPolicies] ([Id] int NOT NULL, [MinLength] int NOT NULL, [MaxLength] int NOT NULL, [RequireUppercase] bit NOT NULL, [RequireLowercase] bit NOT NULL, [RequireDigit] bit NOT NULL, [RequireSymbol] bit NOT NULL, [DisallowUsername] bit NOT NULL, [DisallowCommonPasswords] bit NOT NULL, [DisallowReuseOfCurrent] bit NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_PasswordPolicies] PRIMARY KEY ([Id]));
         """);
+    // Patch 5: audit archive columns and settings, home slides, portal links, phone book, waiting reminders, request
+    // attachments, the store (items, stock, orders, lottery) and user guides, each created only if missing.
     await db.Database.ExecuteSqlRawAsync("""
         IF COL_LENGTH(N'dbo.AuditEntries', N'ArchivedAtUtc') IS NULL ALTER TABLE [dbo].[AuditEntries] ADD [ArchivedAtUtc] datetime2 NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.AuditEntries') AND name = N'IX_AuditEntries_ArchivedAtUtc_OccurredAtUtc')
@@ -291,28 +330,36 @@ if (app.Environment.IsDevelopment())
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
         """);
+    // Loads the demo organization, accounts and workflow definitions the first time (see the README for the accounts).
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
 }
 else
 {
+    // Outside development: show a friendly error page and force secure (HTTPS) connections.
     app.UseExceptionHandler("/error");
     app.UseHsts();
 }
 
+// Web pipeline, in order: redirect to HTTPS, identify the user, check permissions, protect forms against
+// forged submissions (antiforgery), and serve static files such as CSS and images.
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
 
+// Sign-in form handler. Checks the username and password, refuses unknown or inactive accounts, and records
+// every failed or successful attempt in the audit history. The typed password is never stored anywhere.
 app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, IPasswordHasher<Employee> passwordHasher, IAntiforgery antiforgery, AuditEventWriter audit) => {
     await antiforgery.ValidateRequestAsync(http);
     var form = await http.Request.ReadFormAsync();
     var username = form["username"].ToString().Trim();
     var password = form["password"].ToString();
+    // Empty username or password: back to the login page with a generic error.
     if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
         return Results.Redirect("/login?error=1");
     var ip = http.Connection.RemoteIpAddress?.ToString();
+    // Usernames are matched ignoring upper and lower case, and only active employees can sign in.
     var employee = await db.Employees.Include(x => x.Positions).SingleOrDefaultAsync(x => x.Username.ToLower() == username.ToLower() && x.IsActive);
     if (employee is null || string.IsNullOrWhiteSpace(employee.PasswordHash))
     {
@@ -321,6 +368,7 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
             new { Username = username.Length > 100 ? username[..100] : username, Reason = AuditReasons.UnknownOrInactive, Ip = ip }, anonymous: true);
         return Results.Redirect("/login?error=1");
     }
+    // Wrong password and unknown user show the same message, so nobody can learn which usernames exist.
     var passwordResult = passwordHasher.VerifyHashedPassword(employee, employee.PasswordHash, password);
     if (passwordResult == PasswordVerificationResult.Failed)
     {
@@ -328,9 +376,12 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
             new { employee.Username, Reason = AuditReasons.BadPassword, Ip = ip }, employeeId: employee.Id, anonymous: true);
         return Results.Redirect("/login?error=1");
     }
+    // If the hashing method has been upgraded, the stored hash is quietly replaced with a stronger one.
     if (passwordResult == PasswordVerificationResult.SuccessRehashNeeded)
         employee.SetPasswordHash(passwordHasher.HashPassword(employee, password));
 
+    // Non-admin employees must work in a position: prefer the one used last time, else the first current one.
+    // An employee with no current position cannot sign in at all.
     Guid? activePositionId = null;
     if (!employee.IsAdmin)
     {
@@ -344,12 +395,15 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
         }
     }
 
+    // Remember the chosen position so the next sign-in starts in the same one.
     if (employee.LastActivePositionId != activePositionId)
         employee.SetLastActivePosition(activePositionId);
     await db.SaveChangesAsync();
     await audit.WriteAsync(AuditActions.LoginSucceeded, AuditEntityTypes.Session, employee.Id.ToString(),
         new { employee.Username, Ip = ip }, employeeId: employee.Id, activePositionId: activePositionId, anonymous: true);
 
+    // Build the cookie: who the person is, whether they are an administrator, their active position and a
+    // snapshot of their permissions. Pages read only this snapshot and do not query permissions again.
     var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, activePositionId, employee.IsAdmin);
     var claims = new List<Claim>
     {
@@ -365,6 +419,8 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
     return Results.Redirect("/");
 });
 
+// Position switch handler: an employee who holds several positions picks which one to work in. The cookie is
+// rebuilt so permissions of the previous position cannot carry over. Administrators have no positions to switch.
 app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext db, IAntiforgery antiforgery, AuditEventWriter audit) => {
     if (!(http.User.Identity?.IsAuthenticated ?? false))
         return Results.Redirect("/login");
@@ -376,6 +432,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     if (!Guid.TryParse(employeeIdValue, out var employeeId) || !Guid.TryParse(positionIdValue, out var positionId))
         return Results.Redirect("/my-positions");
 
+    // Only an active non-admin employee who really holds the chosen position (not ended) may switch to it.
     var employee = await db.Employees.Include(x => x.Positions).SingleOrDefaultAsync(x => x.Id == employeeId && x.IsActive && !x.IsAdmin);
     if (employee is null)
         return Results.Redirect("/login");
@@ -389,6 +446,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
         await audit.WriteAsync(AuditActions.PositionSwitched, AuditEntityTypes.Session, employee.Id.ToString(),
             new { FromPositionId = previousPositionId, ToPositionId = positionId }, employeeId: employee.Id, activePositionId: positionId, anonymous: true);
 
+    // The returnUrl is only followed if it is a safe address inside this site (see IsSafeLocalReturnUrl).
     // Rebuild the snapshot for the newly selected position. Old permission claims
     // are explicitly removed so permissions from the previous position cannot leak.
     var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, positionId, isAdmin: false);
@@ -404,6 +462,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     return Results.Redirect("/my-positions");
 });
 
+// Sign-out handler: records the logout in the audit history, then removes the cookie.
 app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery, AuditEventWriter audit) =>
 {
     await antiforgery.ValidateRequestAsync(http);
@@ -424,6 +483,8 @@ app.MapPost("/account/logout", async (HttpContext http, IAntiforgery antiforgery
 // the request, so a crafted link cannot make it produce anything other than what the visiting
 // user's own account already legitimately has. The only effect of an unwanted visit is the same
 // early-logout nuisance any GET logout link already carries.
+// Same-address check used by SessionGuard: if the person was deactivated or changed position or admin state,
+// the cookie is cancelled; otherwise the permission snapshot is refreshed and the person returns where they were.
 app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory, AuditEventWriter audit, string? returnUrl) =>
 {
     var principal = http.User;
@@ -484,9 +545,13 @@ app.MapGet("/requests/files/{id:guid}", async (Guid id, HttpContext http, Reques
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();
+// Hands every other address to the Blazor pages, then starts the web server.
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
 app.Run();
 
+// Runs on requests carrying the cookie. At most once every 2 minutes it re-checks the database: if the employee
+// was deactivated or lost the position the cookie claims, the sign-in is cancelled; otherwise the permission
+// snapshot in the cookie is refreshed, so granting or revoking a permission takes effect without a new login.
 static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContext context)
 {
     var principal = context.Principal;
@@ -550,10 +615,14 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
     context.ShouldRenew = true;
 }
 
+// Reads the employee id and active position id out of the signed-in user's cookie, if present.
 static (Guid? EmployeeId, Guid? PositionId) ActorOf(ClaimsPrincipal user) =>
     (Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId) ? employeeId : (Guid?)null,
      Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionId) ? positionId : (Guid?)null);
 
+// Collects the permission codes a person holds, from the database. Administrators get only what is assigned to
+// them directly or through permission groups. Everyone else gets only what the currently chosen position was
+// given (directly or through groups). There is no all-powerful role that skips these checks.
 static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
     ApplicationDbContext db,
     Guid employeeId,
@@ -609,6 +678,8 @@ static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
     return permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
+// Accepts a redirect target only when it is an address inside this site (starts with one slash), so a crafted
+// link cannot send a person to an outside website.
 static bool IsSafeLocalReturnUrl(string? returnUrl)
 {
     if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith("/", StringComparison.Ordinal))

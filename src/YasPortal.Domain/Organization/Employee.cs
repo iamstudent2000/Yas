@@ -1,11 +1,16 @@
 namespace YasPortal.Domain.Organization;
 
+// An employee is a person who can sign in. They belong to one organization, may be an administrator, and
+// hold zero or more positions through assignments (see EmployeePosition below). Rights come from the
+// position they are acting in, not from the person alone, except for administrators.
 public sealed class Employee
 {
     private Employee()
     {
     }
 
+    // Code, username, full name and organization are all required, so an employee without these can never
+    // be created.
     public Employee(string code, string username, string fullName, Guid organizationId, bool isAdmin = false)
     {
         if (string.IsNullOrWhiteSpace(code))
@@ -23,6 +28,8 @@ public sealed class Employee
         IsAdmin = isAdmin;
     }
 
+    // Identity details, the organization the employee belongs to, whether they are active and whether they
+    // are an administrator.
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string Code { get; private set; } = null!;
     public string Username { get; private set; } = null!;
@@ -37,11 +44,13 @@ public sealed class Employee
     {
         get; private set;
     }
+    // The stored password in scrambled (hashed) form; the real password is never kept.
     public string? PasswordHash
     {
         get; private set;
     }
 
+    // Remembers which position the employee was last acting in, so the next sign-in can start there.
     /// <summary>
     /// The position this employee last selected as their active position.
     /// This is a preference; when set, it must refer to an active assignment.
@@ -51,12 +60,14 @@ public sealed class Employee
         get; private set;
     }
 
+    // The avatar is a short key naming one of the pictures offered on the profile page.
     /// <summary>Key of the predefined avatar the employee picked on their profile; null means the default (initial letter).</summary>
     public string? AvatarKey
     {
         get; private set;
     }
 
+    // The positions held by this employee, including ended ones, so the assignment history is never lost.
     public ICollection<EmployeePosition> Positions { get; private set; } = new List<EmployeePosition>();
 
     public void SetAdmin(bool isAdmin) => IsAdmin = isAdmin;
@@ -72,6 +83,8 @@ public sealed class Employee
         AvatarKey = avatarKey;
     }
 
+    // Only an active employee with a current assignment to that position can pick it as the active
+    // position.
     public void SetLastActivePosition(Guid? positionId)
     {
         if (positionId is null)
@@ -89,6 +102,7 @@ public sealed class Employee
         LastActivePositionId = positionId;
     }
 
+    // Simple edits: the code, the full name and the organization. Each one refuses an empty value.
     public void ChangeCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code))
@@ -128,6 +142,8 @@ public sealed class Employee
     }
 }
 
+// One assignment of an employee to a position. It has a start and, once ended, an end time; ended assignments are kept
+// as history and never deleted. An assignment with no end time is the current one.
 public sealed class EmployeePosition
 {
     private EmployeePosition()
@@ -160,6 +176,7 @@ public sealed class EmployeePosition
     }
     public bool IsActive => EndedAt is null;
 
+    // Ending an assignment stamps the end time (the first end time is kept); Reactivate makes it current again.
     public void End() => EndedAt ??= DateTime.UtcNow;
 
     public void Reactivate()

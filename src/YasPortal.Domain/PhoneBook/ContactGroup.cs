@@ -1,5 +1,7 @@
 namespace YasPortal.Domain.PhoneBook;
 
+// Contact groups are the headings of the phone book, such as a department or a site. They are a single
+// level and have no link to users or organizations.
 /// <summary>A group of phone-book contacts (for example a department or a site). Groups are one level; they are not users or organizations.</summary>
 public sealed class ContactGroup
 {
@@ -21,6 +23,7 @@ public sealed class ContactGroup
     /// <summary>A group that is off is hidden from the phone book together with its contacts.</summary>
     public bool IsActive { get; private set; } = true;
 
+    // A group needs a name; the sort number sets its place in the list.
     public void Update(string name, int sortOrder)
     {
         name = (name ?? "").Trim();

@@ -12,6 +12,9 @@
 @inject AppState AppState
 @inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 
+@* Sidebar: the main navigation menu on the side of every page. It can be pinned open or collapsed to a thin rail; *@
+@* the choice is remembered in the browser. Groups and links appear only if the signed-in person has the permission for them. *@
+@* The small number badges (inbox, my requests, notifications) are refreshed whenever the page changes. *@
 <input id="sidebar-pin-toggle" class="sidebar-shell-toggle" type="checkbox" checked="@(!_isMinimal)"
        @onchange="OnSidebarToggleChanged" />
 
@@ -25,6 +28,7 @@
                 </svg></span><span class="brand-text">یاس پورتال</span>
         </label>
         <nav class="sidebar-nav">
+            @* The "account" group holds everyday pages. It is hidden when none of its pages would be available to the person. *@
             @if (_accountGroupVisible)
             {
                 <div class="sidebar-group">
@@ -44,6 +48,7 @@
                     </div>
                 </div>
             }
+            @* Each link below opens a section; the section's first available tab is where the link leads, and it is hidden if the person may open none. *@
             <SectionNavLink Group="access" Title="مدیریت کاربران و دسترسی‌ها" Icon="@Icons.AccessGroup" />
             <SectionNavLink Group="structure" Title="ساختار سازمانی" Icon="@Icons.OrgStructure" />
             <SectionNavLink Group="content-admin" Title="محتوای صفحه اصلی" Icon="@Icons.Links" />
@@ -54,6 +59,7 @@
             <AuthorizeView Policy="@Perm.AdminAuditLogView">
                 <NavLink href="/admin/audit-log"><i class="ti @Icons.AuditLog"></i><span>گزارش رویدادها</span></NavLink>
             </AuthorizeView>
+            @* Badges: the requests link shows approvals waiting plus own requests with unseen updates; notifications shows unread messages. *@
             <SectionNavLink Group="my-requests" Title="درخواست‌ها" Icon="@Icons.RequestsGroup" Badge="@(_inboxBadge + _myRequestsBadge)" />
             <SectionNavLink Group="request-admin" Title="مدیریت درخواست‌ها" Icon="@Icons.Workflow" />
             <SectionNavLink Group="notifications" Title="اعلان‌ها" Icon="@Icons.Bell" Badge="_notificationBadge" />
@@ -65,6 +71,7 @@
                     </aside>
 
 @code {
+    // Browser-storage keys that remember whether the menu is collapsed and which groups are expanded.
     private const string StorageKey = "yasportal.sidebar.minimal";
     private const string ExpansionStorageKey = "yasportal.sidebar.groups";
     private bool _isMinimal;
@@ -77,6 +84,7 @@
     private bool _accountGroupVisible;
 
 
+    // Listen for page changes and app-wide updates so the badges stay current, and work out which groups to show.
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
@@ -112,6 +120,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    // Reads the three counters for the signed-in person. A failure just resets them to zero so the menu never breaks.
     private async Task RefreshBadgesAsync()
     {
         try
@@ -139,6 +148,7 @@
         AppState.OnChange -= OnAppStateChanged;
     }
 
+    // After the first display, read the saved collapsed/expanded choices from the browser (not possible earlier on the server).
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;

@@ -3,6 +3,7 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Tests;
 
+// Step resolver tests: turning a workflow definition into real approver positions for one requester (manager levels, fixed positions, ordering and error cases).
 public class WorkflowStepResolverTests
 {
     // ceo

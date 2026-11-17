@@ -6,6 +6,8 @@
 @using YasPortal.Web.Services
 @inject UserPreferenceService PreferenceService
 
+@* The outermost page of the whole portal: the HTML document that every screen is delivered inside. *@
+@* The page is right-to-left Persian, and the theme, accent colour, font, size and density come from the user's saved preferences. *@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl" data-theme="@_ui.Theme" data-accent="@_ui.Accent" data-font="@_ui.Font" data-size="@_ui.Size" data-density="@_ui.Density">
 
@@ -45,11 +47,15 @@
     <link rel="stylesheet" href="css/print.css?v=20261024-1" />
     <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
     <link rel="stylesheet" href="lib/tabler-icons/tabler-icons.min.css?v=3.49.0" />
+    @* Head outlet = lets individual pages set their own browser tab title. *@
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
+@* Style sheets are listed in a deliberate order (see the note above them); the short ?v= suffix makes browsers fetch a new copy after a change. *@
 <body>
+    @* The application shell (side menu, top bar and the current page) is created here and stays interactive after the first load. *@
     <ApplicationShell @rendermode="InteractiveServer" />
+    @* Pop-up shown when the live connection to the server drops; it lets the user retry or reloads the page when the server gave up. *@
     <div id="components-reconnect-modal">
         <div class="reconnect-box">
             <i class="ti @Icons.Spinner reconnect-spin"></i>
@@ -60,6 +66,7 @@
                 مجدد</button>
         </div>
     </div>
+    @* Starts the live-connection engine that keeps the page interactive. *@
     <script src="_framework/blazor.web.js"></script>
     <script>
         document.getElementById('components-reconnect-modal')
@@ -69,6 +76,7 @@
                 }
             });
     </script>
+    @* Small helper scripts used by the widgets (date picker, dropdown placement, Persian digits, printing, file downloads and so on). *@
     <script src="js/admin-ui.js?v=20261103-1"></script>
     <script src="js/active-position-dropdown.js"></script>
     <script src="js/popup-place.js"></script>
@@ -83,10 +91,14 @@
 </html>
 
 @code {
+    // The saved look-and-feel choices of the signed-in user are read once, so the page is painted correctly from the first moment.
+    // The current web request, used here only to find out who is signed in.
     [CascadingParameter] private HttpContext? HttpContext { get; set; }
 
+    // Look-and-feel settings; the defaults apply to visitors who are not signed in.
     private UiPreferenceAttributes _ui = UiPreferenceAttributes.Default;
 
+    // If someone is signed in, load their saved theme, accent colour, font, size and density.
     protected override async Task OnInitializedAsync()
     {
         var user = HttpContext?.User;

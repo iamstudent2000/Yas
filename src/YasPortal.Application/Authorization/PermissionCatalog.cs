@@ -2,22 +2,30 @@ using YasPortal.Domain.Workflows;
 
 namespace YasPortal.Application.Authorization;
 
+// This file is the master list of every permission in the system. A permission is one right, such as "view users".
+// Codes are written Area.Resource.Action. The list is used to seed the database, to build the access policies,
+// and to show the permission pages. Seeding = filling the database with start-up data.
 /// <summary>
 /// One permission: its code (Area.Resource.Action), Persian name, and the earlier codes it replaces.
 /// The old codes let the seeder (and the SQL migration script) rename existing rows in place, so every grant is kept.
 /// </summary>
 public sealed record PermissionDefinition(string Code, string Name, params string[] OldCodes);
 
+// The names below are fixed text codes so that code never has to repeat a raw string; each one is a permission code.
+// Doc lines marked as policy are not permissions but rules combining several permissions.
 /// <summary>Constants for every permission code that is checked in code. Naming: Area.Resource.Action.</summary>
 public static class Perm
 {
+    // Dashboard permissions: the page itself, and the three levels of statistics (own, team, whole system).
     public const string DashboardPageView = "Dashboard.Page.View";
     public const string DashboardMineView = "Dashboard.Mine.View";
     public const string DashboardTeamView = "Dashboard.Team.View";
     public const string DashboardSystemView = "Dashboard.System.View";
 
+    // Profile page permission.
     public const string ProfileOwnView = "Profile.Own.View";
 
+    // Requester and approver permissions: creating and viewing requests, and each kind of decision on a request.
     public const string RequestsOwnCreate = "Requests.Own.Create";
     public const string RequestsOwnView = "Requests.Own.View";
     public const string RequestsTeamView = "Requests.Team.View";
@@ -31,13 +39,16 @@ public static class Perm
     /// <summary>Take back a rejection the holder made themselves (from the inbox history), as long as it still stands.</summary>
     public const string RequestsDecisionReopenOwn = "Requests.Decision.ReopenOwn";
 
+    // Delegation = temporarily handing one's position authority to someone else.
     public const string DelegationsOwnManage = "Delegations.Own.Manage";
 
+    // Notification permissions.
     /// <summary>Send a notification by hand to any active employee, and see the ones you sent.</summary>
     public const string NotificationsMessageSend = "Notifications.Message.Send";
 
     /// <summary>Send the same notification to every active employee, or to all members of chosen organizations (on top of <see cref="NotificationsMessageSend"/>).</summary>
 
+    // Administration permissions. "View" is read-only; "Manage" allows changes and also counts as View.
     public const string AdminRequestsView = "Admin.Requests.View";
     public const string AdminRequestsForceClose = "Admin.Requests.ForceClose";
     public const string AdminRequestsReopen = "Admin.Requests.Reopen";
@@ -107,11 +118,13 @@ public static class Perm
     /// <summary>Policy (not a permission code): the store admin area is open to anyone who holds any store admin permission.</summary>
     public const string StoreAdminPolicy = "Store.Admin";
 
+    // A person who holds a Manage permission automatically passes the matching View check.
     /// <summary>Anything of the form X.View is also satisfied by X.Manage.</summary>
     public static string? ManageFor(string viewCode) =>
         viewCode.EndsWith(".View", StringComparison.OrdinalIgnoreCase) ? viewCode[..^".View".Length] + ".Manage" : null;
 }
 
+// Used to label each permission by how far it reaches, so administrators see the scope when granting it.
 /// <summary>Whose data a permission lets the holder reach.</summary>
 public enum PermissionReach
 {
@@ -125,8 +138,10 @@ public enum PermissionReach
     All,
 }
 
+// The catalogue itself: the full list plus helper questions about each permission.
 public static class PermissionCatalog
 {
+    // Export permissions that expose data of everyone (as opposed to only one's own or team's data).
     private static readonly HashSet<string> ExportAll = new(StringComparer.OrdinalIgnoreCase)
     {
         ReportPermissions.AllRequests, ReportPermissions.ActiveRequests, ReportPermissions.RejectedRequests, ReportPermissions.Users,
@@ -135,6 +150,7 @@ public static class PermissionCatalog
     };
 
     /// <summary>Whose data the permission exposes. Shown as a badge wherever permissions are listed or granted.</summary>
+    // Works out the scope of a permission from its code. Admin, system-wide and most store permissions reach everyone.
     public static PermissionReach ReachOf(string code)
     {
         if (code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase) || ExportAll.Contains(code) || code == Perm.DashboardSystemView)
@@ -149,6 +165,7 @@ public static class PermissionCatalog
     }
 
     /// <summary>True when the permission lets the holder change or decide on data that is not theirs (not just read it).</summary>
+    // True for permissions that change or decide things belonging to other people, not just view them.
     public static bool ActsOnOthers(string code) =>
         code.StartsWith("Requests.Decision.", StringComparison.OrdinalIgnoreCase)
         || code.EndsWith(".Manage", StringComparison.OrdinalIgnoreCase) && code.StartsWith("Admin.", StringComparison.OrdinalIgnoreCase)
@@ -160,6 +177,8 @@ public static class PermissionCatalog
 
     public static IEnumerable<string> Codes => All.Select(x => x.Code);
 
+    // Builds the complete list: first the hand-written permissions, then the generated ones.
+    // Each entry is code, Persian display name and, where present, earlier codes that this permission replaces.
     private static List<PermissionDefinition> Build()
     {
         var list = new List<PermissionDefinition>
@@ -236,6 +255,7 @@ public static class PermissionCatalog
             new(Perm.StoreStockManage, "مدیریت انبار (ورود کالا، خروج و اصلاح موجودی)"),
         };
 
+        // Generated permissions: report exports, create-request-for-others (one per request type) and printable forms.
         list.AddRange(ReportPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, string.IsNullOrEmpty(x.OldCode) ? [] : [x.OldCode])));
         list.AddRange(CreateForOthersPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name)));
         list.AddRange(FormPermissions.All.Select(x => new PermissionDefinition(x.Code, x.Name, x.OldCode)));

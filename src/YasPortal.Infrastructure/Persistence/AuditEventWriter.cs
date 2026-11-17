@@ -21,6 +21,7 @@ public sealed class AuditEventWriter(
     ILogger<AuditEventWriter> logger,
     AuthenticationStateProvider? authState = null)
 {
+    // How details are turned into text: readable characters, enum values as names, public fields included.
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -77,6 +78,7 @@ public sealed class AuditEventWriter(
     {
         try
         {
+            // Work out who did it: the given person, else the signed-in person, else the ambient actor. Skipped for anonymous events.
             if (!anonymous)
             {
                 if (employeeId is null && await ClaimsActorAsync() is { } claims)
@@ -91,6 +93,7 @@ public sealed class AuditEventWriter(
                     activePositionId = ambient?.ActivePositionId;
             }
 
+            // Details become a JSON text stored as the 'after' side of the audit row.
             var json = details is null ? null : JsonSerializer.Serialize(details, JsonOptions);
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             db.AuditEntries.Add(new AuditEntry(employeeId, activePositionId, action, entityType, entityId, null, json, DateTime.UtcNow));
@@ -144,6 +147,7 @@ public sealed class AuditEventWriter(
         return map;
     }
 
+    // Reads the signed-in person and active position from the cookie, if there is a user context at all.
     private async Task<(Guid? EmployeeId, Guid? PositionId)?> ClaimsActorAsync()
     {
         if (authState is null)

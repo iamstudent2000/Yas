@@ -17,6 +17,9 @@
 @inject AuditArchiveSettingsService ArchiveSettings
 @inject AppState AppState
 
+@* Admin 'event log' (audit log, address /admin/audit-log): a record of who did what and when, such as changes to users, *@
+@* positions and permissions. Only people with the view permission can open it. Nothing here can be edited, and even opening *@
+@* the details of an event is itself recorded. The list stays empty until a search is made. *@
 <PageTitle>گزارش رویدادها - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -32,6 +35,9 @@
         </div>
     </div>
 
+    @* Archiving of old events, for people with the manage permission. Archived events are not deleted: they only leave the *@
+    @* current list and can still be found with the 'source' filter. Archiving can run automatically every day for events older than *@
+    @* a number of months, or manually up to a chosen date (after a preview of how many events it would affect). *@
     @if (_canManage)
     {
         <section class="card admin-form-row">
@@ -77,6 +83,8 @@
         </section>
     }
 
+    @* Filters: employee, position, kind of record, record id, action, date range and source (current, archived or all). *@
+    @* They apply only when the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="_applied.Count" CanClear="@(_applied.Count > 0 || _hasSearched || DraftCount > 0)"
                    OnSearch="SearchAsync" OnClear="ClearOrCancelAsync" OnCancel="CancelLoad" FilterSnapshot="@(() => _applied)" ExportPermission="@(ReportPermissions.AuditLog)" OnExport="ExportAsync" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">کاربر</label>
@@ -113,6 +121,7 @@
             }
         </div>
 
+        @* Before the first search, a message asks the person to choose filters and press search. *@
         @if(!_hasSearched){
             <div class="empty-state"><i class="ti @Icons.Search"></i><strong>گزارش آماده جستجو است</strong><span>هیچ داده‌ای هنوز دریافت نشده است.</span></div>
         }
@@ -134,6 +143,7 @@
                         <th>جزئیات</th>
                     </tr></thead>
                     <tbody>
+                    @* One row per event: when, who, the position they were acting in, the action, what it affected, and a details button. *@
                     @foreach(var row in _rows){
                         var local=row.OccurredAtUtc.ToLocalTime();
                         <tr @key="row.Id">
@@ -148,10 +158,12 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation for the event list. *@
             <ServerPagination Page="@_page" PageSize="@_pageSize" TotalCount="@_totalCount" Busy="@_loading" PageChanged="GoToPageAsync" PageSizeChanged="OnPageSizeChangedAsync" />
         }
     </section>
 
+    @* Details window of one event, showing the values before and after the change. *@
     @if(_selected is not null){
         <div class="admin-modal-overlay" @onclick="CloseDetails">
             <section class="admin-modal" dir="rtl" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
@@ -188,9 +200,11 @@
     private bool _hasSearched;
     private string _sortBy = "time"; private bool _sortDesc = true;
     private CancellationTokenSource? _loadCts;
+    // State of the page: archiving settings, the filter being typed, the applied filter, the rows of the current page and the open event.
     private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalCount / (double)_pageSize));
 
     // The boxes edit the draft fields above; "جستجو" copies them here, and paging/sorting reload from this copy.
+    // The filter values applied by the last search; paging and sorting reload from these, not from what is being typed.
     private sealed record AuditFilter(Guid? EmployeeId, Guid? PositionId, string EntityType, string EntityId, string Action, DateTime? From, DateTime? To, string Source)
     {
         public int Count => (EmployeeId is null ? 0 : 1) + (PositionId is null ? 0 : 1) + (EntityType.Trim().Length > 0 ? 1 : 0) + (EntityId.Trim().Length > 0 ? 1 : 0) + (Action.Length > 0 ? 1 : 0) + (From is null ? 0 : 1) + (To is null ? 0 : 1) + (Source.Length > 0 ? 1 : 0);
@@ -206,9 +220,12 @@
     private DateTime? _archiveCutoff, _lastRunUtc;
     private int? _archiveCount;
     private static readonly IReadOnlyList<(string Key, string Text)> _methodOptions = [("auto", "خودکار (روزانه)"), ("manual", "دستی")];
+    // A date picked in a filter means a whole local day; this converts it to the start of that day in UTC, as stored in the database.
     private static DateTime LocalDayStartUtc(DateTime day) => DateTime.SpecifyKind(day.Date, DateTimeKind.Local).ToUniversalTime();
+    // Source filter: current events (default), archived events only, or all of them.
     private void SourceChanged(string? key) => _source = key is "archived" or "all" ? key : "";
     private void MethodChanged(string? key) => _autoEnabled = key != "manual";
+    // On opening: find out whether the person may manage the log and load the archiving settings.
     protected override async Task OnInitializedAsync()
     {
         _canManage = await Permissions.HasPermissionAsync(Perm.AdminAuditLogManage);
@@ -216,6 +233,7 @@
         await LoadArchiveSettingAsync();
         _archiveCutoff = DateTime.Today.AddMonths(-_savedMonths);
     }
+    // Read the saved archiving method (automatic or manual) and the number of months.
     private async Task LoadArchiveSettingAsync()
     {
         var setting = await ArchiveSettings.GetAsync();
@@ -224,6 +242,7 @@
         _lastRunUtc = setting.LastAutomaticRunAtUtc;
         _lastRunCount = setting.LastAutomaticRunCount;
     }
+    // Save the archiving method and the number of months, within the allowed limits.
     private async Task SaveArchiveSettingAsync()
     {
         if (_savingSetting || !_canManage) return;
@@ -247,17 +266,21 @@
         }
         finally { _savingSetting = false; }
     }
+    // The date chosen for a manual archive; any earlier preview is cleared.
     private void ArchiveCutoffChanged(DateTime? value)
     {
         _archiveCutoff = value;
         _archiveCount = null;   // the count shown belongs to the old date
     }
+    // Count how many events are older than the chosen date, without archiving anything.
     private async Task PreviewArchiveAsync()
     {
         if (_archiveCutoff is not DateTime day || _archiving) return;
         if (!await Permissions.HasPermissionAsync(Perm.AdminAuditLogManage)) { AppState.AddToast("اجازه بایگانی رویدادها را ندارید.", ToastLevel.Error); return; }
         _archiveCount = await Archiver.CountOlderThanAsync(LocalDayStartUtc(day));
     }
+    // Archive every event older than the chosen date (not allowed for a date in the future). The archiving itself is written
+    // to the log, with how many events were moved.
     private async Task ArchiveAsync()
     {
         if (_archiveCutoff is not DateTime day || _archiving) return;
@@ -279,8 +302,11 @@
         }
         finally { _archiving = false; }
     }
+    // A search that is still running can be cancelled.
     private void CancelLoad() => _loadCts?.Cancel();
+    // Search button: apply the typed filters, go back to page 1 and load.
     private async Task SearchAsync(){if(_loading)return;_applied=new AuditFilter(_employeeId,_positionId,_entityType,_entityId,_action,_fromDate,_toDate,_source);await LoadPageAsync(1);}
+    // Load one page of events for the applied filters and sort order.
     private async Task LoadPageAsync(int page)
     {
         _loadCts?.Cancel();_loadCts?.Dispose();_loadCts=new CancellationTokenSource();var cts=_loadCts;var token=cts.Token;_loading=true;_hasSearched=true;_page=page;await InvokeAsync(StateHasChanged);
@@ -305,6 +331,7 @@
         catch(OperationCanceledException)when(token.IsCancellationRequested){}
         finally{if(ReferenceEquals(_loadCts,cts)){_loading=false;await InvokeAsync(StateHasChanged);}}
     }
+    // Build the database query from the applied filters.
     private IQueryable<AuditEntry> ApplyFilter(ApplicationDbContext db)
     {
         // Current events by default; the "source" filter can show only the archived ones, or all of them.
@@ -318,6 +345,7 @@
             if(_applied.PositionId is Guid pidFilter)query=query.Where(x=>x.ActivePositionId==pidFilter);
         return query;
     }
+    // Sort order for each column heading; the default is the newest event first.
     private IOrderedQueryable<AuditEntry> ApplySort(ApplicationDbContext db,IQueryable<AuditEntry> query)
     {
         return (_sortBy,_sortDesc)switch{
@@ -334,6 +362,8 @@
             };
     }
     private bool _exporting;
+    // Each event keeps the values before and after a change as text in a structured format (JSON); these helpers read them
+    // and describe them in words: all fields, or only the fields that changed.
     private static Dictionary<string,string>? ReadJson(string? json)
     {
         if(string.IsNullOrWhiteSpace(json))return null;
@@ -358,6 +388,7 @@
         var keys=b.Keys.Union(a.Keys);
         return string.Join(" · ",keys.Where(k=>b.GetValueOrDefault(k,"-")!=a.GetValueOrDefault(k,"-")).Select(k=>$"{k}: {b.GetValueOrDefault(k,"-")} ← {a.GetValueOrDefault(k,"-")}"));
     }
+    // Export button: download every event the search matched (not only this page) as a file.
     /// <summary>Exports every event the last search matched, in the table's current order.</summary>
     private async Task ExportAsync()
     {
@@ -389,12 +420,15 @@
         }
         finally{_exporting=false;}
     }
+    // Clear button; while a search is running it cancels that search instead.
     private async Task ClearOrCancelAsync(){if(_loading){_loadCts?.Cancel();return;}_applied=new AuditFilter(null,null,"","","",null,null,"");_source="";_resetKey++;_employeeId=null;_positionId=null;_employeeSearch="";_positionSearch="";_entityType="";_entityId="";_action="";_fromDate=null;_toDate=null;_page=1;_totalCount=0;_rows.Clear();_selected=null;_hasSearched=false;await InvokeAsync(StateHasChanged);}
     private async Task OnPageSizeChangedAsync(int size){_pageSize=size;_page=1;if(_hasSearched)await LoadPageAsync(1);}
     private async Task GoToPageAsync(int p){if(_hasSearched)await LoadPageAsync(p);}
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private async Task SortByAsync(string column){if(_sortBy==column)_sortDesc=!_sortDesc;else{_sortBy=column;_sortDesc=false;}await LoadPageAsync(1);}
     private static readonly IReadOnlyList<(string Key, string Text)> _sourceOptions = [("archived", "بایگانی‌شده"), ("all", "همه (جاری و بایگانی‌شده)")];
     private static readonly IReadOnlyList<(string Key, string Text)> _actionOptions = new[] { AuditActions.Created, AuditActions.Updated, AuditActions.Deleted }.Concat(AuditActions.Events).Select(a => (a, GetActionText(a))).ToList();
+    // The kinds of record that can be chosen in the filter.
     private static IReadOnlyList<(string Key, string Text)> EntityOptions => EntityTypes.Select(t => (t, GetEntityText(t))).ToList();
     private static readonly string[] EntityTypes = ["Employee","Position","Organization","Permission","PermissionGroup","EmployeePosition","UserPositionPermission","UserPositionPermissionGroup","PasswordPolicy","AuditArchiveSetting","HomeSlide","HomeSlideAttachment","LinkGroup","PortalLink","ContactGroup","Contact","PositionDelegation","WorkflowStepDefinition","WorkflowRequest","WorkflowRequestStep","WorkflowStepDecision","WorkflowRequesterAction","WorkflowFieldChange","StoreCategory","StoreItem","StoreStockMovement","StoreOrder","StoreOrderLine","StoreLotteryEntry","Notification","Session","Report","Access","AuditEntry"];
     /// <summary>Single-key rows store the id as "Id=guid"; explicit events store the bare guid. Accepts both.</summary>
@@ -406,6 +440,7 @@
     }
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) => AdminQueries.SearchEmployeesAsync(search, ct);
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchPositionsAsync(string search, CancellationToken ct) => AdminQueries.SearchPositionsAsync(search, null, null, ct);
+    // Employee and position filters: remember the choice, show its code and name in the box, and return to page 1.
     private async Task EmployeeChanged(Guid? id)
     {
         _employeeId = id;
@@ -431,6 +466,7 @@
         _page = 1;
     }
     private Dictionary<Guid,string> _idNameMap=new();
+    // Open the details window of an event.
     private async Task ShowDetailsAsync(AuditRow r)
     {
         _selected=r;
@@ -438,7 +474,9 @@
         // Reading the log is itself recorded: which row was opened, and when.
         await Audit.WriteAsync(AuditActions.AuditEntryViewed,AuditEntityTypes.AuditRecord,r.Id.ToString(),new{r.EntityType,r.Action});
     }
+    // Close the details window.
     private void CloseDetails()=>_selected=null;
+    // Look up readable names for the ids found in the before and after values, so the details show names instead of codes.
     private async Task<Dictionary<Guid,string>> ResolveIdsInJsonAsync(string? beforeJson,string? afterJson,string? entityId)
     {
         var ids=new HashSet<Guid>();
@@ -475,6 +513,7 @@
             if(kv.Length==2&&Guid.TryParse(kv[1].Trim(),out var id))ids.Add(id);
         }
     }
+    // Show the id of the affected record in a readable way (a name when it can be found).
     private string FormatEntityId(string entityType,string? entityId)
     {
         if(string.IsNullOrWhiteSpace(entityId))return "-";
@@ -491,6 +530,7 @@
         }
         return parts.Count>0?string.Join(" · ",parts):entityId;
     }
+    // Display texts: the action name, its colour and icon, the record kind, and the field names, all in Persian.
     private static string GetActionText(string a)=>a switch{
         AuditActions.Created=>"ایجاد",AuditActions.Updated=>"ویرایش",AuditActions.Deleted=>"حذف",
         AuditActions.LoginSucceeded=>"ورود موفق",AuditActions.LoginFailed=>"ورود ناموفق",AuditActions.LoggedOut=>"خروج",
@@ -524,8 +564,10 @@
     private static string GetEntityText(string e)=>e switch{"StoreCategory"=>"گروه کالای فروشگاه","StoreItem"=>"کالای فروشگاه","StoreStockMovement"=>"گردش انبار فروشگاه","StoreOrder"=>"سفارش فروشگاه","StoreOrderLine"=>"ردیف سفارش فروشگاه","StoreLotteryEntry"=>"ثبت‌نام قرعه‌کشی فروشگاه","Permission"=>"مجوز","Employee"=>"کارمند","Position"=>"سمت","Organization"=>"سازمان","EmployeePosition"=>"تخصیص سمت","PermissionGroup"=>"گروه مجوز","UserPositionPermission"=>"مجوز مستقیم کارمند","UserPositionPermissionGroup"=>"گروه مجوز کارمند",
         "PasswordPolicy"=>"سیاست رمز عبور","AuditArchiveSetting"=>"روش بایگانی رویدادها","HomeSlide"=>"اسلاید صفحه اصلی","HomeSlideAttachment"=>"فایل پیوست اسلاید","LinkGroup"=>"گروه پیوندها","PortalLink"=>"پیوند صفحه اصلی","ContactGroup"=>"گروه دفترچه تلفن","Contact"=>"مخاطب دفترچه تلفن","PositionDelegation"=>"نمایندگی","WorkflowStepDefinition"=>"تعریف مرحله گردش‌کار","WorkflowRequest"=>"درخواست","WorkflowRequestStep"=>"مرحله درخواست","WorkflowStepDecision"=>"تصمیم مرحله","WorkflowRequesterAction"=>"اقدام درخواست‌کننده","WorkflowFieldChange"=>"تغییر فیلد فرم",
         AuditEntityTypes.Session=>"نشست",AuditEntityTypes.Report=>"گزارش / فهرست",AuditEntityTypes.Access=>"دسترسی",AuditEntityTypes.Notification=>"اعلان",AuditEntityTypes.AuditRecord=>"رویداد ثبت‌شده",_=>e};
+    // Dates and numbers are shown with the Persian calendar and Persian digits.
     private static string ToPersianDate(DateTime date){var pc=new System.Globalization.PersianCalendar();return ToPersianDigits($"{pc.GetYear(date):0000}/{pc.GetMonth(date):00}/{pc.GetDayOfMonth(date):00}");}
     private static string ToPersianDigits(string value)=>value.Replace("0","۰").Replace("1","۱").Replace("2","۲").Replace("3","۳").Replace("4","۴").Replace("5","۵").Replace("6","۶").Replace("7","۷").Replace("8","۸").Replace("9","۹");
+    // Draw the before / after values of an event as a small table of field name and value.
     private RenderFragment RenderJson(string? json)=>builder=>{if(string.IsNullOrWhiteSpace(json)){builder.AddMarkupContent(0,"<div class='empty-state admin-change-empty'><i class='ti " + Icons.Inactive + "'></i><strong>بدون تغییر</strong><span>در این مرحله داده‌ای ثبت نشده است.</span></div>");return;}try{using var doc=JsonDocument.Parse(json);var i=0;builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-list admin-json-properties");foreach(var p in doc.RootElement.EnumerateObject()){builder.OpenElement(i++,"div");builder.AddAttribute(i++,"class","effective-row admin-json-property");builder.OpenElement(i++,"strong");builder.AddAttribute(i++,"class","admin-json-key");builder.AddContent(i++,GetPropertyText(p.Name));builder.CloseElement();builder.OpenElement(i++,"span");builder.AddAttribute(i++,"class","admin-json-value");builder.AddAttribute(i++,"lang","en");builder.AddAttribute(i++,"data-persian-digits","off");builder.AddContent(i++,FormatJsonValue(p.Name,p.Value));builder.CloseElement();builder.CloseElement();}builder.CloseElement();}catch{builder.AddMarkupContent(0,$"<div class='admin-json-fallback'><span>داده خام</span><pre dir='ltr'>{System.Net.WebUtility.HtmlEncode(json)}</pre></div>");}};
     private static string GetPropertyText(string n)=>n switch{"Id"=>"شناسه","Code"=>"کد","Name"=>"نام","FullName"=>"نام و نام خانوادگی","Username"=>"نام کاربری","IsActive"=>"فعال","OrganizationId"=>"سازمان","PositionId"=>"سمت","EmployeeId"=>"کارمند","PermissionId"=>"مجوز","GroupId"=>"گروه مجوز","StartedAt"=>"تاریخ شروع","EndedAt"=>"تاریخ پایان",
         "AvatarKey"=>"تصویر پروفایل","Ip"=>"نشانی IP","Path"=>"مسیر","Permission"=>"مجوز","RowCount"=>"تعداد ردیف","Reason"=>"دلیل","FromPositionId"=>"از سمت","ToPositionId"=>"به سمت",
@@ -538,6 +580,7 @@
         "Type"=>"نوع","CancelledBy"=>"نحوه لغو","RequesterName"=>"نام درخواست‌کننده","StepName"=>"نام مرحله","IdText"=>"شناسه درخواست","Text"=>"متن فرم","CreatedByAdminOnly"=>"فقط ثبت‌شده توسط مدیر","RequesterOrganizationId"=>"سازمان درخواست‌کننده","WaitingAtPositionId"=>"منتظر سمت",
         "From"=>"از تاریخ","To"=>"تا تاریخ","EntityType"=>"موجودیت","EntityId"=>"شناسه موجودیت","Action"=>"عملیات",
         "EmployeeOrgId"=>"سازمان کارمند","PositionOrgId"=>"سازمان سمت","StartFrom"=>"شروع از","StartTo"=>"شروع تا","EndFrom"=>"پایان از","EndTo"=>"پایان تا",_=>n};
+    // Show one stored value in a readable way: times as local Persian dates, enum numbers as their words, ids as names.
     private string FormatJsonValue(string propertyName,JsonElement v)
     {
         if(v.ValueKind==JsonValueKind.String)
@@ -584,6 +627,7 @@
         }
         return v.ValueKind switch{JsonValueKind.Null=>"-",JsonValueKind.True=>"بله",JsonValueKind.False=>"خیر",_=>v.ToString()};
     }
+    // One event as shown in the list.
     private sealed record AuditRow(Guid Id,DateTime OccurredAtUtc,Guid? EmployeeId,Guid? ActivePositionId,string? EmployeeName,string? PositionName,string Action,string EntityType,string? EntityId,string? EntityName,string? BeforeJson,string? AfterJson);
     public async ValueTask DisposeAsync(){_loadCts?.Cancel();_loadCts?.Dispose();await Task.CompletedTask;}
 }

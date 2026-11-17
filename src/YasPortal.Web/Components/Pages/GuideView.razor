@@ -11,7 +11,10 @@
 @inject IPermissionChecker PermissionChecker
 @* Open to everyone, also before sign-in, but a visitor can open only a public guide. A guide that is off, or is for signed-in people
    only, looks exactly like a guide that does not exist. Holders of Admin.Guides.View may open any guide, and an author their own (to preview it). *@
+@* Reading page for one user guide (a how-to article written by the system administrator), with a print button. *@
+@* Three outcomes below: still loading, guide not found or not allowed (shown as a 404 page), or the article itself. *@
 
+@* Still loading: show a spinner. Otherwise a missing, switched-off or restricted guide shows a 404 page (with a sign-in link for visitors who are not signed in). *@
 @if (_loading)
 {
     <div class="admin-page" dir="rtl"><LoadingState /></div>
@@ -30,6 +33,7 @@ else if (_guide is null)
 else
 {
     <PageTitle>@_guide.Title - راهنمای کاربری</PageTitle>
+    @* The article: title, optional "switched off" notice for previewers, summary and the formatted body text. *@
     <div class="admin-page" dir="rtl">
         <div class="page-header">
             <div>
@@ -58,11 +62,13 @@ else
 
 @code {
     [Parameter] public Guid Id { get; set; }
+// The id of the guide taken from the address (/guides/ followed by the id).
 
     private bool _loading = true, _signedIn;
     private UserGuide? _guide;
     private string _html = "";
 
+    // Decide who is looking (signed in or not, may preview any guide, or is the author) and ask the provider for the guide.
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;

@@ -12,6 +12,9 @@
 @inject AppState AppState
 @inject IJSRuntime JS
 
+@* Store admin: hand-over of goods (address /admin/store/issue), for storekeepers with the issue permission. *@
+@* Two tabs: orders that are approved and waiting for hand-over, and the history of what was already handed over. *@
+@* Handing over records who did it and takes the goods out of stock. *@
 <PageTitle>تحویل کالا - فروشگاه</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -25,6 +28,7 @@
     </div>
 
     <div class="form-actions no-print">
+        @* Tab switch: 'waiting for hand-over' or 'history'. *@
         <button class="btn @(!_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(false)">در انتظار تحویل</button>
         <button class="btn @(_history ? "btn-primary" : "btn-secondary")" @onclick="() => SwitchAsync(true)">تاریخچه تحویل</button>
     </div>
@@ -41,6 +45,7 @@
         <div class="admin-filter"><label class="form-label">@(_history ? "تحویل تا تاریخ" : "تا تاریخ")</label><PersianDatePicker @key="_history" Value="_dTo" ValueChanged="d => _dTo = d" Placeholder="تاریخ" /></div>
     </ListFilterBar>
 
+    @* Bulk hand-over card: tick several waiting orders (or all of them), add an optional note and hand them all over after a confirmation. *@
     @if (!_history && _rows.Count > 0)
     {
         <section class="card list-filter no-print">
@@ -64,6 +69,7 @@
         </section>
     }
 
+    @* Result of a bulk hand-over: one line per order saying whether it succeeded, so failures (for example not enough stock) are visible. *@
     @if (_bulkReport.Count > 0)
     {
         <section class="card">
@@ -90,6 +96,8 @@
                 <table class="data-table">
                     <thead><tr>@if (!_history) {<th><input type="checkbox" aria-label="انتخاب همه" checked="@(_rows.Count > 0 && _rows.All(r => _selected.Contains(r.Id)))" @onchange="e => SelectPage(e.Value is true)" /></th>}<SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="@(_history ? "تاریخ تحویل" : "تاریخ ثبت")" Column="@(_history ? "issued" : "date")" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th>@if (_history) {<SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" />}<th></th></tr></thead>
                     <tbody>
+                        @* One row per order. Waiting orders get a hand-over button (with an optional note and a confirmation step); *@
+                        @* in the history tab an already handed-over order can be undone, but only with a written reason. *@
                         @foreach (var o in _rows)
                         {
                             <tr>
@@ -102,6 +110,7 @@
                                 <td>
                                     <div class="form-actions">
                                         <a class="btn btn-secondary btn-sm" href="/store/orders/@o.Id"><i class="ti @Icons.Print"></i> برگ سفارش</a>
+                                        @* Confirmation step for handing over this single order. *@
                                         @if (!_history && _confirmId == o.Id)
                                         {
                                             <input class="form-control" style="width:180px" placeholder="توضیحات تحویل (اختیاری)" @bind="_note" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" />
@@ -129,6 +138,7 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation; orders are loaded one page at a time. *@
             <ServerPagination Page="_pageNo" PageSize="_pageSize" TotalCount="_total" Busy="_busy" PageChanged="PageChangedAsync" PageSizeChanged="PageSizeChangedAsync" />
         </section>
     }
@@ -145,8 +155,10 @@
     private IReadOnlyList<StoreOrderRow> _rows = [];
     private Guid? _confirmId, _undoId;
     private string _undoReason = "";
+    // Open the undo box for an order (the person must then type a reason).
     private void StartUndo(Guid id) { _undoId = id; _undoReason = ""; }
 
+    // Undo a hand-over as the signed-in storekeeper, with the reason typed. The goods go back into stock.
     private async Task UndoAsync(Guid id)
     {
         if (_busy) return;
@@ -164,10 +176,13 @@
         catch (Exception) { AppState.AddToast("برگشت تحویل انجام نشد؛ چیزی تغییر نکرد.", ToastLevel.Error); }
         finally { _busy = false; }
     }
+    // Optional note typed when handing over a single order.
     private string _note = "";
 
+    // On opening, load the first page of the waiting orders.
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    // Load one page: the history of handed-over orders on the history tab, otherwise the orders waiting for hand-over.
     private async Task LoadAsync()
     {
         (_rows, _total) = await FetchAsync(_pageNo, _pageSize);
@@ -235,8 +250,10 @@
         await LoadAsync();
     }
 
+    // Clear button: empty the filters and reload.
     private async Task ClearFiltersAsync() { _dSearch = ""; _dFrom = _dTo = null; await ApplyFiltersAsync(); }
 
+    // Sorting by a column heading, and switching tabs (which resets sorting and paging).
     private string? _sortBy;
     private bool _sortDesc;
     private async Task SortByAsync(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _pageNo = 1; await LoadAsync(); }
@@ -249,6 +266,7 @@
         await LoadAsync();
     }
 
+    // Bulk hand-over: the orders that are ticked, the shared note, the confirmation flag and the per-order result lines.
     private readonly HashSet<Guid> _selected = [];
     private string _bulkNote = "";
     private bool _confirmBulk;
@@ -264,6 +282,8 @@
         foreach (var r in all.Rows) _selected.Add(r.Id);
     }
 
+    // Hand over all ticked orders, oldest first, so that when stock runs short the people who asked first are served first.
+    // Each order succeeds or fails on its own, and a report line is shown for each.
     private async Task IssueSelectedAsync()
     {
         if (_busy || _selected.Count == 0) return;
@@ -287,10 +307,12 @@
         finally { _busy = false; }
     }
 
+    // Open or cancel the confirmation step for a single order.
     private void StartIssue(Guid id) { _confirmId = id; _note = ""; }
 
     private void Cancel() { _confirmId = null; _note = ""; }
 
+    // Hand over one order as the signed-in storekeeper; the goods are deducted from stock.
     private async Task IssueAsync(Guid id)
     {
         if (_busy) return;
@@ -309,6 +331,7 @@
         finally { _busy = false; }
     }
 
+    // Page navigation handlers: go to another page, or change how many rows are shown per page.
     private async Task PageChangedAsync(int p) { _pageNo = p; await LoadAsync(); }
     private async Task PageSizeChangedAsync(int s) { _pageSize = s; _pageNo = 1; await LoadAsync(); }
 }

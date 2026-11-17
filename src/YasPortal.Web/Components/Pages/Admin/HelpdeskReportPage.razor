@@ -8,6 +8,8 @@
 @attribute [Authorize(Policy = Perm.AdminHelpdeskReportView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 
+@* Admin helpdesk report (address /admin/helpdesk-report): a summary of the helpdesk (support) requests created in a chosen *@
+@* period, by category and by priority, plus the requests that have been waiting the longest. Read-only. *@
 <PageTitle>گزارش پشتیبانی - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -20,6 +22,7 @@
         </div>
     </div>
 
+    @* Date range of the report (the last 30 days by default); the report is rebuilt when the search button is pressed. *@
     <ListFilterBar Busy="_loading" ActiveCount="0" CanClear="true" OnSearch="LoadAsync" OnClear="ResetAsync">
         <div class="admin-filter"><label class="form-label">از تاریخ ثبت</label><PersianDatePicker @key="_resetKey" Value="_from" ValueChanged="d => _from = d" Placeholder="تاریخ شروع" /></div>
         <div class="admin-filter"><label class="form-label">تا تاریخ ثبت</label><PersianDatePicker @key="_resetKey" Value="_to" ValueChanged="d => _to = d" Placeholder="تاریخ پایان" /></div>
@@ -44,6 +47,7 @@
             <div class="stat-card"><div class="stat-icon"><i class="ti @Icons.Clock"></i></div><span class="stat-label">میانگین زمان صرف‌شده (دقیقه)</span><strong class="stat-value">@(_report.AverageMinutesSpent is { } spent ? Num(Math.Round(spent)) : "—")</strong></div>
         </div>
 
+        @* Notice shown when more requests matched than the report can use, so the figures cover only the newest ones. *@
         @if (_capped)
         {
             <p class="muted">فقط @Num(MaxRows) درخواست جدیدتر بازه در گزارش آمده است؛ بازه را کوتاه‌تر کنید.</p>
@@ -52,14 +56,17 @@
         <div class="admin-stack">
             <section class="card table-card">
                 <div class="card-toolbar"><h2 class="section-title">به تفکیک دسته‌بندی</h2></div>
+                @* Summary table by category. *@
                 <GroupTable Rows="_report.ByCategory" />
             </section>
             <section class="card table-card">
                 <div class="card-toolbar"><h2 class="section-title">به تفکیک اولویت</h2></div>
+                @* Summary table by priority. *@
                 <GroupTable Rows="_report.ByPriority" />
             </section>
             <section class="card table-card">
                 <div class="card-toolbar"><h2 class="section-title">بیشترین زمان انتظار (در انتظار رسیدگی)</h2></div>
+                @* The requests that have waited longest, or a message when there are none. *@
                 @if (_report.LongestWaiting.Count == 0)
                 {
                     <div class="empty-state"><i class="ti @Icons.Success"></i><strong>درخواست بازی وجود ندارد</strong></div>
@@ -90,8 +97,10 @@
 </div>
 
 @code {
+    // The report uses at most the newest 5000 requests of the period, to keep the page fast.
     private const int MaxRows = 5000;
 
+    // State of the page: the period, and the finished report.
     private DateTime? _from = DateTime.Today.AddDays(-30);
     private DateTime? _to = DateTime.Today;
     private bool _loading;
@@ -99,8 +108,10 @@
     private bool _capped;
     private HelpdeskReportResult? _report;
 
+    // On opening, build the report for the default period.
     protected override Task OnInitializedAsync() => LoadAsync();
 
+    // Clear button.
     /// <summary>Back to the default range, the last 30 days.</summary>
     private Task ResetAsync()
     {
@@ -110,6 +121,8 @@
         return LoadAsync();
     }
 
+    // Build the report: read the helpdesk requests created in the period (their dates, status and form values)
+    // and let the report builder work out the totals and waiting times.
     private async Task LoadAsync()
     {
         _loading = true;
@@ -153,5 +166,6 @@
         }
     }
 
+    // Shows a number with Persian digits.
     private static string Num(double value) => WorkflowDisplay.ToPersianDigits(value.ToString("N0"));
 }

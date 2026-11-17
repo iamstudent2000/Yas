@@ -21,6 +21,9 @@
 @* Same rule as «ثبت درخواست برای دیگران» on other request types: the order is sent in the employee's name and from the chosen position,
    the approval chain follows that position, and the person who typed it in is kept in the request history. *@
 
+@* Store admin: place a store order on behalf of another employee (address /admin/store/order-for-others). *@
+@* The administrator picks the employee and one of that employee's active positions, builds the list of items, and sends it. *@
+@* It then follows the normal approval steps and the employee is the requester; the record keeps who actually created it. *@
 <PageTitle>ثبت درخواست کالا برای دیگران - فروشگاه</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -40,6 +43,7 @@
         </div>
         <div class="admin-row-grid">
             <div class="form-field is-grow"><label class="form-label">کارمند</label>
+                @* Employee search (as you type, in the database). Only people who may be requesters are offered. *@
                 <ServerSearchableGuidSelect Value="@_employeeId" ValueChanged="EmployeeChanged"
                                             SearchAsync="SearchEmployeesAsync" SelectedText="@_employeeText"
                                             Placeholder="کارمند را جستجو و انتخاب کنید..." SearchPlaceholder="نام، کد یا نام کاربری..." /></div>
@@ -50,6 +54,7 @@
                 }
                 else
                 {
+                    @* Position choice: the order is made for one of the employee's active positions; their main position is pre-selected. *@
                     <ServerSearchableGuidSelect @key="_employeeId" Value="@_positionId" ValueChanged="PositionChanged"
                                                 SearchAsync="SearchPositionsAsync" SelectedText="@_positionText"
                                                 Placeholder="سمت را انتخاب کنید..." SearchPlaceholder="نام یا کد سمت..." />
@@ -58,6 +63,7 @@
         </div>
     </section>
 
+    @* Items can be added only after both the employee and the position are chosen. *@
     @if (_employeeId is not null && _positionId is not null)
     {
         <section class="card admin-form-row">
@@ -67,6 +73,7 @@
             </div>
             <div class="admin-row-grid">
                 <div class="form-field is-grow"><label class="form-label">کالا</label>
+                    @* Item search: only items that can be ordered directly right now (active, visible, not lottery, request window open). *@
                     <ServerSearchableGuidSelect @key="_itemKey" Value="@_itemId" ValueChanged="ItemChanged"
                                                 SearchAsync="SearchItemsAsync" SelectedText="@_itemText"
                                                 Placeholder="کالا را جستجو و انتخاب کنید..." SearchPlaceholder="نام یا کد کالا..." /></div>
@@ -78,6 +85,7 @@
             </div>
         </section>
 
+        @* The items added so far, a note, and the send button. *@
         @if (_lines.Count > 0)
         {
             <section class="card">
@@ -125,6 +133,7 @@
     private decimal Total => StorePricing.Total(_lines.Select(l => (l.UnitPrice, l.Quantity)));
     private bool NeedsConsent => StorePricing.NeedsDeductionConsent(Total);
 
+    // State of the page: the administrator, the chosen employee and position, the item being added and the lines so far.
     private Guid? _adminId, _employeeId, _positionId, _itemId;
     private string _employeeText = "", _employeeName = "", _positionText = "", _itemText = "", _qtyText = "", _note = "";
     private int _itemKey;
@@ -132,12 +141,14 @@
     private readonly List<Line> _lines = [];
     private readonly Dictionary<Guid, StoreItemRow> _found = [];
 
+    // On opening, remember which administrator is signed in (recorded as the creator of the order).
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _adminId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
     }
 
+    // Database searches used by the type-to-search pickers (employees, the chosen employee's positions, orderable items).
     private Task<IReadOnlyList<AdminQueryService.LookupItem>> SearchEmployeesAsync(string search, CancellationToken ct) =>
         AdminQueries.SearchRequestersAsync(search, ct);
 
@@ -156,6 +167,7 @@
         return page.Rows.Select(r => new AdminQueryService.LookupItem(r.Id, $"{r.Code} — {r.Name} (موجودی {WorkflowDisplay.ToPersianDigits(r.Stock.ToString("0.###"))} {r.Unit})")).ToList();
     }
 
+    // A different employee was chosen: clear the cart, load their name and pre-select their default position.
     private async Task EmployeeChanged(Guid? id)
     {
         _employeeId = id;
@@ -173,6 +185,7 @@
         else _employeeText = _employeeName = "";
     }
 
+    // A different position was chosen: the cart is cleared, because the rules depend on the position.
     private void PositionChanged(Guid? id) { _positionId = id; ResetCart(); }
 
     private void ItemChanged(Guid? id)
@@ -181,6 +194,7 @@
         _itemText = id is Guid g && _found.TryGetValue(g, out var r) ? $"{r.Code} — {r.Name}" : "";
     }
 
+    // Empty the cart and the item inputs.
     private void ResetCart()
     {
         _lines.Clear(); _note = ""; _qtyText = ""; _accepted = false; _itemId = null; _itemText = ""; _itemKey++;
@@ -188,6 +202,7 @@
 
     private void RemoveLine(Guid itemId) { _lines.RemoveAll(l => l.ItemId == itemId); _accepted = false; }
 
+    // Add button: the line is accepted only if it passes the shop's rules (stock, period, per-person maximum) for this employee.
     /// <summary>Checks the line (with what is already in the list) by the shop's own rules before adding it.</summary>
     private async Task AddLineAsync()
     {
@@ -209,6 +224,8 @@
         finally { _busy = false; }
     }
 
+    // Send button: re-check that the employee is still active and still holds the position, then place the order and
+    // go to the list of active requests.
     private async Task SubmitAsync()
     {
         if (_busy || _adminId is not Guid adminId || _employeeId is not Guid emp || _positionId is not Guid pos || _lines.Count == 0) return;

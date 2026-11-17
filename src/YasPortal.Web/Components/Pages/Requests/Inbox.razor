@@ -17,6 +17,11 @@
 @inject AppState AppState
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* The approver's inbox (address /requests/inbox). It lists the requests that are waiting for a decision from the position the *@
+@* signed-in person is currently acting in, plus requests passed to them by delegation. Two views: requests waiting for me, and *@
+@* the history of decisions I have already made. System administrators cannot open it, because they do not hold positions. *@
+@* Approvers can approve, reject, or send a request back (to the requester, the previous step or a chosen earlier step). *@
+@* Every decision is checked again on the server at the moment it is made, and kept permanently in the request history. *@
 <PageTitle>کارتابل تاییدات - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -29,6 +34,8 @@
         </div>
     </div>
 
+    @* While the active position is being checked a loading card is shown; without an active position the inbox is empty and a *@
+    @* message explains why. *@
     @if (!_ready)
     {
         <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
@@ -44,10 +51,12 @@
             <button type="button" class="inbox-tab @(_historyMode ? "is-active" : "")" @onclick="ShowHistory"><i class="ti @Icons.History"></i> تاریخچه تصمیمات من</button>
         </div>
 
+        @* View 1: requests waiting for my decision (search form, bulk decision tools, and one card per request). *@
         @if (!_historyMode)
         {
             <RequestFilterBar Filter="_pendingFilter" Busy="_pendingLoading" Changed="OnPendingFilterChangedAsync"
                               SortOptions="_pendingSortOptions" Sort="@(_pendingSort)" DefaultSort="created:asc" SortChanged="OnPendingSortChangedAsync" />
+            @* Result of the last bulk decision: one line per request saying whether it succeeded. *@
             @if (_bulkReport.Count > 0)
             {
                 <section class="card bulk-report">
@@ -58,6 +67,7 @@
                     <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _bulkReport = []">بستن</button>
                 </section>
             }
+            @* Nothing waiting: a friendly empty message. Otherwise the cards below are shown. *@
             @if (_items.Count == 0)
             {
                 <section class="card"><div class="empty-state"><i class="ti @Icons.Success inbox-empty-icon"></i><strong>کارتابل شما خالی است</strong><span>در حال حاضر درخواستی در انتظار تصمیم شما نیست.</span></div></section>
@@ -74,6 +84,7 @@
                     <label class="bulk-check-all"><input type="checkbox" disabled="@_bulkBusy" checked="@(_items.Count > 0 && _items.All(i => _bulkSelected.Contains(i.Request.Id)))" @onchange="e => SelectPageForBulk(e.Value is true)" /> انتخاب همه در این صفحه</label>
                     <span><strong>@ToPersianDigits(_pendingTotalCount.ToString())</strong> درخواست در انتظار شما</span>
                     <span><i class="ti @Icons.Age"></i> قدیمی‌ترین در این صفحه: @WorkflowDisplay.FormatDuration(now - oldest) در انتظار</span>
+                    @* Summary line above the cards: how many are waiting, how long the oldest one on this page has waited, and counts of critical and high priority. *@
                     @foreach (var priority in new[] { "بحرانی", "زیاد" })
                     {
                         if (byPriority.TryGetValue(priority, out var count))
@@ -90,6 +101,8 @@
                         <span class="bulk-count"><strong>@ToPersianDigits(_bulkSelected.Count.ToString())</strong> درخواست انتخاب شده</span>
                         <input class="form-control bulk-comment" maxlength="1000" placeholder="توضیح برای همه (برای رد الزامی است)" value="@_bulkComment" @oninput="e => _bulkComment = e.Value?.ToString() ?? string.Empty" />
                         <span class="bulk-actions">
+                            @* Bulk decision: tick several requests, write one comment, and approve or reject them all. A confirmation step comes first, *@
+                            @* and a comment is required for a bulk rejection. *@
                             @if (_bulkConfirm is WorkflowAction confirming)
                             {
                                 <button type="button" class="btn @(confirming == WorkflowAction.Approve ? "btn-primary" : "btn-danger")" disabled="@_bulkBusy" @onclick="BulkDecideAsync"><i class="ti @(confirming == WorkflowAction.Approve ? Icons.Approve : Icons.Reject)"></i> بله، @(confirming == WorkflowAction.Approve ? "تایید" : "رد") @ToPersianDigits(_bulkSelected.Count.ToString()) درخواست</button>
@@ -112,6 +125,8 @@
                         }
                     }
                 </div>
+                @* One card per waiting request: type, requester, how long it has been waiting, and priority. *@
+                @* Opening the card shows the full request and the decision buttons. *@
                 @foreach (var item in _items)
                 {
                     var busy = _actingRequestId == item.Request.Id;
@@ -129,6 +144,7 @@
                             </span>
                             <HelpdeskSlaBadge Request="item.Request" />
                             <span class="admin-pill"><i class="ti @Icons.WorkflowStep"></i> @item.CurrentStep.Name</span>
+                            @* Marker for a request that is here because the person covers for someone else (delegation). *@
                             @if (item.IsDelegated)
                             {
                                 <span class="badge badge-info"><i class="ti @Icons.Delegation"></i> به نمایندگی از @(_holderNames.TryGetValue(item.CurrentStep.ApproverPositionId, out var delegatorName) ? delegatorName : "سمت خالی")</span>
@@ -153,6 +169,7 @@
                             <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
 
+                        @* The opened card: the request summary, the form part this step must fill in (if any), the comment box and the decision buttons. *@
                         @if (open)
                         {
                         <div class="request-card-body">
@@ -163,6 +180,7 @@
                             <RequestSummary Request="item.Request" EmployeeNames="_employeeNames" HolderNames="_holderNames" ShowHolderForCurrentStep="false" YourStepId="item.CurrentStep.Id"
                                             Tabbed="true" ActionTabTitle="تصمیم‌گیری" OpenOnAction="@(stepPart is not null)">
                             <ActionTab>
+                            @* Some request types need the approver of a step to fill in part of the form; it must be valid before the request can be approved. *@
                             @if (stepPart is not null)
                             {
                                 <div class="resubmit-panel">
@@ -204,6 +222,7 @@
                                 }
                                 @* Returning to the immediate previous step already has its own button, so a
                                    choice is only worth offering when there are at least two steps to pick from. *@
+                                @* Choose an earlier step to send the request back to (sending it to the immediately previous step has its own button). *@
                                 @if (earlierSteps.Count >= 2)
                                 {
                                     <AuthorizeView Policy="@Perm.RequestsDecisionReturnToSpecificStep">
@@ -220,6 +239,7 @@
                                 </div>
                                 @* PDF and print: same row as the decisions, pushed to the left (end side in RTL) *@
                                 @summaryToolbar
+                                @* While a decision is being saved the buttons show a progress message so it cannot be pressed twice. *@
                                 @if (busy)
                                 {
                                     <span class="muted"><i class="ti @Icons.Spinner"></i> در حال ثبت...</span>
@@ -231,11 +251,13 @@
                         }
                     </div>
                 }
+                @* Page navigation for the waiting requests. *@
                 <ServerPagination Page="_pendingPage" PageSize="_pendingPageSize" TotalCount="_pendingTotalCount" Busy="_pendingLoading" PageChanged="GoToPendingPageAsync" PageSizeChanged="OnPendingPageSizeChangedAsync" />
             }
         }
         else
         {
+            @* View 2: my past decisions. Filters for type, outcome and dates; they apply when the search button is pressed. *@
             <ListFilterBar Busy="_historyLoading" ActiveCount="HistoryActiveCount"
                            CanClear="@(HistoryActiveCount > 0 || _dHistoryType is not null || _dHistoryStatus is not null || _dHistoryFrom is not null || _dHistoryTo is not null)"
                            OnSearch="SearchHistoryAsync" OnClear="ClearHistoryAsync"
@@ -262,6 +284,7 @@
             }
             else
             {
+                @* One card per decision I made (not per request). Each card can be opened to see the whole request and its timeline. *@
                 @foreach (var item in _historyItems)
                 {
                     var expanded = _expandedHistoryId == item.Decision.Id;
@@ -277,6 +300,7 @@
                             {
                                 <span class="badge badge-warning"><i class="ti @Icons.Reopen"></i> قابل بازگشایی</span>
                             }
+                            @* For a decision that sent the request back, show which step it was sent to. *@
                             @if (item.Decision.ReturnTargetOrder is int targetOrder)
                             {
                                 var targetName = item.Request.Steps.FirstOrDefault(st => st.Round == item.Decision.Round && st.Order == targetOrder)?.Name;
@@ -284,6 +308,7 @@
                             }
                             <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
+                        @* The opened history card: the full request, with its form values and the complete approval timeline. *@
                         @if (expanded)
                         {
                             <div class="request-card-body">
@@ -294,6 +319,7 @@
                                             <div class="inbox-actions">
                                     <div class="force-close-panel">
                                         <p class="muted">این درخواست هنوز ردشده است. اگر رد کردن اشتباه بوده، می‌توانید آن را به مرحله‌ی خودتان برگردانید؛ تأییدهای مراحل قبل حفظ می‌شود و دلیل بازگشایی در تاریخچه ثبت می‌شود.</p>
+                                        @* Take back my own rejection: a reason is required, and the request returns to my step to be decided again. *@
                                         @if (_reopenOpenFor == item.Request.Id)
                                         {
                                             <input type="text" class="form-control" placeholder="دلیل بازگشایی (الزامی)" maxlength="1000"
@@ -331,6 +357,7 @@
                         }
                     </div>
                 }
+                @* Page navigation for the decision history. *@
                 <ServerPagination Page="_historyPage" PageSize="_historyPageSize" TotalCount="_historyTotalCount" Busy="_historyLoading" PageChanged="GoToHistoryPageAsync" PageSizeChanged="OnHistoryPageSizeChangedAsync" />
             }
         }
@@ -338,8 +365,10 @@
 </div>
 
 @code {
+    // The five things an approver can do with a request.
     private enum WorkflowAction { Approve, Reject, ReturnToRequester, ReturnToPreviousStep, ReturnToSpecificStep }
 
+    // One waiting request together with the step this person decides and the names needed to display it.
     private sealed record InboxItem(WorkflowRequest Request, WorkflowRequestStep CurrentStep, string RequesterName, bool HasPreviousStep, bool IsDelegated);
 
     private IReadOnlyList<WorkflowService.ActiveDelegation> _delegations = [];
@@ -360,6 +389,8 @@
         _canReopenOwn && _employeeId is Guid me && item.Decision.Outcome == WorkflowStepStatus.Rejected
         && item.Decision.ActedByEmployeeId == me && item.Request.WasRejectedBy(me);
 
+    // Take back my own rejection (the card shows only for the person who rejected it and who has the permission; the permission is
+    // checked again here). A reason is required. A 'reopened' notification is prepared and everything is saved together.
     private async Task ReopenOwnAsync(Guid requestId)
     {
         if (_employeeId is not Guid me || _reopenBusyId is not null) return;
@@ -446,6 +477,7 @@
         SortSelect.Option("outcome:asc", "نتیجه"),
     ];
 
+    // Changing the sort order of either list reloads it from page 1.
     private async Task OnPendingSortChangedAsync(string value)
     {
         _pendingSort = value;
@@ -468,6 +500,7 @@
     private int _historyPageSize = 20;
     private int _historyTotalCount;
 
+    // On opening: work out the person's active position and what they may do, then load the waiting requests.
     protected override async Task OnInitializedAsync()
     {
         var user = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
@@ -486,6 +519,7 @@
         _ready = true;
     }
 
+    // Switch to the 'waiting for me' view.
     private async Task ShowPending()
     {
         _historyMode = false;
@@ -493,6 +527,7 @@
         await LoadAsync();
     }
 
+    // Switch to the 'my decisions' view.
     private async Task ShowHistory()
     {
         _historyMode = true;
@@ -500,6 +535,7 @@
         await LoadHistoryAsync();
     }
 
+    // Page navigation and filter handlers: go to another page, change the rows per page, or apply a changed search; each reloads.
     private async Task GoToPendingPageAsync(int page)
     {
         _pendingPage = page;
@@ -554,6 +590,7 @@
     private bool _bulkBusy;
     private IReadOnlyList<string> _bulkReport = [];
 
+    // Bulk decision helpers: tick one request, tick the whole page, clear the ticks, or ask for the confirmation step.
     private void ToggleBulk(Guid id, bool on)
     {
         _bulkConfirm = null;
@@ -700,12 +737,14 @@
         }
     }
 
+    // Quick approve, offered only for requests with no form part to fill in: approve straight from the closed card after a confirmation.
     private async Task QuickApproveAsync(InboxItem item)
     {
         _quickApproveId = null;
         await Act(item, WorkflowAction.Approve);
     }
 
+    // Open or close a card.
     private void TogglePending(Guid requestId) => _expandedPendingId = _expandedPendingId == requestId ? null : requestId;
 
     /// <summary>The subject line of a helpdesk request, so a row says what it is about without opening it.</summary>
@@ -726,6 +765,8 @@
 
     private void ToggleHistory(Guid stepId) => _expandedHistoryId = _expandedHistoryId == stepId ? null : stepId;
 
+    // Load one page of the requests waiting for this person (their own position's steps and anything delegated to them), with the
+    // names and details needed to draw the cards.
     private async Task LoadAsync()
     {
         if (_approverPositionId is not Guid positionId)
@@ -790,6 +831,7 @@
         finally { _pendingLoading = false; }
     }
 
+    // Load one page of this person's past decisions, including decisions they made on behalf of another position.
     private async Task LoadHistoryAsync()
     {
         // The history covers the position's own decisions and anything this person decided on behalf of
@@ -909,6 +951,7 @@
     private int _historyResetKey;
     private int HistoryActiveCount => (_historyTypeFilter is null ? 0 : 1) + (_historyStatusFilter is null ? 0 : 1) + (_historyFrom is null ? 0 : 1) + (_historyTo is null ? 0 : 1);
 
+    // Search button of the history view: apply the typed filters and go back to page 1. Clear button: empty them.
     private async Task SearchHistoryAsync()
     {
         _historyTypeFilter = _dHistoryType;
@@ -930,6 +973,7 @@
         await LoadHistoryAsync();
     }
 
+    // Shows numbers with Persian digits instead of 0-9.
     private static string ToPersianDigits(string value)
     {
         const string digits = "۰۱۲۳۴۵۶۷۸۹";
@@ -937,6 +981,7 @@
         return new string(chars);
     }
 
+    // Which permission each kind of decision needs; the buttons are hidden without it and the permission is checked again on save.
     private static string PermissionFor(WorkflowAction action) => action switch
     {
         WorkflowAction.Approve => Perm.RequestsDecisionApprove,
@@ -951,6 +996,7 @@
     // already stored (a step that was returned to sees what it filled the last time) and dropped once acted on.
     private Dictionary<Guid, Dictionary<string, string?>> _partValues = [];
 
+    // The values typed into the form part owned by the step, kept per request until the decision is saved.
     private Dictionary<string, string?> GetPartValues(InboxItem item)
     {
         if (_partValues.TryGetValue(item.Request.Id, out var existing))
@@ -972,12 +1018,16 @@
     }
 
     private Dictionary<Guid, int> _returnTargets = [];
+    // Small helpers that remember, per request, which step to return to and what comment has been typed.
     private int GetReturnTarget(Guid requestId) => _returnTargets.TryGetValue(requestId, out var t) ? t : 0;
     private void SetReturnTarget(Guid requestId, ChangeEventArgs e) => _returnTargets[requestId] = int.TryParse(e.Value?.ToString(), out var t) ? t : 0;
 
     private string GetComment(Guid requestId) => _comments.TryGetValue(requestId, out var c) ? c : "";
     private void SetComment(Guid requestId, ChangeEventArgs e) => _comments[requestId] = e.Value?.ToString() ?? "";
 
+    // Save one decision. It checks again that the person still holds the position (or covers it by delegation), that they have
+    // the permission, and that the form part is valid when approving; then applies the decision, prepares the notifications and
+    // saves everything together. If somebody else decided in the meantime, nothing is overwritten and the person is told.
     private async Task Act(InboxItem item, WorkflowAction action)
     {
         if (_employeeId is not Guid employeeId || _approverPositionId is not Guid positionId)

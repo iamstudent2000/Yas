@@ -16,6 +16,10 @@
 @inject ReportExportService Reports
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
+@* Manager page 'requests and approvals of my subordinates' (address /requests/team). A subordinate is anyone whose position *@
+@* sits below the manager's current position in the organisation tree. The page is read-only and has two tabs: the requests *@
+@* made by subordinates, and the approvals decided by subordinates' positions. Which tabs appear depends on the permissions *@
+@* the person holds. System administrators cannot open it, because they do not hold positions. *@
 <PageTitle>درخواست‌ها و تاییدات زیرمجموعه - یاس پورتال</PageTitle>
 
 <div class="requests-page" dir="rtl">
@@ -28,6 +32,8 @@
         </div>
     </div>
 
+    @* While the position is being checked a loading card is shown. A person with no active position, or with no positions *@
+    @* below theirs, sees an explanatory message instead of the lists. *@
     @if (!_ready)
     {
         <section class="card"><LoadingState Text="در حال بررسی سمت فعال..." /></section>
@@ -47,6 +53,7 @@
     else
     {
         <div class="inbox-tabs">
+            @* The two tab buttons, shown according to what the person may view. *@
             @if (_canRequests)
             {
                 <button type="button" class="inbox-tab @(_tab == Tab.Requests ? "is-active" : "")" @onclick="() => ShowTabAsync(Tab.Requests)"><i class="ti @Icons.MyRequests"></i> درخواست‌های زیرمجموعه</button>
@@ -58,10 +65,12 @@
         </div>
         <p class="muted">شامل @_subordinates.Count سمت زیر سمت فعال شما (همه‌ی سطح‌ها). درخواست‌ها بر اساس سمتی که درخواست‌کننده هنگام ثبت از آن ثبت کرده، و تصمیم‌ها بر اساس سمتِ مرحله‌ی تایید شناسایی می‌شوند.</p>
 
+        @* Tab 1: requests made by subordinates (search form, then the table). The other tab, further down, lists approvals. *@
         @if (_tab == Tab.Requests)
         {
             <RequestFilterBar Filter="_filter" StatusOptions="_statusOptions" ShowRequester="false" ShowStep="true" PositionOptions="_positionOptions" Busy="_reqLoading" ExportPermission="@(ReportPermissions.TeamRequests)" OnExport="ExportRequestsAsync" OnExportSteps="ExportRequestStepsAsync" Exporting="_exporting" Changed="OnFilterChangedAsync" />
 
+            @* The table of subordinates' requests, one page at a time, with export buttons. *@
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
@@ -94,6 +103,7 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @* One row per request: type, requester, status, current step and who it is waiting for, date. Details open under the row. *@
                                 @foreach (var request in _requests)
                                 {
                                     var waiting = request.Status is WorkflowRequestStatus.PendingApproval
@@ -109,6 +119,7 @@
                                         <td><span class="badge @WorkflowDisplay.StatusBadgeClass(request.Status)">@WorkflowDisplay.StatusLabel(request.Status)</span></td>
                                         <td>@(waiting.Count > 0 ? string.Join(" / ", waiting.Select(s => s.Name)) : end?.StageLabel ?? "—")</td>
                                         <td>
+                                            @* While a request is waiting, show the current step and holder; otherwise show how it ended. *@
                                             @if (waiting.Count > 0)
                                             {
                                                 @string.Join("، ", waiting.Select(s => _holders.TryGetValue(s.ApproverPositionId, out var holder) ? holder : "سمت خالی"))
@@ -133,6 +144,7 @@
                                             </button>
                                         </td>
                                     </tr>
+                                    @* Expanded details of the request: its form values, approval steps, decisions and history. *@
                                     @if (open)
                                     {
                                         <tr>
@@ -145,12 +157,15 @@
                             </tbody>
                         </table>
                     </div>
+                    @* Page navigation for the requests table. *@
                     <ServerPagination Page="_reqPage" PageSize="_reqPageSize" TotalCount="_reqTotal" Busy="_reqLoading" PageChanged="GoToRequestPageAsync" PageSizeChanged="OnRequestPageSizeChangedAsync" />
                 }
             </section>
         }
         else
         {
+            @* Tab 2: approvals decided by subordinates' positions. Filters for type, outcome, position and dates; they apply when the *@
+            @* search button is pressed. *@
             <ListFilterBar Busy="_apLoading" ActiveCount="ApprovalActiveCount"
                            CanClear="@(ApprovalActiveCount > 0 || _dApType is not null || _dApOutcome is not null || _dApPosition is not null || _dApFrom is not null || _dApTo is not null)"
                            OnSearch="SearchApprovalsAsync" OnClear="ClearApprovalsAsync"
@@ -181,6 +196,7 @@
             }
             else
             {
+                @* One card per decision (not per request); it can be opened to see the whole request and its timeline. *@
                 @foreach (var item in _apItems)
                 {
                     var expanded = _expandedDecisionId == item.Decision.Id;
@@ -194,6 +210,7 @@
                             <span class="badge @WorkflowDisplay.StepBadgeClass(item.Decision.Outcome)">@WorkflowDisplay.StepLabel(item.Decision.Outcome, isCurrent: false)</span>
                             <i class="ti @Icons.ChevronDown request-card-chevron"></i>
                         </div>
+                        @* The opened decision card: the decision comment and the full request. *@
                         @if (expanded)
                         {
                             <div class="request-card-body">
@@ -206,6 +223,7 @@
                         }
                     </div>
                 }
+                @* Page navigation for the approvals tab. *@
                 <ServerPagination Page="_apPage" PageSize="_apPageSize" TotalCount="_apTotal" Busy="_apLoading" PageChanged="GoToApprovalPageAsync" PageSizeChanged="OnApprovalPageSizeChangedAsync" />
             }
         }
@@ -213,8 +231,10 @@
 </div>
 
 @code {
+    // The two tabs of the page.
     private enum Tab { Requests, Approvals }
 
+    // One decision together with its request and the names needed to display it.
     private sealed record ApprovalItem(WorkflowRequest Request, WorkflowStepDecision Decision, string StepName, string RequesterName, string PositionName, string ActorName);
 
     private bool _ready;
@@ -249,6 +269,7 @@
     private bool _apLoading;
     private int _apPage = 1, _apPageSize = 20, _apTotal;
 
+    // On opening: work out the person's active position and the positions below it, choose the first allowed tab and load it.
     protected override async Task OnInitializedAsync()
     {
         _canRequests = await Permissions.HasPermissionAsync(Perm.RequestsTeamView);
@@ -288,6 +309,7 @@
         return true;
     }
 
+    // Switch tab and load its list.
     private async Task ShowTabAsync(Tab tab)
     {
         _tab = tab;
@@ -298,12 +320,14 @@
 
     // ---------- Requests tab ----------
 
+    // Requests tab: a search, a page change or a page-size change reloads the list (a new search returns to page 1).
     private async Task OnFilterChangedAsync() { _reqPage = 1; _openRequestId = null; await LoadRequestsAsync(); }
     private async Task GoToRequestPageAsync(int page) { _reqPage = page; _openRequestId = null; await LoadRequestsAsync(); }
     private async Task OnRequestPageSizeChangedAsync(int size) { _reqPageSize = Math.Clamp(size, 1, 100); _reqPage = 1; _openRequestId = null; await LoadRequestsAsync(); }
 
     private string _sortBy = WorkflowRequestSort.Created;
     private bool _sortDesc = true;
+    // Clicking a column heading sorts by it; clicking again reverses the order.
     private async Task SortByAsync(string column)
     {
         if (_sortBy == column) _sortDesc = !_sortDesc; else { _sortBy = column; _sortDesc = false; }
@@ -342,6 +366,8 @@
         finally { _exporting = false; }
     }
 
+    // Load one page of requests made from positions below the viewer. The restriction to subordinates is applied first, so the
+    // person's own filters can only narrow the list further.
     private async Task LoadRequestsAsync()
     {
         if (!_canRequests || !await RefreshScopeAsync() || _subordinates.Count == 0)
@@ -380,6 +406,7 @@
 
     // ---------- Approvals tab ----------
 
+    // Fixed choice lists of the approvals filter: request types and decision outcomes.
     private static readonly IReadOnlyList<(string Key, string Text)> _typeOptions =
         WorkflowFieldCatalog.AllTypes.Select(t => (t.ToString(), WorkflowFieldCatalog.GetDisplayName(t))).ToList();
     private static readonly IReadOnlyList<(string Key, string Text)> _outcomeOptions =
@@ -405,8 +432,10 @@
         SortSelect.Option("type:asc", "نوع درخواست"),
         SortSelect.Option("outcome:asc", "نتیجه"),
     ];
+    // How many approval filters are applied; shown as a counter on the filter card.
     private int ApprovalActiveCount => (_apType is null ? 0 : 1) + (_apOutcome is null ? 0 : 1) + (_apPosition is null ? 0 : 1) + (_apFrom is null ? 0 : 1) + (_apTo is null ? 0 : 1);
 
+    // Search button of the approvals tab: apply the typed filters and go back to page 1. Clear button: empty them.
     private async Task SearchApprovalsAsync()
     {
         _apType = _dApType; _apOutcome = _dApOutcome; _apPosition = _dApPosition; _apFrom = _dApFrom; _apTo = _dApTo;
@@ -420,11 +449,13 @@
         await ApprovalFilterChangedAsync();
     }
 
+    // Approvals tab: a new sort order, page or page size reloads the list.
     private async Task OnApprovalSortChangedAsync(string value) { _apSort = value; await ApprovalFilterChangedAsync(); }
     private async Task ApprovalFilterChangedAsync() { _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
     private async Task GoToApprovalPageAsync(int page) { _apPage = page; _expandedDecisionId = null; await LoadApprovalsAsync(); }
     private async Task OnApprovalPageSizeChangedAsync(int size) { _apPageSize = Math.Clamp(size, 1, 100); _apPage = 1; _expandedDecisionId = null; await LoadApprovalsAsync(); }
 
+    // Load one page of decisions made by positions below the viewer, from the permanent decision log.
     private async Task LoadApprovalsAsync()
     {
         if (!_canApprovals || !await RefreshScopeAsync() || _subordinates.Count == 0)

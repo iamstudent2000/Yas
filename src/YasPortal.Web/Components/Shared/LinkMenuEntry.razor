@@ -1,10 +1,12 @@
 @using YasPortal.Domain.Landing
 @{ var external = PortalLink.IsExternal(Link.Url); }
+@* One link of the links menu. Links to other websites open in a new tab; internal links open in the same tab. *@
 <a href="@Link.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)" title="@Link.Description">
     <i class="ti @(external ? "ti-external-link" : "ti-link")"></i>
     <span>@Link.Title@if (!string.IsNullOrWhiteSpace(Link.Description)) { <small>@Link.Description</small> }</span>
 </a>
 
 @code {
+    // The portal link (title, address, optional description) to draw.
     [Parameter, EditorRequired] public PortalLink Link { get; set; } = null!;
 }
