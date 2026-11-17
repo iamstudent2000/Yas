@@ -80,7 +80,7 @@
                         <div class="form-field"><label class="form-label">پایان دوره درخواست</label><PersianDatePicker @key="_formKey" Value="_closesOn" ValueChanged="d => _closesOn = d" Placeholder="بدون پایان" /></div>
                         <div class="form-field"><label class="form-label">ساعت پایان</label><input class="form-control" type="time" dir="ltr" value="@_closesTime" @onchange="e => _closesTime = e.Value?.ToString() ?? string.Empty" /></div>
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_isLottery" /> توزیع با قرعه‌کشی</label></div>
-                        <div class="form-field"><label class="form-label">قیمت واحد (اختیاری، فقط جهت اطلاع)</label><input class="form-control" inputmode="decimal" autocomplete="off" placeholder="مثلاً ۵۰۰۰۰" @bind="_price" @bind:event="oninput" /></div>
+                        <div class="form-field"><label class="form-label">قیمت واحد (تومان، اختیاری)</label><input class="form-control" inputmode="decimal" autocomplete="off" title="خالی = رایگان. اگر قیمت بنویسید، مبلغ سفارش (قیمت × مقدار) با موافقت کارمند از حقوق او کسر می‌شود. تغییر قیمت روی سفارش‌های قبلاً ثبت‌شده اثری ندارد." placeholder="مثلاً ۵۰,۰۰۰" @bind="_price" @bind:event="oninput" /></div>
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_description" maxlength="@StoreItem.DescriptionMax" /></div>
                         <div class="form-field admin-row-submit"><div class="form-actions">
                             <button class="btn btn-primary" disabled="@_busy" @onclick="SaveItemAsync"><i class="ti @Icons.Save"></i> @(_editItemId is null ? "افزودن کالا" : "ذخیره")</button>
@@ -419,7 +419,7 @@
         decimal? price = null;
         if (!string.IsNullOrWhiteSpace(_price))
         {
-            if (!StoreNumber.TryParse(_price, out var pv) || pv < 0 || decimal.Round(pv, 2) != pv) { AppState.AddToast("قیمت باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
+            if (!StoreNumber.TryParseMoney(_price, out var pv) || pv < 0 || decimal.Round(pv, 2) != pv) { AppState.AddToast("قیمت باید عدد صفر یا بیشتر باشد.", ToastLevel.Error); return Task.CompletedTask; }
             price = pv;
         }
         if (_opensOn is null && !string.IsNullOrWhiteSpace(_opensTime)) { AppState.AddToast("برای ساعت شروع، تاریخ شروع را هم انتخاب کنید.", ToastLevel.Error); return Task.CompletedTask; }

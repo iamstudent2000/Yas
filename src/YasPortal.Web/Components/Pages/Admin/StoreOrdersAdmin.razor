@@ -46,7 +46,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ ثبت" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ تحویل" Column="issued" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
+                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="درخواست‌کننده" Column="who" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ ثبت" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><th>مبلغ</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ تحویل" Column="issued" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تحویل‌دهنده" Column="by" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
@@ -55,6 +55,7 @@
                                 <td>@o.RequesterName</td>
                                 <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
                                 <td>@o.Summary</td>
+                                <td>@StoreMoney.FormatOrDash(o.Total > 0 ? o.Total : null)</td>
                                 <td><span class="badge @BadgeFor(o)">@StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null)</span></td>
                                 <td>@(o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "—")</td>
                                 <td>@(o.IssuedByName ?? "—")</td>
@@ -122,8 +123,8 @@
         try
         {
             var all = await Orders.ListAllAsync(1, 20000, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
-            var csv = StoreCsv.Build(["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "وضعیت", "تاریخ تحویل", "تحویل‌دهنده"],
-                all.Rows.Select(o => (IReadOnlyList<string>)[o.Id.ToString("N")[..8].ToUpperInvariant(), o.RequesterName ?? "", WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc), o.Summary,
+            var csv = StoreCsv.Build(["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)", "وضعیت", "تاریخ تحویل", "تحویل‌دهنده"],
+                all.Rows.Select(o => (IReadOnlyList<string>)[o.Id.ToString("N")[..8].ToUpperInvariant(), o.RequesterName ?? "", WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc), o.Summary, o.Total > 0 ? StoreMoney.Plain(o.Total) : "",
                     StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null), o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "", o.IssuedByName ?? ""]));
             await JS.InvokeVoidAsync("yasDownloadFile", $"store-orders-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
             if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);

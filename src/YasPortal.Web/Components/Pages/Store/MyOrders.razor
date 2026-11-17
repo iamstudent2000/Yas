@@ -55,13 +55,14 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><SortableHeader Text="کالا" Column="item" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="مقدار" Column="qty" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="تاریخ ثبت‌نام" Column="date" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /></tr></thead>
+                    <thead><tr><SortableHeader Text="کالا" Column="item" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="مقدار" Column="qty" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><th>مبلغ در صورت برنده شدن</th><SortableHeader Text="تاریخ ثبت‌نام" Column="date" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_lotSort" CurrentDescending="@_lotDesc" OnSort="LotSortBy" /></tr></thead>
                     <tbody>
                         @foreach (var l in SortedLottery)
                         {
                             <tr>
                                 <td>@l.ItemName</td>
                                 <td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###")) @l.Unit</td>
+                                <td>@StoreMoney.FormatOrDash(l.Total)</td>
                                 <td>@WorkflowDisplay.ToPersianDateTime(l.AppliedAtUtc)</td>
                                 <td><span class="badge @(l.Status == LotteryEntryStatus.Won ? "badge-success" : l.Status == LotteryEntryStatus.Applied ? "badge-info" : "badge-muted")">@StoreLottery.StatusText(l.Status)</span>
                                     @if (l.Status == LotteryEntryStatus.Won) { <span class="muted"> — سفارش آن در تب «سفارش‌ها» است</span> }</td>
@@ -86,7 +87,7 @@
         <section class="card">
             <div class="data-table-wrap">
                 <table class="data-table">
-                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
+                    <thead><tr><SortableHeader Text="شماره" Column="number" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><SortableHeader Text="تاریخ" Column="date" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th>اقلام</th><th>مبلغ</th><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /><th></th></tr></thead>
                     <tbody>
                         @foreach (var o in _rows)
                         {
@@ -94,6 +95,7 @@
                                 <td dir="ltr" style="text-align:right">@o.Id.ToString("N")[..8].ToUpperInvariant()</td>
                                 <td>@WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc)</td>
                                 <td>@o.Summary</td>
+                                <td>@StoreMoney.FormatOrDash(o.Total > 0 ? o.Total : null)</td>
                                 <td><span class="badge @BadgeFor(o)">@StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null)</span></td>
                                 <td><div class="form-actions">
                                     @if (o.Status == WorkflowRequestStatus.ReturnedToRequester && o.IssuedAtUtc is null)

@@ -41,6 +41,7 @@
             <ol class="muted" style="margin:6px 0 0;padding-inline-start:22px;line-height:2">
                 <li>روی کارت کالا مقدار را بنویسید و «درخواست» را بزنید؛ هر کالا یک درخواست جدا است.</li>
                 <li>اگر کالا سقف مقدار دارد، تا وقتی درخواست‌های قبلی همان کالا تحویل نشده‌اند، مجموع آن‌ها از سقف بیشتر نمی‌شود.</li>
+                <li>اگر کالا قیمت دارد، مبلغ نهایی (قیمت × مقدار) پیش از ثبت نشان داده می‌شود و باید با کسر آن از حقوق خود موافقت کنید.</li>
                 <li>مدیر شما درخواست را تأیید می‌کند؛ وضعیت را در «سفارش‌های من» ببینید.</li>
                 <li>پس از تأیید، انباردار کالا را تحویل می‌دهد؛ برگ سفارش را چاپ کنید و همراه ببرید.</li>
             </ol>
@@ -92,7 +93,7 @@
                     </div>
                     @if (item.Price is decimal price)
                     {
-                        <dl class="store-card-facts"><dt>قیمت (جهت اطلاع)</dt><dd>@WorkflowDisplay.ToPersianDigits(price.ToString("#,0.##")) تومان</dd></dl>
+                        <dl class="store-card-facts"><dt>قیمت هر @item.Unit</dt><dd>@StoreMoney.Format(price)</dd></dl>
                     }
                     @if (item.MaxPerRequest > 0)
                     {
@@ -105,15 +106,27 @@
                             {
                                 if (_confirmItemId == item.Id)
                                 {
+                                    var confirmTotal = StorePricing.LineTotal(item.Price, _confirmQty) ?? 0m;
+                                    var needsConsent = StorePricing.NeedsDeductionConsent(confirmTotal);
                                     <span>ثبت درخواست @WorkflowDisplay.ToPersianDigits(_confirmQty.ToString("0.###")) @item.Unit «@item.Name»؟</span>
+                                    if (needsConsent)
+                                    {
+                                        @* the final price and the person's agreement to have it taken from the salary; without the tick the send button stays off *@
+                                        <span>مبلغ نهایی: <strong>@StoreMoney.Format(confirmTotal)</strong> <span class="muted">(@StoreMoney.Format(item.Price!.Value) × @WorkflowDisplay.ToPersianDigits(_confirmQty.ToString("0.###")))</span></span>
+                                        <label class="check-row"><input type="checkbox" @bind="_confirmAccepted" /> موافقم که مبلغ @StoreMoney.Format(confirmTotal) از حقوق من کسر شود.</label>
+                                    }
                                     <input class="form-control" placeholder="توضیحات (اختیاری)" maxlength="@YasPortal.Domain.Store.StoreOrder.NoteMax" @bind="_note" />
-                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => PlaceAsync(item)"><i class="ti @Icons.Send"></i> تأیید و ثبت</button>
+                                    <button class="btn btn-primary btn-sm" disabled="@(_busy || (needsConsent && !_confirmAccepted))" @onclick="() => PlaceAsync(item)"><i class="ti @Icons.Send"></i> تأیید و ثبت</button>
                                     <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="CancelConfirm">انصراف</button>
                                 }
                                 else
                                 {
                                     <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
                                     <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => StartRequestAsync(item)"><i class="ti @Icons.Send"></i> درخواست</button>
+                                    if (PreviewTotal(item) is decimal preview && preview > 0)
+                                    {
+                                        <span class="muted">مبلغ نهایی با این مقدار: @StoreMoney.Format(preview)</span>
+                                    }
                                 }
                                 if (_outstanding.TryGetValue(item.Id, out var pending) && pending > 0)
                                 {
@@ -130,7 +143,13 @@
                                 else
                                 {
                                     <input class="form-control" inputmode="decimal" autocomplete="off" placeholder="۱" aria-label="مقدار" value="@QtyText(item.Id)" @onchange="e => SetQty(item.Id, e.Value?.ToString())" />
-                                    <button class="btn btn-primary btn-sm" disabled="@_busy" @onclick="() => ApplyAsync(item)"><i class="ti @Icons.Add"></i> شرکت در قرعه‌کشی</button>
+                                    var lotteryCosts = item.Price is decimal lotteryPrice && lotteryPrice > 0;
+                                    if (lotteryCosts)
+                                    {
+                                        @* an item with a price costs the winner money, so the person agrees to the deduction before they can apply *@
+                                        <label class="check-row"><input type="checkbox" checked="@_lotteryAccepted.Contains(item.Id)" @onchange="e => SetLotteryAccepted(item.Id, e.Value is true)" /> @LotteryConsentText(item)</label>
+                                    }
+                                    <button class="btn btn-primary btn-sm" disabled="@(_busy || (lotteryCosts && !_lotteryAccepted.Contains(item.Id)))" @onclick="() => ApplyAsync(item)"><i class="ti @Icons.Add"></i> شرکت در قرعه‌کشی</button>
                                 }
                             }
                             else if (item.IsLottery && _waiting.TryGetValue(item.Id, out var waitingMine)) { <span class="muted">ثبت‌نام شما (@WorkflowDisplay.ToPersianDigits(waitingMine.Quantity.ToString("0.###")) @item.Unit) در انتظار قرعه‌کشی است.</span> }
@@ -169,9 +188,27 @@
     private Guid? _confirmItemId;
     private decimal _confirmQty;
     private string _note = "";
+    // the "deduct from my salary" box of the request being confirmed, and of the lottery items the person ticked
+    private bool _confirmAccepted;
+    private readonly HashSet<Guid> _lotteryAccepted = [];
+
+    /// <summary>The sentence next to the lottery tick box: the unit price, and the amount for the typed quantity when it can be worked out.</summary>
+    private string LotteryConsentText(StoreItemRow item) =>
+        $"در صورت برنده شدن، مبلغ سفارش ({StoreMoney.Format(item.Price ?? 0)} برای هر {item.Unit}"
+        + (PreviewTotal(item) is decimal total && total > 0 ? $"، با این مقدار {StoreMoney.Format(total)}" : "")
+        + ") از حقوق من کسر شود.";
+
+    private void SetLotteryAccepted(Guid itemId, bool accepted) { if (accepted) _lotteryAccepted.Add(itemId); else _lotteryAccepted.Remove(itemId); }
+
+    /// <summary>What the quantity typed on the card would cost (an empty box counts as 1, like when sending); empty when the item has no price or the text is not a number.</summary>
+    private decimal? PreviewTotal(StoreItemRow item)
+    {
+        if (item.Price is null || !StoreNumber.TryParse(QtyText(item.Id), out var q) || q < 0) return null;
+        return StorePricing.LineTotal(item.Price, q == 0 ? 1 : q);
+    }
     private IReadOnlyDictionary<Guid, decimal> _outstanding = new Dictionary<Guid, decimal>();
 
-    private void CancelConfirm() { _confirmItemId = null; _note = ""; }
+    private void CancelConfirm() { _confirmItemId = null; _note = ""; _confirmAccepted = false; }
 
     /// <summary>Checks the quantity with the same rules as sending (stock, period, per-person maximum counting what is still undelivered) and asks for confirmation.</summary>
     private async Task StartRequestAsync(StoreItemRow item)
@@ -184,7 +221,7 @@
         {
             var checks = await Orders.CheckAsync(emp, [(item.Id, q)], DateTime.Now);
             if (checks.TryGetValue(item.Id, out var c) && c.Problem is not null) { AppState.AddToast(c.Problem, ToastLevel.Error); return; }
-            _confirmItemId = item.Id; _confirmQty = q; _note = "";
+            _confirmItemId = item.Id; _confirmQty = q; _note = ""; _confirmAccepted = false;
         }
         catch (Exception) { AppState.AddToast("بررسی درخواست انجام نشد.", ToastLevel.Error); }
         finally { _busy = false; }
@@ -198,7 +235,8 @@
         _busy = true;
         try
         {
-            var result = await Orders.PlaceAsync(emp, pos, [(item.Id, _confirmQty)], _note, DateTime.Now);
+            // the server checks the agreement again: a price that changed since the card was drawn needs a fresh tick
+            var result = await Orders.PlaceAsync(emp, pos, [(item.Id, _confirmQty)], _note, DateTime.Now, null, _confirmAccepted, StorePricing.LineTotal(item.Price, _confirmQty) ?? 0m);
             if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); CancelConfirm(); return; }
             _qty.Remove(item.Id);
             CancelConfirm();
@@ -220,9 +258,10 @@
         _busy = true;
         try
         {
-            var result = await Lottery.ApplyAsync(item.Id, emp, pos, q, DateTime.Now);
+            var result = await Lottery.ApplyAsync(item.Id, emp, pos, q, DateTime.Now, _lotteryAccepted.Contains(item.Id), StorePricing.LineTotal(item.Price, q) ?? 0m);
             if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت‌نام انجام نشد.", ToastLevel.Error); return; }
             _qty.Remove(item.Id);
+            _lotteryAccepted.Remove(item.Id);
             _waiting = await Lottery.WaitingOfAsync(emp);
             AppState.AddToast("در قرعه‌کشی ثبت‌نام شدید. نتیجه را در اعلان‌ها خواهید دید.", ToastLevel.Success);
         }

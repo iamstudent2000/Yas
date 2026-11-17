@@ -84,23 +84,31 @@
                 <h2 class="section-title">اقلام درخواست</h2>
                 <div class="data-table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>کد</th><th>کالا</th><th>مقدار</th><th></th></tr></thead>
+                        <thead><tr><th>کد</th><th>کالا</th><th>مقدار</th><th>قیمت واحد</th><th>مبلغ</th><th></th></tr></thead>
                         <tbody>
                             @foreach (var l in _lines)
                             {
                                 <tr>
                                     <td dir="ltr" style="text-align:right">@l.Code</td><td>@l.Name</td>
                                     <td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###")) @l.Unit</td>
+                                    <td>@StoreMoney.FormatOrDash(l.UnitPrice)</td>
+                                    <td>@StoreMoney.FormatOrDash(StorePricing.LineTotal(l.UnitPrice, l.Quantity))</td>
                                     <td><button class="btn btn-danger btn-sm" disabled="@_busy" @onclick="() => RemoveLine(l.ItemId)"><i class="ti @Icons.Delete"></i> حذف</button></td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
+                @if (NeedsConsent)
+                {
+                    @* the employee is not here, so the administrator records that the employee agreed; the record shows the administrator as the one who accepted *@
+                    <p style="margin-top:12px"><strong>مبلغ نهایی: @StoreMoney.Format(Total)</strong></p>
+                    <label class="check-row"><input type="checkbox" @bind="_accepted" /> رضایت @_employeeName برای کسر مبلغ @StoreMoney.Format(Total) از حقوق او را گرفته‌ام.</label>
+                }
                 <div class="form-field" style="margin-top:12px"><label class="form-label">توضیحات (اختیاری)</label>
                     <input class="form-control" maxlength="@StoreOrder.NoteMax" @bind="_note" /></div>
                 <div class="form-actions" style="margin-top:12px">
-                    <button class="btn btn-primary" disabled="@_busy" @onclick="SubmitAsync">
+                    <button class="btn btn-primary" disabled="@(_busy || (NeedsConsent && !_accepted))" @onclick="SubmitAsync">
                         <i class="ti @(_busy ? Icons.Spinner : Icons.Send)"></i> ثبت درخواست برای @_employeeName
                     </button>
                 </div>
@@ -110,7 +118,12 @@
 </div>
 
 @code {
-    private sealed record Line(Guid ItemId, string Code, string Name, string Unit, decimal Quantity);
+    private sealed record Line(Guid ItemId, string Code, string Name, string Unit, decimal Quantity, decimal? UnitPrice);
+
+    // the administrator's tick: "the employee agreed to the salary deduction"
+    private bool _accepted;
+    private decimal Total => StorePricing.Total(_lines.Select(l => (l.UnitPrice, l.Quantity)));
+    private bool NeedsConsent => StorePricing.NeedsDeductionConsent(Total);
 
     private Guid? _adminId, _employeeId, _positionId, _itemId;
     private string _employeeText = "", _employeeName = "", _positionText = "", _itemText = "", _qtyText = "", _note = "";
@@ -170,10 +183,10 @@
 
     private void ResetCart()
     {
-        _lines.Clear(); _note = ""; _qtyText = ""; _itemId = null; _itemText = ""; _itemKey++;
+        _lines.Clear(); _note = ""; _qtyText = ""; _accepted = false; _itemId = null; _itemText = ""; _itemKey++;
     }
 
-    private void RemoveLine(Guid itemId) => _lines.RemoveAll(l => l.ItemId == itemId);
+    private void RemoveLine(Guid itemId) { _lines.RemoveAll(l => l.ItemId == itemId); _accepted = false; }
 
     /// <summary>Checks the line (with what is already in the list) by the shop's own rules before adding it.</summary>
     private async Task AddLineAsync()
@@ -188,7 +201,8 @@
             var checks = await Orders.CheckAsync(emp, wanted, DateTime.Now);
             if (checks.TryGetValue(itemId, out var c) && c.Problem is not null) { AppState.AddToast(c.Problem, ToastLevel.Error); return; }
             _lines.RemoveAll(l => l.ItemId == itemId);
-            _lines.Add(new Line(itemId, item.Code, item.Name, item.Unit, q));
+            _lines.Add(new Line(itemId, item.Code, item.Name, item.Unit, q, item.Price));
+            _accepted = false; // the amount changed, so the agreement has to be confirmed again
             _itemId = null; _itemText = ""; _qtyText = ""; _itemKey++;
         }
         catch (Exception) { AppState.AddToast("بررسی کالا انجام نشد.", ToastLevel.Error); }
@@ -208,7 +222,7 @@
                 if (!eligible || !await Workflows.HoldsActivePositionAsync(emp, pos))
                 { AppState.AddToast("این کارمند دیگر سمت فعال انتخاب‌شده را ندارد؛ دوباره انتخاب کنید.", ToastLevel.Error); return; }
             }
-            var result = await Orders.PlaceAsync(emp, pos, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now, adminId);
+            var result = await Orders.PlaceAsync(emp, pos, _lines.Select(l => (l.ItemId, l.Quantity)).ToList(), _note, DateTime.Now, adminId, _accepted, Total);
             if (!result.Ok) { AppState.AddToast(result.Error ?? "ثبت درخواست انجام نشد.", ToastLevel.Error); return; }
             AppState.AddToast($"درخواست کالا برای {_employeeName} ثبت شد.", ToastLevel.Success);
             Navigation.NavigateTo("/admin/active-requests");

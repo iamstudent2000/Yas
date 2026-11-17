@@ -2,6 +2,7 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize]
@@ -49,16 +50,25 @@ else
             <h2 class="section-title" style="margin-top:14px">اقلام</h2>
             <div class="data-table-wrap">
                 <table class="data-table data-table-bordered-rows">
-                    <thead><tr><th>#</th><th>کد</th><th>کالا</th><th>مقدار</th><th>واحد</th></tr></thead>
+                    <thead><tr><th>#</th><th>کد</th><th>کالا</th><th>مقدار</th><th>واحد</th><th>قیمت واحد</th><th>مبلغ</th></tr></thead>
                     <tbody>
                         @{ var n = 0; }
                         @foreach (var l in _order.Lines)
                         {
-                            <tr><td>@WorkflowDisplay.ToPersianDigits((++n).ToString())</td><td dir="ltr" style="text-align:right">@l.ItemCode</td><td>@l.ItemName</td><td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###"))</td><td>@l.Unit</td></tr>
+                            <tr><td>@WorkflowDisplay.ToPersianDigits((++n).ToString())</td><td dir="ltr" style="text-align:right">@l.ItemCode</td><td>@l.ItemName</td><td>@WorkflowDisplay.ToPersianDigits(l.Quantity.ToString("0.###"))</td><td>@l.Unit</td><td>@StoreMoney.FormatOrDash(l.UnitPrice)</td><td>@StoreMoney.FormatOrDash(l.LineTotal)</td></tr>
                         }
+                        @if (_order.Total > 0) { <tr><th colspan="6">مبلغ نهایی</th><td><strong>@StoreMoney.Format(_order.Total)</strong></td></tr> }
                     </tbody>
                 </table>
             </div>
+            @if (_order.Total > 0)
+            {
+                @* who agreed that the final price is taken from the salary, when, and for what amount (printed on the slip) *@
+                <p><strong>کسر از حقوق:</strong>
+                    @if (_order.HasDeductionConsent) { <span>مبلغ @StoreMoney.Format(_order.DeductionAcceptedAmount ?? _order.Total) با موافقت @(_order.DeductionAcceptedByName ?? "—") در تاریخ @WorkflowDisplay.ToPersianDateTime(_order.DeductionAcceptedAtUtc!.Value) از حقوق @_order.EmployeeName کسر می‌شود.</span> }
+                    else { <span>موافقت ثبت نشده است.</span> }
+                </p>
+            }
             @if (_order.Note is not null) {<p><strong>توضیحات درخواست‌کننده:</strong> @_order.Note</p>}
             @if (_order.IssueNote is not null) {<p><strong>توضیحات تحویل:</strong> @_order.IssueNote</p>}
             <div style="display:flex;justify-content:space-between;gap:24px;margin-top:40px;break-inside:avoid">

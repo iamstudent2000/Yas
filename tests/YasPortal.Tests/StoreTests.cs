@@ -276,4 +276,163 @@ public class StoreTests
     [InlineData("واحد قدیمی", 1.5, true)]
     public void Counted_units_need_whole_numbers(string unit, double quantity, bool valid) =>
         Assert.Equal(valid, StoreUnits.IsValidQuantity(unit, (decimal)quantity));
+
+    // ---- prices, final price and the salary-deduction agreement ----
+
+    private static StoreOrderLine Priced(decimal q, decimal price) => new(Guid.NewGuid(), "P-1", "Paper", "بسته", q, price);
+
+    [Theory]
+    [InlineData(3, 50000, 150000)]
+    [InlineData(2.5, 10000, 25000)]
+    [InlineData(0.333, 100, 33.3)]
+    [InlineData(1.5, 0.01, 0.02)]   // 0.015 rounds up to 0.02, the way people round by hand
+    [InlineData(4, 0, 0)]
+    public void Line_total_is_unit_price_times_quantity(double quantity, double price, double expected) =>
+        Assert.Equal((decimal)expected, StorePricing.LineTotal((decimal)price, (decimal)quantity));
+
+    [Fact]
+    public void Item_without_a_price_has_no_line_total_and_adds_nothing()
+    {
+        Assert.Null(StorePricing.LineTotal(null, 5));
+        Assert.Equal(60m, StorePricing.Total([(10m, 2m), (null, 7m), (40m, 1m)]));
+        Assert.False(StorePricing.NeedsDeductionConsent(0));
+        Assert.True(StorePricing.NeedsDeductionConsent(0.01m));
+    }
+
+    [Fact]
+    public void Order_line_keeps_the_price_it_was_sent_with()
+    {
+        var line = Priced(3, 50000);
+        Assert.Equal(50000m, line.UnitPrice);
+        Assert.Equal(150000m, line.LineTotal);
+        Assert.Null(Line().LineTotal);
+        Assert.Throws<ArgumentException>(() => new StoreOrderLine(Guid.NewGuid(), "A", "A", "عدد", 1, -1));
+        Assert.Throws<ArgumentException>(() => new StoreOrderLine(Guid.NewGuid(), "A", "A", "عدد", 1, 1.005m));
+    }
+
+    [Fact]
+    public void Order_total_is_the_sum_of_its_line_totals()
+    {
+        var who = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), who, Guid.NewGuid(), null, [Priced(3, 50000), Priced(2, 1250.5m), Line(4)], who);
+        Assert.Equal(152501m, order.TotalPrice);
+        Assert.True(order.RequiresSalaryDeduction);
+    }
+
+    [Fact]
+    public void Order_that_costs_money_cannot_exist_without_the_salary_deduction_agreement()
+    {
+        var employee = Guid.NewGuid();
+        Assert.Throws<ArgumentException>(() => new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(1, 100)]));
+        Assert.Throws<ArgumentException>(() => new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(1, 100)], Guid.Empty));
+
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(2, 100)], employee);
+        Assert.Equal(employee, order.SalaryDeductionAcceptedByEmployeeId);
+        Assert.Equal(200m, order.SalaryDeductionAcceptedAmount);
+        Assert.NotNull(order.SalaryDeductionAcceptedAtUtc);
+        Assert.True(order.HasValidDeductionConsent);
+    }
+
+    [Fact]
+    public void Administrator_who_places_an_order_for_someone_is_recorded_as_the_one_who_accepted()
+    {
+        var employee = Guid.NewGuid(); var admin = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(1, 100)], admin);
+        Assert.Equal(employee, order.EmployeeId);
+        Assert.Equal(admin, order.SalaryDeductionAcceptedByEmployeeId);
+    }
+
+    [Fact]
+    public void Lottery_winner_keeps_the_time_they_agreed()
+    {
+        var agreed = new DateTime(2026, 11, 1, 8, 0, 0, DateTimeKind.Utc);
+        var employee = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(1, 100)], employee, agreed);
+        Assert.Equal(agreed, order.SalaryDeductionAcceptedAtUtc);
+    }
+
+    [Fact]
+    public void Order_without_prices_needs_and_carries_no_agreement()
+    {
+        var order = new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Line(2)]);
+        Assert.Equal(0m, order.TotalPrice);
+        Assert.False(order.RequiresSalaryDeduction);
+        Assert.True(order.HasValidDeductionConsent);
+        Assert.Null(order.SalaryDeductionAcceptedAtUtc);
+        Assert.Null(order.SalaryDeductionAcceptedAmount);
+        // a price of zero is also free
+        Assert.False(new StoreOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, [Priced(5, 0)]).RequiresSalaryDeduction);
+    }
+
+    [Fact]
+    public void Correcting_an_order_needs_the_agreement_again_for_the_new_total()
+    {
+        var employee = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), "old", [Priced(1, 100)], employee);
+        // new total, no agreement: refused, and the order stays exactly as it was
+        Assert.Throws<ArgumentException>(() => order.ReplaceLines("new", [Priced(5, 100)]));
+        Assert.Equal(100m, order.TotalPrice);
+        Assert.Equal("old", order.Note);
+        Assert.Equal(100m, order.SalaryDeductionAcceptedAmount);
+        // with the agreement: the recorded amount follows the new total
+        order.ReplaceLines("new", [Priced(5, 100)], employee);
+        Assert.Equal(500m, order.TotalPrice);
+        Assert.Equal(500m, order.SalaryDeductionAcceptedAmount);
+        Assert.True(order.HasValidDeductionConsent);
+        // corrected down to something free: the old agreement is cleared
+        order.ReplaceLines(null, [Line()]);
+        Assert.Null(order.SalaryDeductionAcceptedAmount);
+        Assert.True(order.HasValidDeductionConsent);
+    }
+
+    [Fact]
+    public void Handed_over_order_cannot_be_repriced()
+    {
+        var employee = Guid.NewGuid();
+        var order = new StoreOrder(Guid.NewGuid(), employee, Guid.NewGuid(), null, [Priced(1, 100)], employee);
+        order.MarkIssued(Guid.NewGuid(), null);
+        Assert.Throws<InvalidOperationException>(() => order.ReplaceLines(null, [Priced(9, 100)], employee));
+        Assert.Throws<InvalidOperationException>(() => order.MarkIssued(Guid.NewGuid(), null)); // still only once
+    }
+
+    [Fact]
+    public void Lottery_application_that_costs_money_needs_the_agreement()
+    {
+        Assert.Throws<ArgumentException>(() => new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2, 1000));
+        var e = new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2, 1000, true);
+        Assert.Equal(1000m, e.UnitPrice);
+        Assert.Equal(2000m, e.EstimatedTotal);
+        Assert.NotNull(e.DeductionAcceptedAtUtc);
+        // free items need no agreement and keep none
+        var free = new StoreLotteryEntry(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 2);
+        Assert.Null(free.EstimatedTotal);
+        Assert.Null(free.DeductionAcceptedAtUtc);
+        // the lottery draw itself is untouched by prices: never more than the stock
+        Assert.Equal(3, StoreLottery.Draw(Enumerable.Range(0, 20).Select(_ => (Guid.NewGuid(), 3m)).ToList(), 10).Count);
+    }
+
+    [Fact]
+    public void Item_price_is_a_validated_number()
+    {
+        Assert.Equal(50000m, new StoreItem("A", "Pen", Cat, "عدد", null, price: 50000).Price);
+        Assert.Null(new StoreItem("B", "Pen", Cat, "عدد", null).Price);
+        Assert.Throws<ArgumentException>(() => new StoreItem("C", "Pen", Cat, "عدد", null, price: -1));
+        Assert.Throws<ArgumentException>(() => new StoreItem("D", "Pen", Cat, "عدد", null, price: 1.234m));
+    }
+
+    [Theory]
+    [InlineData("50,000", 50000)]
+    [InlineData("۵۰٬۰۰۰", 50000)]
+    [InlineData("۵۰,۰۰۰", 50000)]
+    [InlineData("12500.75", 12500.75)]
+    [InlineData("۱۲۵۰۰٫۷۵", 12500.75)]
+    [InlineData("1 250 000", 1250000)]
+    [InlineData("  ", 0)]
+    public void Typed_prices_treat_commas_as_thousands_separators(string text, double expected)
+    {
+        Assert.True(StoreNumber.TryParseMoney(text, out var v));
+        Assert.Equal((decimal)expected, v);
+        Assert.False(StoreNumber.TryParseMoney("abc", out _));
+        Assert.False(StoreNumber.TryParseMoney("-5", out _));
+    }
 }

@@ -22,18 +22,25 @@ public sealed class StoreLotteryEntry
     {
     }
 
-    public StoreLotteryEntry(Guid itemId, Guid employeeId, Guid positionId, decimal quantity)
+    /// <param name="unitPrice">The price of one unit shown to the person when they applied (Toman); empty when the item has no price. A winner pays this price, even if the item's price changes before the draw.</param>
+    /// <param name="deductionAccepted">The person ticked the agreement to the salary deduction. Required when the application would cost money.</param>
+    public StoreLotteryEntry(Guid itemId, Guid employeeId, Guid positionId, decimal quantity, decimal? unitPrice = null, bool deductionAccepted = false)
     {
         if (itemId == Guid.Empty) throw new ArgumentException("Item is required.", nameof(itemId));
         if (employeeId == Guid.Empty) throw new ArgumentException("Employee is required.", nameof(employeeId));
         if (positionId == Guid.Empty) throw new ArgumentException("Position is required.", nameof(positionId));
         if (quantity <= 0) throw new ArgumentException("Quantity must be positive.", nameof(quantity));
         if (decimal.Round(quantity, 3) != quantity) throw new ArgumentException("At most three decimals.", nameof(quantity));
+        if (unitPrice is < 0 || (unitPrice is decimal pv && decimal.Round(pv, 2) != pv)) throw new ArgumentException("Price cannot be negative (two decimals at most).", nameof(unitPrice));
+        if (StorePricing.NeedsDeductionConsent(StorePricing.LineTotal(unitPrice, quantity) ?? 0m) && !deductionAccepted)
+            throw new ArgumentException("An application that costs money needs the agreement to the salary deduction.", nameof(deductionAccepted));
         Id = Guid.NewGuid();
         ItemId = itemId;
         EmployeeId = employeeId;
         PositionId = positionId;
         Quantity = quantity;
+        UnitPrice = unitPrice;
+        DeductionAcceptedAtUtc = StorePricing.NeedsDeductionConsent(StorePricing.LineTotal(unitPrice, quantity) ?? 0m) ? DateTime.UtcNow : null;
         Status = LotteryEntryStatus.Applied;
         AppliedAtUtc = DateTime.UtcNow;
     }
@@ -43,6 +50,12 @@ public sealed class StoreLotteryEntry
     public Guid EmployeeId { get; private set; }
     public Guid PositionId { get; private set; }
     public decimal Quantity { get; private set; }
+    /// <summary>The price of one unit shown when the person applied (Toman); empty when the item had no price. The winner's order uses it.</summary>
+    public decimal? UnitPrice { get; private set; }
+    /// <summary>When the person agreed to the salary deduction for this application. Empty when it costs nothing.</summary>
+    public DateTime? DeductionAcceptedAtUtc { get; private set; }
+    /// <summary>What the application would cost (unit price x quantity); empty when there was no price.</summary>
+    public decimal? EstimatedTotal => StorePricing.LineTotal(UnitPrice, Quantity);
     public LotteryEntryStatus Status { get; private set; }
     public DateTime AppliedAtUtc { get; private set; }
     public DateTime? DrawnAtUtc { get; private set; }

@@ -273,6 +273,13 @@ if (app.Environment.IsDevelopment())
             EXEC(N'CREATE UNIQUE INDEX [IX_StoreLotteryEntries_ItemId_EmployeeId] ON [dbo].[StoreLotteryEntries] ([ItemId], [EmployeeId]) WHERE [Status] = N''Applied''');
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.StoreLotteryEntries') AND name = N'IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc')
             EXEC(N'CREATE INDEX [IX_StoreLotteryEntries_EmployeeId_AppliedAtUtc] ON [dbo].[StoreLotteryEntries] ([EmployeeId], [AppliedAtUtc])');
+        -- store prices: the price of one unit is copied onto each order line, and the salary-deduction agreement is kept on the order (and on a lottery application)
+        IF COL_LENGTH(N'dbo.StoreOrderLines', N'UnitPrice') IS NULL ALTER TABLE [dbo].[StoreOrderLines] ADD [UnitPrice] decimal(18,2) NULL;
+        IF COL_LENGTH(N'dbo.StoreOrders', N'SalaryDeductionAcceptedAtUtc') IS NULL ALTER TABLE [dbo].[StoreOrders] ADD [SalaryDeductionAcceptedAtUtc] datetime2 NULL;
+        IF COL_LENGTH(N'dbo.StoreOrders', N'SalaryDeductionAcceptedByEmployeeId') IS NULL ALTER TABLE [dbo].[StoreOrders] ADD [SalaryDeductionAcceptedByEmployeeId] uniqueidentifier NULL;
+        IF COL_LENGTH(N'dbo.StoreOrders', N'SalaryDeductionAcceptedAmount') IS NULL ALTER TABLE [dbo].[StoreOrders] ADD [SalaryDeductionAcceptedAmount] decimal(18,2) NULL;
+        IF COL_LENGTH(N'dbo.StoreLotteryEntries', N'UnitPrice') IS NULL ALTER TABLE [dbo].[StoreLotteryEntries] ADD [UnitPrice] decimal(18,2) NULL;
+        IF COL_LENGTH(N'dbo.StoreLotteryEntries', N'DeductionAcceptedAtUtc') IS NULL ALTER TABLE [dbo].[StoreLotteryEntries] ADD [DeductionAcceptedAtUtc] datetime2 NULL;
         IF OBJECT_ID(N'dbo.GuideBlocks', N'U') IS NOT NULL DROP TABLE [dbo].[GuideBlocks];
         IF OBJECT_ID(N'dbo.UserGuides', N'U') IS NULL
             CREATE TABLE [dbo].[UserGuides] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(200) NOT NULL, [Summary] nvarchar(300) NULL, [ContentHtml] nvarchar(max) NOT NULL, [Visibility] int NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, [UpdatedAtUtc] datetime2 NOT NULL, [CreatedByEmployeeId] uniqueidentifier NULL, CONSTRAINT [PK_UserGuides] PRIMARY KEY ([Id]));

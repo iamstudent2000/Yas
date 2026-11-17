@@ -42,6 +42,27 @@ public sealed record StorePage<T>(IReadOnlyList<T> Rows, int Total);
 /// <summary>Reads a quantity typed by a person: Persian and Arabic digits, the Persian decimal point (٫) and a comma are all accepted.</summary>
 public static class StoreNumber
 {
+    /// <summary>
+    /// Reads a price typed by a person. Unlike a quantity, a comma (or the Persian thousands mark ٬ or the Persian comma ،) is a thousands separator here,
+    /// so «50,000» and «۵۰٬۰۰۰» both mean fifty thousand; only «.» and «٫» are a decimal point. An empty box means 0.
+    /// </summary>
+    public static bool TryParseMoney(string? text, out decimal value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(text)) return true;
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in text.Trim())
+        {
+            if (ch is >= '\u06F0' and <= '\u06F9') sb.Append((char)('0' + (ch - '\u06F0')));
+            else if (ch is >= '\u0660' and <= '\u0669') sb.Append((char)('0' + (ch - '\u0660')));
+            else if (ch is '\u066B' or '.') sb.Append('.');
+            else if (ch is '\u066C' or ',' or '\u060C' or ' ' or '\u00A0') continue;   // thousands separators and spaces are dropped
+            else sb.Append(ch);
+        }
+        return decimal.TryParse(sb.ToString(), System.Globalization.NumberStyles.AllowDecimalPoint,
+            System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
     public static bool TryParse(string? text, out decimal value)
     {
         value = 0;

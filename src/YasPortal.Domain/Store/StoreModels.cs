@@ -81,7 +81,11 @@ public sealed class StoreItem
     public string? Description { get; private set; }
     /// <summary>The most one employee may ask for of this item in a single request (0 means no limit). Enforced when ordering.</summary>
     public decimal MaxPerRequest { get; private set; }
-    /// <summary>Optional price per unit, shown as information only (a comment): it is never used in any limit, check or total.</summary>
+    /// <summary>
+    /// Optional price of one unit in Toman. It is a real number: an order's line total is this price times the quantity, and the order total is taken from
+    /// the person's salary once they agree. Empty means the item is free. It is never used in the stock, the per-request maximum or the lottery.
+    /// Orders keep a copy of the price they were sent with, so changing it here does not change orders already sent.
+    /// </summary>
     public decimal? Price { get; private set; }
     /// <summary>First day (inclusive) on which the item can be requested; empty means "from the start".</summary>
     public DateTime? RequestOpensOn { get; private set; }
