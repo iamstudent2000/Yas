@@ -5,12 +5,15 @@
 @using YasPortal.Domain.PhoneBook
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
+@using YasPortal.Domain.Auditing
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.AdminPhoneBookView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 @inject IJSRuntime JS
+@inject ExportFilesService Files
+@inject AuditEventWriter Audit
 
 @* Admin page for the company phone book (address /admin/phone-book). The phone book has groups (for example departments) *@
 @* and contacts inside them. People with the view permission can look; people with the manage permission can add, edit, *@
@@ -155,6 +158,11 @@
                         <h2 class="section-title" style="margin:0">گروه‌ها و مخاطبان</h2>
                         <p class="muted">خاموش‌کردن یک گروه یا مخاطب آن را از دفترچه تلفن کاربران پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
                     </div>
+                    @* Download the whole phone book (all groups and contacts, switched-off ones marked) as a CSV or a PDF. *@
+                    <div class="form-actions no-print">
+                        <button class="btn btn-secondary btn-sm" disabled="@(_exporting || _tree.TotalContacts == 0)" @onclick="() => ExportAsync(false)"><i class="ti @Icons.ExportData"></i> خروجی CSV</button>
+                        <button class="btn btn-secondary btn-sm" disabled="@(_exporting || _tree.TotalContacts == 0)" @onclick="() => ExportAsync(true)"><i class="ti @Icons.Pdf"></i> خروجی PDF</button>
+                    </div>
                 </div>
                 <PhoneBookView Tree="_tree" EmptyText="هنوز گروهی ثبت نشده است" TwoColumns="false" StartExpanded="false">
                     <GroupActions Context="group">
@@ -238,6 +246,32 @@
         _groups = await db.ContactGroups.AsNoTracking().ToListAsync();
         _contacts = await db.Contacts.AsNoTracking().ToListAsync();
         _tree = PhoneBookTree.Build(_groups, _contacts, includeInactive: true);
+    }
+
+    // ---- export ----
+
+    private bool _exporting;
+
+    // Export buttons: the whole phone book, group by group in the order shown, as a CSV or a PDF.
+    // Switched-off groups and contacts are included and marked in the "وضعیت" column. The export is recorded in the audit log.
+    private async Task ExportAsync(bool pdf)
+    {
+        if (_exporting || !await PermissionChecker.HasPermissionAsync(Perm.AdminPhoneBookView)) return;
+        _exporting = true;
+        try
+        {
+            var rows = new List<IReadOnlyList<string>>();
+            foreach (var g in _tree.Groups)
+                foreach (var c in g.Contacts)
+                    rows.Add([g.Group.Name, c.FullName, c.JobTitle ?? "", c.Extension ?? "", c.Phone ?? "", c.Mobile ?? "", c.Email ?? "", c.Note ?? "",
+                        g.Group.IsActive && c.IsActive ? "روشن" : "خاموش"]);
+            var written = await Files.SaveAsync("دفترچه تلفن", "phone-book", ["گروه", "نام", "سمت", "داخلی", "تلفن", "موبایل", "ایمیل", "توضیح", "وضعیت"], rows, pdf: pdf);
+            await Audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, "phone-book",
+                AuditEventWriter.Describe(("Permission", Perm.AdminPhoneBookView), null, ("RowCount", written), ("Format", pdf ? "PDF" : "CSV")));
+            AppState.AddToast($"خروجی آماده شد ({written:N0} ردیف).", ToastLevel.Success);
+        }
+        catch (Exception) { AppState.AddToast("ساخت فایل انجام نشد.", ToastLevel.Error); }
+        finally { _exporting = false; }
     }
 
     // Every change re-checks the manage permission, instead of trusting the page alone.

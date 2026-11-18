@@ -25,10 +25,11 @@ public sealed class ExportFilesService(IJSRuntime js, ExportOptions options, App
     /// <summary>Creates the file and hands it to the browser. Returns how many rows it holds.</summary>
     /// <param name="title">The heading printed at the top of the PDF.</param>
     /// <param name="fileBaseName">The file name without date and extension.</param>
-    public async Task<int> SaveAsync(string title, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows, string? subtitle = null)
+    /// <param name="pdf">Forces the format: true = PDF, false = CSV. Left empty, the choice made in the ⋯ menu of the list decides (a page with its own two buttons passes it).</param>
+    public async Task<int> SaveAsync(string title, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows, string? subtitle = null, bool? pdf = null)
     {
         var stamp = DateTime.Now.ToString("yyyyMMdd-HHmm", System.Globalization.CultureInfo.InvariantCulture);
-        if (!options.Pdf)
+        if (!(pdf ?? options.Pdf))
         {
             await js.InvokeVoidAsync("yasDownloadFile", $"{fileBaseName}-{stamp}.csv", "text/csv;charset=utf-8", ReportExportService.BuildCsv(headers, rows));
             return rows.Count;
