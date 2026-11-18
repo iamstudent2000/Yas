@@ -56,6 +56,19 @@ else
                 <p class="guide-summary">@_guide.Summary</p>
             }
             <div class="guide-html" dir="rtl">@((MarkupString)_html)</div>
+            @* Files attached to the guide, as download links (they follow the same visibility as the guide). *@
+            @if (_files.Count > 0)
+            {
+                <div class="guide-files">
+                    <h2 class="guide-section-title"><i class="ti @Icons.Attachment"></i> فایل‌های پیوست</h2>
+                    @foreach (var file in _files)
+                    {
+                        <a class="guide-file" href="/guides/files/@file.Id" download="@file.FileName">
+                            <i class="ti @Icons.Attachment"></i><span>@file.FileName</span><small>@SizeText(file.SizeBytes)</small>
+                        </a>
+                    }
+                </div>
+            }
         </article>
     </div>
 }
@@ -67,6 +80,11 @@ else
     private bool _loading = true, _signedIn;
     private UserGuide? _guide;
     private string _html = "";
+    private IReadOnlyList<GuideFileItem> _files = [];
+
+    // Turns a byte count into a short text in Persian digits, in kilobytes or megabytes.
+    private static string SizeText(long bytes) =>
+        YasPortal.Web.Services.WorkflowDisplay.ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
 
     // Decide who is looking (signed in or not, may preview any guide, or is the author) and ask the provider for the guide.
     protected override async Task OnParametersSetAsync()
@@ -80,6 +98,8 @@ else
         _guide = await Provider.GetAsync(Id, _signedIn, canPreview, authorId);
         // cleaned again here (it was also cleaned when saved): this text is shown to people who are not signed in
         _html = _guide is null ? "" : GuideHtmlSanitizer.Sanitize(_guide.ContentHtml);
+        // the reader may see the guide, so the names of its files are shown too (the download link checks the same rule again)
+        _files = _guide is null ? [] : await Provider.ListAttachmentsAsync(_guide.Id);
         _loading = false;
     }
 }

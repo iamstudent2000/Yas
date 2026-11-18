@@ -51,6 +51,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Contact> Contacts => Set<Contact>();
     // User guides.
     public DbSet<UserGuide> UserGuides => Set<UserGuide>();
+    public DbSet<UserGuideAttachment> UserGuideAttachments => Set<UserGuideAttachment>();
     // Internal store: groups, items, stock ledger, orders and lottery applications.
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<StoreItem> StoreItems => Set<StoreItem>();
@@ -336,6 +337,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         // Home page links: title and address required; a group cannot be deleted while it has links.
         modelBuilder.Entity<PortalLink>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(PortalLink.TitleMax).IsRequired(); e.Property(x => x.Url).HasMaxLength(PortalLink.UrlMax).IsRequired(); e.Property(x => x.Description).HasMaxLength(PortalLink.DescriptionMax); e.HasIndex(x => x.GroupId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Restrict); });
         // File attached to a home slide: one file per slide, deleted together with the slide.
+        // Files of a guide: removed together with the guide.
+        modelBuilder.Entity<UserGuideAttachment>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(UserGuideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<UserGuide>().WithMany().HasForeignKey(x => x.GuideId).OnDelete(DeleteBehavior.Cascade); e.HasIndex(x => x.GuideId); });
         modelBuilder.Entity<HomeSlideAttachment>(e => { e.HasKey(x => x.SlideId); e.Property(x => x.SlideId).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(HomeSlideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<HomeSlide>().WithOne().HasForeignKey<HomeSlideAttachment>(x => x.SlideId).OnDelete(DeleteBehavior.Cascade); });
         // Home slides: text length limits, optional start and end dates, indexed by on/off and order.
         modelBuilder.Entity<HomeSlide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeSlide.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeSlide.TextMax).IsRequired(); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.LinkText).HasMaxLength(HomeSlide.LinkTextMax); e.Property(x => x.LinkUrl).HasMaxLength(HomeSlide.LinkUrlMax); e.Property(x => x.StartsOn).HasColumnType("date"); e.Property(x => x.ExpiresOn).HasColumnType("date"); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });

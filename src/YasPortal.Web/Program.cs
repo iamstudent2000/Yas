@@ -334,6 +334,12 @@ if (app.Environment.IsDevelopment())
         IF COL_LENGTH(N'dbo.UserGuides', N'GroupName') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [GroupName] nvarchar(100) NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
+        -- files attached to a guide (several per guide; deleted together with the guide)
+        IF OBJECT_ID(N'dbo.UserGuideAttachments', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[UserGuideAttachments] ([Id] uniqueidentifier NOT NULL, [GuideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_UserGuideAttachments] PRIMARY KEY ([Id]), CONSTRAINT [FK_UserGuideAttachments_UserGuides_GuideId] FOREIGN KEY ([GuideId]) REFERENCES [dbo].[UserGuides] ([Id]) ON DELETE CASCADE);
+            CREATE INDEX [IX_UserGuideAttachments_GuideId] ON [dbo].[UserGuideAttachments] ([GuideId]);
+        END
         """);
     // Loads the demo organization, accounts and workflow definitions the first time (see the README for the accounts).
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
@@ -536,6 +542,21 @@ app.MapGet("/landing/files/{slideId:guid}", async (Guid slideId, HttpContext htt
         return Results.NotFound();
     var canSeeAll = http.User.Identity?.IsAuthenticated == true && http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminLandingSlidesView);
     if (!slide.IsShownOn(DateTime.Now) && !canSeeAll)
+        return Results.NotFound();
+    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    return Results.File(file.Content, file.ContentType, file.FileName);
+});
+// Download of a file attached to a guide. Same visibility rules as reading the guide itself (see GuideProvider.GetAttachmentAsync):
+// a visitor gets files of public guides only; a guide that is off, or for signed-in people, looks like a missing file. Always sent
+// as a download, never rendered by the browser.
+app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuideProvider guides) =>
+{
+    var signedIn = http.User.Identity?.IsAuthenticated == true;
+    var canPreviewAll = signedIn && http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminGuidesView);
+    Guid? authorId = signedIn && http.User.HasClaim(AuthClaimNames.Permission, Perm.GuidesOwnManage)
+        && Guid.TryParse(http.User.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? eid : null;
+    var file = await guides.GetAttachmentAsync(id, signedIn, canPreviewAll, authorId);
+    if (file is null)
         return Results.NotFound();
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
