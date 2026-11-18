@@ -6,7 +6,7 @@
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.StoreReportsView)]
 @inject StoreReportService Reports
-@inject IJSRuntime JS
+@inject ExportFilesService Files
 @inject AppState AppState
 
 @* Store admin: reports (address /admin/store/reports). The person picks one report kind (for example by category), *@
@@ -144,15 +144,14 @@
         await ApplyFiltersAsync();
     }
 
-    // Export: download the table as it is shown (including the current sort) as a CSV file.
+    // Export: download the table as it is shown (including the current sort) as a file: a CSV, or a PDF when «خروجی PDF» was chosen.
     private async Task ExportAsync()
     {
         if (_table is null || _table.Rows.Count == 0) { AppState.AddToast("داده‌ای برای خروجی نیست.", ToastLevel.Info); return; }
         _exporting = true;
         try
         {
-            var bytes = StoreCsv.Build(_table.Headers, SortedRows);
-            await JS.InvokeVoidAsync("yasDownloadFile", $"store-{_key}-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", bytes);
+            await Files.SaveAsync(_table.Title, $"store-{_key}", _table.Headers, SortedRows.ToList(), _table.Description);
         }
         finally { _exporting = false; }
     }

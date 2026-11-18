@@ -10,7 +10,7 @@
 @inject StoreOrderService Orders
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
-@inject IJSRuntime JS
+@inject ExportFilesService Files
 
 @* Store admin: hand-over of goods (address /admin/store/issue), for storekeepers with the issue permission. *@
 @* Two tabs: orders that are approved and waiting for hand-over, and the history of what was already handed over. *@
@@ -38,7 +38,7 @@
     <ListFilterBar Busy="_loading" ActiveCount="@((string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_from is null ? 0 : 1) + (_to is null ? 0 : 1))"
                    CanClear="@(!string.IsNullOrWhiteSpace(_search) || _from is not null || _to is not null || !string.IsNullOrWhiteSpace(_dSearch) || _dFrom is not null || _dTo is not null)"
                    OnSearch="ApplyFiltersAsync" OnClear="ClearFiltersAsync"
-                   OnExport="ExportCsvAsync" OnExportPdf="ExportPdfAsync" ExportPermission="@Perm.StoreOrdersIssue" Exporting="_exporting">
+                   OnExport="ExportAsync" ExportPermission="@Perm.StoreOrdersIssue" Exporting="_exporting">
         <div class="admin-filter"><label class="form-label">جستجو (درخواست‌کننده یا کالا)</label>
             <input class="form-control" placeholder="نام شخص، نام یا کد کالا..." @bind="_dSearch" @bind:event="oninput" /></div>
         <div class="admin-filter"><label class="form-label">@(_history ? "تحویل از تاریخ" : "تاریخ ثبت از")</label><PersianDatePicker @key="_history" Value="_dFrom" ValueChanged="d => _dFrom = d" Placeholder="تاریخ" /></div>
@@ -195,7 +195,7 @@
             ? Orders.ListIssuedAsync(page, pageSize, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime(), _sortBy, _sortDesc)
             : Orders.ListPendingIssueAsync(page, pageSize, _sortBy, _sortDesc, _search, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
 
-    // ---- CSV and PDF: the same rows, everything the last search matched (not only this page) ----
+    // ---- Export (CSV or PDF): the same rows, everything the last search matched (not only this page) ----
 
     private const int ExportLimit = 20000;
 
@@ -210,35 +210,20 @@
         return (IReadOnlyList<string>)cells;
     }).ToList();
 
-    private string ExportName() => $"store-{(_history ? "issued" : "waiting")}-{DateTime.Now:yyyyMMdd-HHmm}";
-
-    private async Task ExportCsvAsync()
+    // Export: every order the last search matched (up to 20,000), in the current sort, as a CSV, or as a PDF when «خروجی PDF» was chosen in the ⋯ menu.
+    // The PDF shows the applied search and dates under its title.
+    private async Task ExportAsync()
     {
         _exporting = true;
         try
         {
             var all = await FetchAsync(1, ExportLimit);
-            await JS.InvokeVoidAsync("yasDownloadFile", ExportName() + ".csv", "text/csv;charset=utf-8", StoreCsv.Build(ExportHeaders(), ExportRows(all.Rows)));
-            if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
-        }
-        catch (Exception) { AppState.AddToast("ساخت فایل CSV انجام نشد.", ToastLevel.Error); }
-        finally { _exporting = false; }
-    }
-
-    private async Task ExportPdfAsync()
-    {
-        _exporting = true;
-        try
-        {
-            var all = await FetchAsync(1, ExportLimit);
-            var title = _history ? "تاریخچه تحویل کالا" : "سفارش‌های در انتظار تحویل";
             var filters = string.Join(" · ", new[] { string.IsNullOrWhiteSpace(_search) ? null : $"جستجو: {_search}", _from is DateTime f ? $"از {WorkflowDisplay.ToPersianDate(f)}" : null, _to is DateTime t ? $"تا {WorkflowDisplay.ToPersianDate(t)}" : null }.Where(x => x is not null));
-            float[] weights = _history ? [1.1f, 2, 1.8f, 5, 1.6f, 1.8f, 2] : [1.1f, 2.2f, 1.8f, 6, 1.8f];
-            var pdf = StoreListPdf.Render(title, filters.Length == 0 ? null : filters, ExportHeaders(), weights, ExportRows(all.Rows));
-            await JS.InvokeVoidAsync("yasDownloadFile", ExportName() + ".pdf", "application/pdf", pdf);
+            await Files.SaveAsync(_history ? "تاریخچه تحویل کالا" : "سفارش‌های در انتظار تحویل", _history ? "store-issued" : "store-waiting",
+                ExportHeaders(), ExportRows(all.Rows), filters.Length == 0 ? null : filters);
             if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
         }
-        catch (Exception) { AppState.AddToast("ساخت فایل PDF انجام نشد.", ToastLevel.Error); }
+        catch (Exception) { AppState.AddToast("ساخت فایل انجام نشد.", ToastLevel.Error); }
         finally { _exporting = false; }
     }
 

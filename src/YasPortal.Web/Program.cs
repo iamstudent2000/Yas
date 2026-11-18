@@ -123,6 +123,9 @@ builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<StoreOrderService>();
 builder.Services.AddScoped<StoreReportService>();
 builder.Services.AddScoped<StoreLotteryService>();
+// Which file an export makes (CSV or PDF) and the helper that makes it; both live as long as the person's connection.
+builder.Services.AddScoped<ExportOptions>();
+builder.Services.AddScoped<ExportFilesService>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<RequestReportBuilder>();

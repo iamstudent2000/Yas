@@ -19,7 +19,7 @@ namespace YasPortal.Web.Services;
 /// visible page), read in batches so a large report never loads at once. The file opens in Excel
 /// (UTF-8 with a byte-order mark keeps the Persian text intact).
 /// </summary>
-public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, IJSRuntime js, AppState appState, IPermissionChecker permissions, AuditEventWriter audit, AuthenticationStateProvider authState)
+public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, AppState appState, IPermissionChecker permissions, AuditEventWriter audit, AuthenticationStateProvider authState, ExportFilesService files)
 {
     // Largest export allowed in one file; if more rows match, the first rows are exported and the user is warned.
     /// <summary>Upper limit of one export; a bigger result is cut off and the user is told.</summary>
@@ -346,13 +346,13 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         return false;
     }
 
-    // Creates the file in the browser, records the export in the audit log with the filters used and the row count, and shows a toast.
+    // Creates the file in the browser (a CSV, or a PDF of the same rows when «خروجی PDF» was chosen), records the export in the audit log with the filters used,
+    // the format and the row count, and shows a toast.
     private async Task DownloadAsync(string permission, string fileBaseName, IReadOnlyList<string> headers, IReadOnlyList<IReadOnlyList<string>> rows)
     {
-        var bytes = BuildCsv(headers, rows);
-        var fileName = $"{fileBaseName}-{DateTime.Now:yyyyMMdd-HHmm}.csv";
-        await js.InvokeVoidAsync("yasDownloadFile", fileName, "text/csv;charset=utf-8", bytes);
-        // Recorded once the file has been handed to the browser; the row count is what was really exported (cut at MaxRows).
+        // the PDF heading is the Persian name of the permission; ExportFilesService decides between CSV and PDF
+        var written = await files.SaveAsync(TitleOf(permission, fileBaseName), fileBaseName, headers, rows);
+        // Recorded once the file has been handed to the browser; the row count is what was really exported (cut at MaxRows, or at the PDF limit).
         // The person comes from the signed-in claims, not the ambient audit actor, which a Blazor circuit may not have.
         var user = (await authState.GetAuthenticationStateAsync()).User;
         Guid? employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employee) ? employee : null;
@@ -361,9 +361,16 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         var filters = audit.PendingExportFilters;
         audit.PendingExportFilters = null;
         await audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, fileBaseName,
-            AuditEventWriter.Describe(("Permission", permission), filters, ("RowCount", rows.Count)),
+            AuditEventWriter.Describe(("Permission", permission), filters, ("RowCount", written), ("Format", files.WantsPdf ? "PDF" : "CSV")),
             employeeId: employeeId, activePositionId: positionId);
-        appState.AddToast($"خروجی آماده شد ({rows.Count:N0} ردیف).", ToastLevel.Success);
+        appState.AddToast($"خروجی آماده شد ({written:N0} ردیف).", ToastLevel.Success);
+    }
+
+    // The heading of a PDF: the Persian name of the export permission without the word «خروجی» (for example «فهرست کاربران»); the file name when there is none.
+    private static string TitleOf(string permission, string fileBaseName)
+    {
+        var name = ReportPermissions.All.FirstOrDefault(p => p.Code == permission).Name;
+        return string.IsNullOrEmpty(name) ? fileBaseName : name.StartsWith("خروجی ", StringComparison.Ordinal) ? name["خروجی ".Length..] : name;
     }
 
     // Creates the CSV with a byte-order mark so Excel shows Persian letters correctly.
