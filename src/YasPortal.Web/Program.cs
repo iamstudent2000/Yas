@@ -330,6 +330,8 @@ if (app.Environment.IsDevelopment())
         IF COL_LENGTH(N'dbo.UserGuides', N'ContentHtml') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [ContentHtml] nvarchar(max) NOT NULL CONSTRAINT [DF_UserGuides_ContentHtml] DEFAULT N'';
         IF COL_LENGTH(N'dbo.UserGuides', N'Visibility') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [Visibility] int NOT NULL CONSTRAINT [DF_UserGuides_Visibility] DEFAULT 1;
         IF COL_LENGTH(N'dbo.UserGuides', N'CreatedByEmployeeId') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [CreatedByEmployeeId] uniqueidentifier NULL;
+        -- guides can be gathered under a group heading (a plain name; empty = no group)
+        IF COL_LENGTH(N'dbo.UserGuides', N'GroupName') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [GroupName] nvarchar(100) NULL;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
         """);

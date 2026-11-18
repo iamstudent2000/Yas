@@ -20,7 +20,7 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
             if (!signedIn) query = query.Where(x => x.Visibility == GuideVisibility.Public);
             // Display order set by the administrator, then oldest first.
             return await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
-                .Select(x => new GuideListItem(x.Id, x.Title, x.Summary, x.Visibility))
+                .Select(x => new GuideListItem(x.Id, x.Title, x.Summary, x.Visibility, x.GroupName))
                 .ToListAsync(ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -52,4 +52,5 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
     }
 }
 
-public sealed record GuideListItem(Guid Id, string Title, string? Summary, GuideVisibility Visibility);
+/// <summary>One guide in the list, without its text. <paramref name="GroupName"/> is the heading it is listed under (empty = no group).</summary>
+public sealed record GuideListItem(Guid Id, string Title, string? Summary, GuideVisibility Visibility, string? GroupName = null);

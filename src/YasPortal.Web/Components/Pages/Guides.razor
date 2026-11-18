@@ -10,7 +10,8 @@
 @* Open to everyone, also before sign-in. A visitor sees only the guides marked public; a signed-in person sees all active guides. *@
 
 @* User guides page: a list of the help guides written by the system administrator. It is open to everyone, including visitors *@
-@* who have not signed in; they only see public guides. Each card opens one guide. *@
+@* who have not signed in; they only see public guides. Each card opens one guide. The guides are gathered under group headings, *@
+@* and a search box (it filters while typing) plus group buttons help to find one quickly. *@
 <PageTitle>راهنمای کاربری - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -45,23 +46,61 @@
     }
     else
     {
-        <div class="guide-grid">
-            @foreach (var guide in _guides)
-            {
-                <a class="guide-card" href="/guides/@guide.Id">
-                    <span class="guide-card-icon"><i class="ti @Icons.Guide"></i></span>
-                    <strong>@guide.Title</strong>
-                    @if (guide.Summary is not null)
-                    {
-                        <span class="guide-card-summary">@guide.Summary</span>
-                    }
-                    @if (_signedIn && guide.Visibility == GuideVisibility.Public)
-                    {
-                        <span><span class="badge badge-muted">عمومی</span></span>
-                    }
-                </a>
-            }
+        @* The search box looks at the title, the summary and the group name. *@
+        <div class="guide-search">
+            <i class="ti @Icons.Search"></i>
+            <input class="form-control" type="search" placeholder="جستجو در عنوان، خلاصه و گروه راهنماها..." @bind="_query" @bind:event="oninput" />
         </div>
+        @* One button per group (only when at least one guide has a group); the chosen button is highlighted, and "همه" shows everything. *@
+        @if (_groupNames.Count > 0)
+        {
+            <div class="guide-chips" role="group" aria-label="گروه راهنما">
+                <button type="button" class="guide-chip @(_group is null ? "is-active" : "")" @onclick="() => _group = null">همه</button>
+                @foreach (var name in _groupNames)
+                {
+                    <button type="button" class="guide-chip @(_group == name ? "is-active" : "")" @onclick="() => _group = name">@name</button>
+                }
+                @if (_hasUngrouped)
+                {
+                    <button type="button" class="guide-chip @(_group == "" ? "is-active" : "")" @onclick='() => _group = ""'>@GuideCatalog.UngroupedLabel</button>
+                }
+            </div>
+        }
+
+        @if (Sections.Count == 0)
+        {
+            <section class="card">
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Search"></i></div><strong>راهنمایی با این جستجو پیدا نشد</strong><span>عبارت دیگری بنویسید یا گروه «همه» را انتخاب کنید.</span></div>
+            </section>
+        }
+        @* Each group is a heading with its cards under it; guides without a group are collected last. A heading is skipped when *@
+        @* the guides have no groups at all, so a portal that does not use groups looks exactly as before. *@
+        @foreach (var section in Sections)
+        {
+            <section class="guide-section">
+                @if (_groupNames.Count > 0)
+                {
+                    <h2 class="guide-section-title">@(section.GroupName ?? GuideCatalog.UngroupedLabel) <span class="badge badge-muted">@section.Guides.Count</span></h2>
+                }
+                <div class="guide-grid">
+                    @foreach (var guide in section.Guides)
+                    {
+                        <a class="guide-card" href="/guides/@guide.Id">
+                            <span class="guide-card-icon"><i class="ti @Icons.Guide"></i></span>
+                            <strong>@guide.Title</strong>
+                            @if (guide.Summary is not null)
+                            {
+                                <span class="guide-card-summary">@guide.Summary</span>
+                            }
+                            @if (_signedIn && guide.Visibility == GuideVisibility.Public)
+                            {
+                                <span><span class="badge badge-muted">عمومی</span></span>
+                            }
+                        </a>
+                    }
+                </div>
+            </section>
+        }
     }
 </div>
 
@@ -69,11 +108,24 @@
     private bool _loading = true, _signedIn;
     private IReadOnlyList<GuideListItem> _guides = [];
 
+    // What the reader typed in the search box, and the group button chosen: null = all groups, "" = the guides without a group.
+    private string _query = "";
+    private string? _group;
+
+    // The group names present in the guides this visitor may see, in the order of their first guide, and whether some guides have no group.
+    private IReadOnlyList<string> _groupNames = [];
+    private bool _hasUngrouped;
+
+    // The guides left after the search and the group button, arranged under their group headings.
+    private IReadOnlyList<GuideSection> Sections => GuideCatalog.Group(GuideCatalog.Search(_guides, _query, _group));
+
     // Find out whether the visitor is signed in, then load the guides they are allowed to see.
     protected override async Task OnInitializedAsync()
     {
         _signedIn = (await AuthState.GetAuthenticationStateAsync()).User.Identity?.IsAuthenticated == true;
         _guides = await Provider.ListAsync(_signedIn);
+        _groupNames = _guides.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct().ToList();
+        _hasUngrouped = _guides.Any(g => g.GroupName is null);
         _loading = false;
     }
 }
