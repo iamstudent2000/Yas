@@ -15,11 +15,14 @@
 <div class="pb-root">
 <div class="pb @(CanPrint || PrintBlocked ? "no-print" : "")" dir="rtl">
     <div class="pb-toolbar">
-        <div class="pb-search">
-            <i class="ti ti-search"></i>
-            <input class="form-control" type="search" placeholder="جستجو در همه گروه‌ها: نام، سمت، داخلی، تلفن، موبایل، ایمیل..."
-                   value="@_query" @oninput="OnGeneralQuery" aria-label="جستجوی کلی" />
-        </div>
+        @if (ShowSearch)
+        {
+            <div class="pb-search">
+                <i class="ti ti-search"></i>
+                <input class="form-control" type="search" placeholder="جستجو در همه گروه‌ها: نام، سمت، داخلی، تلفن، موبایل، ایمیل..."
+                       value="@_query" @oninput="OnGeneralQuery" aria-label="جستجوی کلی" />
+            </div>
+        }
         <div class="pb-toolbar-actions">
             <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAll"><i class="ti ti-folder-open"></i> باز کردن همه</button>
             <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseAll"><i class="ti ti-folder"></i> بستن همه</button>
@@ -47,7 +50,7 @@
         @foreach (var entry in Shown.Groups)
         {
             var group = entry.Group;
-            var open = Searching || _open.Contains(group.Id);
+            var open = Searching || ExpandAll || _open.Contains(group.Id);
             var groupQuery = _groupQueries.GetValueOrDefault(group.Id, "");
             var contacts = PhoneBookTree.FilterContacts(entry.Contacts, groupQuery);
             @* A group card. A group switched off by an administrator is still drawn here, marked as off. *@
@@ -168,6 +171,10 @@ else if (PrintBlocked)
     [Parameter] public bool TwoColumns { get; set; } = true;
     /// <summary>Every group is open when the page first shows.</summary>
     [Parameter] public bool StartExpanded { get; set; } = true;
+    /// <summary>False hides the search box above the list (the admin page has its own filter bar and hands this view the result already filtered).</summary>
+    [Parameter] public bool ShowSearch { get; set; } = true;
+    /// <summary>True keeps every group open, as while searching (the admin page sets it when its filters are applied, so the matches are visible at once).</summary>
+    [Parameter] public bool ExpandAll { get; set; }
     /// <summary>The person may print: a print button is shown and the printed page is the A4 two-column list.</summary>
     [Parameter] public bool CanPrint { get; set; }
     /// <summary>The person may not print: the screen content is left out of a printed page, which says printing is not allowed.</summary>
@@ -233,10 +240,10 @@ else if (PrintBlocked)
     // Store what was typed in the general search box.
     private void OnGeneralQuery(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 
-    // Open or close one group (not while a general search is active).
+    // Open or close one group (not while a general search is active, or while the page keeps every group open).
     private void Toggle(Guid id)
     {
-        if (Searching)
+        if (Searching || ExpandAll)
             return; // groups with matches stay open while the general search has text
         if (!_open.Remove(id))
             _open.Add(id);

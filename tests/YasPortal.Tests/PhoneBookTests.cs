@@ -186,4 +186,75 @@ public sealed class PhoneBookTests
         Assert.Equal(ContactSortKey.Default, ContactSorter.Parse("99"));
         Assert.Equal(ContactSortKey.Default, ContactSorter.Parse(null));
     }
+
+    // The admin filters: one group, and on / off (a contact in a switched-off group counts as off).
+    private static (PhoneBookTree Tree, ContactGroup Finance, ContactGroup Old, Contact Ali, Contact Sara, Contact Off) AdminTree()
+    {
+        var finance = new ContactGroup("امور مالی", 1);
+        var old = new ContactGroup("واحد قدیمی", 2);
+        old.Deactivate();
+        var ali = C(finance.Id, "علی");
+        var sara = C(finance.Id, "سارا");
+        var off = C(finance.Id, "خاموش", order: 3);
+        off.Deactivate();
+        var inOldGroup = C(old.Id, "در گروه خاموش");
+        return (PhoneBookTree.Build([finance, old], [ali, sara, off, inOldGroup], includeInactive: true), finance, old, ali, sara, off);
+    }
+
+    [Fact]
+    public void Admin_filter_with_nothing_chosen_returns_everything()
+    {
+        var (tree, _, _, _, _, _) = AdminTree();
+        Assert.Same(tree, tree.Restrict(null, null));
+    }
+
+    [Fact]
+    public void Admin_filter_can_keep_one_group()
+    {
+        var (tree, finance, _, _, _, _) = AdminTree();
+        var only = tree.Restrict(finance.Id, null);
+        Assert.Single(only.Groups);
+        Assert.Equal(finance.Id, only.Groups[0].Group.Id);
+        Assert.Equal(3, only.TotalContacts);
+        Assert.Empty(tree.Restrict(Guid.NewGuid(), null).Groups);
+    }
+
+    [Fact]
+    public void Admin_filter_on_keeps_only_contacts_that_are_on_in_a_group_that_is_on()
+    {
+        var (tree, _, _, ali, sara, _) = AdminTree();
+        var on = tree.Restrict(null, true);
+        Assert.Single(on.Groups);
+        // the order inside a group depends on the culture's letter order, so only the members are compared
+        Assert.Equal(new[] { ali.Id, sara.Id }.Order(), on.Groups[0].Contacts.Select(c => c.Id).Order());
+    }
+
+    [Fact]
+    public void Admin_filter_off_includes_contacts_of_a_switched_off_group()
+    {
+        var (tree, finance, old, _, _, off) = AdminTree();
+        var offTree = tree.Restrict(null, false);
+        Assert.Equal(2, offTree.Groups.Count);
+        Assert.Equal([off.Id], offTree.Groups.Single(g => g.Group.Id == finance.Id).Contacts.Select(c => c.Id).ToArray());
+        Assert.Single(offTree.Groups.Single(g => g.Group.Id == old.Id).Contacts);
+    }
+
+    [Fact]
+    public void Admin_filter_keeps_an_empty_group_only_when_its_own_status_matches()
+    {
+        var on = new ContactGroup("خالی روشن", 1);
+        var off = new ContactGroup("خالی خاموش", 2);
+        off.Deactivate();
+        var tree = PhoneBookTree.Build([on, off], [], includeInactive: true);
+        Assert.Equal(on.Id, tree.Restrict(null, true).Groups.Single().Group.Id);
+        Assert.Equal(off.Id, tree.Restrict(null, false).Groups.Single().Group.Id);
+    }
+
+    [Fact]
+    public void Admin_filters_combine_with_the_text_search()
+    {
+        var (tree, finance, _, ali, _, _) = AdminTree();
+        var result = tree.Filter("علی").Restrict(finance.Id, true);
+        Assert.Equal([ali.Id], result.Groups.Single().Contacts.Select(c => c.Id).ToArray());
+    }
 }
