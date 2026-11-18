@@ -53,6 +53,32 @@ public sealed class PhoneBookTree
         return new PhoneBookTree { Groups = result };
     }
 
+    /// <summary>
+    /// The admin filters. <paramref name="groupId"/> keeps one group only. <paramref name="active"/> keeps what is on (true) or off (false):
+    /// a contact counts as on only when both the contact and its group are on, so everything inside a switched-off group counts as off.
+    /// A group stays when it has contacts that match, or when it has no contacts at all and itself matches. Empty filters return everything.
+    /// </summary>
+    public PhoneBookTree Restrict(Guid? groupId, bool? active)
+    {
+        if (groupId is null && active is null)
+            return this;
+        var result = new List<PhoneBookGroup>();
+        foreach (var entry in Groups)
+        {
+            if (groupId is Guid wanted && entry.Group.Id != wanted)
+                continue;
+            if (active is not bool on)
+            {
+                result.Add(entry);
+                continue;
+            }
+            var hits = entry.Contacts.Where(c => (entry.Group.IsActive && c.IsActive) == on).ToList();
+            if (hits.Count > 0 || (entry.Contacts.Count == 0 && entry.Group.IsActive == on))
+                result.Add(entry with { Contacts = hits });
+        }
+        return new PhoneBookTree { Groups = result };
+    }
+
     /// <summary>The search inside one group: the contacts whose own details match every word of the query.</summary>
     public static IReadOnlyList<Contact> FilterContacts(IEnumerable<Contact> contacts, string? query, string? groupName = null)
     {

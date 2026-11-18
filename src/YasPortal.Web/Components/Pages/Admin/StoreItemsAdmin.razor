@@ -12,7 +12,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
-@inject IJSRuntime JS
+@inject ExportFilesService Files
 
 @* Store admin: items and categories (address /admin/store/items). Two tabs: categories ('groups' of goods) and the items *@
 @* themselves. People with the view permission can look and search; people with the manage permission can add, edit, *@
@@ -380,20 +380,19 @@
         await RunAsync(() => Store.MoveItemsToCategoryAsync(ids, category), "کالاهای انتخاب‌شده به گروه جدید منتقل شدند.", () => { _selected.Clear(); _moveTo = null; });
     }
 
-    // Export button: download the items matching the filters as a file.
+    // Export button: download the items matching the filters as a file (a CSV, or a PDF when «خروجی PDF» was chosen).
     private async Task ExportAsync()
     {
         _exporting = true;
         try
         {
         var rows = await Store.AllItemsAsync(BuildFilter());
-        var csv = StoreCsv.Build(["کد", "کالا", "گروه", "واحد", "موجودی", "قیمت واحد", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"],
-            rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
+        var table = rows.Select(i => (IReadOnlyList<string>)[i.Code, i.Name, i.CategoryName, i.Unit, i.Stock.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                 i.Price is decimal pc ? pc.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "",
                 i.MaxPerRequest == 0 ? "" : i.MaxPerRequest.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture),
                 i.RequestOpensOn is DateTime o ? StoreWhen.Format(o) : "", i.RequestClosesOn is DateTime c ? StoreWhen.Format(c) : "",
-                i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]));
-        await JS.InvokeVoidAsync("yasDownloadFile", $"store-items-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+                i.IsLottery ? "بله" : "خیر", i.IsActive ? "بله" : "خیر", i.IsVisible ? "بله" : "خیر"]).ToList();
+        await Files.SaveAsync("فهرست کالاهای فروشگاه", "store-items", ["کد", "کالا", "گروه", "واحد", "موجودی", "قیمت واحد", "حداکثر در هر درخواست", "شروع دوره", "پایان دوره", "قرعه‌کشی", "فعال", "نمایش در فروشگاه"], table);
         }
         finally { _exporting = false; }
     }

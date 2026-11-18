@@ -12,7 +12,7 @@
 @inject IPermissionChecker PermissionChecker
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
-@inject IJSRuntime JS
+@inject ExportFilesService Files
 
 @* Store admin: warehouse (address /admin/store/stock), for people with the view-stock permission. *@
 @* Two tabs: the current stock level of every item, and the movement log (every receipt, issue and correction). *@
@@ -179,7 +179,8 @@
 
     private bool _exporting;
 
-    // Export the movement log, for the current filters, as a CSV file that the browser downloads (first 20,000 rows).
+    // Export the movement log, for the current filters, as a file that the browser downloads (first 20,000 rows).
+    // It is a CSV, or a PDF of the same rows when «خروجی PDF» was chosen.
     private async Task ExportMovesAsync()
     {
         _exporting = true;
@@ -190,10 +191,9 @@
     private async Task ExportMovesCoreAsync()
     {
         var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText, _mSort, _mDesc);
-        var csv = StoreCsv.Build(["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"],
-            all.Rows.Select(m => (IReadOnlyList<string>)[WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc), m.ItemCode, m.ItemName, StoreService.KindLabel(m.Kind),
-                m.Delta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), m.Unit, m.Reference ?? "", m.Note ?? "", m.CreatedBy ?? ""]));
-        await JS.InvokeVoidAsync("yasDownloadFile", $"store-movements-{DateTime.Now:yyyyMMdd-HHmm}.csv", "text/csv;charset=utf-8", csv);
+        var table = all.Rows.Select(m => (IReadOnlyList<string>)[WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc), m.ItemCode, m.ItemName, StoreService.KindLabel(m.Kind),
+                m.Delta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), m.Unit, m.Reference ?? "", m.Note ?? "", m.CreatedBy ?? ""]).ToList();
+        await Files.SaveAsync("گردش موجودی فروشگاه", "store-movements", ["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"], table);
         if (all.Total > all.Rows.Count) AppState.AddToast("فقط ۲۰٬۰۰۰ ردیف اول در فایل آمد؛ فیلتر را محدودتر کنید.", ToastLevel.Info);
     }
     private string? _stockFilter;

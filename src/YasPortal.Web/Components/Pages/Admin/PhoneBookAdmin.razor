@@ -5,12 +5,15 @@
 @using YasPortal.Domain.PhoneBook
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
+@using YasPortal.Domain.Auditing
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.AdminPhoneBookView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
 @inject IJSRuntime JS
+@inject ExportFilesService Files
+@inject AuditEventWriter Audit
 
 @* Admin page for the company phone book (address /admin/phone-book). The phone book has groups (for example departments) *@
 @* and contacts inside them. People with the view permission can look; people with the manage permission can add, edit, *@
@@ -149,6 +152,18 @@
             @* The phone book itself: each group with its contacts, and the action buttons for people who may manage it. *@
             @if (_tab == "list")
             {
+            @* The same search card as the other lists: text (group, name, job title, numbers, email, note), one group, on or off.
+               It applies when the search button is pressed; the ⋯ menu exports exactly what the last search found, as CSV or PDF. *@
+            <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)"
+                           OnSearch="ApplyFilters" OnClear="ClearFilters"
+                           OnExport="ExportAsync" ExportPermission="@Perm.AdminPhoneBookView" Exporting="_exporting">
+                <div class="admin-filter"><label class="form-label">جستجو</label>
+                    <input class="form-control" placeholder="نام، سمت، داخلی، تلفن، موبایل، ایمیل، گروه..." @bind="_dSearch" @bind:event="oninput" /></div>
+                <div class="admin-filter"><label class="form-label">گروه</label>
+                    <LookupSelect Options="GroupOptions" Value="@_dGroup" ValueChanged="k => _dGroup = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه گروه‌ها" SearchPlaceholder="جستجوی گروه..." /></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label>
+                    <LookupSelect Options="StatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+            </ListFilterBar>
             <section class="card">
                 <div class="card-toolbar">
                     <div>
@@ -156,7 +171,8 @@
                         <p class="muted">خاموش‌کردن یک گروه یا مخاطب آن را از دفترچه تلفن کاربران پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
                     </div>
                 </div>
-                <PhoneBookView Tree="_tree" EmptyText="هنوز گروهی ثبت نشده است" TwoColumns="false" StartExpanded="false">
+                @* the view gets the already filtered book; its own search box is hidden because the filter card above replaces it *@
+                <PhoneBookView Tree="Shown" ShowSearch="false" ExpandAll="@(FilterCount > 0)" EmptyText="@(FilterCount > 0 ? "نتیجه‌ای با این فیلتر پیدا نشد" : "هنوز گروهی ثبت نشده است")" TwoColumns="false" StartExpanded="false">
                     <GroupActions Context="group">
                         @if (_canManage)
                         {
@@ -238,6 +254,64 @@
         _groups = await db.ContactGroups.AsNoTracking().ToListAsync();
         _contacts = await db.Contacts.AsNoTracking().ToListAsync();
         _tree = PhoneBookTree.Build(_groups, _contacts, includeInactive: true);
+    }
+
+    // ---- search card and export ----
+
+    // The filter fields: what is being typed or picked (the "draft") and what was applied by the search button.
+    private string _dSearch = "", _search = "";
+    private string? _dGroup, _group, _dStatus, _status;
+    private bool _exporting;
+
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("on", "روشن"), ("off", "خاموش")];
+
+    // How many filters are applied right now, and whether something typed or picked is not applied yet.
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dGroup is not null || _dStatus is not null;
+
+    // The phone book after the applied filters (the whole book when none are applied).
+    private PhoneBookTree Shown => _tree.Filter(_search).Restrict(Guid.TryParse(_group, out var g) ? g : null, _status is null ? null : _status == "on");
+
+    // Search button: apply what was typed and picked.
+    private void ApplyFilters()
+    {
+        (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus);
+    }
+
+    // Clear button: forget every filter.
+    private void ClearFilters()
+    {
+        (_dSearch, _dGroup, _dStatus) = ("", null, null);
+        ApplyFilters();
+    }
+
+    // ⋯ menu: export exactly the contacts the last search found, group by group in the order shown, as a CSV or a PDF (the menu item decides).
+    // Switched-off groups and contacts are included and marked in the "وضعیت" column. The export is recorded in the audit log.
+    private async Task ExportAsync()
+    {
+        if (_exporting || !await PermissionChecker.HasPermissionAsync(Perm.AdminPhoneBookView)) return;
+        var shown = Shown;
+        if (shown.TotalContacts == 0) { AppState.AddToast("موردی برای خروجی وجود ندارد.", ToastLevel.Info); return; }
+        _exporting = true;
+        try
+        {
+            var rows = new List<IReadOnlyList<string>>();
+            foreach (var g in shown.Groups)
+                foreach (var c in g.Contacts)
+                    rows.Add([g.Group.Name, c.FullName, c.JobTitle ?? "", c.Extension ?? "", c.Phone ?? "", c.Mobile ?? "", c.Email ?? "", c.Note ?? "",
+                        g.Group.IsActive && c.IsActive ? "روشن" : "خاموش"]);
+            var groupName = _tree.Groups.FirstOrDefault(x => x.Group.Id.ToString() == _group)?.Group.Name;
+            var filters = string.Join(" · ", new[] { string.IsNullOrWhiteSpace(_search) ? null : $"جستجو: {_search}", groupName is null ? null : $"گروه: {groupName}",
+                _status is null ? null : $"وضعیت: {(_status == "on" ? "روشن" : "خاموش")}" }.Where(x => x is not null));
+            var written = await Files.SaveAsync("دفترچه تلفن", "phone-book", ["گروه", "نام", "سمت", "داخلی", "تلفن", "موبایل", "ایمیل", "توضیح", "وضعیت"], rows, filters.Length == 0 ? null : filters);
+            await Audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, "phone-book",
+                AuditEventWriter.Describe(("Permission", Perm.AdminPhoneBookView), Audit.PendingExportFilters ?? new { Search = _search, Group = groupName, Status = _status },
+                    ("RowCount", written), ("Format", Files.WantsPdf ? "PDF" : "CSV")));
+            Audit.PendingExportFilters = null;
+            AppState.AddToast($"خروجی آماده شد ({written:N0} ردیف).", ToastLevel.Success);
+        }
+        catch (Exception) { AppState.AddToast("ساخت فایل انجام نشد.", ToastLevel.Error); }
+        finally { _exporting = false; }
     }
 
     // Every change re-checks the manage permission, instead of trusting the page alone.
