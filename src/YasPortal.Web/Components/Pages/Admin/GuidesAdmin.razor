@@ -83,7 +83,7 @@
                     @foreach (var file in _newFiles)
                     {
                         <div class="guide-file-row is-new">
-                            <i class="ti @Icons.Attachment"></i><span>@file.Name</span><small>@SizeText(file.Size)</small><span class="badge badge-info">جدید</span>
+                            <i class="ti @Icons.Attachment"></i><span>@file.Name</span><small>@SizeText(file.Content.Length)</small><span class="badge badge-info">جدید</span>
                             <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _newFiles.Remove(file)">حذف</button>
                         </div>
                     }
@@ -205,7 +205,11 @@
     private Dictionary<Guid, int> _fileCounts = [];
     private List<GuideFileItem> _existingFiles = [];
     private HashSet<Guid> _removeIds = [];
-    private List<IBrowserFile> _newFiles = [];
+    private List<PendingFile> _newFiles = [];
+
+    // A picked file already read into memory (name and bytes). It is read at once because clearing the picker (below) would
+    // otherwise cut the browser's link to the file before the guide is saved.
+    private sealed record PendingFile(string Name, byte[] Content);
     private int _pickKey;
 
     private static string SizeText(long bytes) =>
@@ -214,8 +218,9 @@
     // Mark an existing file for removal (or take the mark back); nothing is deleted until the guide is saved.
     private void ToggleRemove(Guid id) { if (!_removeIds.Remove(id)) _removeIds.Add(id); }
 
-    // Check each picked file (type and size) at once and keep the good ones; the total number of files is checked too.
-    private void FilesPicked(InputFileChangeEventArgs e)
+    // Check each picked file (type and size) at once, read the good ones into memory and keep them until the guide is saved;
+    // the total number of files is checked too.
+    private async Task FilesPicked(InputFileChangeEventArgs e)
     {
         foreach (var file in e.GetMultipleFiles(UserGuideAttachment.MaxPerGuide))
         {
@@ -223,12 +228,22 @@
             if (error is not null) { AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error); continue; }
             var countError = UserGuideAttachment.ValidateCount(_existingFiles.Count(f => !_removeIds.Contains(f.Id)) + _newFiles.Count + 1);
             if (countError is not null) { AppState.AddToast(countError, ToastLevel.Error); break; }
-            _newFiles.Add(file);
+            try
+            {
+                using var buffer = new MemoryStream();
+                await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+                    await stream.CopyToAsync(buffer);
+                _newFiles.Add(new PendingFile(file.Name, buffer.ToArray()));
+            }
+            catch (Exception ex) when (ex is IOException or JSException)
+            {
+                AppState.AddToast($"{file.Name}: خواندن فایل انجام نشد.", ToastLevel.Error);
+            }
         }
         _pickKey++;   // empties the picker so more files can be added
     }
 
-    // Stores the picked files and removes the marked ones, in the same save as the guide itself.
+    // Stores the picked files (already in memory) and removes the marked ones, in the same save as the guide itself.
     private async Task ApplyFilesAsync(ApplicationDbContext db, Guid guideId)
     {
         if (_removeIds.Count > 0)
@@ -237,12 +252,7 @@
             db.UserGuideAttachments.RemoveRange(doomed);
         }
         foreach (var file in _newFiles)
-        {
-            using var buffer = new MemoryStream();
-            await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
-                await stream.CopyToAsync(buffer);
-            db.UserGuideAttachments.Add(new UserGuideAttachment(guideId, file.Name, buffer.ToArray()));
-        }
+            db.UserGuideAttachments.Add(new UserGuideAttachment(guideId, file.Name, file.Content));
     }
 
     // Who may do what: Admin.Guides.View sees every guide; Admin.Guides.Manage edits every guide; Guides.Own.Manage writes new guides
