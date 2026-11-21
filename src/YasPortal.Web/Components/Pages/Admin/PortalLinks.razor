@@ -28,6 +28,17 @@
         </div>
     </div>
 
+    @* Sub tabs, the same as on the store items page: links, groups, and (for people who may manage) the bulk import. *@
+    @* Each tab holds its own form (managers only) and its list. *@
+    <div class="form-actions no-print">
+        <button class="btn @(_tab == "links" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "links")">پیوندها</button>
+        <button class="btn @(_tab == "groups" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "groups")">گروه‌ها</button>
+        @if (_canManage)
+        {
+            <button class="btn @(_tab == "import" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "import")">ورود گروهی</button>
+        }
+    </div>
+
     @if (_loading)
     {
         <LoadingState />
@@ -35,20 +46,8 @@
     else
     {
         <div class="admin-stack">
-            @* Sub tabs: the page is long, so each job gets its own tab. "پیوندها" (the links) opens first; adding links in bulk is for managers only. *@
-            <nav class="store-tabs no-print" role="tablist" aria-label="بخش‌های پیوندها">
-                <button type="button" role="tab" class="store-tab @(_tab == LinksTab ? "active" : "")" aria-selected="@(_tab == LinksTab ? "true" : "false")" @onclick="() => _tab = LinksTab"><i class="ti @Icons.Links"></i> پیوندها <span class="badge badge-muted">@_links.Count</span></button>
-                <button type="button" role="tab" class="store-tab @(_tab == GroupsTab ? "active" : "")" aria-selected="@(_tab == GroupsTab ? "true" : "false")" @onclick="() => _tab = GroupsTab"><i class="ti @Icons.AccessGroup"></i> گروه‌ها <span class="badge badge-muted">@_groups.Count</span></button>
-                @if (_canManage)
-                {
-                    <button type="button" role="tab" class="store-tab @(_tab == ImportTab ? "active" : "")" aria-selected="@(_tab == ImportTab ? "true" : "false")" @onclick="() => _tab = ImportTab"><i class="ti @Icons.Add"></i> ورود گروهی</button>
-                }
-            </nav>
-
-            @if (_tab == LinksTab)
+            @if (_canManage && _tab == "links")
             {
-                @if (_canManage)
-                {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         @* Form to add a link or edit the selected one: group, title, address (URL) and description. *@
@@ -78,8 +77,10 @@
                         </div></div>
                     </div>
                 </section>
-                }
+            }
 
+            @if (_tab == "links")
+            {
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
@@ -138,10 +139,8 @@
             </section>
             }
 
-            @if (_tab == GroupsTab)
+            @if (_canManage && _tab == "groups")
             {
-                @if (_canManage)
-                {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         @* Form to add a group or edit the selected one. A group can be placed under another group, but not under itself or *@
@@ -160,8 +159,10 @@
                         </div></div>
                     </div>
                 </section>
-                }
+            }
 
+            @if (_tab == "groups")
+            {
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
@@ -215,8 +216,7 @@
             </section>
             }
 
-            @* Bulk import: only for people who may manage the links. *@
-            @if (_tab == ImportTab && _canManage)
+            @if (_canManage && _tab == "import")
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
@@ -266,10 +266,8 @@
 
 @code {
     private bool _loading = true, _canManage, _busy;
-
-    // The sub tab shown: the links (first), the groups, or the bulk import.
-    private const string LinksTab = "links", GroupsTab = "groups", ImportTab = "import";
-    private string _tab = LinksTab;
+    // The tab shown: "links", "groups" or "import".
+    private string _tab = "links";
     private List<LinkGroup> _groups = [];
     private List<PortalLink> _links = [];
     private string _search = "";
@@ -582,8 +580,7 @@
             }
             await db.SaveChangesAsync();
             AppState.AddToast($"{added} پیوند و {newGroups} گروه جدید اضافه شد" + (duplicates > 0 ? $"؛ {duplicates} پیوند تکراری نادیده گرفته شد." : "."), ToastLevel.Success);
-            _importText = ""; _importLines = null;
-            _tab = LinksTab;   // show the freshly imported links
+            _importText = ""; _importLines = null; _tab = "links";   // show the imported links
             await LoadAsync();
         }
         catch (Exception) { AppState.AddToast("ورود گروهی انجام نشد؛ چیزی ذخیره نشد.", ToastLevel.Error); }

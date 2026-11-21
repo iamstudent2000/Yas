@@ -38,10 +38,22 @@
         </div>
     </div>
 
+    @* Sub tabs, the same as on the store items page: the list of guides, and the form for a new (or edited) guide. *@
+    @* Only people who may write guides get the form tab; others just see the list. *@
+    @if (_canCreate)
+    {
+        <div class="form-actions no-print">
+            <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">راهنماها</button>
+            <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">@(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</button>
+        </div>
+    }
+
     <div class="admin-stack">
-        @* The write/edit form is shown only to people who may create or edit guides. *@
+        @* The write/edit form is shown only to people who may create or edit guides. It is hidden (not removed) on the list tab, *@
+        @* so the text typed in the editor and the picked files are not lost when switching tabs. *@
         @if (_canCreate)
         {
+            <div hidden="@(_tab != "form")">
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
                     <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</h2>
@@ -110,8 +122,12 @@
                     </div></div>
                 </div>
             </section>
+            </div>
         }
 
+        @* Everything below is the list tab: the search card and the table of guides. *@
+        @if (_tab == "list")
+        {
         @* Search card, like the other lists: nothing is filtered until "جستجو" is pressed. It looks at title, summary and group. *@
         <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFilters" OnClear="ClearFilters">
             <div class="admin-filter"><label class="form-label">جستجو</label>
@@ -186,12 +202,15 @@
                 </div>
             }
         </section>
+        }
     </div>
 </div>
 
 @code {
     private const string EditorModule = "./js/guide-editor.js?v=20261104-1";
 
+    // The tab shown: "list" (the guides) or "form" (a new or edited guide).
+    private string _tab = "list";
     private bool _loading = true, _canViewAll, _canEditAll, _canEditOwn, _saving, _editorFailed;
     private Guid? _employeeId;
     private List<UserGuide> _guides = [];
@@ -360,6 +379,7 @@
     // Fill the form with an existing guide so it can be changed.
     private async Task BeginEdit(UserGuide guide)
     {
+        _tab = "form";
         _editingId = guide.Id;
         _newFiles = []; _removeIds = []; _pickKey++;
         _existingFiles = (await GuideFiles.ListAttachmentsAsync(guide.Id)).ToList();
@@ -371,6 +391,7 @@
     // Leave edit mode and empty the form.
     private async Task CancelEdit()
     {
+        _tab = "list";
         ResetForm();
         await LoadAsync();
     }
@@ -420,6 +441,7 @@
 
             await db.SaveChangesAsync();
             AppState.AddToast(_editingId is null ? "راهنما اضافه شد." : "راهنما ذخیره شد.", ToastLevel.Success);
+            _tab = "list";   // back to the list to see the result
             ResetForm();
             await LoadAsync();
         }
