@@ -1,0 +1,77 @@
+@* FormHost: decides WHERE a page's add/edit form is shown.
+   - While a new record is being added (Modal = false) the form is shown in the page exactly as before, at the top.
+   - While an existing record is being edited (Modal = true) the same form is shown in a window (a "dialog") that opens
+     over the page, with a dimmed background. The page keeps one single form; only its place changes.
+   The window is shown in the middle of the screen. Its width is chosen by each page (Size): small for forms with two or
+   three fields, medium for forms with several fields, large for long forms.
+   Whether a click on the dimmed background or the Escape key closes it is chosen by each page (CloseOnOutsideClick).
+   Pages with long forms turn it off, so a stray click cannot throw away what was typed; the form's own Cancel button
+   still closes it. When closing happens, OnClose is called (the page uses it as "cancel"). Nothing is saved by closing.
+   It is deliberately plain: no blur, no fade, no sliding. Computers without a graphics card then open it at once. *@
+@if (Modal)
+{
+    @* Dimmed background behind the window. Clicking it cancels the edit, unless the page switched that off. *@
+    <div class="edit-dialog-backdrop" @onclick="OnBackdropClickAsync"></div>
+    @* A full-screen layer that centres the window and scrolls when a form is taller than the screen. It lets mouse clicks pass *@
+    @* through its empty parts to the dimmed background. The window is centred by this layer and NOT by moving or clipping it, *@
+    @* because the drop-down lists and date pickers inside the form must be able to open outside the window's edges. *@
+    <div class="edit-dialog-holder">
+        @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
+        <div class="edit-dialog @SizeClass" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
+            @ChildContent
+        </div>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    // True while an existing record is being edited, so the form is shown in the dialog instead of in the page.
+    [Parameter] public bool Modal { get; set; }
+
+    // Called when the person cancels by clicking the background or pressing Escape (only if CloseOnOutsideClick is on).
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    // True (the default): a click outside the window, or the Escape key, closes it.
+    // False: only the form's own buttons close it, so nothing typed is lost by accident.
+    [Parameter] public bool CloseOnOutsideClick { get; set; } = true;
+
+    // How wide the window is: "small", "medium" (the default) or "large". Any other text is treated as medium.
+    [Parameter] public string Size { get; set; } = "medium";
+
+    // The style name that gives the window its width (see theme.css).
+    private string SizeClass => Size switch { "small" => "edit-dialog-sm", "large" => "edit-dialog-lg", _ => "edit-dialog-md" };
+
+    // The page's form (normally one card with the fields and the save and cancel buttons).
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // The window element, used to give it the keyboard focus when it opens.
+    private ElementReference _dialog;
+
+    // Remembers whether the dialog was open at the last draw, so focus is moved only at the moment it opens.
+    private bool _wasModal;
+
+    // When the dialog has just opened, move the keyboard focus into it (so Escape works and the page behind is not typed into).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Modal && !_wasModal)
+        {
+            try { await _dialog.FocusAsync(); } catch { /* the page may be closing; losing focus here is harmless */ }
+        }
+        _wasModal = Modal;
+    }
+
+    // Escape cancels the edit (unless the page switched outside-closing off).
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (CloseOnOutsideClick && e.Key == "Escape") await OnClose.InvokeAsync();
+    }
+
+    // A click on the dimmed background cancels the edit (unless the page switched outside-closing off).
+    private async Task OnBackdropClickAsync()
+    {
+        if (CloseOnOutsideClick) await OnClose.InvokeAsync();
+    }
+}

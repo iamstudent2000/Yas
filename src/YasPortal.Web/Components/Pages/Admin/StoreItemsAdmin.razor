@@ -44,6 +44,8 @@
             @* Form to add a category or edit the selected one (name and display order). *@
             @if (_canManage && _tab == "categories")
             {
+                @* While an existing category is being edited, this form opens in a window over the page; adding a new category still uses the form in the page. *@
+                <FormHost Modal="@(_editCategoryId is not null)" OnClose="ResetCategory" Size="small" CloseOnOutsideClick="true">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editCategoryId is null ? Icons.Add : Icons.Edit)"></i> @(_editCategoryId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
@@ -58,6 +60,7 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
 
             }
 
@@ -65,6 +68,8 @@
             @* the most one request may take, and the dates and times between which the item can be requested. *@
             @if (_canManage && _tab == "items")
             {
+                @* While an existing item is being edited, this form opens in a window over the page; adding a new item still uses the form in the page. *@
+                <FormHost Modal="@(_editItemId is not null)" OnClose="ResetItem" Size="large" CloseOnOutsideClick="false">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editItemId is null ? Icons.Add : Icons.Edit)"></i> @(_editItemId is null ? "افزودن کالا" : "ویرایش کالا")</h2>
@@ -94,6 +99,7 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
             }
 
             @* Categories tab: a small filter (name, active or not) and the list of categories. *@

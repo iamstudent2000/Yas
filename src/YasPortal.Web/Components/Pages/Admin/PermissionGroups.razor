@@ -30,8 +30,10 @@
                 دسترسی</a></div>
             </div>
             <div class="admin-stack">
-@* Form to create a new group or rename the selected one (a unique code, a unique name and a description). *@
+@* Form to create a new group (in the page) or edit the selected one (in a window): a unique code, a unique name and a description. *@
 @if (_canManage) {
+@* While an existing group is being edited, this form opens in a window over the page; adding a new group still uses the form in the page. *@
+<FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit" Size="medium" CloseOnOutsideClick="true">
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "گروه جدید" : "ویرایش گروه")</h2>
@@ -52,6 +54,7 @@
         </div>
     </div>
     </section>
+</FormHost>
 }
 
                 @* Search by group name; applied when the search button is pressed. *@
