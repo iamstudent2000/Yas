@@ -2,13 +2,15 @@
    - While a new record is being added (Modal = false) the form is shown in the page exactly as before, at the top.
    - While an existing record is being edited (Modal = true) the same form is shown in a window (a "dialog") that opens
      over the page, with a dimmed background. The page keeps one single form; only its place changes.
-   The dialog closes (OnClose is called, which the page uses as "cancel") when the person clicks the dimmed background
-   or presses the Escape key. Nothing is saved by closing.
+   The window is shown in the middle of the screen.
+   Whether a click on the dimmed background or the Escape key closes it is chosen by each page (CloseOnOutsideClick).
+   Pages with long forms turn it off, so a stray click cannot throw away what was typed; the form's own Cancel button
+   still closes it. When closing happens, OnClose is called (the page uses it as "cancel"). Nothing is saved by closing.
    It is deliberately plain: no blur, no fade, no sliding. Computers without a graphics card then open it at once. *@
 @if (Modal)
 {
-    @* Dimmed background behind the window. Clicking it cancels the edit. *@
-    <div class="edit-dialog-backdrop" @onclick="OnClose"></div>
+    @* Dimmed background behind the window. Clicking it cancels the edit, unless the page switched that off. *@
+    <div class="edit-dialog-backdrop" @onclick="OnBackdropClickAsync"></div>
     @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
     <div class="edit-dialog" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
         @ChildContent
@@ -23,8 +25,12 @@ else
     // True while an existing record is being edited, so the form is shown in the dialog instead of in the page.
     [Parameter] public bool Modal { get; set; }
 
-    // Called when the person cancels by clicking the background or pressing Escape.
+    // Called when the person cancels by clicking the background or pressing Escape (only if CloseOnOutsideClick is on).
     [Parameter] public EventCallback OnClose { get; set; }
+
+    // True (the default): a click outside the window, or the Escape key, closes it.
+    // False: only the form's own buttons close it, so nothing typed is lost by accident.
+    [Parameter] public bool CloseOnOutsideClick { get; set; } = true;
 
     // The page's form (normally one card with the fields and the save and cancel buttons).
     [Parameter] public RenderFragment? ChildContent { get; set; }
@@ -45,9 +51,15 @@ else
         _wasModal = Modal;
     }
 
-    // Escape cancels the edit.
+    // Escape cancels the edit (unless the page switched outside-closing off).
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape") await OnClose.InvokeAsync();
+        if (CloseOnOutsideClick && e.Key == "Escape") await OnClose.InvokeAsync();
+    }
+
+    // A click on the dimmed background cancels the edit (unless the page switched outside-closing off).
+    private async Task OnBackdropClickAsync()
+    {
+        if (CloseOnOutsideClick) await OnClose.InvokeAsync();
     }
 }

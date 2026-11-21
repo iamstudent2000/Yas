@@ -45,7 +45,7 @@
 @if (_canManage) {
 @* Form to add a new organisation (in the page) or edit the selected one (in a window): a unique code and a unique name. *@
 @* While an existing organisation is being edited, this form opens in a window over the page; adding a new one still uses the form in the page. *@
-<FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit">
+<FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit" CloseOnOutsideClick="true">
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "ایجاد سازمان جدید" : "ویرایش سازمان")</h2>
