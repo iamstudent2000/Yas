@@ -42,7 +42,9 @@
                                 class="ti @Icons.Dashboard"></i><span>داشبورد</span></NavLink>
                         </AuthorizeView>
                         <NavLink href="/phone-book"><i class="ti @Icons.PhoneBook"></i><span>دفترچه تلفن</span></NavLink>
-                        <NavLink href="/guides"><i class="ti @Icons.Guide"></i><span>راهنمای کاربری</span></NavLink>
+                        @* Lit on the guide list and on a single guide, but not on the guides management page, which belongs to the *@
+                        @* "محتوای صفحه اصلی" section below (otherwise both links would be lit at once). *@
+                        <NavLink href="/guides" Match="NavLinkMatch.All" class="@(OnGuideReader ? "active" : null)"><i class="ti @Icons.Guide"></i><span>راهنمای کاربری</span></NavLink>
                         <SectionNavLink Group="account" Title="تنظیمات حساب" Icon="@Icons.Profile" />
                         <SectionNavLink Group="store" Title="فروشگاه" Icon="@Icons.Store" />
                     </div>
@@ -71,6 +73,17 @@
                     </aside>
 
 @code {
+    // True on /guides and /guides/{id}, false on /guides/manage (that page is highlighted under its own section).
+    private bool OnGuideReader
+    {
+        get
+        {
+            var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+            return path.Equals("/guides", StringComparison.OrdinalIgnoreCase)
+                || (path.StartsWith("/guides/", StringComparison.OrdinalIgnoreCase) && !path.Equals("/guides/manage", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
     // Browser-storage keys that remember whether the menu is collapsed and which groups are expanded.
     private const string StorageKey = "yasportal.sidebar.minimal";
     private const string ExpansionStorageKey = "yasportal.sidebar.groups";
