@@ -29,6 +29,16 @@
         </div>
     </div>
 
+    @* In-page tabs, the same as on the phone book page: the list of slides, and the form for a new (or edited) slide. *@
+    @* Only people who may manage slides get the form tab; others just see the list. *@
+    @if (_canManage)
+    {
+        <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت اسلایدها">
+            <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.LandingSlides"></i> اسلایدها</button>
+            <button type="button" class="store-tab @(_tab == "form" ? "active" : "")" @onclick="@(() => _tab = "form")"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "اسلاید جدید" : "ویرایش اسلاید")</button>
+        </nav>
+    }
+
     <div class="admin-stack">
         @* Warnings at the top: no valid slide at all, or the last valid slides are about to expire. *@
         @if (!_loading && !HomeSlide.HasValid(_slides, DateTime.Now))
@@ -40,8 +50,10 @@
             <section class="card"><p style="margin:0"><i class="ti @Icons.Alert"></i> همه اسلایدهای معتبر تا @days روز دیگر منقضی می‌شوند؛ پیش از آن اسلاید جدیدی اضافه یا تاریخ انقضا را تمدید کنید.</p></section>
         }
         @* The add/edit form is shown only to people who may manage slides; others get a read-only list. *@
+        @* The form is hidden (not removed) on the list tab, so a half-written slide and a picked file are not lost when switching tabs. *@
         @if (_canManage)
         {
+            <div hidden="@(_tab != "form")">
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
                     <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن اسلاید" : "ویرایش اسلاید")</h2>
@@ -84,9 +96,12 @@
                     </div></div>
                 </div>
             </section>
+            </div>
         }
 
         @* The list of slides with their status, link, file and action buttons. *@
+        @if (_tab == "list")
+        {
         <section class="card table-card">
             <div class="card-toolbar">
                 <div>
@@ -146,10 +161,13 @@
                 </div>
             }
         </section>
+        }
     </div>
 </div>
 
 @code {
+    // The tab shown: "list" (the slides) or "form" (a new or edited slide).
+    private string _tab = "list";
     private bool _loading = true, _canManage, _saving;
     private List<HomeSlide> _slides = [];
     private Guid? _editingId, _confirmDeleteId;
@@ -215,6 +233,7 @@
     // Fill the form with an existing slide so it can be changed.
     private void BeginEdit(HomeSlide slide)
     {
+        _tab = "form";
         _editingId = slide.Id;
         _title = slide.Title; _text = slide.Text; _icon = slide.Icon;
         _linkText = slide.LinkText ?? ""; _linkUrl = slide.LinkUrl ?? "";
@@ -226,6 +245,7 @@
     // Leave edit mode and empty the form.
     private async Task CancelEdit()
     {
+        _tab = "list";
         ResetForm();
         await LoadAsync();
     }
@@ -283,6 +303,7 @@
             await ApplyFileAsync(db, savedId);
             await db.SaveChangesAsync();
             AppState.AddToast(_editingId is null ? "اسلاید اضافه شد." : "اسلاید ذخیره شد.", ToastLevel.Success);
+            _tab = "list";   // back to the list to see the result
             ResetForm();
             await LoadAsync();
         }
