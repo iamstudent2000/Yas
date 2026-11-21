@@ -48,6 +48,8 @@
         <div class="admin-stack">
             @if (_canManage && _tab == "links")
             {
+                @* While an existing link is being edited, this form opens in a window over the page; adding a new link still uses the form in the page. *@
+                <FormHost Modal="@(_editingLinkId is not null)" OnClose="ResetLinkForm" Size="medium" CloseOnOutsideClick="false">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         @* Form to add a link or edit the selected one: group, title, address (URL) and description. *@
@@ -77,6 +79,7 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
             }
 
             @if (_tab == "links")
@@ -141,6 +144,8 @@
 
             @if (_canManage && _tab == "groups")
             {
+                @* While an existing link group is being edited, this form opens in a window over the page; adding a new group still uses the form in the page. *@
+                <FormHost Modal="@(_editingGroupId is not null)" OnClose="ResetGroupForm" Size="medium" CloseOnOutsideClick="true">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         @* Form to add a group or edit the selected one. A group can be placed under another group, but not under itself or *@
@@ -159,6 +164,7 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
             }
 
             @if (_tab == "groups")

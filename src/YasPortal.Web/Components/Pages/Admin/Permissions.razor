@@ -56,6 +56,8 @@
 @if (_editingId is not null)
         {
         @if (_canManage) {
+@* This rename form only exists while a permission is being edited, so it always opens in a window over the page. *@
+<FormHost Modal="@(true)" OnClose="Cancel" Size="small" CloseOnOutsideClick="true">
 <section class="card admin-form-row">
             <div class="admin-form-row-head">
                 <h2 class="section-title"><i class="ti @Icons.Edit"></i> ویرایش نام مجوز</h2>
@@ -72,6 +74,7 @@
                 </div>
             </div>
         </section>
+</FormHost>
 }
         }
 

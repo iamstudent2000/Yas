@@ -2,7 +2,8 @@
    - While a new record is being added (Modal = false) the form is shown in the page exactly as before, at the top.
    - While an existing record is being edited (Modal = true) the same form is shown in a window (a "dialog") that opens
      over the page, with a dimmed background. The page keeps one single form; only its place changes.
-   The window is shown in the middle of the screen.
+   The window is shown in the middle of the screen. Its width is chosen by each page (Size): small for forms with two or
+   three fields, medium for forms with several fields, large for long forms.
    Whether a click on the dimmed background or the Escape key closes it is chosen by each page (CloseOnOutsideClick).
    Pages with long forms turn it off, so a stray click cannot throw away what was typed; the form's own Cancel button
    still closes it. When closing happens, OnClose is called (the page uses it as "cancel"). Nothing is saved by closing.
@@ -12,7 +13,7 @@
     @* Dimmed background behind the window. Clicking it cancels the edit, unless the page switched that off. *@
     <div class="edit-dialog-backdrop" @onclick="OnBackdropClickAsync"></div>
     @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
-    <div class="edit-dialog" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
+    <div class="edit-dialog @SizeClass" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
         @ChildContent
     </div>
 }
@@ -31,6 +32,12 @@ else
     // True (the default): a click outside the window, or the Escape key, closes it.
     // False: only the form's own buttons close it, so nothing typed is lost by accident.
     [Parameter] public bool CloseOnOutsideClick { get; set; } = true;
+
+    // How wide the window is: "small", "medium" (the default) or "large". Any other text is treated as medium.
+    [Parameter] public string Size { get; set; } = "medium";
+
+    // The style name that gives the window its width (see theme.css).
+    private string SizeClass => Size switch { "small" => "edit-dialog-sm", "large" => "edit-dialog-lg", _ => "edit-dialog-md" };
 
     // The page's form (normally one card with the fields and the save and cancel buttons).
     [Parameter] public RenderFragment? ChildContent { get; set; }

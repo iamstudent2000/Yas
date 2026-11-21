@@ -1,7 +1,6 @@
 @page "/admin/phone-book"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
-@using Microsoft.JSInterop
 @using YasPortal.Domain.PhoneBook
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
@@ -11,7 +10,6 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
 @inject AppState AppState
-@inject IJSRuntime JS
 @inject ExportFilesService Files
 @inject AuditEventWriter Audit
 
@@ -42,16 +40,18 @@
         {
             <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت دفترچه تلفن">
                 <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.PhoneBook"></i> گروه‌ها و مخاطبان</button>
-                <button type="button" class="store-tab @(_tab == "group" ? "active" : "")" @onclick="@(() => _tab = "group")"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "گروه جدید" : "ویرایش گروه")</button>
-                <button type="button" class="store-tab @(_tab == "contact" ? "active" : "")" @onclick="@(() => _tab = "contact")"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "مخاطب جدید" : "ویرایش مخاطب")</button>
+                <button type="button" class="store-tab @(_tab == "group" ? "active" : "")" @onclick="@(() => _tab = "group")"><i class="ti @Icons.Add"></i> گروه جدید</button>
+                <button type="button" class="store-tab @(_tab == "contact" ? "active" : "")" @onclick="@(() => _tab = "contact")"><i class="ti @Icons.Add"></i> مخاطب جدید</button>
                 <button type="button" class="store-tab @(_tab == "import" ? "active" : "")" @onclick="@(() => _tab = "import")"><i class="ti @Icons.Add"></i> ورود گروهی</button>
             </nav>
         }
 
         <div class="admin-stack">
-            @* Form to add a group or edit the selected one. *@
-            @if (_canManage && _tab == "group")
+            @* Form to add a group (shown on the "new group" tab) or to edit the selected one (shown in a window over the list). *@
+            @if (_canManage && (_tab == "group" || _editingGroupId is not null))
             {
+                @* While an existing group is being edited, this form opens in a window over the page; adding a new group still uses the form in the page. *@
+                <FormHost Modal="@(_editingGroupId is not null)" OnClose="ResetGroupForm" Size="small" CloseOnOutsideClick="true">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
@@ -66,12 +66,16 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
 
             }
 
-            @* Form to add a contact or edit the selected one: group, name, job title, extension, phone, mobile, email and a note. *@
-            @if (_canManage && _tab == "contact")
+            @* Form to add a contact (shown on the "new contact" tab) or to edit the selected one (shown in a window over the list): *@
+            @* group, name, job title, extension, phone, mobile, email and a note. *@
+            @if (_canManage && (_tab == "contact" || _editingContactId is not null))
             {
+                @* While an existing contact is being edited, this form opens in a window over the page; adding a new contact still uses the form in the page. *@
+                <FormHost Modal="@(_editingContactId is not null)" OnClose="ResetContactForm" Size="large" CloseOnOutsideClick="false">
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
                         <h2 class="section-title"><i class="ti @(_editingContactId is null ? Icons.Add : Icons.Edit)"></i> @(_editingContactId is null ? "افزودن مخاطب" : "ویرایش مخاطب")</h2>
@@ -98,6 +102,7 @@
                         </div></div>
                     </div>
                 </section>
+                </FormHost>
 
             }
 
@@ -321,22 +326,18 @@
     private IReadOnlyList<(string Key, string Text)> GroupOptions =>
         _tree.Groups.Select(x => (x.Group.Id.ToString(), x.Group.Name)).ToList();
 
-    // Scrolls the page to the top so the form that was just opened for editing is visible.
-    private ValueTask ToTopAsync() => JS.InvokeVoidAsync("window.scrollTo", 0, 0);
-
     // ---- groups ----
 
-    // Edit button on a group: copy it into the form.
-    private async Task BeginEditGroupAsync(ContactGroup group)
+    // Edit button on a group: copy it into the form. The page stays on the list; the form opens in a window over it.
+    private Task BeginEditGroupAsync(ContactGroup group)
     {
         _editingGroupId = group.Id; _groupName = group.Name; _groupOrder = group.SortOrder;
-        _tab = "group";
-        await ToTopAsync();
+        return Task.CompletedTask;
     }
 
     private void ResetGroupForm()
     {
-        if (_editingGroupId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
+        // Clearing the edit marker also closes the edit window, because the window is only shown while a group is being edited.
         _editingGroupId = null; _groupName = "";
         _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
     }
@@ -407,21 +408,20 @@
 
     // ---- contacts ----
 
-    // Edit button on a contact: copy it into the form.
-    private async Task BeginEditContactAsync(Contact c)
+    // Edit button on a contact: copy it into the form. The page stays on the list; the form opens in a window over it.
+    private Task BeginEditContactAsync(Contact c)
     {
         _editingContactId = c.Id; _contactGroupId = c.GroupId; _fullName = c.FullName; _jobTitle = c.JobTitle ?? "";
         _extension = c.Extension ?? ""; _phone = c.Phone ?? ""; _mobile = c.Mobile ?? ""; _email = c.Email ?? ""; _note = c.Note ?? "";
         _contactOrder = c.SortOrder;
         _contactFormKey++;
-        _tab = "contact";
-        await ToTopAsync();
+        return Task.CompletedTask;
     }
 
     private void ResetContactForm()
     {
         // The chosen group is kept for the next contact, which makes typing a whole group quick.
-        if (_editingContactId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
+        // Clearing the edit marker also closes the edit window, because the window is only shown while a contact is being edited.
         _editingContactId = null; _fullName = _jobTitle = _extension = _phone = _mobile = _email = _note = "";
         _contactOrder = _contacts.Count == 0 ? 1 : _contacts.Max(x => x.SortOrder) + 1;
         _contactFormKey++;

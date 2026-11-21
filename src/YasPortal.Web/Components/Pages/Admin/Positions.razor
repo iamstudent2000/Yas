@@ -49,9 +49,11 @@
         </div>
     </div>
 
-        @* Form to add a position or edit the selected one: code, name, the position above it in the tree and its organisation. *@
+        @* Form to add a position (in the page) or edit the selected one (in a window): code, name, the position above it in the tree and its organisation. *@
         @* A position sits in the same organisation as its parent. Shown only to people who may manage positions. *@
         @if (_canManage) {
+@* While an existing position is being edited, this form opens in a window over the page; adding a position (or a child position) still uses the form in the page. *@
+<FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit" Size="medium" CloseOnOutsideClick="false">
 <section class="card admin-form-row position-form-row">
         <div class="admin-form-row-head">
             <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "ایجاد سمت" : "ویرایش سمت")</h2>
@@ -104,6 +106,7 @@
                                             <div><i class="ti @Icons.Confirm"></i><span>تخصیص و آزادسازی فقط از همین صفحه است.</span></div>
                                         </div>
     </section>
+</FormHost>
 }
 
     @* Filters for the tree: name or code, occupied or vacant, active or inactive, and organisation. They apply when the search *@
@@ -432,7 +435,7 @@
         _blockers = [];
     }
 
-    // Cancel: empty the form and return to 'add a position'.
+    // Cancel: empty the form, close the edit window and return to "add a position".
     private void CancelEdit()
     {
         _editingId = null;

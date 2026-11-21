@@ -55,9 +55,11 @@
             </div>
 
             <div class="admin-stack">
-@* Form to add a new user or edit the selected one: employee code, username, full name, organisation, password and *@
+@* Form to add a new user (in the page) or edit the selected one (in a window): employee code, username, full name, organisation, password and *@
 @* 'system administrator' tick box. Shown only to people who may manage users. *@
 @if (_canManage) {
+@* While an existing user is being edited, this form opens in a window over the page; adding a new user still uses the form in the page. *@
+<FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit" Size="medium" CloseOnOutsideClick="true">
 <section class="card admin-form-row">
     <div class="admin-form-row-head">
         <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.UserAdd : Icons.Edit)"></i> @(_editingId is null ? "کاربر جدید" : "ویرایش کاربر")</h2>
@@ -85,6 +87,7 @@
         </div>
     </div>
     </section>
+</FormHost>
 }
 
 

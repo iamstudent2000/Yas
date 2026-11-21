@@ -379,6 +379,9 @@ select option,select optgroup{background:var(--surface,#fff);color:var(--text,#1
 /* ===== Edit window (FormHost): the add/edit form opens over the page while an existing record is edited =====
    Kept deliberately flat for computers without a graphics card: solid dim background, no blur, no animation. */
 .edit-dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200}
-.edit-dialog{position:fixed;z-index:1201;top:50%;left:50%;transform:translate(-50%,-50%);width:min(980px,94vw);max-height:90vh;overflow:auto;outline:none;border-radius:var(--radius,10px)}
-.edit-dialog>.card{margin:0;box-shadow:none;border:1px solid var(--border,#d0d5dd)}
+.edit-dialog{position:fixed;z-index:1201;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,94vw);max-height:90vh;overflow:auto;outline:none;border-radius:var(--radius,10px)}
+.edit-dialog-sm{width:min(520px,94vw)}
+.edit-dialog-md{width:min(760px,94vw)}
+.edit-dialog-lg{width:min(1040px,94vw)}
+.edit-dialog>.card,.edit-dialog>div>.card{margin:0;box-shadow:none;border:1px solid var(--border,#d0d5dd)}
 @media print{.edit-dialog-backdrop,.edit-dialog{display:none}}

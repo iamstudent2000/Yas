@@ -44,16 +44,20 @@
     {
         <div class="form-actions no-print">
             <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">راهنماها</button>
-            <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">@(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</button>
+            <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">افزودن راهنما</button>
         </div>
     }
 
     <div class="admin-stack">
-        @* The write/edit form is shown only to people who may create or edit guides. It is hidden (not removed) on the list tab, *@
-        @* so the text typed in the editor and the picked files are not lost when switching tabs. *@
+        @* The write/edit form is shown only to people who may create or edit guides. *@
+        @* A NEW guide is written on the "add" tab; the form is hidden (not removed) on the list tab, so the text typed in the *@
+        @* editor and the picked files are not lost when switching tabs. *@
+        @* An EXISTING guide is edited in a window over the list. That window does not close by a click outside it, because *@
+        @* a long text could be lost by accident; the form's own cancel button closes it. *@
         @if (_canCreate)
         {
-            <div hidden="@(_tab != "form")">
+            <FormHost Modal="@(_editingId is not null)" OnClose="CancelEdit" Size="large" CloseOnOutsideClick="false">
+            <div hidden="@(_tab != "form" && _editingId is null)">
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
                     <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</h2>
@@ -123,6 +127,7 @@
                 </div>
             </section>
             </div>
+            </FormHost>
         }
 
         @* Everything below is the list tab: the search card and the table of guides. *@
@@ -376,10 +381,9 @@
         if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
     }
 
-    // Fill the form with an existing guide so it can be changed.
+    // Fill the form with an existing guide so it can be changed. The page stays on the list; the form opens in a window over it.
     private async Task BeginEdit(UserGuide guide)
     {
-        _tab = "form";
         _editingId = guide.Id;
         _newFiles = []; _removeIds = []; _pickKey++;
         _existingFiles = (await GuideFiles.ListAttachmentsAsync(guide.Id)).ToList();
@@ -388,7 +392,7 @@
         _formKey++; _initEditor = true;
     }
 
-    // Leave edit mode and empty the form.
+    // Leave edit mode (this also closes the edit window) and empty the form.
     private async Task CancelEdit()
     {
         _tab = "list";
