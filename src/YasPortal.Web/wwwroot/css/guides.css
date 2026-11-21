@@ -3,6 +3,16 @@
 
 /* ---------- list and article ---------- */
 .guide-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+/* search box, group buttons and group headings of the guides page */
+.guide-search{position:relative;margin-bottom:12px}
+.guide-search>i{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);color:var(--text-muted,#667085);pointer-events:none}
+.guide-search .form-control{padding-inline-start:38px}
+.guide-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.guide-chip{padding:5px 14px;border:1px solid var(--border,#e6ebf2);border-radius:999px;background:var(--surface,#fff);color:inherit;font:inherit;font-size:12.5px;cursor:pointer}
+.guide-chip:hover{border-color:var(--accent,#155eef)}
+.guide-chip.is-active{background:var(--accent,#155eef);border-color:var(--accent,#155eef);color:#fff}
+.guide-section{margin-bottom:22px}
+.guide-section-title{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:15px;font-weight:700}
 .guide-card{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid var(--border,#e6ebf2);border-radius:12px;background:var(--surface,#fff);color:inherit;transition:border-color .14s,transform .14s,box-shadow .14s}
 .guide-card:hover{border-color:var(--accent,#155eef);transform:translateY(-1px);box-shadow:0 6px 18px rgba(16,24,40,.07)}
 .guide-card-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft,#eef4ff);color:var(--accent,#155eef);font-size:20px}

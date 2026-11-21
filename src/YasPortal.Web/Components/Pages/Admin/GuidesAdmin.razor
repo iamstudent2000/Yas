@@ -60,6 +60,9 @@
                     <p class="muted" style="margin:8px 0 0"><i class="ti @Icons.Warning"></i> هر کسی که به این سامانه دسترسی شبکه‌ای داشته باشد، بدون ورود این راهنما را می‌بیند؛ مطلب غیرعمومی در آن ننویسید.</p>
                 }
                 <div class="admin-row-grid" style="margin-top:12px">
+                    @* The group is a free name; typing a name already used (the list offers them) puts the guide under the same heading. *@
+                    <div class="form-field"><label class="form-label">گروه (اختیاری)</label><input class="form-control" list="guide-group-list" @bind="_groupName" maxlength="@UserGuide.GroupMax" placeholder="مثلاً درخواست‌ها" />
+                        <datalist id="guide-group-list">@foreach (var name in KnownGroups) { <option value="@name"></option> }</datalist></div>
                     <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری، زیر عنوان در فهرست نمایش داده می‌شود)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
                 </div>
 
@@ -85,6 +88,16 @@
             </section>
         }
 
+        @* Search card, like the other lists: nothing is filtered until "جستجو" is pressed. It looks at title, summary and group. *@
+        <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFilters" OnClear="ClearFilters">
+            <div class="admin-filter"><label class="form-label">جستجو</label>
+                <input class="form-control" placeholder="عنوان، خلاصه یا گروه..." @bind="_dSearch" @bind:event="oninput" /></div>
+            <div class="admin-filter"><label class="form-label">گروه</label>
+                <LookupSelect Options="GroupOptions" Value="@_dGroup" ValueChanged="k => _dGroup = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه گروه‌ها" SearchPlaceholder="جستجوی گروه..." /></div>
+            <div class="admin-filter"><label class="form-label">وضعیت</label>
+                <LookupSelect Options="StatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+        </ListFilterBar>
+
         @* The list of guides the person is allowed to see, with actions to open, edit, show/hide and delete. *@
         <section class="card table-card">
             <div class="card-toolbar">
@@ -92,7 +105,7 @@
                     <h2 class="section-title" style="margin:0">فهرست راهنماها</h2>
                     <p class="muted">به ترتیب نمایش. راهنمای غیرفعال برای کاربران دیده نمی‌شود.</p>
                 </div>
-                <span class="badge badge-muted">@_guides.Count راهنما</span>
+                <span class="badge badge-muted">@(FilterCount > 0 ? $"{Shown.Count} از {_guides.Count}" : _guides.Count.ToString()) راهنما</span>
             </div>
             @if (_loading)
             {
@@ -102,18 +115,23 @@
             {
                 <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Guide"></i></div><strong>راهنمایی نوشته نشده است</strong><span>@(_canCreate ? "از فرم بالا نخستین راهنما را بنویسید." : "هنوز راهنمایی ثبت نشده است.")</span></div>
             }
+            else if (Shown.Count == 0)
+            {
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Search"></i></div><strong>راهنمایی با این فیلتر پیدا نشد</strong><span>فیلترها را تغییر دهید یا پاک کنید.</span></div>
+            }
             else
             {
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
+                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>گروه</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
                         <tbody>
                         @* One row per guide: order, title, author, who can read it, and the action buttons. *@
-                        @foreach (var guide in _guides)
+                        @foreach (var guide in Shown)
                         {
                             <tr>
                                 <td>@guide.SortOrder</td>
                                 <td><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
+                                <td>@if (guide.GroupName is not null) { <span class="badge badge-info">@guide.GroupName</span> } else { <span class="muted">—</span> }</td>
                                 <td>@(guide.CreatedByEmployeeId is Guid author && _authors.TryGetValue(author, out var authorName) ? authorName : "—")@if (guide.IsOwnedBy(_employeeId)) { <span class="badge badge-muted">من</span> }</td>
                                 <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
                                 <td><span class="badge @(guide.IsActive ? "badge-success" : "badge-muted")">@(guide.IsActive ? "فعال" : "غیرفعال")</span></td>
@@ -160,12 +178,47 @@
     private bool _canCreate => _canEditAll || _canEditOwn;
     private string SubtitleLead => _canCreate ? (_canViewAll ? "" : "فقط راهنماهایی که خودتان نوشته‌اید در این صفحه دیده و ویرایش می‌شوند. ") : "فقط خواندنی. ";
     private Guid? _editingId, _confirmDeleteId;
-    private string _title = "", _summary = "", _initialHtml = "";
+    private string _title = "", _summary = "", _groupName = "", _initialHtml = "";
     private GuideVisibility _visibility = GuideVisibility.SignedIn;
     private int _sortOrder, _formKey;
     private bool _initEditor = true;
     private ElementReference _host;
     private IJSObjectReference? _module;
+
+    // ---- search card ----
+
+    // The filter fields: what is being typed or picked (the "draft") and what was applied by the search button.
+    private string _dSearch = "", _search = "";
+    private string? _dGroup, _group, _dStatus, _status;
+
+    // Key used in the group filter for "guides without a group" (a real group name can never look like this).
+    private const string NoGroupKey = "\u0001none";
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("on", "فعال"), ("off", "غیرفعال")];
+
+    // The group names used by the guides in the list, in the order they first appear; offered when typing a group and in the filter.
+    private IEnumerable<string> KnownGroups => _guides.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct();
+    private IReadOnlyList<(string Key, string Text)> GroupOptions =>
+        KnownGroups.Select(n => (n, n)).Append((NoGroupKey, "بدون گروه")).ToList();
+
+    // How many filters are applied right now, and whether something typed or picked is not applied yet.
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dGroup is not null || _dStatus is not null;
+
+    // The guides left after the applied filters (all of them when none are applied), in the same order as the list.
+    private List<UserGuide> Shown => _guides.Where(g =>
+        GuideSearch.Matches(g.Title, g.Summary, g.GroupName, _search)
+        && (_group is null || (_group == NoGroupKey ? g.GroupName is null : g.GroupName == _group))
+        && (_status is null || g.IsActive == (_status == "on"))).ToList();
+
+    // Search button: apply what was typed and picked.
+    private void ApplyFilters() => (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus);
+
+    // Clear button: forget every filter.
+    private void ClearFilters()
+    {
+        (_dSearch, _dGroup, _dStatus) = ("", null, null);
+        ApplyFilters();
+    }
 
     // On opening: learn who the person is and which guide permissions they hold, then load the list.
     protected override async Task OnInitializedAsync()
@@ -223,7 +276,7 @@
     private void BeginEdit(UserGuide guide)
     {
         _editingId = guide.Id;
-        _title = guide.Title; _summary = guide.Summary ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
+        _title = guide.Title; _summary = guide.Summary ?? ""; _groupName = guide.GroupName ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
         _initialHtml = GuideHtmlSanitizer.Sanitize(guide.ContentHtml);
         _formKey++; _initEditor = true;
     }
@@ -239,7 +292,7 @@
     private void ResetForm()
     {
         _editingId = null;
-        _title = _summary = _initialHtml = "";
+        _title = _summary = _groupName = _initialHtml = "";
         _visibility = GuideVisibility.SignedIn;
         _formKey++; _initEditor = true;
     }
@@ -262,13 +315,13 @@
                 var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
                 if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
                 if (!await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
-                guide.Update(_title, _summary, html, _visibility, _sortOrder);
+                guide.Update(_title, _summary, html, _visibility, _sortOrder, _groupName);
             }
             else
             {
                 // a new guide records who wrote it; without that a person who may edit only their own guides could never edit it again
                 if (!await MayCreateAsync()) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
-                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId));
+                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId, _groupName));
             }
 
             await db.SaveChangesAsync();
@@ -305,6 +358,7 @@
     {
         "title" => $"عنوان لازم است و حداکثر {UserGuide.TitleMax} نویسه باشد.",
         "summary" => $"خلاصه حداکثر {UserGuide.SummaryMax} نویسه باشد.",
+        "groupName" => $"نام گروه حداکثر {UserGuide.GroupMax} نویسه باشد.",
         "contentHtml" => "متن راهنما لازم است و نباید بیش از حد طولانی باشد؛ آن را به چند راهنما تقسیم کنید.",
         _ => "اطلاعات راهنما معتبر نیست.",
     };
