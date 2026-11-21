@@ -17,6 +17,8 @@
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
+@inject GuideProvider GuideFiles
+@using Microsoft.AspNetCore.Components.Forms
 
 @* Guides management page (/guides/manage and /admin/guides). A guide is a written how-to article for portal users, shown on the *@
 @* Guides screen. People with the right permission can write, edit, hide or delete guides here. Someone who may only manage *@
@@ -64,6 +66,28 @@
                     <div class="form-field"><label class="form-label">گروه (اختیاری)</label><input class="form-control" list="guide-group-list" @bind="_groupName" maxlength="@UserGuide.GroupMax" placeholder="مثلاً درخواست‌ها" />
                         <datalist id="guide-group-list">@foreach (var name in KnownGroups) { <option value="@name"></option> }</datalist></div>
                     <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری، زیر عنوان در فهرست نمایش داده می‌شود)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
+                </div>
+
+                @* Files for readers to download. Existing files can be marked for removal; new ones are added to the list and are stored when the guide is saved. *@
+                <div style="margin-top:12px">
+                    <label class="form-label">فایل‌های پیوست (اختیاری، تا @UserGuideAttachment.MaxPerGuide فایل، هر کدام حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                    <InputFile @key="_pickKey" class="form-control" multiple accept="@_accept" OnChange="FilesPicked" />
+                    @foreach (var file in _existingFiles)
+                    {
+                        var removed = _removeIds.Contains(file.Id);
+                        <div class="guide-file-row @(removed ? "is-removed" : "")">
+                            <i class="ti @Icons.Attachment"></i><span>@file.FileName</span><small>@SizeText(file.SizeBytes)</small>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleRemove(file.Id)">@(removed ? "نگه‌داشتن" : "حذف")</button>
+                        </div>
+                    }
+                    @foreach (var file in _newFiles)
+                    {
+                        <div class="guide-file-row is-new">
+                            <i class="ti @Icons.Attachment"></i><span>@file.Name</span><small>@SizeText(file.Content.Length)</small><span class="badge badge-info">جدید</span>
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _newFiles.Remove(file)">حذف</button>
+                        </div>
+                    }
+                    <p class="muted" style="margin:6px 0 0">PDF، تصویر، Word، Excel، PowerPoint، متن و ZIP پذیرفته می‌شود. هر کسی که بتواند راهنما را ببیند (برای راهنمای عمومی، بدون ورود) می‌تواند فایل‌ها را بگیرد.</p>
                 </div>
 
                 <div style="margin-top:12px">
@@ -130,7 +154,7 @@
                         {
                             <tr>
                                 <td>@guide.SortOrder</td>
-                                <td><strong>@guide.Title</strong>@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
+                                <td><strong>@guide.Title</strong>@if (_fileCounts.TryGetValue(guide.Id, out var fileCount)) { <span class="badge badge-muted" title="فایل پیوست"><i class="ti @Icons.Attachment"></i> @fileCount</span> }@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
                                 <td>@if (guide.GroupName is not null) { <span class="badge badge-info">@guide.GroupName</span> } else { <span class="muted">—</span> }</td>
                                 <td>@(guide.CreatedByEmployeeId is Guid author && _authors.TryGetValue(author, out var authorName) ? authorName : "—")@if (guide.IsOwnedBy(_employeeId)) { <span class="badge badge-muted">من</span> }</td>
                                 <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
@@ -172,6 +196,64 @@
     private Guid? _employeeId;
     private List<UserGuide> _guides = [];
     private Dictionary<Guid, string> _authors = [];
+
+    // ---- attached files ----
+
+    private static readonly string _accept = string.Join(",", UserGuideAttachment.AllowedExtensions);
+    // How many files each guide has (for the list), the files of the guide being edited, those marked for removal,
+    // and the newly picked ones that are stored when the guide is saved. _pickKey clears the file picker after each pick.
+    private Dictionary<Guid, int> _fileCounts = [];
+    private List<GuideFileItem> _existingFiles = [];
+    private HashSet<Guid> _removeIds = [];
+    private List<PendingFile> _newFiles = [];
+
+    // A picked file already read into memory (name and bytes). It is read at once because clearing the picker (below) would
+    // otherwise cut the browser's link to the file before the guide is saved.
+    private sealed record PendingFile(string Name, byte[] Content);
+    private int _pickKey;
+
+    private static string SizeText(long bytes) =>
+        WorkflowDisplay.ToPersianDigits(bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} مگابایت" : $"{Math.Max(1, bytes / 1024)} کیلوبایت");
+
+    // Mark an existing file for removal (or take the mark back); nothing is deleted until the guide is saved.
+    private void ToggleRemove(Guid id) { if (!_removeIds.Remove(id)) _removeIds.Add(id); }
+
+    // Check each picked file (type and size) at once, read the good ones into memory and keep them until the guide is saved;
+    // the total number of files is checked too.
+    private async Task FilesPicked(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(UserGuideAttachment.MaxPerGuide))
+        {
+            var error = UserGuideAttachment.Validate(file.Name, file.Size);
+            if (error is not null) { AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error); continue; }
+            var countError = UserGuideAttachment.ValidateCount(_existingFiles.Count(f => !_removeIds.Contains(f.Id)) + _newFiles.Count + 1);
+            if (countError is not null) { AppState.AddToast(countError, ToastLevel.Error); break; }
+            try
+            {
+                using var buffer = new MemoryStream();
+                await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+                    await stream.CopyToAsync(buffer);
+                _newFiles.Add(new PendingFile(file.Name, buffer.ToArray()));
+            }
+            catch (Exception ex) when (ex is IOException or JSException)
+            {
+                AppState.AddToast($"{file.Name}: خواندن فایل انجام نشد.", ToastLevel.Error);
+            }
+        }
+        _pickKey++;   // empties the picker so more files can be added
+    }
+
+    // Stores the picked files (already in memory) and removes the marked ones, in the same save as the guide itself.
+    private async Task ApplyFilesAsync(ApplicationDbContext db, Guid guideId)
+    {
+        if (_removeIds.Count > 0)
+        {
+            var doomed = await db.UserGuideAttachments.Where(x => x.GuideId == guideId && _removeIds.Contains(x.Id)).ToListAsync();
+            db.UserGuideAttachments.RemoveRange(doomed);
+        }
+        foreach (var file in _newFiles)
+            db.UserGuideAttachments.Add(new UserGuideAttachment(guideId, file.Name, file.Content));
+    }
 
     // Who may do what: Admin.Guides.View sees every guide; Admin.Guides.Manage edits every guide; Guides.Own.Manage writes new guides
     // and edits only the ones the person wrote. Someone holding only Guides.Own.Manage sees only their own guides here.
@@ -267,15 +349,20 @@
             query = query.Where(x => x.CreatedByEmployeeId == me);
         }
         _guides = await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        var ids = _guides.Select(x => x.Id).ToList();
+        _fileCounts = ids.Count == 0 ? [] : (await db.UserGuideAttachments.AsNoTracking().Where(a => ids.Contains(a.GuideId)).GroupBy(a => a.GuideId)
+            .Select(g => new { g.Key, Count = g.Count() }).ToListAsync()).ToDictionary(x => x.Key, x => x.Count);
         var authorIds = _guides.Where(x => x.CreatedByEmployeeId != null).Select(x => x.CreatedByEmployeeId!.Value).Distinct().ToList();
         _authors = authorIds.Count == 0 ? [] : await db.Employees.AsNoTracking().Where(e => authorIds.Contains(e.Id)).ToDictionaryAsync(e => e.Id, e => e.FullName);
         if (_editingId is null) _sortOrder = _guides.Count == 0 ? 1 : _guides.Max(x => x.SortOrder) + 1;
     }
 
     // Fill the form with an existing guide so it can be changed.
-    private void BeginEdit(UserGuide guide)
+    private async Task BeginEdit(UserGuide guide)
     {
         _editingId = guide.Id;
+        _newFiles = []; _removeIds = []; _pickKey++;
+        _existingFiles = (await GuideFiles.ListAttachmentsAsync(guide.Id)).ToList();
         _title = guide.Title; _summary = guide.Summary ?? ""; _groupName = guide.GroupName ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
         _initialHtml = GuideHtmlSanitizer.Sanitize(guide.ContentHtml);
         _formKey++; _initEditor = true;
@@ -293,6 +380,7 @@
     {
         _editingId = null;
         _title = _summary = _groupName = _initialHtml = "";
+        _existingFiles = []; _removeIds = []; _newFiles = []; _pickKey++;
         _visibility = GuideVisibility.SignedIn;
         _formKey++; _initEditor = true;
     }
@@ -316,12 +404,18 @@
                 if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
                 if (!await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
                 guide.Update(_title, _summary, html, _visibility, _sortOrder, _groupName);
+                var kept = await db.UserGuideAttachments.CountAsync(x => x.GuideId == id && !_removeIds.Contains(x.Id));
+                var countError = UserGuideAttachment.ValidateCount(kept + _newFiles.Count);
+                if (countError is not null) { AppState.AddToast(countError, ToastLevel.Error); return; }
+                await ApplyFilesAsync(db, id);
             }
             else
             {
                 // a new guide records who wrote it; without that a person who may edit only their own guides could never edit it again
                 if (!await MayCreateAsync()) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
-                db.UserGuides.Add(new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId, _groupName));
+                var created = new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId, _groupName);
+                db.UserGuides.Add(created);
+                await ApplyFilesAsync(db, created.Id);
             }
 
             await db.SaveChangesAsync();
@@ -359,6 +453,7 @@
         "title" => $"عنوان لازم است و حداکثر {UserGuide.TitleMax} نویسه باشد.",
         "summary" => $"خلاصه حداکثر {UserGuide.SummaryMax} نویسه باشد.",
         "groupName" => $"نام گروه حداکثر {UserGuide.GroupMax} نویسه باشد.",
+        "fileName" => ex.Message,   // the file's own messages are already Persian
         "contentHtml" => "متن راهنما لازم است و نباید بیش از حد طولانی باشد؛ آن را به چند راهنما تقسیم کنید.",
         _ => "اطلاعات راهنما معتبر نیست.",
     };

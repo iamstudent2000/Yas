@@ -50,7 +50,47 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
             return null;
         }
     }
+
+    /// <summary>The files attached to a guide (name and size only, never the contents), oldest first. The caller has already checked the reader may see the guide.</summary>
+    public async Task<IReadOnlyList<GuideFileItem>> ListAttachmentsAsync(Guid guideId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            return await db.UserGuideAttachments.AsNoTracking().Where(x => x.GuideId == guideId).OrderBy(x => x.UploadedAtUtc).ThenBy(x => x.FileName)
+                .Select(x => new GuideFileItem(x.Id, x.FileName, x.SizeBytes)).ToListAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not read the files of a user guide.");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// One attached file with its contents, or null when it does not exist or the reader may not see its guide
+    /// (the same rule as <see cref="GetAsync"/>: preview rights, a normal reader of the guide, or its own author).
+    /// </summary>
+    public async Task<UserGuideAttachment?> GetAttachmentAsync(Guid id, bool signedIn, bool canPreviewAll, Guid? authorId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var file = await db.UserGuideAttachments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+            if (file is null) return null;
+            var guide = await db.UserGuides.AsNoTracking().SingleOrDefaultAsync(x => x.Id == file.GuideId, ct);
+            return guide is not null && (canPreviewAll || guide.IsReadableBy(signedIn) || guide.IsOwnedBy(authorId)) ? file : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not read a user guide file.");
+            return null;
+        }
+    }
 }
+
+/// <summary>One file attached to a guide, without its contents.</summary>
+public sealed record GuideFileItem(Guid Id, string FileName, long SizeBytes);
 
 /// <summary>One guide in the list, without its text. <paramref name="GroupName"/> is the heading it is listed under (empty = no group).</summary>
 public sealed record GuideListItem(Guid Id, string Title, string? Summary, GuideVisibility Visibility, string? GroupName = null);
