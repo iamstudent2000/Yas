@@ -12,9 +12,14 @@
 {
     @* Dimmed background behind the window. Clicking it cancels the edit, unless the page switched that off. *@
     <div class="edit-dialog-backdrop" @onclick="OnBackdropClickAsync"></div>
-    @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
-    <div class="edit-dialog @SizeClass" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
-        @ChildContent
+    @* A full-screen layer that centres the window and scrolls when a form is taller than the screen. It lets mouse clicks pass *@
+    @* through its empty parts to the dimmed background. The window is centred by this layer and NOT by moving or clipping it, *@
+    @* because the drop-down lists and date pickers inside the form must be able to open outside the window's edges. *@
+    <div class="edit-dialog-holder">
+        @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
+        <div class="edit-dialog @SizeClass" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
+            @ChildContent
+        </div>
     </div>
 }
 else
