@@ -28,26 +28,25 @@
         </div>
     </div>
 
+    @* Sub tabs, the same as on the store items page: links, groups, and (for people who may manage) the bulk import. *@
+    @* Each tab holds its own form (managers only) and its list. *@
+    <div class="form-actions no-print">
+        <button class="btn @(_tab == "links" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "links")">پیوندها</button>
+        <button class="btn @(_tab == "groups" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "groups")">گروه‌ها</button>
+        @if (_canManage)
+        {
+            <button class="btn @(_tab == "import" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "import")">ورود گروهی</button>
+        }
+    </div>
+
     @if (_loading)
     {
         <LoadingState />
     }
     else
     {
-        @* In-page tabs, the same as on the phone book page: the list, a form for a new (or edited) link, one for a group, and the bulk import. *@
-        @* Only people who may manage links get the form tabs; others just see the list. *@
-        @if (_canManage)
-        {
-            <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت پیوندها">
-                <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.Links"></i> پیوندها و گروه‌ها</button>
-                <button type="button" class="store-tab @(_tab == "link" ? "active" : "")" @onclick="@(() => _tab = "link")"><i class="ti @(_editingLinkId is null ? Icons.Add : Icons.Edit)"></i> @(_editingLinkId is null ? "پیوند جدید" : "ویرایش پیوند")</button>
-                <button type="button" class="store-tab @(_tab == "group" ? "active" : "")" @onclick="@(() => _tab = "group")"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "گروه جدید" : "ویرایش گروه")</button>
-                <button type="button" class="store-tab @(_tab == "import" ? "active" : "")" @onclick="@(() => _tab = "import")"><i class="ti @Icons.Add"></i> ورود گروهی</button>
-            </nav>
-        }
-
         <div class="admin-stack">
-            @if (_canManage && _tab == "link")
+            @if (_canManage && _tab == "links")
             {
                 <section class="card admin-form-row">
                     <div class="admin-form-row-head">
@@ -80,127 +79,8 @@
                 </section>
             }
 
-            @if (_canManage && _tab == "group")
+            @if (_tab == "links")
             {
-                <section class="card admin-form-row">
-                    <div class="admin-form-row-head">
-                        @* Form to add a group or edit the selected one. A group can be placed under another group, but not under itself or *@
-                        @* under one of its own sub-groups. *@
-                        <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
-                        <p class="muted">برای ساخت زیرگروه، گروه والد را انتخاب کنید.</p>
-                    </div>
-                    <div class="admin-row-grid">
-                        <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@LinkGroup.NameMax" /></div>
-                        <div class="form-field is-grow"><label class="form-label">گروه والد</label>
-                            <LookupSelect @key="_groupFormKey" Options="ParentOptions" Value="@(_groupParentId?.ToString())" ValueChanged="k => _groupParentId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون والد (گروه اصلی)" /></div>
-                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
-                        <div class="form-field admin-row-submit"><div class="form-actions">
-                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editingGroupId is null ? "افزودن گروه" : "ذخیره")</button>
-                            @if (_editingGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
-                        </div></div>
-                    </div>
-                </section>
-            }
-
-            @if (_canManage && _tab == "import")
-            {
-                <section class="card admin-form-row">
-                    <div class="admin-form-row-head">
-                        @* Bulk import: paste one link per line, press preview to see which lines are accepted and which have a problem, *@
-                        @* then confirm the import. *@
-                        <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی پیوندها</h2>
-                        <p class="muted">هر پیوند در یک خط: <span dir="ltr">گروه &gt; زیرگروه | عنوان | آدرس | توضیح (اختیاری)</span>. گروه‌های ناموجود ساخته می‌شوند و پیوندهای تکراری (همان آدرس در همان گروه) نادیده گرفته می‌شوند. خطی که با # شروع شود نادیده است.</p>
-                    </div>
-                    <textarea class="form-control" rows="6" dir="rtl" placeholder="سامانه‌های اداری > مالی | سیستم حقوق | http://payroll/app | حقوق و دستمزد&#10;آموزش | سامانه آموزش | https://learn.example.org" @bind="_importText" @bind:event="oninput"></textarea>
-                    <div class="form-actions" style="margin-top:10px">
-                        <button class="btn btn-secondary" disabled="@_busy" @onclick="PreviewImport"><i class="ti @Icons.Search"></i> پیش‌نمایش</button>
-                        <button class="btn btn-primary" disabled="@(_busy || _importLines is null || _importLines.Count(x => x.Error is null) == 0)" @onclick="ImportAsync"><i class="ti @Icons.Save"></i> ورود @(_importLines is null ? "" : $"({_importLines.Count(x => x.Error is null)} پیوند)")</button>
-                    </div>
-                    @* The preview table of the pasted lines, with the reason for every rejected line. *@
-                    @if (_importLines is not null)
-                    {
-                        @if (_importLines.Count == 0)
-                        {
-                            <p class="muted" style="margin-top:10px">خطی برای ورود پیدا نشد.</p>
-                        }
-                        else
-                        {
-                            <div class="data-table-wrap" style="margin-top:10px">
-                                <table class="data-table data-table-bordered-rows">
-                                    <thead><tr><th>خط</th><th>گروه</th><th>عنوان</th><th>آدرس</th><th>وضعیت</th></tr></thead>
-                                    <tbody>
-                                    @foreach (var line in _importLines)
-                                    {
-                                        <tr>
-                                            <td>@line.LineNumber</td>
-                                            <td>@(line.GroupPath.Count == 0 ? "—" : string.Join(" › ", line.GroupPath))</td>
-                                            <td>@line.Title</td>
-                                            <td dir="ltr">@line.Url</td>
-                                            <td>@if (line.Error is null) { <span class="badge badge-success">درست</span> } else { <span class="badge badge-danger">@line.Error</span> }</td>
-                                        </tr>
-                                    }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    }
-                </section>
-            }
-
-            @if (_tab == "list")
-            {
-            <section class="card table-card">
-                <div class="card-toolbar">
-                    <div>
-                        <h2 class="section-title" style="margin:0">گروه‌ها</h2>
-                        <p class="muted">خاموش‌کردن یک گروه، همه زیرگروه‌ها و پیوندهای آن را از صفحه اصلی پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
-                    </div>
-                    <span class="badge badge-muted">@_groups.Count گروه</span>
-                </div>
-                @* The list of groups (sub-groups are indented), or a message when there are none yet. *@
-                @if (_groups.Count == 0)
-                {
-                    <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>گروهی ثبت نشده است</strong></div>
-                }
-                else
-                {
-                    <div class="data-table-wrap">
-                        <table class="data-table data-table-bordered-rows">
-                            <thead><tr><th>گروه</th><th>پیوندها</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
-                            <tbody>
-                            @* One row per group, indented by its depth, with buttons to edit, switch on or off and delete. *@
-                            @foreach (var (group, depth) in FlatGroups())
-                            {
-                                <tr>
-                                    <td style="padding-inline-start:@(12 + depth * 22)px">@(depth > 0 ? "↳ " : "")<strong>@group.Name</strong></td>
-                                    <td>@_links.Count(x => x.GroupId == group.Id)</td>
-                                    <td>@group.SortOrder</td>
-                                    <td><span class="badge @(group.IsActive ? "badge-success" : "badge-muted")">@(group.IsActive ? "فعال" : "خاموش")</span></td>
-                                    @if (_canManage)
-                                    {
-                                        <td class="action-cell">
-                                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
-                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
-                                            @* Confirmation step before deleting a group. *@
-                                            @if (_confirmGroupId == group.Id)
-                                            {
-                                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
-                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
-                                            }
-                                            else
-                                            {
-                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
-                                            }
-                                        </td>
-                                    }
-                                </tr>
-                            }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </section>
-
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
@@ -258,14 +138,136 @@
                 }
             </section>
             }
+
+            @if (_canManage && _tab == "groups")
+            {
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        @* Form to add a group or edit the selected one. A group can be placed under another group, but not under itself or *@
+                        @* under one of its own sub-groups. *@
+                        <h2 class="section-title"><i class="ti @(_editingGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editingGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                        <p class="muted">برای ساخت زیرگروه، گروه والد را انتخاب کنید.</p>
+                    </div>
+                    <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@LinkGroup.NameMax" /></div>
+                        <div class="form-field is-grow"><label class="form-label">گروه والد</label>
+                            <LookupSelect @key="_groupFormKey" Options="ParentOptions" Value="@(_groupParentId?.ToString())" ValueChanged="k => _groupParentId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون والد (گروه اصلی)" /></div>
+                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
+                        <div class="form-field admin-row-submit"><div class="form-actions">
+                            <button class="btn btn-primary" disabled="@_busy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editingGroupId is null ? "افزودن گروه" : "ذخیره")</button>
+                            @if (_editingGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
+                        </div></div>
+                    </div>
+                </section>
+            }
+
+            @if (_tab == "groups")
+            {
+            <section class="card table-card">
+                <div class="card-toolbar">
+                    <div>
+                        <h2 class="section-title" style="margin:0">گروه‌ها</h2>
+                        <p class="muted">خاموش‌کردن یک گروه، همه زیرگروه‌ها و پیوندهای آن را از صفحه اصلی پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
+                    </div>
+                    <span class="badge badge-muted">@_groups.Count گروه</span>
+                </div>
+                @* The list of groups (sub-groups are indented), or a message when there are none yet. *@
+                @if (_groups.Count == 0)
+                {
+                    <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>گروهی ثبت نشده است</strong></div>
+                }
+                else
+                {
+                    <div class="data-table-wrap">
+                        <table class="data-table data-table-bordered-rows">
+                            <thead><tr><th>گروه</th><th>پیوندها</th><th>ترتیب</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                            <tbody>
+                            @* One row per group, indented by its depth, with buttons to edit, switch on or off and delete. *@
+                            @foreach (var (group, depth) in FlatGroups())
+                            {
+                                <tr>
+                                    <td style="padding-inline-start:@(12 + depth * 22)px">@(depth > 0 ? "↳ " : "")<strong>@group.Name</strong></td>
+                                    <td>@_links.Count(x => x.GroupId == group.Id)</td>
+                                    <td>@group.SortOrder</td>
+                                    <td><span class="badge @(group.IsActive ? "badge-success" : "badge-muted")">@(group.IsActive ? "فعال" : "خاموش")</span></td>
+                                    @if (_canManage)
+                                    {
+                                        <td class="action-cell">
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                                            @* Confirmation step before deleting a group. *@
+                                            @if (_confirmGroupId == group.Id)
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+            }
+
+            @if (_canManage && _tab == "import")
+            {
+                <section class="card admin-form-row">
+                    <div class="admin-form-row-head">
+                        @* Bulk import: paste one link per line, press preview to see which lines are accepted and which have a problem, *@
+                        @* then confirm the import. *@
+                        <h2 class="section-title"><i class="ti @Icons.Add"></i> ورود گروهی پیوندها</h2>
+                        <p class="muted">هر پیوند در یک خط: <span dir="ltr">گروه &gt; زیرگروه | عنوان | آدرس | توضیح (اختیاری)</span>. گروه‌های ناموجود ساخته می‌شوند و پیوندهای تکراری (همان آدرس در همان گروه) نادیده گرفته می‌شوند. خطی که با # شروع شود نادیده است.</p>
+                    </div>
+                    <textarea class="form-control" rows="6" dir="rtl" placeholder="سامانه‌های اداری > مالی | سیستم حقوق | http://payroll/app | حقوق و دستمزد&#10;آموزش | سامانه آموزش | https://learn.example.org" @bind="_importText" @bind:event="oninput"></textarea>
+                    <div class="form-actions" style="margin-top:10px">
+                        <button class="btn btn-secondary" disabled="@_busy" @onclick="PreviewImport"><i class="ti @Icons.Search"></i> پیش‌نمایش</button>
+                        <button class="btn btn-primary" disabled="@(_busy || _importLines is null || _importLines.Count(x => x.Error is null) == 0)" @onclick="ImportAsync"><i class="ti @Icons.Save"></i> ورود @(_importLines is null ? "" : $"({_importLines.Count(x => x.Error is null)} پیوند)")</button>
+                    </div>
+                    @* The preview table of the pasted lines, with the reason for every rejected line. *@
+                    @if (_importLines is not null)
+                    {
+                        @if (_importLines.Count == 0)
+                        {
+                            <p class="muted" style="margin-top:10px">خطی برای ورود پیدا نشد.</p>
+                        }
+                        else
+                        {
+                            <div class="data-table-wrap" style="margin-top:10px">
+                                <table class="data-table data-table-bordered-rows">
+                                    <thead><tr><th>خط</th><th>گروه</th><th>عنوان</th><th>آدرس</th><th>وضعیت</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var line in _importLines)
+                                    {
+                                        <tr>
+                                            <td>@line.LineNumber</td>
+                                            <td>@(line.GroupPath.Count == 0 ? "—" : string.Join(" › ", line.GroupPath))</td>
+                                            <td>@line.Title</td>
+                                            <td dir="ltr">@line.Url</td>
+                                            <td>@if (line.Error is null) { <span class="badge badge-success">درست</span> } else { <span class="badge badge-danger">@line.Error</span> }</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                </section>
+            }
         </div>
     }
 </div>
 
 @code {
     private bool _loading = true, _canManage, _busy;
-    // The tab shown: "list", "link" (new or edited link), "group" (new or edited group) or "import".
-    private string _tab = "list";
+    // The tab shown: "links", "groups" or "import".
+    private string _tab = "links";
     private List<LinkGroup> _groups = [];
     private List<PortalLink> _links = [];
     private string _search = "";
@@ -365,12 +367,10 @@
     {
         _editingGroupId = group.Id; _groupName = group.Name; _groupParentId = group.ParentId; _groupOrder = group.SortOrder;
         _groupFormKey++;
-        _tab = "group";
     }
 
     private void ResetGroupForm()
     {
-        if (_editingGroupId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
         _editingGroupId = null; _groupName = ""; _groupParentId = null;
         _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
         _groupFormKey++;
@@ -451,12 +451,10 @@
         _editingLinkId = link.Id; _linkTitle = link.Title; _linkUrl = link.Url; _linkDescription = link.Description ?? "";
         _linkGroupId = link.GroupId; _linkOrder = link.SortOrder; _linkQuick = link.IsQuickAccess; _linkQuickOrder = link.QuickOrder;
         _linkFormKey++;
-        _tab = "link";
     }
 
     private void ResetLinkForm()
     {
-        if (_editingLinkId is not null) _tab = "list";   // finishing or cancelling an edit goes back to the list
         _editingLinkId = null; _linkTitle = _linkUrl = _linkDescription = ""; _linkGroupId = null; _linkQuick = false;
         _linkOrder = _links.Count == 0 ? 1 : _links.Max(x => x.SortOrder) + 1;
         _linkQuickOrder = _links.Count(x => x.IsQuickAccess) + 1;
@@ -582,7 +580,7 @@
             }
             await db.SaveChangesAsync();
             AppState.AddToast($"{added} پیوند و {newGroups} گروه جدید اضافه شد" + (duplicates > 0 ? $"؛ {duplicates} پیوند تکراری نادیده گرفته شد." : "."), ToastLevel.Success);
-            _importText = ""; _importLines = null; _tab = "list";   // show the imported links
+            _importText = ""; _importLines = null; _tab = "links";   // show the imported links
             await LoadAsync();
         }
         catch (Exception) { AppState.AddToast("ورود گروهی انجام نشد؛ چیزی ذخیره نشد.", ToastLevel.Error); }

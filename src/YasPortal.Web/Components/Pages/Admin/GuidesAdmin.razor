@@ -38,14 +38,14 @@
         </div>
     </div>
 
-    @* In-page tabs, the same as on the phone book page: the list of guides, and the form for a new (or edited) guide. *@
+    @* Sub tabs, the same as on the store items page: the list of guides, and the form for a new (or edited) guide. *@
     @* Only people who may write guides get the form tab; others just see the list. *@
     @if (_canCreate)
     {
-        <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت راهنماها">
-            <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.Guide"></i> راهنماها</button>
-            <button type="button" class="store-tab @(_tab == "form" ? "active" : "")" @onclick="@(() => _tab = "form")"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "راهنمای جدید" : "ویرایش راهنما")</button>
-        </nav>
+        <div class="form-actions no-print">
+            <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">راهنماها</button>
+            <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">@(_editingId is null ? "افزودن راهنما" : "ویرایش راهنما")</button>
+        </div>
     }
 
     <div class="admin-stack">

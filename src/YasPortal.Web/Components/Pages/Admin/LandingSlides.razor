@@ -29,14 +29,14 @@
         </div>
     </div>
 
-    @* In-page tabs, the same as on the phone book page: the list of slides, and the form for a new (or edited) slide. *@
+    @* Sub tabs, the same as on the store items page: the list of slides, and the form for a new (or edited) slide. *@
     @* Only people who may manage slides get the form tab; others just see the list. *@
     @if (_canManage)
     {
-        <nav class="store-tabs no-print" dir="rtl" aria-label="مدیریت اسلایدها">
-            <button type="button" class="store-tab @(_tab == "list" ? "active" : "")" @onclick="@(() => _tab = "list")"><i class="ti @Icons.LandingSlides"></i> اسلایدها</button>
-            <button type="button" class="store-tab @(_tab == "form" ? "active" : "")" @onclick="@(() => _tab = "form")"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "اسلاید جدید" : "ویرایش اسلاید")</button>
-        </nav>
+        <div class="form-actions no-print">
+            <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">اسلایدها</button>
+            <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">@(_editingId is null ? "افزودن اسلاید" : "ویرایش اسلاید")</button>
+        </div>
     }
 
     <div class="admin-stack">
