@@ -1,0 +1,53 @@
+@* FormHost: decides WHERE a page's add/edit form is shown.
+   - While a new record is being added (Modal = false) the form is shown in the page exactly as before, at the top.
+   - While an existing record is being edited (Modal = true) the same form is shown in a window (a "dialog") that opens
+     over the page, with a dimmed background. The page keeps one single form; only its place changes.
+   The dialog closes (OnClose is called, which the page uses as "cancel") when the person clicks the dimmed background
+   or presses the Escape key. Nothing is saved by closing.
+   It is deliberately plain: no blur, no fade, no sliding. Computers without a graphics card then open it at once. *@
+@if (Modal)
+{
+    @* Dimmed background behind the window. Clicking it cancels the edit. *@
+    <div class="edit-dialog-backdrop" @onclick="OnClose"></div>
+    @* The window itself. tabindex lets it receive the keyboard so Escape works right after it opens. *@
+    <div class="edit-dialog" role="dialog" aria-modal="true" tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDownAsync">
+        @ChildContent
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    // True while an existing record is being edited, so the form is shown in the dialog instead of in the page.
+    [Parameter] public bool Modal { get; set; }
+
+    // Called when the person cancels by clicking the background or pressing Escape.
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    // The page's form (normally one card with the fields and the save and cancel buttons).
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // The window element, used to give it the keyboard focus when it opens.
+    private ElementReference _dialog;
+
+    // Remembers whether the dialog was open at the last draw, so focus is moved only at the moment it opens.
+    private bool _wasModal;
+
+    // When the dialog has just opened, move the keyboard focus into it (so Escape works and the page behind is not typed into).
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Modal && !_wasModal)
+        {
+            try { await _dialog.FocusAsync(); } catch { /* the page may be closing; losing focus here is harmless */ }
+        }
+        _wasModal = Modal;
+    }
+
+    // Escape cancels the edit.
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await OnClose.InvokeAsync();
+    }
+}

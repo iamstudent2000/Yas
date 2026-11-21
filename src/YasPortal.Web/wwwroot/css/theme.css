@@ -375,3 +375,10 @@ select option,select optgroup{background:var(--surface,#fff);color:var(--text,#1
 
 /* The top bar keeps its height on every page: in the fixed-height shell column it could otherwise be squeezed by a tall page. */
 .shell-main > .topbar{flex:0 0 auto}
+
+/* ===== Edit window (FormHost): the add/edit form opens over the page while an existing record is edited =====
+   Kept deliberately flat for computers without a graphics card: solid dim background, no blur, no animation. */
+.edit-dialog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200}
+.edit-dialog{position:fixed;z-index:1201;top:5vh;left:50%;transform:translateX(-50%);width:min(980px,94vw);max-height:90vh;overflow:auto;outline:none;border-radius:var(--radius,10px)}
+.edit-dialog>.card{margin:0;box-shadow:none;border:1px solid var(--border,#d0d5dd)}
+@media print{.edit-dialog-backdrop,.edit-dialog{display:none}}
