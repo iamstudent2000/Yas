@@ -567,9 +567,6 @@ app.MapGet("/landing/files/{slideId:guid}", async (Guid slideId, HttpContext htt
 // Download of a file attached to a guide. Same visibility rules as reading the guide itself (see GuideProvider.GetAttachmentAsync):
 // a visitor gets files of public guides only; a guide that is off, or for signed-in people, looks like a missing file. Always sent
 // as a download, never rendered by the browser.
-// The guides management page used to be at /guides/manage; it moved to /admin/guides like the other admin pages.
-// The old address sends people (and old bookmarks) to the new one.
-app.MapGet("/guides/manage", () => Results.Redirect("/admin/guides"));
 app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuideProvider guides) =>
 {
     var signedIn = http.User.Identity?.IsAuthenticated == true;
