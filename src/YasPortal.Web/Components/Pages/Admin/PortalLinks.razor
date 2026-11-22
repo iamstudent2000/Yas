@@ -61,6 +61,9 @@
                     <div class="admin-row-grid">
                         <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
                             <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
+                        @* Same idea for a file attached to a guide: the link then downloads that file instead of opening a page. *@
+                        <div class="form-field is-grow"><label class="form-label">پیوند به فایل پیوست راهنما (اختیاری)</label>
+                            <LookupSelect @key="_guidePickKey" Options="FileOptions" Value="@("")" ValueChanged="PickFile" Placeholder="یک فایل را انتخاب کنید تا آدرس دانلود آن پر شود" SearchPlaceholder="جستجوی فایل یا راهنما..." /></div>
                     </div>
                     <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
@@ -321,6 +324,19 @@
     private IReadOnlyList<(string Key, string Text)> GuideOptions = [];
     private int _guidePickKey;
 
+    // Files attached to guides, offered in the "link to a file" picker (id as text, "guide title › file name").
+    private IReadOnlyList<(string Key, string Text)> FileOptions = [];
+
+    // A file was picked: its download address becomes the link address, and the file name is used when no title was typed yet.
+    private void PickFile(string? id)
+    {
+        var file = FileOptions.FirstOrDefault(x => x.Key == id);
+        if (file.Key is null) return;
+        _linkUrl = "/guides/files/" + file.Key;
+        if (string.IsNullOrWhiteSpace(_linkTitle)) _linkTitle = file.Text[(file.Text.LastIndexOf('›') + 1)..].Trim();
+        _guidePickKey++;
+    }
+
     // A guide was picked: its page address becomes the link address, and the guide's title is used when no title was typed yet.
     private void PickGuide(string? id)
     {
@@ -353,6 +369,9 @@
         _links = await db.PortalLinks.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
         var guides = await db.UserGuides.AsNoTracking().OrderBy(x => x.Title).Select(x => new { x.Id, x.Title }).ToListAsync();
         GuideOptions = guides.Select(x => (x.Id.ToString(), x.Title)).ToList();
+        // Only the names are loaded, never the file contents.
+        var files = await db.UserGuideAttachments.AsNoTracking().OrderBy(x => x.FileName).Select(x => new { x.Id, x.GuideId, x.FileName }).ToListAsync();
+        FileOptions = files.Select(x => (x.Id.ToString(), (guides.FirstOrDefault(g => g.Id == x.GuideId)?.Title ?? "") + " › " + x.FileName)).ToList();
     }
 
     // Every change re-checks the manage permission, instead of trusting the page alone.
