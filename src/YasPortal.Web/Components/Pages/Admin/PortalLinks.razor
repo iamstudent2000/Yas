@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Landing
+@using YasPortal.Domain.Paging
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -84,30 +85,46 @@
 
             @if (_tab == "links")
             {
+            @* Search card, like the other lists: nothing is filtered until "جستجو" is pressed. It looks at title, address, description and group name. *@
+            <ListFilterBar Busy="false" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFilters" OnClear="ClearFilters">
+                <div class="admin-filter"><label class="form-label">جستجو</label>
+                    <input class="form-control" placeholder="عنوان، آدرس، توضیح یا گروه..." @bind="_dSearch" @bind:event="oninput" /></div>
+                <div class="admin-filter"><label class="form-label">گروه</label>
+                    <LookupSelect Options="LinkGroupFilterOptions" Value="@_dGroup" ValueChanged="k => _dGroup = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+                <div class="admin-filter"><label class="form-label">وضعیت</label>
+                    <LookupSelect Options="LinkStatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+            </ListFilterBar>
+
             <section class="card table-card">
                 <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0">پیوندها</h2>
-                        <p class="muted">جستجو در عنوان، آدرس، توضیح و گروه.</p>
                     </div>
                     <span class="badge badge-muted">@VisibleLinks.Count از @_links.Count پیوند</span>
                 </div>
-                <div class="admin-row-grid" style="margin-bottom:10px">
-                    <div class="form-field is-grow"><input class="form-control" placeholder="جستجو..." @bind="_search" @bind:event="oninput" /></div>
-                </div>
-                @* The list of links (with a search box), or a message when nothing matches. *@
+                @* The list of links, or a message when nothing matches. *@
                 @if (VisibleLinks.Count == 0)
                 {
                     <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>پیوندی پیدا نشد</strong></div>
                 }
                 else
                 {
+                    var visible = VisibleLinks;
                     <div class="data-table-wrap">
                         <table class="data-table data-table-bordered-rows">
-                            <thead><tr><th>عنوان</th><th>آدرس</th><th>گروه</th><th>ترتیب</th><th>دسترسی سریع</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                            @* Click a heading to sort by it, click again to reverse. The buttons column cannot be sorted. *@
+                            <thead><tr>
+                                <SortableHeader Text="عنوان" Column="title" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                <SortableHeader Text="آدرس" Column="url" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                <SortableHeader Text="گروه" Column="group" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                <SortableHeader Text="ترتیب" Column="order" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                <SortableHeader Text="دسترسی سریع" Column="quick" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                                @if (_canManage) { <th>عملیات</th> }
+                            </tr></thead>
                             <tbody>
                             @* One row per link: title, address, group and status, with buttons to edit, switch on or off and delete. *@
-                            @foreach (var link in VisibleLinks)
+                            @foreach (var link in ListPaging.Slice(visible, _page, _pageSize))
                             {
                                 <tr>
                                     <td><strong>@link.Title</strong>@if (link.Description is not null) { <div class="muted">@link.Description</div> }</td>
@@ -138,6 +155,9 @@
                             </tbody>
                         </table>
                     </div>
+                    @* Page navigation under the list (rows are cut into pages here in the page, because the whole list is already loaded). *@
+                    <ServerPagination Page="@ListPaging.ClampPage(_page, visible.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@visible.Count"
+                                      PageChanged="p => _page = p" PageSizeChanged="PageSizeChanged" />
                 }
             </section>
             }
@@ -353,18 +373,56 @@
         FlatGroups().Where(x => LinkGroup.CheckParent(_editingGroupId ?? Guid.Empty, x.Group.Id, _groups) is null)
             .Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).ToList();
 
-    // The links that match the search box (title, address, description or group name); all of them when the box is empty.
-    private List<PortalLink> VisibleLinks
+    // The links left after the applied filters, in the chosen sort order (the administrator's display order when no column is chosen).
+    private IReadOnlyList<PortalLink> VisibleLinks
     {
         get
         {
             var q = _search.Trim();
-            return q.Length == 0 ? _links : _links.Where(x => x.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
-                || x.Url.Contains(q, StringComparison.OrdinalIgnoreCase)
-                || (x.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
-                || GroupPath(x.GroupId).Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+            var rows = _links.Where(x =>
+                (q.Length == 0 || x.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || x.Url.Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || (x.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || GroupPath(x.GroupId).Contains(q, StringComparison.OrdinalIgnoreCase))
+                && (_group is null || (_group == NoGroupKey ? x.GroupId is null : x.GroupId?.ToString() == _group))
+                && (_status is null || x.IsActive == (_status == "on")));
+            return TableSort.Apply(rows, _sortBy, _sortDesc,
+                ("title", x => x.Title), ("url", x => x.Url), ("group", x => x.GroupId is null ? null : GroupPath(x.GroupId)),
+                ("order", x => x.SortOrder), ("quick", x => x.IsQuickAccess ? x.QuickOrder : null), ("status", x => x.IsActive));
         }
     }
+
+    // ---- search, sorting and paging of the links list ----
+    // Key used in the group filter for "links without a group" (a real group id can never look like this).
+    private const string NoGroupKey = "\u0001none";
+    private static readonly IReadOnlyList<(string Key, string Text)> LinkStatusOptions = [("on", "فعال"), ("off", "خاموش")];
+    // Applied filter values and what is typed in the search card (applied only when "جستجو" is pressed).
+    private string _dSearch = "";
+    private string? _group, _dGroup, _status, _dStatus;
+    // The column the list is sorted by (empty = the display order set by the administrator), its direction, and the page shown.
+    private string? _sortBy;
+    private bool _sortDesc;
+    private int _page = 1, _pageSize = 20;
+
+    // The choices of the group filter: every group with its full name, and "no group".
+    private IReadOnlyList<(string Key, string Text)> LinkGroupFilterOptions =>
+        FlatGroups().Select(x => (x.Group.Id.ToString(), GroupPath(x.Group.Id))).Append((NoGroupKey, "بدون گروه")).ToList();
+
+    // How many filters are applied right now, and whether something typed or picked is not applied yet.
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dGroup is not null || _dStatus is not null;
+
+    // Search button: apply what was typed and picked, and go back to the first page.
+    private void ApplyFilters() { (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus); _page = 1; }
+
+    // Clear button: forget every filter.
+    private void ClearFilters() { (_dSearch, _dGroup, _dStatus) = ("", null, null); ApplyFilters(); }
+
+    // Heading click: sort by that column (again = reverse) and go back to the first page.
+    private void SortBy(string column) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, column); _page = 1; }
+
+    // Page size changed: show the first page of the new size.
+    private void PageSizeChanged(int size) { _pageSize = size; _page = 1; }
 
     // ---- groups ----
 

@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
 @using YasPortal.Domain.Landing
+@using YasPortal.Domain.Paging
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -107,13 +108,21 @@
         @* The list of slides with their status, link, file and action buttons. *@
         @if (_tab == "list")
         {
+        @* Search card, like the other lists: nothing is filtered until "جستجو" is pressed. It looks at title, text, link and file name. *@
+        <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFilters" OnClear="ClearFilters">
+            <div class="admin-filter"><label class="form-label">جستجو</label>
+                <input class="form-control" placeholder="عنوان، متن، پیوند یا فایل..." @bind="_dSearch" @bind:event="oninput" /></div>
+            <div class="admin-filter"><label class="form-label">وضعیت</label>
+                <LookupSelect Options="StatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
+        </ListFilterBar>
+
         <section class="card table-card">
             <div class="card-toolbar">
                 <div>
                     <h2 class="section-title" style="margin:0">فهرست اسلایدها</h2>
                     <p class="muted">به ترتیب نمایش. اسلایدهای منقضی‌شده یا غیرفعال در صفحه اصلی دیده نمی‌شوند.</p>
                 </div>
-                <span class="badge badge-muted">@_slides.Count اسلاید</span>
+                <span class="badge badge-muted">@(FilterCount > 0 ? $"{Sorted.Count} از {_slides.Count}" : _slides.Count.ToString()) اسلاید</span>
             </div>
             @if (_loading)
             {
@@ -123,14 +132,29 @@
             {
                 <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.LandingSlides"></i></div><strong>اسلایدی ثبت نشده است</strong><span>اسلاید پیش‌فرض سامانه نمایش داده می‌شود.</span></div>
             }
+            else if (Sorted.Count == 0)
+            {
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Search"></i></div><strong>اسلایدی با این فیلتر پیدا نشد</strong><span>فیلترها را تغییر دهید یا پاک کنید.</span></div>
+            }
             else
             {
+                var sorted = Sorted;
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>اسلاید</th><th>پیوند</th><th>فایل</th><th>شروع</th><th>انقضا</th><th>وضعیت</th>@if (_canManage) { <th>عملیات</th> }</tr></thead>
+                        @* Click a heading to sort by it, click again to reverse. The buttons column cannot be sorted. *@
+                        <thead><tr>
+                            <SortableHeader Text="ترتیب" Column="order" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="اسلاید" Column="title" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="پیوند" Column="link" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="فایل" Column="file" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="شروع" Column="starts" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="انقضا" Column="expires" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            @if (_canManage) { <th>عملیات</th> }
+                        </tr></thead>
                         <tbody>
                         @* One row per slide: order, title and text, link, file, validity dates, status and actions. *@
-                        @foreach (var slide in _slides)
+                        @foreach (var slide in ListPaging.Slice(sorted, _page, _pageSize))
                         {
                             var status = StatusOf(slide);
                             <tr>
@@ -164,6 +188,9 @@
                         </tbody>
                     </table>
                 </div>
+                @* Page navigation under the list (rows are cut into pages here in the page, because the whole list is already loaded). *@
+                <ServerPagination Page="@ListPaging.ClampPage(_page, sorted.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@sorted.Count"
+                                  PageChanged="p => _page = p" PageSizeChanged="PageSizeChanged" />
             }
         </section>
         }
@@ -175,6 +202,51 @@
     private string _tab = "list";
     private bool _loading = true, _canManage, _saving;
     private List<HomeSlide> _slides = [];
+
+    // ---- search, sorting and paging of the list ----
+    // Applied filter values and what is typed in the search card (applied only when "جستجو" is pressed).
+    private string _search = "", _dSearch = "";
+    private string? _status, _dStatus;
+    // The column the list is sorted by (empty = the display order set by the administrator), its direction, and the page shown.
+    private string? _sortBy;
+    private bool _sortDesc;
+    private int _page = 1, _pageSize = 20;
+    // The choices of the status filter: the same words the status column shows.
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions =
+        [("در حال نمایش", "در حال نمایش"), ("در انتظار شروع", "در انتظار شروع"), ("منقضی‌شده", "منقضی‌شده"), ("غیرفعال", "غیرفعال")];
+
+    // How many filters are applied right now, and whether something typed or picked is not applied yet.
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null;
+
+    // The slides left after the applied filters, in the chosen sort order (the administrator's display order when no column is chosen).
+    private IReadOnlyList<HomeSlide> Sorted
+    {
+        get
+        {
+            var q = _search.Trim();
+            var rows = _slides.Where(x =>
+                (q.Length == 0 || x.Title.Contains(q, StringComparison.CurrentCultureIgnoreCase) || x.Text.Contains(q, StringComparison.CurrentCultureIgnoreCase)
+                    || (x.LinkText?.Contains(q, StringComparison.CurrentCultureIgnoreCase) ?? false) || (x.LinkUrl?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (_files.TryGetValue(x.Id, out var f) && f.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase)))
+                && (_status is null || StatusOf(x).Text == _status));
+            return TableSort.Apply(rows, _sortBy, _sortDesc,
+                ("order", x => x.SortOrder), ("title", x => x.Title), ("link", x => x.LinkUrl), ("file", x => _files.TryGetValue(x.Id, out var f) ? f.Name : null),
+                ("starts", x => x.StartsOn), ("expires", x => x.ExpiresOn), ("status", x => StatusOf(x).Text));
+        }
+    }
+
+    // Search button: apply what was typed and picked, and go back to the first page.
+    private void ApplyFilters() { (_search, _status) = (_dSearch.Trim(), _dStatus); _page = 1; }
+
+    // Clear button: forget every filter.
+    private void ClearFilters() { (_dSearch, _dStatus) = ("", null); ApplyFilters(); }
+
+    // Heading click: sort by that column (again = reverse) and go back to the first page.
+    private void SortBy(string column) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, column); _page = 1; }
+
+    // Page size changed: show the first page of the new size.
+    private void PageSizeChanged(int size) { _pageSize = size; _page = 1; }
     private Guid? _editingId, _confirmDeleteId;
     private string _title = "", _text = "", _icon = HomeSlide.IconChoices[0].Key, _linkText = "", _linkUrl = "";
     private int _sortOrder;
