@@ -107,7 +107,7 @@ public static class SectionNav
     [
         new("/admin/links", "پیوندهای صفحه اصلی", Icons.Links, One(Perm.AdminLinksView)),
         new("/admin/landing-slides", "اسلایدهای صفحه اصلی", Icons.LandingSlides, One(Perm.AdminLandingSlidesView)),
-        new("/guides/manage", "مدیریت راهنماها", Icons.Guide, One(Perm.GuidesWorkspacePolicy)),
+        new("/admin/guides", "مدیریت راهنماها", Icons.Guide, One(Perm.GuidesWorkspacePolicy)),
     ]);
 
     // Section: store administration for storekeepers (items, stock, orders, hand-over, lottery, reports).

@@ -73,14 +73,14 @@
                     </aside>
 
 @code {
-    // True on /guides and /guides/{id}, false on /guides/manage (that page is highlighted under its own section).
+    // True on /guides and /guides/{id} (the guides management page, /admin/guides, is highlighted under its own section).
     private bool OnGuideReader
     {
         get
         {
             var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
             return path.Equals("/guides", StringComparison.OrdinalIgnoreCase)
-                || (path.StartsWith("/guides/", StringComparison.OrdinalIgnoreCase) && !path.Equals("/guides/manage", StringComparison.OrdinalIgnoreCase));
+                || path.StartsWith("/guides/", StringComparison.OrdinalIgnoreCase);
         }
     }
 

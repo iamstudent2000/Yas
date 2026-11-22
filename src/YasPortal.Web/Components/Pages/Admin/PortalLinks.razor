@@ -132,12 +132,12 @@
                                     <td>@GroupPath(link.GroupId)</td>
                                     <td>@link.SortOrder</td>
                                     <td>@if (link.IsQuickAccess) { <span class="badge badge-info">@link.QuickOrder</span> } else { <span class="muted">—</span> }</td>
-                                    <td><span class="badge @(link.IsActive ? "badge-success" : "badge-muted")">@(link.IsActive ? "فعال" : "خاموش")</span></td>
+                                    <td><span class="badge @(link.IsActive ? "badge-success" : "badge-muted")">@(link.IsActive ? "فعال" : "غیرفعال")</span></td>
                                     @if (_canManage)
                                     {
                                         <td class="action-cell">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditLink(link)"><i class="ti @Icons.Edit"></i> ویرایش</button>
-                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleLinkAsync(link.Id)"><i class="ti @(link.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(link.IsActive ? "خاموش" : "روشن")</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleLinkAsync(link.Id)"><i class="ti @(link.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(link.IsActive ? "غیرفعال" : "فعال")</button>
                                             @* Confirmation step before deleting a link. *@
                                             @if (_confirmLinkId == link.Id)
                                             {
@@ -193,7 +193,7 @@
                 <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0">گروه‌ها</h2>
-                        <p class="muted">خاموش‌کردن یک گروه، همه زیرگروه‌ها و پیوندهای آن را از صفحه اصلی پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
+                        <p class="muted">غیرفعال‌کردن یک گروه، همه زیرگروه‌ها و پیوندهای آن را از صفحه اصلی پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
                     </div>
                     <span class="badge badge-muted">@_groups.Count گروه</span>
                 </div>
@@ -215,12 +215,12 @@
                                     <td style="padding-inline-start:@(12 + depth * 22)px">@(depth > 0 ? "↳ " : "")<strong>@group.Name</strong></td>
                                     <td>@_links.Count(x => x.GroupId == group.Id)</td>
                                     <td>@group.SortOrder</td>
-                                    <td><span class="badge @(group.IsActive ? "badge-success" : "badge-muted")">@(group.IsActive ? "فعال" : "خاموش")</span></td>
+                                    <td><span class="badge @(group.IsActive ? "badge-success" : "badge-muted")">@(group.IsActive ? "فعال" : "غیرفعال")</span></td>
                                     @if (_canManage)
                                     {
                                         <td class="action-cell">
                                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
-                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "غیرفعال" : "فعال")</button>
                                             @* Confirmation step before deleting a group. *@
                                             @if (_confirmGroupId == group.Id)
                                             {
@@ -395,7 +395,7 @@
     // ---- search, sorting and paging of the links list ----
     // Key used in the group filter for "links without a group" (a real group id can never look like this).
     private const string NoGroupKey = "\u0001none";
-    private static readonly IReadOnlyList<(string Key, string Text)> LinkStatusOptions = [("on", "فعال"), ("off", "خاموش")];
+    private static readonly IReadOnlyList<(string Key, string Text)> LinkStatusOptions = [("on", "فعال"), ("off", "غیرفعال")];
     // Applied filter values and what is typed in the search card (applied only when "جستجو" is pressed).
     private string _dSearch = "";
     private string? _group, _dGroup, _status, _dStatus;

@@ -1,7 +1,7 @@
 -- YasPortal: user guides (UserGuides) and their permissions. Idempotent; safe to run more than once.
 -- Run before deploying user guides. Permissions are not granted to anyone: assign them on the access page.
 --   Guides.Own.Manage   - write guides and edit / switch off / delete only the guides this person wrote
---   Admin.Guides.View   - see every guide in the guides workspace (/guides/manage) read-only, and preview guides that are off
+--   Admin.Guides.View   - see every guide in the guides workspace (/admin/guides) read-only, and preview guides that are off
 --   Admin.Guides.Manage - write guides and edit / switch off / delete the guides of everyone (also guides written before authors were recorded)
 -- Reading the guides (/guides) needs no permission: a guide marked public (Visibility = 0) is open to everyone, also before
 -- sign-in; a guide marked for signed-in people (Visibility = 1) is open to anyone who has signed in.
