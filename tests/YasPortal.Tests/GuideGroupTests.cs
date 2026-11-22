@@ -59,6 +59,9 @@ public sealed class GuideGroupTests
 
         Assert.False((await service.SaveAsync(null, "   ", 3)).Ok);                        // empty name
         Assert.False((await service.SaveAsync(null, "  فروشگاه ", 3)).Ok);                 // same name after cleaning
+        Assert.False((await service.SaveAsync(null, "فروشگاه", 3)).Ok);                    // exactly the same
+        Assert.True((await service.SaveAsync(null, "Shop", 4)).Ok);
+        Assert.False((await service.SaveAsync(null, "sHOP", 5)).Ok);                       // letter case does not make a new group
         Assert.False((await service.SaveAsync(null, new string('x', UserGuideGroup.NameMax + 1), 3)).Ok);
 
         var groups = await service.ListAsync(true);

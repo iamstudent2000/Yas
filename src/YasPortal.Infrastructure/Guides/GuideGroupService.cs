@@ -42,7 +42,10 @@ public sealed class GuideGroupService(IDbContextFactory<ApplicationDbContext> db
         if (clean is null) return GuideGroupResult.Fail("نام گروه را وارد کنید.");
         if (clean.Length > UserGuideGroup.NameMax) return GuideGroupResult.Fail("نام گروه بیش از حد طولانی است.");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        if (await db.UserGuideGroups.AnyAsync(x => x.Name == clean && x.Id != id, ct)) return GuideGroupResult.Fail("گروهی با این نام وجود دارد.");
+        // Names are compared without regard to letter case, so "Shop" and "shop" are the same group (the name is already cleaned of extra spaces and Arabic letters).
+        var lower = clean.ToLower();
+        const string duplicate = "گروهی با این نام وجود دارد.";
+        if (await db.UserGuideGroups.AnyAsync(x => x.Name.ToLower() == lower && x.Id != id, ct)) return GuideGroupResult.Fail(duplicate);
         if (id is null) db.UserGuideGroups.Add(new UserGuideGroup(clean, sortOrder));
         else
         {
@@ -50,7 +53,12 @@ public sealed class GuideGroupService(IDbContextFactory<ApplicationDbContext> db
             if (group is null) return GuideGroupResult.Fail("گروه پیدا نشد.");
             group.Update(clean, sortOrder);
         }
-        await db.SaveChangesAsync(ct);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException)
+        {
+            // Two people saved the same new name at the same moment: the database's unique index stopped the second one.
+            return GuideGroupResult.Fail(duplicate);
+        }
         return GuideGroupResult.Success;
     }
 
