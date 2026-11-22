@@ -4,32 +4,11 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
-// Guide group and search tests: cleaning the group name, the search words rule, and arranging guides under group headings.
+// Guide search tests: the search words rule, picking one group, and arranging guides under group headings.
 public sealed class GuideSearchGroupTests
 {
-    private static GuideListItem Item(string title, string? group, string? summary = null) =>
-        new(Guid.NewGuid(), title, summary, GuideVisibility.SignedIn, group);
-
-    [Fact]
-    public void Group_name_is_cleaned_and_blank_means_no_group()
-    {
-        Assert.Null(new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, null, "   ").GroupName);
-        Assert.Null(new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1).GroupName);
-        // spaces are trimmed and collapsed, and Arabic ي / ك become the Persian ی / ک so one group is never split in two
-        Assert.Equal("درخواست‌ های من", new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, null, "  درخواست‌  های من ").GroupName);
-        Assert.Equal("کیف", UserGuide.NormalizeGroupName("كيف"));
-    }
-
-    [Fact]
-    public void Group_name_has_a_length_limit_and_update_can_remove_the_group()
-    {
-        var ex = Assert.Throws<ArgumentException>(() => new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, null, new string('x', UserGuide.GroupMax + 1)));
-        Assert.Equal("groupName", ex.ParamName);
-        var guide = new UserGuide("t", null, "<p>a</p>", GuideVisibility.Public, 1, null, "فروشگاه");
-        Assert.Equal("فروشگاه", guide.GroupName);
-        guide.Update("t", null, "<p>a</p>", GuideVisibility.Public, 1);
-        Assert.Null(guide.GroupName);
-    }
+    private static GuideListItem Item(string title, string? group, string? summary = null, int? groupOrder = null) =>
+        new(Guid.NewGuid(), title, summary, GuideVisibility.SignedIn, group, groupOrder);
 
     [Fact]
     public void Search_needs_every_word_in_title_summary_or_group_and_ignores_digit_and_letter_forms()
@@ -60,5 +39,15 @@ public sealed class GuideSearchGroupTests
         Assert.Equal(["2", "4"], sections[0].Guides.Select(g => g.Title));
         Assert.Equal(["1"], sections[2].Guides.Select(g => g.Title));
         Assert.Empty(GuideCatalog.Group([]));
+    }
+
+    [Fact]
+    public void Group_orders_sections_by_the_groups_order_number_before_the_first_guide()
+    {
+        // the guide of "فروشگاه" comes first in the list, but its group has the higher order number, so its heading comes second
+        var list = new[] { Item("1", "فروشگاه", groupOrder: 2), Item("2", "درخواست‌ها", groupOrder: 1), Item("3", "فروشگاه", groupOrder: 2) };
+        var sections = GuideCatalog.Group(list);
+        Assert.Equal(["درخواست‌ها", "فروشگاه"], sections.Select(s => s.GroupName));
+        Assert.Equal(["1", "3"], sections[1].Guides.Select(g => g.Title));
     }
 }

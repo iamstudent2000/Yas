@@ -52,6 +52,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     // User guides.
     public DbSet<UserGuide> UserGuides => Set<UserGuide>();
     public DbSet<UserGuideAttachment> UserGuideAttachments => Set<UserGuideAttachment>();
+    public DbSet<UserGuideGroup> UserGuideGroups => Set<UserGuideGroup>();
     // Internal store: groups, items, stock ledger, orders and lottery applications.
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<StoreItem> StoreItems => Set<StoreItem>();
@@ -308,7 +309,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         // Home page link groups, nested by parent group; a group with children cannot be deleted.
         modelBuilder.Entity<LinkGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(LinkGroup.NameMax).IsRequired(); e.HasIndex(x => x.ParentId); e.HasOne<LinkGroup>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); });
         // User guides, indexed by whether they are on and by their display order.
-        modelBuilder.Entity<UserGuide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(UserGuide.TitleMax).IsRequired(); e.Property(x => x.Summary).HasMaxLength(UserGuide.SummaryMax); e.Property(x => x.GroupName).HasMaxLength(UserGuide.GroupMax); e.Property(x => x.ContentHtml).IsRequired(); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
+        modelBuilder.Entity<UserGuide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(UserGuide.TitleMax).IsRequired(); e.Property(x => x.Summary).HasMaxLength(UserGuide.SummaryMax); e.Property(x => x.ContentHtml).IsRequired(); e.HasIndex(x => new { x.IsActive, x.SortOrder }); e.HasIndex(x => x.GroupId); });
+        // Guide groups: the name is unique, so the same group can never exist twice.
+        modelBuilder.Entity<UserGuideGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(UserGuideGroup.NameMax).IsRequired(); e.HasIndex(x => x.Name).IsUnique(); });
         // Store groups.
         modelBuilder.Entity<StoreCategory>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(StoreCategory.NameMax).IsRequired(); });
         // Store items: unique code, quantities with up to 3 decimals, prices with 2 decimals, shown in the shop by default,

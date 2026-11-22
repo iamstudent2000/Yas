@@ -18,6 +18,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject AppState AppState
 @inject GuideProvider GuideFiles
+@inject GuideGroupService GuideGroups
 @using Microsoft.AspNetCore.Components.Forms
 
 @* Guides management page (/guides/manage and /admin/guides). A guide is a written how-to article for portal users, shown on the *@
@@ -38,13 +39,18 @@
         </div>
     </div>
 
-    @* Sub tabs, the same as on the store items page: the list of guides, and the form for a new (or edited) guide. *@
+    @* Sub tabs, the same as on the store items page: the list of guides, the form for a new guide, and the groups. *@
     @* Only people who may write guides get the form tab; others just see the list. *@
     @if (_canCreate)
     {
         <div class="form-actions no-print">
             <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">راهنماها</button>
             <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">افزودن راهنما</button>
+            @* The groups tab is only for people who may manage every guide, because groups are shared by all guides. *@
+            @if (_canEditAll)
+            {
+                <button class="btn @(_tab == "groups" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "groups")">گروه‌ها</button>
+            }
         </div>
     }
 
@@ -78,9 +84,9 @@
                     <p class="muted" style="margin:8px 0 0"><i class="ti @Icons.Warning"></i> هر کسی که به این سامانه دسترسی شبکه‌ای داشته باشد، بدون ورود این راهنما را می‌بیند؛ مطلب غیرعمومی در آن ننویسید.</p>
                 }
                 <div class="admin-row-grid" style="margin-top:12px">
-                    @* The group is a free name; typing a name already used (the list offers them) puts the guide under the same heading. *@
-                    <div class="form-field"><label class="form-label">گروه (اختیاری)</label><input class="form-control" list="guide-group-list" @bind="_groupName" maxlength="@UserGuide.GroupMax" placeholder="مثلاً درخواست‌ها" />
-                        <datalist id="guide-group-list">@foreach (var name in KnownGroups) { <option value="@name"></option> }</datalist></div>
+                    @* The group is picked from the list of groups (made on the groups tab), the same way the store picks an item's group. *@
+                    <div class="form-field"><label class="form-label">گروه (اختیاری)</label>
+                        <LookupSelect @key="_formKey" Options="FormGroupOptions" Value="@(_groupId?.ToString())" ValueChanged="k => _groupId = Guid.TryParse(k, out var pickedGroup) ? pickedGroup : null" Placeholder="بدون گروه" SearchPlaceholder="جستجوی گروه..." /></div>
                     <div class="form-field is-grow"><label class="form-label">خلاصه (اختیاری، زیر عنوان در فهرست نمایش داده می‌شود)</label><input class="form-control" @bind="_summary" maxlength="@UserGuide.SummaryMax" /></div>
                 </div>
 
@@ -130,6 +136,64 @@
             </FormHost>
         }
 
+        @* Groups tab (only for people who may manage every guide): add, rename, order, switch on or off and delete the groups that gather *@
+        @* guides under one heading on the guides page. It works like the groups of the store. An existing group is edited in a window over the list. *@
+        @if (_tab == "groups" && _canEditAll)
+        {
+            <FormHost Modal="@(_editGroupId is not null)" OnClose="ResetGroupForm" Size="small" CloseOnOutsideClick="true">
+            <section class="card admin-form-row">
+                <div class="admin-form-row-head">
+                    <h2 class="section-title"><i class="ti @(_editGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                    <p class="muted">مثلاً «درخواست‌ها» یا «فروشگاه». راهنماهای هر گروه در صفحه راهنماها زیر یک عنوان می‌آیند.</p>
+                </div>
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@UserGuideGroup.NameMax" /></div>
+                    <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
+                    <div class="form-field admin-row-submit"><div class="form-actions">
+                        <button class="btn btn-primary" disabled="@_groupBusy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editGroupId is null ? "افزودن گروه" : "ذخیره")</button>
+                        @if (_editGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
+                    </div></div>
+                </div>
+            </section>
+            </FormHost>
+
+            @* The list of groups with the number of guides in each, and buttons to edit, switch on or off and delete (delete asks twice). *@
+            <section class="card">
+                <h2 class="section-title"><i class="ti @Icons.Guide"></i> گروه‌ها</h2>
+                <p class="muted">گروهِ غیرفعال همراه با راهنماهایش از دید کاربران پنهان می‌شود (خود راهنماها پاک نمی‌شوند). گروهی که راهنما دارد حذف نمی‌شود.</p>
+                <div class="data-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>نام</th><th>ترتیب</th><th>تعداد راهنما</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                        <tbody>
+                            @foreach (var group in _groups)
+                            {
+                                <tr>
+                                    <td>@group.Name</td>
+                                    <td>@group.SortOrder</td>
+                                    <td>@(_groupCounts.TryGetValue(group.Id, out var guideCount) ? guideCount : 0)</td>
+                                    <td>@if (group.IsActive) { <span class="badge badge-success">فعال</span> } else { <span class="badge badge-muted">غیرفعال</span> }</td>
+                                    <td><div class="form-actions">
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                        <button class="btn btn-secondary btn-sm" disabled="@_groupBusy" @onclick="() => ToggleGroupAsync(group)">@(group.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                        @if (_confirmGroupId == group.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm" disabled="@_groupBusy" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                        }
+                                    </div></td>
+                                </tr>
+                            }
+                            @if (_groups.Count == 0) { <tr><td colspan="5" class="muted">هنوز گروهی تعریف نشده است.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
         @* Everything below is the list tab: the search card and the table of guides. *@
         @if (_tab == "list")
         {
@@ -176,7 +240,7 @@
                             <tr>
                                 <td>@guide.SortOrder</td>
                                 <td><strong>@guide.Title</strong>@if (_fileCounts.TryGetValue(guide.Id, out var fileCount)) { <span class="badge badge-muted" title="فایل پیوست"><i class="ti @Icons.Attachment"></i> @fileCount</span> }@if (guide.Summary is not null) { <div class="muted">@guide.Summary</div> }</td>
-                                <td>@if (guide.GroupName is not null) { <span class="badge badge-info">@guide.GroupName</span> } else { <span class="muted">—</span> }</td>
+                                <td>@if (guide.GroupId is not null) { <span class="badge badge-info">@GroupLabel(guide.GroupId)</span> } else { <span class="muted">—</span> }</td>
                                 <td>@(guide.CreatedByEmployeeId is Guid author && _authors.TryGetValue(author, out var authorName) ? authorName : "—")@if (guide.IsOwnedBy(_employeeId)) { <span class="badge badge-muted">من</span> }</td>
                                 <td><span class="badge @(guide.Visibility == GuideVisibility.Public ? "badge-info" : "badge-muted")">@(guide.Visibility == GuideVisibility.Public ? "عمومی" : "پس از ورود")</span></td>
                                 <td><span class="badge @(guide.IsActive ? "badge-success" : "badge-muted")">@(guide.IsActive ? "فعال" : "غیرفعال")</span></td>
@@ -284,12 +348,124 @@
     private bool _canCreate => _canEditAll || _canEditOwn;
     private string SubtitleLead => _canCreate ? (_canViewAll ? "" : "فقط راهنماهایی که خودتان نوشته‌اید در این صفحه دیده و ویرایش می‌شوند. ") : "فقط خواندنی. ";
     private Guid? _editingId, _confirmDeleteId;
-    private string _title = "", _summary = "", _groupName = "", _initialHtml = "";
+    private string _title = "", _summary = "", _initialHtml = "";
     private GuideVisibility _visibility = GuideVisibility.SignedIn;
     private int _sortOrder, _formKey;
     private bool _initEditor = true;
     private ElementReference _host;
     private IJSObjectReference? _module;
+
+    // ---- guide groups ----
+
+    // The groups (also the switched-off ones) and how many guides each holds; loaded together with the guides.
+    private IReadOnlyList<UserGuideGroup> _groups = [];
+    private IReadOnlyDictionary<Guid, int> _groupCounts = new Dictionary<Guid, int>();
+    // The group picked in the guide form (empty = no group).
+    private Guid? _groupId;
+    // The group form on the groups tab: which group is being edited (empty = a new one), its name and order number.
+    private Guid? _editGroupId, _confirmGroupId;
+    private string _groupName = "";
+    private int _groupOrder;
+    private bool _groupBusy;
+
+    // The name of a group, or null when the guide has no group (or the group is not in the list).
+    private string? GroupNameOf(Guid? id) => id is Guid g ? _groups.FirstOrDefault(x => x.Id == g)?.Name : null;
+
+    // The name shown in the list; a switched-off group is marked.
+    private string GroupLabel(Guid? id) => id is Guid g && _groups.FirstOrDefault(x => x.Id == g) is { } group ? (group.IsActive ? group.Name : group.Name + " (غیرفعال)") : "";
+
+    // The groups offered in the guide form: the ones that are on, plus the group the edited guide already belongs to (even if it was switched off later).
+    private IReadOnlyList<(string Key, string Text)> FormGroupOptions
+    {
+        get
+        {
+            var current = _editingId is Guid eid ? _guides.FirstOrDefault(x => x.Id == eid)?.GroupId : null;
+            return _groups.Where(g => g.IsActive || g.Id == current)
+                .Select(g => (g.Id.ToString(), g.IsActive ? g.Name : g.Name + " (غیرفعال)")).ToList();
+        }
+    }
+
+    // Checked again at the moment of every group change (the permissions may have changed since the page was drawn).
+    private async Task<bool> MayManageGroupsAsync() => await PermissionChecker.HasPermissionAsync(Perm.AdminGuidesManage);
+
+    // Edit button on a group: copy it into the form; the form opens in a window over the list.
+    private void BeginEditGroup(UserGuideGroup group)
+    {
+        _editGroupId = group.Id; _groupName = group.Name; _groupOrder = group.SortOrder;
+    }
+
+    // Cancel or finish: empty the group form (this also closes the edit window) and suggest the next free order number.
+    private void ResetGroupForm()
+    {
+        _editGroupId = null; _groupName = "";
+        _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
+    }
+
+    // Save a new group or the changes to an edited one; the service refuses an empty, too long or already used name.
+    private async Task SaveGroupAsync()
+    {
+        if (_groupBusy || !_canEditAll) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await MayManageGroupsAsync()) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GuideGroups.SaveAsync(_editGroupId, _groupName, _groupOrder);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "ذخیره گروه انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast(_editGroupId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ToastLevel.Success);
+            _editGroupId = null; _groupName = "";
+            await LoadAsync();
+            ResetGroupForm();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AppState.AddToast("ذخیره گروه انجام نشد.", ToastLevel.Error);
+        }
+        finally { _groupBusy = false; }
+    }
+
+    // Switch a group on or off. Off hides the group and its guides from readers.
+    private async Task ToggleGroupAsync(UserGuideGroup group)
+    {
+        if (_groupBusy) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await MayManageGroupsAsync()) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GuideGroups.SetActiveAsync(group.Id, !group.IsActive);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "تغییر وضعیت گروه انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast(group.IsActive ? "گروه غیرفعال شد." : "گروه فعال شد.", ToastLevel.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AppState.AddToast("تغییر وضعیت گروه انجام نشد.", ToastLevel.Error);
+        }
+        finally { _groupBusy = false; }
+    }
+
+    // Delete a group that no guide uses (the service refuses otherwise and says why).
+    private async Task DeleteGroupAsync(Guid id)
+    {
+        _confirmGroupId = null;
+        if (_groupBusy) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await MayManageGroupsAsync()) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GuideGroups.DeleteAsync(id);
+            if (!result.Ok) { AppState.AddToast(result.Error ?? "حذف گروه انجام نشد.", ToastLevel.Error); return; }
+            AppState.AddToast("گروه حذف شد.", ToastLevel.Success);
+            if (_editGroupId == id) ResetGroupForm();
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            AppState.AddToast("حذف گروه انجام نشد.", ToastLevel.Error);
+        }
+        finally { _groupBusy = false; }
+    }
+
+    private const string NotAllowedGroups = "اجازه‌ی مدیریت گروه‌ها را ندارید.";
 
     // ---- search card ----
 
@@ -297,14 +473,13 @@
     private string _dSearch = "", _search = "";
     private string? _dGroup, _group, _dStatus, _status;
 
-    // Key used in the group filter for "guides without a group" (a real group name can never look like this).
+    // Key used in the group filter for "guides without a group" (a real group id can never look like this).
     private const string NoGroupKey = "\u0001none";
     private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("on", "فعال"), ("off", "غیرفعال")];
 
-    // The group names used by the guides in the list, in the order they first appear; offered when typing a group and in the filter.
-    private IEnumerable<string> KnownGroups => _guides.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct();
+    // The choices of the group filter: every group (a switched-off one is marked) and "no group".
     private IReadOnlyList<(string Key, string Text)> GroupOptions =>
-        KnownGroups.Select(n => (n, n)).Append((NoGroupKey, "بدون گروه")).ToList();
+        _groups.Select(g => (g.Id.ToString(), g.IsActive ? g.Name : g.Name + " (غیرفعال)")).Append((NoGroupKey, "بدون گروه")).ToList();
 
     // How many filters are applied right now, and whether something typed or picked is not applied yet.
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
@@ -312,8 +487,8 @@
 
     // The guides left after the applied filters (all of them when none are applied), in the same order as the list.
     private List<UserGuide> Shown => _guides.Where(g =>
-        GuideSearch.Matches(g.Title, g.Summary, g.GroupName, _search)
-        && (_group is null || (_group == NoGroupKey ? g.GroupName is null : g.GroupName == _group))
+        GuideSearch.Matches(g.Title, g.Summary, GroupNameOf(g.GroupId), _search)
+        && (_group is null || (_group == NoGroupKey ? g.GroupId is null : g.GroupId?.ToString() == _group))
         && (_status is null || g.IsActive == (_status == "on"))).ToList();
 
     // Search button: apply what was typed and picked.
@@ -364,6 +539,10 @@
     // Load the guides this person may see (all, or only their own) together with the names of their authors.
     private async Task LoadAsync()
     {
+        // The groups come first: the form, the filter and the list column all need their names.
+        _groups = await GuideGroups.ListAsync(true);
+        _groupCounts = await GuideGroups.CountGuidesAsync();
+        if (_editGroupId is null) _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
         await using var db = await DbFactory.CreateDbContextAsync();
         var query = db.UserGuides.AsNoTracking();
         if (!_canViewAll)
@@ -387,7 +566,7 @@
         _editingId = guide.Id;
         _newFiles = []; _removeIds = []; _pickKey++;
         _existingFiles = (await GuideFiles.ListAttachmentsAsync(guide.Id)).ToList();
-        _title = guide.Title; _summary = guide.Summary ?? ""; _groupName = guide.GroupName ?? ""; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
+        _title = guide.Title; _summary = guide.Summary ?? ""; _groupId = guide.GroupId; _visibility = guide.Visibility; _sortOrder = guide.SortOrder;
         _initialHtml = GuideHtmlSanitizer.Sanitize(guide.ContentHtml);
         _formKey++; _initEditor = true;
     }
@@ -404,7 +583,8 @@
     private void ResetForm()
     {
         _editingId = null;
-        _title = _summary = _groupName = _initialHtml = "";
+        _title = _summary = _initialHtml = "";
+        _groupId = null;
         _existingFiles = []; _removeIds = []; _newFiles = []; _pickKey++;
         _visibility = GuideVisibility.SignedIn;
         _formKey++; _initEditor = true;
@@ -428,7 +608,10 @@
                 var guide = await db.UserGuides.SingleOrDefaultAsync(x => x.Id == id);
                 if (guide is null) { AppState.AddToast("این راهنما دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
                 if (!await MayEditAsync(guide)) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
-                guide.Update(_title, _summary, html, _visibility, _sortOrder, _groupName);
+                // The chosen group must still exist and be on (a guide may keep a group that was switched off later).
+                var groupError = await GuideGroups.CheckChoiceAsync(_groupId, guide.GroupId);
+                if (groupError is not null) { AppState.AddToast(groupError, ToastLevel.Error); return; }
+                guide.Update(_title, _summary, html, _visibility, _sortOrder, _groupId);
                 var kept = await db.UserGuideAttachments.CountAsync(x => x.GuideId == id && !_removeIds.Contains(x.Id));
                 var countError = UserGuideAttachment.ValidateCount(kept + _newFiles.Count);
                 if (countError is not null) { AppState.AddToast(countError, ToastLevel.Error); return; }
@@ -438,7 +621,9 @@
             {
                 // a new guide records who wrote it; without that a person who may edit only their own guides could never edit it again
                 if (!await MayCreateAsync()) { AppState.AddToast(NotAllowed, ToastLevel.Error); return; }
-                var created = new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId, _groupName);
+                var groupError = await GuideGroups.CheckChoiceAsync(_groupId, null);
+                if (groupError is not null) { AppState.AddToast(groupError, ToastLevel.Error); return; }
+                var created = new UserGuide(_title, _summary, html, _visibility, _sortOrder, _employeeId, _groupId);
                 db.UserGuides.Add(created);
                 await ApplyFilesAsync(db, created.Id);
             }
@@ -478,7 +663,6 @@
     {
         "title" => $"عنوان لازم است و حداکثر {UserGuide.TitleMax} نویسه باشد.",
         "summary" => $"خلاصه حداکثر {UserGuide.SummaryMax} نویسه باشد.",
-        "groupName" => $"نام گروه حداکثر {UserGuide.GroupMax} نویسه باشد.",
         "fileName" => ex.Message,   // the file's own messages are already Persian
         "contentHtml" => "متن راهنما لازم است و نباید بیش از حد طولانی باشد؛ آن را به چند راهنما تقسیم کنید.",
         _ => "اطلاعات راهنما معتبر نیست.",

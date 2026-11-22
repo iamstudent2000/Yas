@@ -24,13 +24,15 @@ public static class GuideCatalog
                           && GuideSearch.Matches(g.Title, g.Summary, g.GroupName, query)).ToList();
 
     /// <summary>
-    /// The guides in sections, one per group. Groups come in the order of their first guide (so the administrator's guide order also orders
-    /// the groups) and the guides without a group come last. A group with no guides is not shown.
+    /// The guides in sections, one per group. Groups come in the order the administrators gave them (the group's order number); groups with the
+    /// same number (or none) keep the order of their first guide. The guides without a group come last. A group with no guides is not shown.
     /// </summary>
     public static IReadOnlyList<GuideSection> Group(IEnumerable<GuideListItem> guides)
     {
         var list = guides.ToList();
+        // OrderBy keeps the original order of equal numbers, so ties fall back to "the group of the first guide comes first".
         var sections = list.Where(g => g.GroupName is not null).GroupBy(g => g.GroupName!)
+            .OrderBy(g => g.Min(x => x.GroupOrder ?? int.MaxValue))
             .Select(g => new GuideSection(g.Key, g.ToList())).ToList();
         var ungrouped = list.Where(g => g.GroupName is null).ToList();
         if (ungrouped.Count > 0) sections.Add(new GuideSection(null, ungrouped));
