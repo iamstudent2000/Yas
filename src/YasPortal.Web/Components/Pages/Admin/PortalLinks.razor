@@ -59,28 +59,28 @@
                         <h2 class="section-title"><i class="ti @(_editingLinkId is null ? Icons.Add : Icons.Edit)"></i> @(_editingLinkId is null ? "افزودن پیوند" : "ویرایش پیوند")</h2>
                         <p class="muted">آدرس می‌تواند http، https یا ftp باشد (https لازم نیست)، یا فقط نام سرور مثل intranet/app، یا صفحه‌ای از همین سامانه مثل /login.</p>
                     </div>
-                    @* Shortcut for linking a guide: picking one fills in the title (if empty) and the address. *@
-                    <div class="admin-row-grid">
-                        <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
-                            <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
-                    </div>
-                    <div class="admin-row-grid" style="margin-top:12px">
-                        <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
-                        <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="http://... یا https://... یا intranet/app" @bind="_linkUrl" maxlength="@PortalLink.UrlMax" /></div>
-                    </div>
-                    @* Or upload a file: the link then downloads it, and the address above is not used. *@
-                    <div class="admin-row-grid" style="margin-top:12px">
-                        <div class="form-field is-grow"><label class="form-label">یا یک فایل پیوست کنید (به‌جای آدرس؛ حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
-                            <InputFile @key="_filePickKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
-                            @if (_pickedFile is { } picked) { <div class="muted"><i class="ti @Icons.Attachment"></i> @picked.Name <span class="badge badge-info">جدید</span> <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _pickedFile = null">برداشتن</button></div> }
-                            else if (_currentFileName is not null) { <div class="muted"><i class="ti @Icons.Attachment"></i> فایل فعلی: @_currentFileName</div> }</div>
-                    </div>
-                    <div class="admin-row-grid" style="margin-top:12px">
-                        <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_linkDescription" maxlength="@PortalLink.DescriptionMax" /></div>
-                        <div class="form-field is-grow"><label class="form-label">گروه</label>
-                            <LookupSelect @key="_linkFormKey" Options="GroupOptions" Value="@(_linkGroupId?.ToString())" ValueChanged="k => _linkGroupId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون گروه (سایر)" SearchPlaceholder="جستجوی گروه..." /></div>
-                        <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_linkOrder" /></div>
-                    </div>
+                    @* Order of the fields: what the link is called and where it sits (title, group, order), then where it goes (address, or a guide, or a file), then the optional description. *@
+                        <div class="admin-row-grid">
+                            <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
+                            <div class="form-field is-grow"><label class="form-label">گروه</label>
+                              <LookupSelect @key="_linkFormKey" Options="GroupOptions" Value="@(_linkGroupId?.ToString())" ValueChanged="k => _linkGroupId = Guid.TryParse(k, out var g) ? g : null" Placeholder="بدون گروه (سایر)" SearchPlaceholder="جستجوی گروه..." /></div>
+                            <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_linkOrder" /></div>
+                        </div>
+                        @* Where the link goes: type an address, or pick a guide (fills the address), or upload a file (then the address is not used). *@
+                        <div class="admin-row-grid" style="margin-top:12px">
+                            <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="http://... یا https://... یا intranet/app" @bind="_linkUrl" maxlength="@PortalLink.UrlMax" /></div>
+                        </div>
+                        <div class="admin-row-grid" style="margin-top:12px">
+                            <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
+                              <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
+                            <div class="form-field is-grow"><label class="form-label">یا یک فایل پیوست کنید (به‌جای آدرس؛ حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                              <InputFile @key="_filePickKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
+                              @if (_pickedFile is { } picked) { <div class="muted"><i class="ti @Icons.Attachment"></i> @picked.Name <span class="badge badge-info">جدید</span> <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _pickedFile = null">برداشتن</button></div> }
+                              else if (_currentFileName is not null) { <div class="muted"><i class="ti @Icons.Attachment"></i> فایل فعلی: @_currentFileName</div> }</div>
+                        </div>
+                        <div class="admin-row-grid" style="margin-top:12px">
+                            <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_linkDescription" maxlength="@PortalLink.DescriptionMax" /></div>
+                        </div>
                     <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field admin-row-check"><label class="check-row"><input type="checkbox" @bind="_linkQuick" /> <span>در دسترسی سریع نمایش داده شود</span></label></div>
                         @* Extra fields shown when the link is marked as a quick link. *@
