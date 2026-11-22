@@ -1,4 +1,3 @@
-@page "/guides/manage"
 @page "/admin/guides"
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
@@ -6,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @using YasPortal.Domain.Guides
+@using YasPortal.Domain.Paging
 @using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
@@ -21,7 +21,7 @@
 @inject GuideGroupService GuideGroups
 @using Microsoft.AspNetCore.Components.Forms
 
-@* Guides management page (/guides/manage and /admin/guides). A guide is a written how-to article for portal users, shown on the *@
+@* Guides management page (/admin/guides). A guide is a written how-to article for portal users, shown on the *@
 @* Guides screen. People with the right permission can write, edit, hide or delete guides here. Someone who may only manage *@
 @* their own guides sees and edits only the guides they wrote; people with full rights see every guide. *@
 <PageTitle>مدیریت راهنماها - یاس پورتال</PageTitle>
@@ -230,12 +230,23 @@
             }
             else
             {
+                var shown = Shown;
                 <div class="data-table-wrap">
                     <table class="data-table data-table-bordered-rows">
-                        <thead><tr><th>ترتیب</th><th>راهنما</th><th>گروه</th><th>نویسنده</th><th>نمایش برای</th><th>وضعیت</th><th>آخرین ویرایش</th><th>عملیات</th></tr></thead>
+                        @* Click a heading to sort by it, click again to reverse. The buttons column cannot be sorted. *@
+                        <thead><tr>
+                            <SortableHeader Text="ترتیب" Column="order" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="راهنما" Column="title" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="گروه" Column="group" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="نویسنده" Column="author" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="نمایش برای" Column="visibility" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="آخرین ویرایش" Column="updated" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <th>عملیات</th>
+                        </tr></thead>
                         <tbody>
                         @* One row per guide: order, title, author, who can read it, and the action buttons. *@
-                        @foreach (var guide in Shown)
+                        @foreach (var guide in ListPaging.Slice(shown, _page, _pageSize))
                         {
                             <tr>
                                 <td>@guide.SortOrder</td>
@@ -269,6 +280,9 @@
                         </tbody>
                     </table>
                 </div>
+                @* Page navigation under the list (rows are cut into pages here in the page, because the whole list is already loaded). *@
+                <ServerPagination Page="@ListPaging.ClampPage(_page, shown.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@shown.Count"
+                                  PageChanged="p => _page = p" PageSizeChanged="PageSizeChanged" />
             }
         </section>
         }
@@ -485,14 +499,29 @@
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
     private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dGroup is not null || _dStatus is not null;
 
-    // The guides left after the applied filters (all of them when none are applied), in the same order as the list.
-    private List<UserGuide> Shown => _guides.Where(g =>
+    // The guides left after the applied filters (all of them when none are applied), in the chosen sort order
+    // (the display order set by the administrator when no column is chosen).
+    private IReadOnlyList<UserGuide> Shown => TableSort.Apply(_guides.Where(g =>
         GuideSearch.Matches(g.Title, g.Summary, GroupNameOf(g.GroupId), _search)
         && (_group is null || (_group == NoGroupKey ? g.GroupId is null : g.GroupId?.ToString() == _group))
-        && (_status is null || g.IsActive == (_status == "on"))).ToList();
+        && (_status is null || g.IsActive == (_status == "on"))), _sortBy, _sortDesc,
+        ("order", g => g.SortOrder), ("title", g => g.Title), ("group", g => GroupNameOf(g.GroupId)),
+        ("author", g => g.CreatedByEmployeeId is Guid a && _authors.TryGetValue(a, out var name) ? name : null),
+        ("visibility", g => (int)g.Visibility), ("status", g => g.IsActive), ("updated", g => g.UpdatedAtUtc));
 
-    // Search button: apply what was typed and picked.
-    private void ApplyFilters() => (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus);
+    // The column the list is sorted by (empty = the display order set by the administrator), its direction, and the page shown.
+    private string? _sortBy;
+    private bool _sortDesc;
+    private int _page = 1, _pageSize = 20;
+
+    // Heading click: sort by that column (again = reverse) and go back to the first page.
+    private void SortBy(string column) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, column); _page = 1; }
+
+    // Page size changed: show the first page of the new size.
+    private void PageSizeChanged(int size) { _pageSize = size; _page = 1; }
+
+    // Search button: apply what was typed and picked, and go back to the first page.
+    private void ApplyFilters() { (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus); _page = 1; }
 
     // Clear button: forget every filter.
     private void ClearFilters()

@@ -1,7 +1,8 @@
 @using YasPortal.Domain.Landing
 @{ var external = PortalLink.IsExternal(Link.Url); }
 @* One link of the links menu. Links to other websites open in a new tab; internal links open in the same tab. *@
-<a href="@Link.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)" title="@Link.Description">
+@* A link to an uploaded file is marked "download", so the browser saves the file instead of the page trying to open it as a screen. *@
+<a href="@Link.Url" download="@(PortalLinkFile.IsFileUrl(Link.Url) ? "" : null)" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)" title="@Link.Description">
     <i class="ti @(external ? "ti-external-link" : "ti-link")"></i>
     <span>@Link.Title@if (!string.IsNullOrWhiteSpace(Link.Description)) { <small>@Link.Description</small> }</span>
 </a>
