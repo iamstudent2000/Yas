@@ -352,6 +352,9 @@ if (app.Environment.IsDevelopment())
         END
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
+        -- the file uploaded for a home-page link (one per link; deleted together with the link)
+        IF OBJECT_ID(N'dbo.PortalLinkFiles', N'U') IS NULL
+            CREATE TABLE [dbo].[PortalLinkFiles] ([LinkId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [Content] varbinary(max) NOT NULL, CONSTRAINT [PK_PortalLinkFiles] PRIMARY KEY ([LinkId]), CONSTRAINT [FK_PortalLinkFiles_PortalLinks_LinkId] FOREIGN KEY ([LinkId]) REFERENCES [dbo].[PortalLinks] ([Id]) ON DELETE CASCADE);
         -- files attached to a guide (several per guide; deleted together with the guide)
         IF OBJECT_ID(N'dbo.UserGuideAttachments', N'U') IS NULL
         BEGIN
@@ -578,6 +581,13 @@ app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuidePro
         return Results.NotFound();
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
+});
+// Download of the file uploaded for a home-page link. Anyone may download it (the home page is public), but only while the link is switched on.
+app.MapGet("/links/files/{id:guid}", async (Guid id, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync();
+    var file = await db.PortalLinkFiles.AsNoTracking().FirstOrDefaultAsync(f => f.LinkId == id && db.PortalLinks.Any(l => l.Id == id && l.IsActive));
+    return file is null ? Results.NotFound() : Results.File(file.Content, file.ContentType, file.FileName);
 });
 // Download of a file attached to a request. Only people who may see the request get it (see RequestAttachmentService); everyone else
 // gets the same 404 as for a missing file. Always sent as a download, never rendered by the browser.

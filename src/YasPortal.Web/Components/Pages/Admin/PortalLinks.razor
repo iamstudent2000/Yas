@@ -1,6 +1,8 @@
 @page "/admin/links"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using YasPortal.Domain.Guides
 @using YasPortal.Domain.Landing
 @using YasPortal.Domain.Paging
 @using YasPortal.Infrastructure.Persistence
@@ -61,13 +63,17 @@
                     <div class="admin-row-grid">
                         <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
                             <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
-                        @* Same idea for a file attached to a guide: the link then downloads that file instead of opening a page. *@
-                        <div class="form-field is-grow"><label class="form-label">پیوند به فایل پیوست راهنما (اختیاری)</label>
-                            <LookupSelect @key="_guidePickKey" Options="FileOptions" Value="@("")" ValueChanged="PickFile" Placeholder="یک فایل را انتخاب کنید تا آدرس دانلود آن پر شود" SearchPlaceholder="جستجوی فایل یا راهنما..." /></div>
                     </div>
                     <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
                         <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="http://... یا https://... یا intranet/app" @bind="_linkUrl" maxlength="@PortalLink.UrlMax" /></div>
+                    </div>
+                    @* Or upload a file: the link then downloads it, and the address above is not used. *@
+                    <div class="admin-row-grid" style="margin-top:12px">
+                        <div class="form-field is-grow"><label class="form-label">یا یک فایل پیوست کنید (به‌جای آدرس؛ حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                            <InputFile @key="_filePickKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
+                            @if (_pickedFile is { } picked) { <div class="muted"><i class="ti @Icons.Attachment"></i> @picked.Name <span class="badge badge-info">جدید</span> <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _pickedFile = null">برداشتن</button></div> }
+                            else if (_currentFileName is not null) { <div class="muted"><i class="ti @Icons.Attachment"></i> فایل فعلی: @_currentFileName</div> }</div>
                     </div>
                     <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field is-grow"><label class="form-label">توضیح (اختیاری)</label><input class="form-control" @bind="_linkDescription" maxlength="@PortalLink.DescriptionMax" /></div>
@@ -323,18 +329,30 @@
     // Guides offered in the "link to a guide" picker (id as text, title). _guidePickKey resets the picker after each choice.
     private IReadOnlyList<(string Key, string Text)> GuideOptions = [];
     private int _guidePickKey;
+    private static readonly string _accept = string.Join(",", UserGuideAttachment.AllowedExtensions);
 
-    // Files attached to guides, offered in the "link to a file" picker (id as text, "guide title › file name").
-    private IReadOnlyList<(string Key, string Text)> FileOptions = [];
+    // The file chosen in the form for this link (name and bytes), waiting to be saved with the link. _filePickKey empties the picker.
+    private (string Name, byte[] Content)? _pickedFile;
+    private int _filePickKey;
 
-    // A file was picked: its download address becomes the link address, and the file name is used when no title was typed yet.
-    private void PickFile(string? id)
+    // The file already stored for the link being edited (null when it has none).
+    private string? _currentFileName;
+
+    // A file was chosen: check it (type, size) and keep it until the link is saved. A file replaces the address.
+    private async Task FilePicked(InputFileChangeEventArgs e)
     {
-        var file = FileOptions.FirstOrDefault(x => x.Key == id);
-        if (file.Key is null) return;
-        _linkUrl = "/guides/files/" + file.Key;
-        if (string.IsNullOrWhiteSpace(_linkTitle)) _linkTitle = file.Text[(file.Text.LastIndexOf('›') + 1)..].Trim();
-        _guidePickKey++;
+        var file = e.File;
+        var error = UserGuideAttachment.Validate(file.Name, file.Size);
+        if (error is not null) { AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error); _filePickKey++; return; }
+        try
+        {
+            using var buffer = new MemoryStream();
+            await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+                await stream.CopyToAsync(buffer);
+            _pickedFile = (file.Name, buffer.ToArray());
+        }
+        catch (IOException) { AppState.AddToast($"{file.Name}: خواندن فایل انجام نشد.", ToastLevel.Error); }
+        _filePickKey++;
     }
 
     // A guide was picked: its page address becomes the link address, and the guide's title is used when no title was typed yet.
@@ -369,9 +387,6 @@
         _links = await db.PortalLinks.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
         var guides = await db.UserGuides.AsNoTracking().OrderBy(x => x.Title).Select(x => new { x.Id, x.Title }).ToListAsync();
         GuideOptions = guides.Select(x => (x.Id.ToString(), x.Title)).ToList();
-        // Only the names are loaded, never the file contents.
-        var files = await db.UserGuideAttachments.AsNoTracking().OrderBy(x => x.FileName).Select(x => new { x.Id, x.GuideId, x.FileName }).ToListAsync();
-        FileOptions = files.Select(x => (x.Id.ToString(), (guides.FirstOrDefault(g => g.Id == x.GuideId)?.Title ?? "") + " › " + x.FileName)).ToList();
     }
 
     // Every change re-checks the manage permission, instead of trusting the page alone.
@@ -550,16 +565,25 @@
     // ---- links ----
 
     // Edit button on a link: copy it into the form.
-    private void BeginEditLink(PortalLink link)
+    private async Task BeginEditLink(PortalLink link)
     {
         _editingLinkId = link.Id; _linkTitle = link.Title; _linkUrl = link.Url; _linkDescription = link.Description ?? "";
         _linkGroupId = link.GroupId; _linkOrder = link.SortOrder; _linkQuick = link.IsQuickAccess; _linkQuickOrder = link.QuickOrder;
+        _pickedFile = null; _filePickKey++;
+        // Show the name of the file this link already downloads, if it has one (only the name is read, not the file).
+        _currentFileName = null;
+        if (PortalLinkFile.IsFileUrl(link.Url))
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _currentFileName = await db.PortalLinkFiles.AsNoTracking().Where(x => x.LinkId == link.Id).Select(x => x.FileName).FirstOrDefaultAsync();
+        }
         _linkFormKey++;
     }
 
     private void ResetLinkForm()
     {
         _editingLinkId = null; _linkTitle = _linkUrl = _linkDescription = ""; _linkGroupId = null; _linkQuick = false;
+        _pickedFile = null; _currentFileName = null; _filePickKey++;
         _linkOrder = _links.Count == 0 ? 1 : _links.Max(x => x.SortOrder) + 1;
         _linkQuickOrder = _links.Count(x => x.IsQuickAccess) + 1;
         _linkFormKey++;
@@ -582,11 +606,27 @@
             {
                 var link = await db.PortalLinks.SingleOrDefaultAsync(x => x.Id == id);
                 if (link is null) { AppState.AddToast("این پیوند دیگر وجود ندارد.", ToastLevel.Error); ResetLinkForm(); await LoadAsync(); return; }
-                link.Update(_linkTitle, _linkUrl, _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder);
+                // A chosen file replaces the address with the file's download address.
+                link.Update(_linkTitle, _pickedFile is null ? _linkUrl : PortalLinkFile.UrlFor(id), _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder);
+                var stored = await db.PortalLinkFiles.SingleOrDefaultAsync(x => x.LinkId == id);
+                if (_pickedFile is { } upload)
+                {
+                    if (stored is null) db.PortalLinkFiles.Add(new PortalLinkFile(id, upload.Name, upload.Content));
+                    else stored.Replace(upload.Name, upload.Content);
+                }
+                else if (stored is not null && !PortalLinkFile.IsFileUrl(link.Url))
+                    db.PortalLinkFiles.Remove(stored);   // the address was changed to something else, so the old file is no longer used
             }
             else
             {
-                db.PortalLinks.Add(new PortalLink(_linkTitle, _linkUrl, _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder));
+                // The link's id is needed for the file address, so the link is created first and then given that address.
+                var created = new PortalLink(_linkTitle, _pickedFile is null ? _linkUrl : "/", _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder);
+                if (_pickedFile is { } upload)
+                {
+                    created.Update(_linkTitle, PortalLinkFile.UrlFor(created.Id), _linkDescription, _linkGroupId, _linkOrder, _linkQuick, _linkQuickOrder);
+                    db.PortalLinkFiles.Add(new PortalLinkFile(created.Id, upload.Name, upload.Content));
+                }
+                db.PortalLinks.Add(created);
             }
             await db.SaveChangesAsync();
             AppState.AddToast(_editingLinkId is null ? "پیوند اضافه شد." : "پیوند ذخیره شد.", ToastLevel.Success);
@@ -600,6 +640,7 @@
                 "title" => $"عنوان لازم است و حداکثر {PortalLink.TitleMax} نویسه باشد.",
                 "url" => "آدرس معتبر نیست: http، https یا ftp، نام سرور (مثل intranet/app) یا صفحه‌ای از همین سامانه (مثل /login).",
                 "description" => $"توضیح حداکثر {PortalLink.DescriptionMax} نویسه باشد.",
+                "fileName" => "فایل پذیرفته نشد.",
                 _ => "اطلاعات پیوند معتبر نیست.",
             }, ToastLevel.Error);
         }

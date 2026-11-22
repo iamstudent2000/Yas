@@ -71,6 +71,9 @@ public sealed class UserGuideAttachment
         return null;
     }
 
+    /// <summary>The internet content type of an allowed file, found from the ending of its name (for example .pdf).</summary>
+    public static string ContentTypeFor(string fileName) => Types[Path.GetExtension(CleanName(fileName))];
+
     /// <summary>A Persian reason a guide cannot carry this many files, or null when the number is fine.</summary>
     public static string? ValidateCount(int count) =>
         count > MaxPerGuide ? $"هر راهنما حداکثر {MaxPerGuide} فایل پیوست می‌تواند داشته باشد." : null;
