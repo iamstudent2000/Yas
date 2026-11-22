@@ -23,6 +23,17 @@ public sealed class GuideGroupTests
     }
 
     [Fact]
+    public void Names_that_look_the_same_have_the_same_compare_key()
+    {
+        var same = new[] { "۳۳۳", "٣٣٣", "333" };                                       // Persian, Arabic-Indic and Latin digits
+        Assert.Single(same.Select(UserGuideGroup.CompareKey).Distinct());
+        Assert.Equal(UserGuideGroup.CompareKey("درخواست\u200Cها"), UserGuideGroup.CompareKey("درخواستها"));   // half-space
+        Assert.Equal(UserGuideGroup.CompareKey("Shop"), UserGuideGroup.CompareKey(" sHOP "));
+        Assert.Equal(UserGuideGroup.CompareKey("فروشگاه\u200F"), UserGuideGroup.CompareKey("فروشگاه"));   // invisible direction mark
+        Assert.NotEqual(UserGuideGroup.CompareKey("۳۳۳"), UserGuideGroup.CompareKey("۳۳۳۳"));              // a different number of digits is a different name
+    }
+
+    [Fact]
     public void Group_needs_a_name_that_is_not_too_long()
     {
         Assert.Throws<ArgumentException>(() => new UserGuideGroup("  ", 1));
@@ -62,6 +73,9 @@ public sealed class GuideGroupTests
         Assert.False((await service.SaveAsync(null, "فروشگاه", 3)).Ok);                    // exactly the same
         Assert.True((await service.SaveAsync(null, "Shop", 4)).Ok);
         Assert.False((await service.SaveAsync(null, "sHOP", 5)).Ok);                       // letter case does not make a new group
+        Assert.True((await service.SaveAsync(null, "۳۳۳۳", 6)).Ok);
+        Assert.False((await service.SaveAsync(null, "3333", 7)).Ok);                       // Latin digits instead of Persian
+        Assert.False((await service.SaveAsync(null, "۳۳۳۳\u200F", 7)).Ok);                // a hidden mark at the end
         Assert.False((await service.SaveAsync(null, new string('x', UserGuideGroup.NameMax + 1), 3)).Ok);
 
         var groups = await service.ListAsync(true);

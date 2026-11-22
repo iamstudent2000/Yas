@@ -42,10 +42,12 @@ public sealed class GuideGroupService(IDbContextFactory<ApplicationDbContext> db
         if (clean is null) return GuideGroupResult.Fail("نام گروه را وارد کنید.");
         if (clean.Length > UserGuideGroup.NameMax) return GuideGroupResult.Fail("نام گروه بیش از حد طولانی است.");
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        // Names are compared without regard to letter case, so "Shop" and "shop" are the same group (the name is already cleaned of extra spaces and Arabic letters).
-        var lower = clean.ToLower();
+        // Names are compared by what a person sees (see CompareKey): letter case, digit script, half-spaces and invisible marks do not make a new group.
+        // There are only a few groups, so the comparison is done here instead of in the database.
         const string duplicate = "گروهی با این نام وجود دارد.";
-        if (await db.UserGuideGroups.AnyAsync(x => x.Name.ToLower() == lower && x.Id != id, ct)) return GuideGroupResult.Fail(duplicate);
+        var key = UserGuideGroup.CompareKey(clean);
+        var others = await db.UserGuideGroups.AsNoTracking().Where(x => x.Id != id).Select(x => x.Name).ToListAsync(ct);
+        if (others.Any(n => UserGuideGroup.CompareKey(n) == key)) return GuideGroupResult.Fail(duplicate);
         if (id is null) db.UserGuideGroups.Add(new UserGuideGroup(clean, sortOrder));
         else
         {

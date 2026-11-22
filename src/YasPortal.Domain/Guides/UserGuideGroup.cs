@@ -49,4 +49,24 @@ public sealed class UserGuideGroup
         var text = string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return text.Replace('ي', 'ی').Replace('ك', 'ک');
     }
+
+    /// <summary>
+    /// The form of a name used only to decide whether two names are the same group. It ignores everything a person cannot see or does not mean:
+    /// letter case, Persian / Arabic / Latin digits (۳ ٣ 3), the half-space and other invisible marks, tatweel, and vowel marks.
+    /// So «۳۳۳» and «333», or «درخواست‌ها» and «درخواستها», are the same group. The name itself is stored as it was typed (after <see cref="NormalizeName"/>).
+    /// </summary>
+    public static string CompareKey(string? name)
+    {
+        var text = NormalizeName(name) ?? "";
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            if (ch is >= '\u06F0' and <= '\u06F9') sb.Append((char)('0' + (ch - '\u06F0')));          // Persian digits
+            else if (ch is >= '\u0660' and <= '\u0669') sb.Append((char)('0' + (ch - '\u0660')));     // Arabic-Indic digits
+            else if (ch is '\u200B' or '\u200C' or '\u200D' or '\u200E' or '\u200F' or '\uFEFF' or '\u00AD' or '\u0640') continue;   // invisible marks and tatweel
+            else if (ch is >= '\u064B' and <= '\u065F') continue;                                       // vowel marks
+            else sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
+    }
 }
