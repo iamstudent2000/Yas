@@ -18,10 +18,16 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
             var query = db.UserGuides.AsNoTracking().Where(x => x.IsActive);
             // A visitor who is not signed in sees only public guides.
             if (!signedIn) query = query.Where(x => x.Visibility == GuideVisibility.Public);
+            // Each guide is joined to its group (a guide may have none). A guide whose group is switched off is hidden with it,
+            // the same way the store hides the items of a switched-off group.
+            var joined = from g in query
+                         join gr in db.UserGuideGroups.AsNoTracking() on g.GroupId equals (Guid?)gr.Id into groups
+                         from gr in groups.DefaultIfEmpty()
+                         where gr == null || gr.IsActive
+                         orderby g.SortOrder, g.CreatedAtUtc
+                         select new GuideListItem(g.Id, g.Title, g.Summary, g.Visibility, gr == null ? null : gr.Name, gr == null ? null : (int?)gr.SortOrder);
             // Display order set by the administrator, then oldest first.
-            return await query.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc)
-                .Select(x => new GuideListItem(x.Id, x.Title, x.Summary, x.Visibility, x.GroupName))
-                .ToListAsync(ct);
+            return await joined.ToListAsync(ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -92,5 +98,5 @@ public sealed class GuideProvider(IDbContextFactory<ApplicationDbContext> dbFact
 /// <summary>One file attached to a guide, without its contents.</summary>
 public sealed record GuideFileItem(Guid Id, string FileName, long SizeBytes);
 
-/// <summary>One guide in the list, without its text. <paramref name="GroupName"/> is the heading it is listed under (empty = no group).</summary>
-public sealed record GuideListItem(Guid Id, string Title, string? Summary, GuideVisibility Visibility, string? GroupName = null);
+/// <summary>One guide in the list, without its text. <paramref name="GroupName"/> is the heading it is listed under and <paramref name="GroupOrder"/> that group's order number (both empty = no group).</summary>
+public sealed record GuideListItem(Guid Id, string Title, string? Summary, GuideVisibility Visibility, string? GroupName = null, int? GroupOrder = null);

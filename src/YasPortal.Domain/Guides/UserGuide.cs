@@ -23,19 +23,18 @@ public enum GuideVisibility
 public sealed partial class UserGuide
 {
     // Length limits for the title, the short summary and the body text.
-    // GroupMax is the longest name a group (a heading that gathers related guides) may have.
-    public const int TitleMax = 200, SummaryMax = 300, ContentMax = 200_000, GroupMax = 100;
+    public const int TitleMax = 200, SummaryMax = 300, ContentMax = 200_000;
 
     private UserGuide()
     {
     }
 
-    public UserGuide(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder, Guid? createdByEmployeeId = null, string? groupName = null)
+    public UserGuide(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder, Guid? createdByEmployeeId = null, Guid? groupId = null)
     {
         Id = Guid.NewGuid();
         CreatedByEmployeeId = createdByEmployeeId == Guid.Empty ? null : createdByEmployeeId;
         CreatedAtUtc = UpdatedAtUtc = DateTime.UtcNow;
-        Update(title, summary, contentHtml, visibility, sortOrder, groupName);
+        Update(title, summary, contentHtml, visibility, sortOrder, groupId);
     }
 
     public Guid Id { get; private set; }
@@ -45,10 +44,10 @@ public sealed partial class UserGuide
     public GuideVisibility Visibility { get; private set; }
     public int SortOrder { get; private set; }
     /// <summary>
-    /// The group the guide is listed under on the guides page (for example «درخواست‌ها» or «فروشگاه»); empty = no group.
-    /// Guides with the same name are gathered under one heading, so there is no separate list of groups to maintain.
+    /// The group the guide is listed under on the guides page (see <see cref="UserGuideGroup"/>); empty = no group.
+    /// Groups are kept as a list by the administrators, so the guide only remembers which one it belongs to.
     /// </summary>
-    public string? GroupName { get; private set; }
+    public Guid? GroupId { get; private set; }
     public bool IsActive { get; private set; } = true;
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
@@ -57,10 +56,10 @@ public sealed partial class UserGuide
 
     // Used both when creating and when editing. It trims the text and refuses a missing title, over-long
     // fields, or a body with no visible text, so an empty guide can never be saved.
-    // The group name is cleaned the same way (see NormalizeGroupName); leaving it out removes the guide from its group.
-    public void Update(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder, string? groupName = null)
+    // The group is picked from the list of groups; leaving it out (or an empty id) removes the guide from its group.
+    // Whether that group really exists and is on is checked by the page that saves the guide, because the domain does not see the list.
+    public void Update(string title, string? summary, string contentHtml, GuideVisibility visibility, int sortOrder, Guid? groupId = null)
     {
-        var group = NormalizeGroupName(groupName);
         title = (title ?? "").Trim();
         summary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
         contentHtml = (contentHtml ?? "").Trim();
@@ -72,27 +71,14 @@ public sealed partial class UserGuide
             throw new ArgumentException($"The guide needs some text and at most {ContentMax} characters.", nameof(contentHtml));
         if (!Enum.IsDefined(visibility))
             throw new ArgumentException("Unknown visibility.", nameof(visibility));
-        if (group is { Length: > GroupMax })
-            throw new ArgumentException($"The group name is at most {GroupMax} characters.", nameof(groupName));
 
         Title = title;
         Summary = summary;
         ContentHtml = contentHtml;
         Visibility = visibility;
         SortOrder = sortOrder;
-        GroupName = group;
+        GroupId = groupId == Guid.Empty ? null : groupId;
         UpdatedAtUtc = DateTime.UtcNow;
-    }
-
-    /// <summary>
-    /// Cleans a typed group name so the same group is never split in two by a typing difference: spaces at the ends are removed,
-    /// runs of spaces become one, and the Arabic forms of «ی» and «ک» become the Persian ones. Blank becomes empty (no group).
-    /// </summary>
-    public static string? NormalizeGroupName(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return null;
-        var text = string.Join(' ', name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return text.Replace('\u064A', '\u06CC').Replace('\u0643', '\u06A9');
     }
 
     // A guide that is switched off is hidden from readers but stays in the admin list.

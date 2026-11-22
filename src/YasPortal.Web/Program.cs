@@ -93,6 +93,7 @@ builder.Services.AddScoped<AuditArchiver>();
 builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
+builder.Services.AddScoped<GuideGroupService>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
@@ -330,8 +331,25 @@ if (app.Environment.IsDevelopment())
         IF COL_LENGTH(N'dbo.UserGuides', N'ContentHtml') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [ContentHtml] nvarchar(max) NOT NULL CONSTRAINT [DF_UserGuides_ContentHtml] DEFAULT N'';
         IF COL_LENGTH(N'dbo.UserGuides', N'Visibility') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [Visibility] int NOT NULL CONSTRAINT [DF_UserGuides_Visibility] DEFAULT 1;
         IF COL_LENGTH(N'dbo.UserGuides', N'CreatedByEmployeeId') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [CreatedByEmployeeId] uniqueidentifier NULL;
-        -- guides can be gathered under a group heading (a plain name; empty = no group)
-        IF COL_LENGTH(N'dbo.UserGuides', N'GroupName') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [GroupName] nvarchar(100) NULL;
+        -- guide groups: a real list of groups (unique name, order number, on or off); a guide points to its group by GroupId
+        IF OBJECT_ID(N'dbo.UserGuideGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[UserGuideGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_UserGuideGroups] PRIMARY KEY ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuideGroups') AND name = N'IX_UserGuideGroups_Name')
+            EXEC(N'CREATE UNIQUE INDEX [IX_UserGuideGroups_Name] ON [dbo].[UserGuideGroups] ([Name])');
+        IF COL_LENGTH(N'dbo.UserGuides', N'GroupId') IS NULL ALTER TABLE [dbo].[UserGuides] ADD [GroupId] uniqueidentifier NULL;
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_GroupId')
+            EXEC(N'CREATE INDEX [IX_UserGuides_GroupId] ON [dbo].[UserGuides] ([GroupId])');
+        -- Old databases kept the group as a typed name on each guide (column GroupName). Turn each distinct name into a real group
+        -- (ordered by the first guide that used it, like the guides page did before), point the guides to it and empty the old column.
+        -- Names are cleaned first like the app does (extra spaces removed, Arabic ي and ك made Persian), so typing differences do not make two groups.
+        -- It only runs while the old column exists, and the column is emptied afterwards, so running it again changes nothing.
+        IF COL_LENGTH(N'dbo.UserGuides', N'GroupName') IS NOT NULL
+        BEGIN
+            EXEC(N'INSERT INTO [dbo].[UserGuideGroups] ([Id], [Name], [SortOrder], [IsActive]) SELECT NEWID(), n.[Clean], ROW_NUMBER() OVER (ORDER BY n.[FirstOrder], n.[Clean]), 1 FROM (SELECT LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE([GroupName], NCHAR(1610), NCHAR(1740)), NCHAR(1603), NCHAR(1705)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)))) AS [Clean], MIN([SortOrder]) AS [FirstOrder] FROM [dbo].[UserGuides] WHERE [GroupName] IS NOT NULL AND LEN(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE([GroupName], NCHAR(1610), NCHAR(1740)), NCHAR(1603), NCHAR(1705)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32))))) > 0 GROUP BY LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE([GroupName], NCHAR(1610), NCHAR(1740)), NCHAR(1603), NCHAR(1705)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32))))) n WHERE NOT EXISTS (SELECT 1 FROM [dbo].[UserGuideGroups] g WHERE g.[Name] = n.[Clean])');
+            EXEC(N'UPDATE u SET u.[GroupId] = g.[Id], u.[GroupName] = NULL FROM [dbo].[UserGuides] u JOIN [dbo].[UserGuideGroups] g ON g.[Name] = LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.[GroupName], NCHAR(1610), NCHAR(1740)), NCHAR(1603), NCHAR(1705)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)), NCHAR(32)+NCHAR(32), NCHAR(32)))) WHERE u.[GroupName] IS NOT NULL');
+            -- any left over (an empty name) just loses the old text
+            EXEC(N'UPDATE [dbo].[UserGuides] SET [GroupName] = NULL WHERE [GroupName] IS NOT NULL');
+        END
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
         -- files attached to a guide (several per guide; deleted together with the guide)
