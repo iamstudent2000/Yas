@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using YasPortal.Application.Persistence;
 using YasPortal.Domain.Auditing;
+using YasPortal.Domain.Gallery;
 using YasPortal.Domain.Guides;
 using YasPortal.Domain.Store;
 using YasPortal.Domain.Landing;
@@ -54,6 +55,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<PortalLinkFile> PortalLinkFiles => Set<PortalLinkFile>();
     public DbSet<UserGuideAttachment> UserGuideAttachments => Set<UserGuideAttachment>();
     public DbSet<UserGuideGroup> UserGuideGroups => Set<UserGuideGroup>();
+    // Image gallery: the picture details and, in another table, the picture bytes.
+    public DbSet<GalleryImage> GalleryImages => Set<GalleryImage>();
+    public DbSet<GalleryImageFile> GalleryImageFiles => Set<GalleryImageFile>();
     // Internal store: groups, items, stock ledger, orders and lottery applications.
     public DbSet<StoreCategory> StoreCategories => Set<StoreCategory>();
     public DbSet<StoreItem> StoreItems => Set<StoreItem>();
@@ -346,6 +350,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<PortalLinkFile>(e => { e.HasKey(x => x.LinkId); e.Property(x => x.LinkId).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(UserGuideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<PortalLink>().WithOne().HasForeignKey<PortalLinkFile>(x => x.LinkId).OnDelete(DeleteBehavior.Cascade); });
         modelBuilder.Entity<UserGuideAttachment>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(UserGuideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<UserGuide>().WithMany().HasForeignKey(x => x.GuideId).OnDelete(DeleteBehavior.Cascade); e.HasIndex(x => x.GuideId); });
         modelBuilder.Entity<HomeSlideAttachment>(e => { e.HasKey(x => x.SlideId); e.Property(x => x.SlideId).ValueGeneratedNever(); e.Property(x => x.FileName).HasMaxLength(HomeSlideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.Property(x => x.Content).IsRequired(); e.HasOne<HomeSlide>().WithOne().HasForeignKey<HomeSlideAttachment>(x => x.SlideId).OnDelete(DeleteBehavior.Cascade); });
+        // Gallery pictures: a list ordered by the administrator; the bytes sit in their own table and go with the picture.
+        modelBuilder.Entity<GalleryImage>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(GalleryImage.TitleMax).IsRequired(); e.Property(x => x.Caption).HasMaxLength(GalleryImage.CaptionMax); e.Property(x => x.FileName).HasMaxLength(UserGuideAttachment.FileNameMax).IsRequired(); e.Property(x => x.ContentType).HasMaxLength(150).IsRequired(); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
+        modelBuilder.Entity<GalleryImageFile>(e => { e.HasKey(x => x.ImageId); e.Property(x => x.ImageId).ValueGeneratedNever(); e.Property(x => x.Content).IsRequired(); e.HasOne<GalleryImage>().WithOne().HasForeignKey<GalleryImageFile>(x => x.ImageId).OnDelete(DeleteBehavior.Cascade); });
         // Home slides: text length limits, optional start and end dates, indexed by on/off and order.
         modelBuilder.Entity<HomeSlide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeSlide.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeSlide.TextMax).IsRequired(); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.LinkText).HasMaxLength(HomeSlide.LinkTextMax); e.Property(x => x.LinkUrl).HasMaxLength(HomeSlide.LinkUrlMax); e.Property(x => x.StartsOn).HasColumnType("date"); e.Property(x => x.ExpiresOn).HasColumnType("date"); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
         // Settings row for the audit archive; its id is set by the application.

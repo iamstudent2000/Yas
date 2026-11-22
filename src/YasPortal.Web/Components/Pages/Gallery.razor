@@ -1,0 +1,140 @@
+@page "/gallery"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Gallery
+@using YasPortal.Domain.Paging
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@attribute [AllowAnonymous]
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+@* Public image gallery (/gallery), open to everyone, also before sign-in. It shows the switched-on pictures as a grid of small *@
+@* pictures. Clicking one opens it larger in a plain dark layer with previous and next buttons (and the arrow keys). *@
+@* Everything is kept flat and light on purpose: no animation, no blur and no shadows, because many computers here have no graphics card. *@
+@* The small pictures are the real pictures scaled down by the browser, and they load only when they come near the screen. *@
+<PageTitle>گالری تصاویر - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">گالری</div>
+            <h1 class="page-title"><i class="ti @Icons.Gallery"></i> گالری تصاویر</h1>
+            <p class="page-subtitle">روی هر تصویر بزنید تا بزرگ‌تر دیده شود.</p>
+        </div>
+        @* Only people allowed to manage the gallery see the management button. *@
+        <AuthorizeView Policy="@Perm.AdminGalleryView">
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/admin/gallery"><i class="ti @Icons.Edit"></i> مدیریت تصاویر</a>
+            </div>
+        </AuthorizeView>
+    </div>
+
+    @* Three states: still loading, no pictures, or the grid. *@
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_images.Count == 0)
+    {
+        <section class="card">
+            <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Gallery"></i></div><strong>هنوز تصویری در گالری نیست</strong><span>تصاویری که مدیر سامانه اضافه کند در همین‌جا دیده می‌شود.</span></div>
+        </section>
+    }
+    else
+    {
+        <div class="gallery-grid">
+            @* One button per picture of the current page; the index is the place in the whole list, so next and previous can go on past the page. *@
+            @foreach (var (image, index) in _images.Select((x, i) => (x, i)).Skip((CurrentPage - 1) * _pageSize).Take(_pageSize))
+            {
+                <button type="button" class="gallery-thumb" @onclick="() => Open(index)" title="@image.Title">
+                    <span class="gallery-thumb-frame"><img src="@GalleryImage.UrlFor(image.Id)" alt="@image.Title" loading="lazy" decoding="async" /></span>
+                    <span class="gallery-thumb-title">@image.Title</span>
+                </button>
+            }
+        </div>
+        <ServerPagination Page="@CurrentPage" PageSize="@_pageSize" TotalCount="@_images.Count"
+                          PageChanged="p => _page = p" PageSizeChanged="PageSizeChanged" />
+    }
+</div>
+
+@* The large view. A click on the dark background closes it; clicks on the picture and the buttons do not. *@
+@if (_open is int open && open >= 0 && open < _images.Count)
+{
+    var current = _images[open];
+    <div class="gallery-lightbox" role="dialog" aria-modal="true" aria-label="@current.Title" tabindex="-1" @ref="_lightbox" @onkeydown="OnKeyDown" @onclick="Close">
+        <div class="gallery-lightbox-bar" @onclick:stopPropagation="true">
+            <span class="gallery-lightbox-count">@(open + 1) / @_images.Count</span>
+            <strong class="gallery-lightbox-title">@current.Title</strong>
+            <button type="button" class="gallery-lightbox-btn" @onclick="Close" title="بستن" aria-label="بستن"><i class="ti @Icons.Close"></i></button>
+        </div>
+        <div class="gallery-lightbox-stage">
+            @* In right-to-left reading, "previous" is on the right and "next" on the left. *@
+            <button type="button" class="gallery-lightbox-btn" @onclick="Previous" @onclick:stopPropagation="true" title="قبلی" aria-label="قبلی"><i class="ti @Icons.PagePrev"></i></button>
+            <img src="@GalleryImage.UrlFor(current.Id)" alt="@current.Title" @onclick:stopPropagation="true" />
+            <button type="button" class="gallery-lightbox-btn" @onclick="Next" @onclick:stopPropagation="true" title="بعدی" aria-label="بعدی"><i class="ti @Icons.PageNext"></i></button>
+        </div>
+        @if (current.Caption is not null)
+        {
+            <p class="gallery-lightbox-caption" @onclick:stopPropagation="true">@current.Caption</p>
+        }
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    // The switched-on pictures in the order set by the administrator (details only, no bytes).
+    private List<GalleryImage> _images = [];
+    // The page of the grid shown and its size.
+    private int _page = 1, _pageSize = 20;
+    // The place (in the whole list) of the picture shown large, or nothing when the large view is closed.
+    private int? _open;
+    // The large view element, used to give it the keyboard when it opens (so the arrow keys and Escape work at once).
+    private ElementReference _lightbox;
+    private bool _focusPending;
+
+    // The page number kept inside the existing pages.
+    private int CurrentPage => ListPaging.ClampPage(_page, _images.Count, _pageSize);
+
+    // On opening: load the switched-on pictures.
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _images = await db.GalleryImages.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
+        _loading = false;
+    }
+
+    // Page size changed: show the first page of the new size.
+    private void PageSizeChanged(int size) { _pageSize = size; _page = 1; }
+
+    // Open a picture large; the keyboard is moved into the large view after it is drawn.
+    private void Open(int index) { _open = index; _focusPending = true; }
+
+    private void Close() => _open = null;
+
+    // Next and previous go around: after the last picture comes the first.
+    private void Next() { if (_open is int i && _images.Count > 0) _open = (i + 1) % _images.Count; }
+    private void Previous() { if (_open is int i && _images.Count > 0) _open = (i - 1 + _images.Count) % _images.Count; }
+
+    // Keys in the large view: Escape closes; in right-to-left reading the left arrow goes forward and the right arrow goes back.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape": Close(); break;
+            case "ArrowLeft": Next(); break;
+            case "ArrowRight": Previous(); break;
+        }
+    }
+
+    // Right after the large view opens, give it the keyboard.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPending && _open is not null)
+        {
+            _focusPending = false;
+            await _lightbox.FocusAsync();
+        }
+    }
+}

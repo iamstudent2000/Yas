@@ -102,12 +102,13 @@ public static class SectionNav
         new("/store/orders", "سفارش‌های من", Icons.MyRequests, [[Perm.StoreOrdersCreate, "NonAdmin"]]),
     ]);
 
-    // Section: administrator-managed content of the home page (links, slides) and the guides.
+    // Section: administrator-managed content of the home page (links, slides), the guides and the image gallery.
     public static readonly SectionDef Content = new("content-admin", "محتوای صفحه اصلی", Icons.Links,
     [
         new("/admin/links", "پیوندهای صفحه اصلی", Icons.Links, One(Perm.AdminLinksView)),
         new("/admin/landing-slides", "اسلایدهای صفحه اصلی", Icons.LandingSlides, One(Perm.AdminLandingSlidesView)),
         new("/admin/guides", "مدیریت راهنماها", Icons.Guide, One(Perm.GuidesWorkspacePolicy)),
+        new("/admin/gallery", "گالری تصاویر", Icons.Gallery, One(Perm.AdminGalleryView)),
     ]);
 
     // Section: store administration for storekeepers (items, stock, orders, hand-over, lottery, reports).

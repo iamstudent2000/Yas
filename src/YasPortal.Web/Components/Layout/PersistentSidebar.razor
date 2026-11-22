@@ -45,6 +45,8 @@
                         @* Lit on the guide list and on a single guide, but not on the guides management page, which belongs to the *@
                         @* "محتوای صفحه اصلی" section below (otherwise both links would be lit at once). *@
                         <NavLink href="/guides" Match="NavLinkMatch.All" class="@(OnGuideReader ? "active" : null)"><i class="ti @Icons.Guide"></i><span>راهنمای کاربری</span></NavLink>
+                        @* The public image gallery, open to everyone like the guides. *@
+                        <NavLink href="/gallery" Match="NavLinkMatch.All"><i class="ti @Icons.Gallery"></i><span>گالری تصاویر</span></NavLink>
                         <SectionNavLink Group="account" Title="تنظیمات حساب" Icon="@Icons.Profile" />
                         <SectionNavLink Group="store" Title="فروشگاه" Icon="@Icons.Store" />
                     </div>

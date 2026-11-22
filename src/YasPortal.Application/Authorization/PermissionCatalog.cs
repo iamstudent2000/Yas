@@ -83,6 +83,10 @@ public static class Perm
     public const string AdminLandingSlidesManage = "Admin.LandingSlides.Manage";
     public const string AdminLinksView = "Admin.Links.View";
     public const string AdminLinksManage = "Admin.Links.Manage";
+    /// <summary>See every picture of the image gallery, also the ones that are off (read-only).</summary>
+    public const string AdminGalleryView = "Admin.Gallery.View";
+    /// <summary>Upload, edit, switch on or off and delete gallery pictures. Implies the view permission.</summary>
+    public const string AdminGalleryManage = "Admin.Gallery.Manage";
     /// <summary>Print the phone book (names, extensions and phones, in two columns on A4). Reading the phone book needs no permission, even before sign-in.</summary>
     public const string PhoneBookDirectoryPrint = "PhoneBook.Directory.Print";
     public const string AdminPhoneBookView = "Admin.PhoneBook.View";
@@ -235,6 +239,8 @@ public static class PermissionCatalog
             new(Perm.AdminLinksView, "مشاهده پیوندهای صفحه اصلی (فقط خواندنی)"),
             new(Perm.AdminLinksManage, "مدیریت پیوندهای صفحه اصلی (گروه‌ها، پیوندها، دسترسی سریع، ورود گروهی)"),
             new(Perm.AdminLandingSlidesManage, "مدیریت اسلایدهای صفحه اصلی (افزودن، ویرایش، حذف، تاریخ انقضا)"),
+            new(Perm.AdminGalleryView, "مشاهده تصاویر گالری (فقط خواندنی)"),
+            new(Perm.AdminGalleryManage, "مدیریت تصاویر گالری (بارگذاری، ویرایش، ترتیب، فعال/غیرفعال، حذف)"),
             new(Perm.PhoneBookDirectoryPrint, "چاپ دفترچه تلفن (نام، داخلی و تلفن در دو ستون A4)"),
             new(Perm.AdminPhoneBookView, "مشاهده مدیریت دفترچه تلفن (فقط خواندنی)"),
             new(Perm.AdminPhoneBookManage, "مدیریت دفترچه تلفن (گروه‌ها و مخاطبان)"),

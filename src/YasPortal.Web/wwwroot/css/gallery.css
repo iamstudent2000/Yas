@@ -1,0 +1,27 @@
+/* Image gallery: the public grid with its large view, and the small pictures of the admin list.
+   Kept flat on purpose (no animation, no blur, no shadows) so computers without a graphics card stay quick.
+   Colours come from the theme variables, so dark mode follows. */
+
+/* ---------- the grid of small pictures ---------- */
+.gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.gallery-thumb{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--border,#e6ebf2);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit;text-align:start;cursor:pointer}
+.gallery-thumb:hover,.gallery-thumb:focus-visible{border-color:var(--accent,#155eef)}
+/* a fixed frame; the picture is scaled to fill it by the browser (no separate small files are made) */
+.gallery-thumb-frame{display:block;aspect-ratio:4/3;overflow:hidden;border-radius:6px;background:var(--surface-2,#f8fafc)}
+.gallery-thumb-frame img{display:block;width:100%;height:100%;object-fit:cover}
+.gallery-thumb-title{font-size:12.5px;line-height:1.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- the large view ---------- */
+.gallery-lightbox{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;background:rgba(0,0,0,.92);color:#fff;outline:none}
+.gallery-lightbox-bar{display:flex;align-items:center;gap:12px;padding:10px 16px}
+.gallery-lightbox-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.gallery-lightbox-count{font-size:12.5px;opacity:.8}
+.gallery-lightbox-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:12px;padding:0 12px}
+.gallery-lightbox-stage img{display:block;min-width:0;max-width:100%;max-height:100%;object-fit:contain}
+.gallery-lightbox-btn{flex:none;width:42px;height:42px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.35);border-radius:50%;background:transparent;color:#fff;font-size:22px;cursor:pointer}
+.gallery-lightbox-btn:hover,.gallery-lightbox-btn:focus-visible{background:rgba(255,255,255,.18)}
+.gallery-lightbox-caption{margin:0;padding:10px 16px 16px;text-align:center;line-height:1.9;font-size:13.5px}
+
+/* ---------- the admin list and edit window ---------- */
+.gallery-admin-thumb{display:block;width:56px;height:42px;object-fit:cover;border-radius:4px;background:var(--surface-2,#f8fafc)}
+.gallery-admin-preview{display:block;max-width:100%;max-height:220px;object-fit:contain;border-radius:6px;background:var(--surface-2,#f8fafc)}
