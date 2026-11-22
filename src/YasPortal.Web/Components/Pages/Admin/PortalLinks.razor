@@ -57,7 +57,12 @@
                         <h2 class="section-title"><i class="ti @(_editingLinkId is null ? Icons.Add : Icons.Edit)"></i> @(_editingLinkId is null ? "افزودن پیوند" : "ویرایش پیوند")</h2>
                         <p class="muted">آدرس می‌تواند http، https یا ftp باشد (https لازم نیست)، یا فقط نام سرور مثل intranet/app، یا صفحه‌ای از همین سامانه مثل /login.</p>
                     </div>
+                    @* Shortcut for linking a guide: picking one fills in the title (if empty) and the address. *@
                     <div class="admin-row-grid">
+                        <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
+                            <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
+                    </div>
+                    <div class="admin-row-grid" style="margin-top:12px">
                         <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_linkTitle" maxlength="@PortalLink.TitleMax" /></div>
                         <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="http://... یا https://... یا intranet/app" @bind="_linkUrl" maxlength="@PortalLink.UrlMax" /></div>
                     </div>
@@ -312,6 +317,20 @@
     private bool _linkQuick;
     private int _linkFormKey;
 
+    // Guides offered in the "link to a guide" picker (id as text, title). _guidePickKey resets the picker after each choice.
+    private IReadOnlyList<(string Key, string Text)> GuideOptions = [];
+    private int _guidePickKey;
+
+    // A guide was picked: its page address becomes the link address, and the guide's title is used when no title was typed yet.
+    private void PickGuide(string? id)
+    {
+        var guide = GuideOptions.FirstOrDefault(x => x.Key == id);
+        if (guide.Key is null) return;
+        _linkUrl = "/guides/" + guide.Key;
+        if (string.IsNullOrWhiteSpace(_linkTitle)) _linkTitle = guide.Text;
+        _guidePickKey++;
+    }
+
     // import
     private string _importText = "";
     private IReadOnlyList<ImportLine>? _importLines;
@@ -332,6 +351,8 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         _groups = await db.LinkGroups.AsNoTracking().ToListAsync();
         _links = await db.PortalLinks.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+        var guides = await db.UserGuides.AsNoTracking().OrderBy(x => x.Title).Select(x => new { x.Id, x.Title }).ToListAsync();
+        GuideOptions = guides.Select(x => (x.Id.ToString(), x.Title)).ToList();
     }
 
     // Every change re-checks the manage permission, instead of trusting the page alone.
