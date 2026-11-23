@@ -129,7 +129,7 @@ else
             }
         </section>
 
-        @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens the gallery. *@
+        @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens that picture large in the gallery. *@
         @if (_pictures.Count > 0)
         {
             <section class="landing-section">
@@ -137,7 +137,7 @@ else
                 <div class="landing-pictures">
                     @foreach (var picture in _pictures.Take(PicturesShown))
                     {
-                        <a class="landing-picture" href="/gallery" title="@picture.Title"><img src="@GalleryImage.UrlFor(picture.Id, picture.Version)" alt="@picture.Title" loading="lazy" decoding="async" /></a>
+                        <a class="landing-picture" href="/gallery?open=@picture.Id" title="@picture.Title"><img src="@GalleryImage.UrlFor(picture.Id, picture.Version)" alt="@picture.Title" loading="lazy" decoding="async" /></a>
                     }
                 </div>
             </section>

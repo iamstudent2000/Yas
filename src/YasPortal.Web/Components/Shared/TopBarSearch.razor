@@ -68,7 +68,7 @@
                 <ul class="lm-links">
                     @foreach (var picture in pictures)
                     {
-                        <li><a href="/gallery?q=@Uri.EscapeDataString(picture.Title)"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
+                        <li><a href="/gallery?open=@picture.Id"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
                     }
                 </ul>
             }
