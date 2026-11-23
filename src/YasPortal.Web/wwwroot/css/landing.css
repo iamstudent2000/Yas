@@ -59,6 +59,7 @@
 .lm-links a:hover{background:var(--accent-soft);color:var(--accent-strong)}
 .lm-links small{display:block;color:var(--text-muted);margin-top:0;font-size:.78rem}
 .lm-links .ti{color:var(--accent);margin-top:3px;font-size:14px}
+.lm-result-title{padding:6px 8px 2px 8px;color:var(--text-muted);font-size:.8rem;font-weight:600}
 .lm-path{padding:0 8px 4px 8px;color:var(--text-muted);font-size:.8rem}
 .lm-search{margin-inline-end:6px;display:flex;align-items:center;gap:5px;padding-inline:10px;border:1px solid var(--border);border-radius:8px}
 .lm-search .ti{color:var(--text-muted)}

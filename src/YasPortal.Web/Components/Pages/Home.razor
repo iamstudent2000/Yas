@@ -7,6 +7,8 @@
 @using YasPortal.Infrastructure.Gallery
 @using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Landing
+@using YasPortal.Infrastructure.PhoneBook
+@using YasPortal.Domain.PhoneBook
 @using System.Security.Claims
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -16,6 +18,7 @@
 @inject PortalLinkProvider LinkProvider
 @inject GuideProvider GuideProv
 @inject GalleryProvider GalleryProv
+@inject PhoneBookProvider PhoneProv
 @inject WorkflowService Workflows
 @inject NotificationService NotificationsService
 @inject AuthenticationStateProvider AuthState
@@ -84,7 +87,7 @@ else
         @* The link menu and quick-access links are maintained by an administrator in the home page content section. *@
         @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
         {
-            <LinkMenuBar Tree="_tree" />
+            <LinkMenuBar Tree="_tree" Guides="_guides" Pictures="_pictures" Phones="_phones" />
         }
 
         @if (_tree.QuickAccess.Count > 0)
@@ -184,6 +187,8 @@ else
     // What the front page shows from the guides and the gallery.
     private IReadOnlyList<GuideListItem> _guides = [];
     private IReadOnlyList<GalleryListItem> _pictures = [];
+    // The phone book (switched-on contacts only), used by the menu bar search.
+    private PhoneBookTree? _phones;
     // How many guides and pictures are previewed on this page.
     private const int GuidesShown = 5, PicturesShown = 6;
     private int _index;
@@ -218,6 +223,7 @@ else
         _guides = await GuideProv.ListAsync(_signedIn);
         if (_signedIn) _personal = await LoadPersonalAsync(user);
         _pictures = await GalleryProv.ListAsync();
+        _phones = await PhoneProv.GetTreeAsync();
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;

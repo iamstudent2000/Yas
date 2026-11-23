@@ -1,8 +1,13 @@
 @using YasPortal.Domain.Landing
+@using YasPortal.Domain.Gallery
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Gallery
+@using YasPortal.Infrastructure.Guides
 @* The home page's horizontal links menu: a search box, then one dropdown per top group (its links and its
    sub-groups), and "سایر" for links in no group. With a mouse a dropdown opens when the pointer is over its button and closes when
    the pointer leaves it; a click keeps it open. On touch screens it opens on tap. Escape, a click outside, or opening another closes it.
-   A sub-group is an item with an arrow; it opens as its own menu beside the parent menu (not inside it). *@
+   A sub-group is an item with an arrow; it opens as its own menu beside the parent menu (not inside it).
+   The search box looks through everything: links, guides, gallery pictures and phone book contacts. *@
 <nav class="lm" dir="rtl" aria-label="پیوندها" @onkeydown="OnKeyDown">
     @* While a dropdown is open or a search is shown, an invisible layer behind it closes everything when clicked. *@
     @if (_open is not null || Searching)
@@ -13,21 +18,56 @@
         @* The search box is always there, first in the bar. *@
             <li class="lm-item lm-search">
                 <i class="ti ti-search"></i>
-                <input type="search" placeholder="جستجو در پیوندها..." aria-label="جستجو در پیوندها" value="@_query" @oninput="OnSearch" />
-                @* Search results list every matching link together with the group path it lives in. *@
+                <input type="search" placeholder="جستجو در پیوندها، راهنماها، تصاویر و دفترچه تلفن..." aria-label="جستجوی همه‌جا" value="@_query" @oninput="OnSearch" />
+                @* Search results are shown in small labeled parts: links (with the group path they live in), guides, pictures and contacts. *@
                 @if (Searching)
                 {
+                    var links = Results;
+                    var guides = GuideHits;
+                    var pictures = PictureHits;
+                    var contacts = ContactHits;
                     <div class="lm-panel is-flipped lm-results">
-                        @if (Results.Count == 0)
+                        @if (links.Count + guides.Count + pictures.Count + contacts.Count == 0)
                         {
-                            <p class="muted">پیوندی با این عبارت پیدا نشد.</p>
+                            <p class="muted">چیزی با این عبارت پیدا نشد.</p>
                         }
-                        else
+                        @if (links.Count > 0)
                         {
+                            <div class="lm-result-title">پیوندها</div>
                             <ul class="lm-links">
-                                @foreach (var (path, link) in Results)
+                                @foreach (var (path, link) in links)
                                 {
                                     <li><LinkMenuEntry Link="link" />@if (path.Length > 0) { <div class="lm-path">@path</div> }</li>
+                                }
+                            </ul>
+                        }
+                        @if (guides.Count > 0)
+                        {
+                            <div class="lm-result-title">راهنماها</div>
+                            <ul class="lm-links">
+                                @foreach (var guide in guides)
+                                {
+                                    <li><a class="lm-link" href="/guides/@guide.Id"><i class="ti @Icons.Guide"></i> @guide.Title</a></li>
+                                }
+                            </ul>
+                        }
+                        @if (pictures.Count > 0)
+                        {
+                            <div class="lm-result-title">گالری تصاویر</div>
+                            <ul class="lm-links">
+                                @foreach (var picture in pictures)
+                                {
+                                    <li><a class="lm-link" href="/gallery"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
+                                }
+                            </ul>
+                        }
+                        @if (contacts.Count > 0)
+                        {
+                            <div class="lm-result-title">دفترچه تلفن</div>
+                            <ul class="lm-links">
+                                @foreach (var contact in contacts)
+                                {
+                                    <li><a class="lm-link" href="/phone-book"><i class="ti ti-phone"></i> @contact.FullName@if (!string.IsNullOrWhiteSpace(contact.Extension)) { <span class="lm-path"> داخلی @contact.Extension</span> }</a></li>
                                 }
                             </ul>
                         }
@@ -76,6 +116,19 @@
 
     // The links tree (groups, sub-groups and ungrouped links) handed in by the home page.
     [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
+
+    // The guides, the gallery pictures and the phone book handed in by the home page; the search looks through them too.
+    [Parameter] public IReadOnlyList<GuideListItem> Guides { get; set; } = [];
+    [Parameter] public IReadOnlyList<GalleryListItem> Pictures { get; set; } = [];
+    [Parameter] public PhoneBookTree? Phones { get; set; }
+
+    // How many results of each kind the small search panel shows (the full pages have the rest).
+    private const int HitsShown = 5;
+
+    // The guides, pictures and contacts that match the search, at most a few of each. They use the same search rules as their own pages.
+    private IReadOnlyList<GuideListItem> GuideHits => GuideCatalog.Search(Guides, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<GalleryListItem> PictureHits => GalleryCatalog.Filter(Pictures, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<Contact> ContactHits => Phones is null ? [] : Phones.Filter(_query).Groups.SelectMany(g => g.Contacts).Take(HitsShown).ToList();
 
     // True while the search box holds some text.
     private bool Searching => _query.Trim().Length > 0;
