@@ -37,6 +37,8 @@
         <div class="shell-main">
             @* Top bar: signed-in users get the notification bell, active position, avatar, name and sign-out button; others get a sign-in button. *@
             <header class="topbar">
+                @* The search box sits first in the bar (on the right in right-to-left reading), on every page. *@
+                <YasPortal.Web.Components.Shared.TopBarSearch />
                 <AuthorizeView>
                     <Authorized Context="auth">
                         <div class="topbar-user">

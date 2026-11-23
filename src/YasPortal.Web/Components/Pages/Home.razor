@@ -7,8 +7,6 @@
 @using YasPortal.Infrastructure.Gallery
 @using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Landing
-@using YasPortal.Infrastructure.PhoneBook
-@using YasPortal.Domain.PhoneBook
 @using System.Security.Claims
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -18,7 +16,6 @@
 @inject PortalLinkProvider LinkProvider
 @inject GuideProvider GuideProv
 @inject GalleryProvider GalleryProv
-@inject PhoneBookProvider PhoneProv
 @inject WorkflowService Workflows
 @inject NotificationService NotificationsService
 @inject AuthenticationStateProvider AuthState
@@ -87,7 +84,7 @@ else
         @* The link menu and quick-access links are maintained by an administrator in the home page content section. *@
         @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
         {
-            <LinkMenuBar Tree="_tree" Guides="_guides" Pictures="_pictures" Phones="_phones" />
+            <LinkMenuBar Tree="_tree" />
         }
 
         @if (_tree.QuickAccess.Count > 0)
@@ -132,7 +129,7 @@ else
             }
         </section>
 
-        @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens the gallery. *@
+        @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens that picture large in the gallery. *@
         @if (_pictures.Count > 0)
         {
             <section class="landing-section">
@@ -140,7 +137,7 @@ else
                 <div class="landing-pictures">
                     @foreach (var picture in _pictures.Take(PicturesShown))
                     {
-                        <a class="landing-picture" href="/gallery" title="@picture.Title"><img src="@GalleryImage.UrlFor(picture.Id, picture.Version)" alt="@picture.Title" loading="lazy" decoding="async" /></a>
+                        <a class="landing-picture" href="/gallery?open=@picture.Id" title="@picture.Title"><img src="@GalleryImage.UrlFor(picture.Id, picture.Version)" alt="@picture.Title" loading="lazy" decoding="async" /></a>
                     }
                 </div>
             </section>
@@ -187,8 +184,6 @@ else
     // What the front page shows from the guides and the gallery.
     private IReadOnlyList<GuideListItem> _guides = [];
     private IReadOnlyList<GalleryListItem> _pictures = [];
-    // The phone book (switched-on contacts only), used by the menu bar search.
-    private PhoneBookTree? _phones;
     // How many guides and pictures are previewed on this page.
     private const int GuidesShown = 5, PicturesShown = 6;
     private int _index;
@@ -223,7 +218,6 @@ else
         _guides = await GuideProv.ListAsync(_signedIn);
         if (_signedIn) _personal = await LoadPersonalAsync(user);
         _pictures = await GalleryProv.ListAsync();
-        _phones = await PhoneProv.GetTreeAsync();
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;

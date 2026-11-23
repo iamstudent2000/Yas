@@ -1,0 +1,167 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Landing
+@using YasPortal.Domain.Gallery
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Gallery
+@using YasPortal.Infrastructure.Guides
+@using YasPortal.Infrastructure.Landing
+@using YasPortal.Infrastructure.PhoneBook
+@implements IDisposable
+@inject PortalLinkProvider LinkProvider
+@inject GuideProvider GuideProv
+@inject GalleryProvider GalleryProv
+@inject PhoneBookProvider PhoneProv
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@* The search box in the top bar, on every page. It looks through the portal links, the guides, the gallery pictures and the phone book. *@
+@* The things to search are loaded once, the first time the person clicks in the box, so pages that never use it pay nothing. *@
+@* Results appear in a small panel with labeled parts (at most a few of each); a click on a result opens its page, and Escape, a click outside or a page change closes the panel. *@
+<div class="ts" dir="rtl" @onkeydown="OnKeyDown">
+    @if (Searching)
+    {
+        @* An invisible layer behind the panel: a click anywhere outside closes the search. *@
+        <div class="ts-backdrop" @onclick="Close"></div>
+    }
+    <div class="ts-box">
+        <i class="ti ti-search"></i>
+        <input type="search" placeholder="جستجو در پیوندها، راهنماها، تصاویر و دفترچه تلفن..." aria-label="جستجوی همه‌جا" value="@_query" @oninput="OnSearch" @onfocus="EnsureLoadedAsync" />
+    </div>
+    @if (Searching)
+    {
+        var links = LinkHits;
+        var guides = GuideHits;
+        var pictures = PictureHits;
+        var contacts = ContactHits;
+        <div class="lm-panel ts-panel">
+            @if (!_loaded)
+            {
+                <p class="muted">در حال بارگذاری...</p>
+            }
+            else if (links.Count + guides.Count + pictures.Count + contacts.Count == 0)
+            {
+                <p class="muted">چیزی با این عبارت پیدا نشد.</p>
+            }
+            @if (links.Count > 0)
+            {
+                <div class="lm-result-title">پیوندها</div>
+                <ul class="lm-links">
+                    @foreach (var (path, link) in links)
+                    {
+                        <li><LinkMenuEntry Link="link" />@if (path.Length > 0) { <div class="lm-path">@path</div> }</li>
+                    }
+                </ul>
+            }
+            @if (guides.Count > 0)
+            {
+                <div class="lm-result-title">راهنماها</div>
+                <ul class="lm-links">
+                    @foreach (var guide in guides)
+                    {
+                        <li><a href="/guides/@guide.Id"><i class="ti @Icons.Guide"></i> @guide.Title</a></li>
+                    }
+                </ul>
+            }
+            @if (pictures.Count > 0)
+            {
+                <div class="lm-result-title">گالری تصاویر</div>
+                <ul class="lm-links">
+                    @foreach (var picture in pictures)
+                    {
+                        <li><a href="/gallery?open=@picture.Id"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
+                    }
+                </ul>
+            }
+            @if (contacts.Count > 0)
+            {
+                <div class="lm-result-title">دفترچه تلفن</div>
+                <ul class="lm-links">
+                    @foreach (var contact in contacts)
+                    {
+                        <li><a href="/phone-book?q=@Uri.EscapeDataString(contact.FullName)"><i class="ti ti-phone"></i> @contact.FullName@if (!string.IsNullOrWhiteSpace(contact.Extension)) { <span class="lm-path"> داخلی @contact.Extension</span> }</a></li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // How many results of each kind the small panel shows (the full pages have the rest).
+    private const int HitsShown = 5;
+
+    // The text typed, and what can be searched (filled once, on first use).
+    private string _query = "";
+    private bool _loaded, _loading;
+    private LinkTree _tree = LinkTree.Build([], []);
+    private IReadOnlyList<GuideListItem> _guides = [];
+    private IReadOnlyList<GalleryListItem> _pictures = [];
+    private PhoneBookTree _phones = new();
+
+    private bool Searching => _query.Trim().Length > 0;
+
+    // Close the panel after every page change (a click on a result opens another page).
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _query = "";
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    // Loads what can be searched, once. Guides depend on whether the person is signed in; the phone book shows switched-on contacts only.
+    private async Task EnsureLoadedAsync()
+    {
+        if (_loaded || _loading) return;
+        _loading = true;
+        var user = (await AuthState.GetAuthenticationStateAsync()).User;
+        var signedIn = user.Identity?.IsAuthenticated == true;
+        _tree = await LinkProvider.GetTreeAsync();
+        _guides = await GuideProv.ListAsync(signedIn);
+        _pictures = await GalleryProv.ListAsync();
+        _phones = await PhoneProv.GetTreeAsync();
+        _loaded = true;
+        _loading = false;
+    }
+
+    // Typing: remember the text (and load the data if the focus event was missed).
+    private async Task OnSearch(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        await EnsureLoadedAsync();
+    }
+
+    private void Close() => _query = "";
+
+    // Escape closes the results.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
+    }
+
+    // Every matching link with the group path it lives in (shown small under the link).
+    private List<(string Path, PortalLink Link)> LinkHits
+    {
+        get
+        {
+            var found = _tree.Filter(_query);
+            var list = new List<(string, PortalLink)>();
+            void Walk(LinkGroupNode node, string path)
+            {
+                var here = path.Length == 0 ? node.Name : path + " › " + node.Name;
+                list.AddRange(node.Links.Select(l => (here, l)));
+                foreach (var child in node.Children) Walk(child, here);
+            }
+            foreach (var group in found.Groups) Walk(group, "");
+            list.AddRange(found.Ungrouped.Select(l => ("", l)));
+            return list.Take(HitsShown * 2).ToList();
+        }
+    }
+
+    // Guides, pictures and contacts that match, using the same search rules as their own pages.
+    private IReadOnlyList<GuideListItem> GuideHits => GuideCatalog.Search(_guides, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<GalleryListItem> PictureHits => GalleryCatalog.Filter(_pictures, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<Contact> ContactHits => _phones.Filter(_query).Groups.SelectMany(g => g.Contacts).Take(HitsShown).ToList();
+}
