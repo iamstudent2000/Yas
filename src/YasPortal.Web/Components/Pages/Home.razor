@@ -17,7 +17,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
-@* The public front page: open to everyone (texts from LandingContent, the links and slides, and a short preview of the guides and the gallery). At "/" a signed-in person is
+@* The public front page: open to everyone (texts from LandingContent, the links and slides, and a short preview of the guides and the gallery). The only sign-in button is the one in the top bar. At "/" a signed-in person is
    sent on to the dashboard (or, without that permission, sees a short welcome); "/home" shows this page to everyone, signed in or not
    (the sidebar's "صفحه اصلی" link). The personal sidebar appears only after sign-in. *@
 
@@ -39,18 +39,6 @@ else if (!_showLanding)
 else
 {
     <div class="landing" dir="rtl">
-        @* Top strip: a greeting, and for a visitor who is not signed in a clear sign-in button (it used to be only inside the slide and at the bottom). *@
-        <section class="landing-welcome">
-            <div>
-                <strong>@(_signedIn ? "خوش آمدید" + (string.IsNullOrWhiteSpace(_userName) ? "" : "، " + _userName) : "به یاس پورتال خوش آمدید")</strong>
-                <span>@(_signedIn ? "از منوی کناری یا پیوندهای زیر ادامه دهید." : "برای استفاده از امکانات سامانه وارد شوید.")</span>
-            </div>
-            @if (!_signedIn)
-            {
-                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
-            }
-        </section>
-
         @* The link menu and quick-access links are maintained by an administrator in the home page content section. They come first, *@
         @* because they are what people use most; the banner slides follow. *@
         @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
@@ -61,8 +49,8 @@ else
         @if (_tree.QuickAccess.Count > 0)
         {
             <section class="landing-quick" aria-label="دسترسی سریع">
-                <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
                 <div class="landing-quick-links">
+                    <span class="landing-quick-title"><i class="ti ti-bolt"></i> دسترسی سریع</span>
                     @foreach (var link in _tree.QuickAccess)
                     {
                         <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
@@ -83,10 +71,6 @@ else
                     <h1>@slide.Title</h1>
                     <p>@slide.Text</p>
                     <div class="landing-slide-actions">
-                        @if (!_signedIn)
-                        {
-                            <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
-                        }
                         @if (!string.IsNullOrWhiteSpace(slide.LinkText) && !string.IsNullOrWhiteSpace(slide.LinkUrl) && slide.LinkUrl != "/login")
                         {
                             <a class="btn btn-secondary" href="@slide.LinkUrl">@slide.LinkText</a>
@@ -168,19 +152,6 @@ else
                 }
             </div>
         </section>
-
-        <section class="landing-cta">
-            <div>
-                <strong>منوها و امکانات شما پس از ورود نمایش داده می‌شود</strong>
-                <span>هر کاربر فقط بخش‌هایی را می‌بیند که مجوز آن‌ها را دارد.</span>
-            </div>
-            <div class="form-actions">
-                @if (!_signedIn)
-                {
-                    <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
-                }
-            </div>
-        </section>
     </div>
 }
 
@@ -188,8 +159,7 @@ else
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     // True while the mouse is over the slides (they do not turn then).
     private bool _paused;
-    // The name shown in the greeting (the sign-in name), and what the front page shows from the guides and the gallery.
-    private string? _userName;
+    // What the front page shows from the guides and the gallery.
     private IReadOnlyList<GuideListItem> _guides = [];
     private IReadOnlyList<GalleryListItem> _pictures = [];
     // How many guides and pictures are previewed on this page.
@@ -211,7 +181,6 @@ else
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _signedIn = user.Identity?.IsAuthenticated == true;
-        _userName = _signedIn ? user.Identity?.Name : null;
         if (_signedIn)
         {
             _canDashboard = (await AuthzService.AuthorizeAsync(user, Perm.DashboardPageView)).Succeeded;

@@ -1,7 +1,7 @@
 /* Public landing page (Components/Pages/Home.razor): slides, quick links, general information. Scoped under .landing. */
-.landing{display:flex;flex-direction:column;gap:28px;max-width:1100px;margin:0 auto;padding:8px 0 32px}
-.landing-hero{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff;min-height:200px;display:flex;align-items:center}
-.landing-slide{display:flex;align-items:center;gap:28px;padding:28px 72px;width:100%;animation:landing-fade .45s ease}
+.landing{display:flex;flex-direction:column;gap:14px;max-width:1100px;margin:0 auto;padding:8px 0 32px}
+.landing-hero{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff;min-height:170px;display:flex;align-items:center}
+.landing-slide{display:flex;align-items:center;gap:24px;padding:22px 72px 30px;width:100%;animation:landing-fade .45s ease}
 .landing-slide-icon{flex:0 0 auto;width:92px;height:92px;border-radius:24px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:46px}
 .landing-slide-body h1{margin:0 0 10px;font-size:1.7rem;line-height:1.5;color:#fff}
 .landing-slide-body p{margin:0 0 18px;font-size:1.02rem;line-height:2;opacity:.94;max-width:640px}
@@ -14,7 +14,7 @@
 .landing-dots{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:8px}
 .landing-dot{width:9px;height:9px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.45);cursor:pointer}
 .landing-dot.is-active{background:#fff;width:24px;border-radius:6px}
-.landing-heading{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:1.15rem;color:var(--text)}
+.landing-heading{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:1.15rem;color:var(--text)}
 .landing-heading .ti{color:var(--accent)}
 .landing-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .landing-link{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);text-decoration:none;transition:border-color .15s,box-shadow .15s,transform .15s}
@@ -26,9 +26,6 @@
 .landing-info-card{padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 .landing-info-card h3{margin:12px 0 6px;font-size:1.02rem}
 .landing-info-card p{margin:0;color:var(--text-muted);line-height:1.9}
-.landing-cta{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:18px 22px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent-soft2)}
-.landing-cta strong{display:block}
-.landing-cta span{color:var(--text-muted)}
 @keyframes landing-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (max-width:720px){.landing-slide{flex-direction:column;align-items:flex-start;padding:28px 22px 44px}.landing-nav{display:none}}
 @media (prefers-reduced-motion:reduce){.landing-slide{animation:none}}
@@ -44,7 +41,7 @@
 .lm-top .ti-folder{color:var(--accent)}
 .lm-caret{font-size:12px;transition:transform .15s}
 .lm-top.is-open .lm-caret{transform:rotate(180deg)}
-.lm-quick a{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;color:var(--accent-strong);background:var(--accent-soft);text-decoration:none;font-weight:600}
+.lm-quick a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;color:var(--accent-strong);background:var(--accent-soft);text-decoration:none;font-weight:600}
 .lm-quick a small{display:none}
 .lm-quick a:hover{background:var(--accent-soft2)}
 .lm-panel{position:absolute;top:100%;inset-inline-start:0;z-index:3;min-width:240px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(16,24,40,.16)}
@@ -69,16 +66,14 @@
 @media (max-width:720px){.lm-search{margin-inline-end:0;width:100%}.lm-search input{flex:1}.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
 
 /* Quick access: its own frame under the links menu */
-.landing-quick{padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
-.landing-quick .landing-heading{margin-bottom:12px}
-.landing-quick-links{display:flex;flex-wrap:wrap;gap:10px}
+.landing-quick{padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.landing-quick-title{display:inline-flex;align-items:center;gap:6px;font-weight:700;color:var(--text);margin-inline-end:6px}
+.landing-quick-title .ti{color:var(--accent)}
+.landing-quick-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 
 /* Front page additions: greeting strip, tiles for the public pages, gallery pictures and guide list */
-.landing-welcome{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 20px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
-.landing-welcome strong{display:block;font-size:1.05rem}
-.landing-welcome span{color:var(--text-muted)}
-.landing-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.landing-tile{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);text-decoration:none}
+.landing-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.landing-tile{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);text-decoration:none}
 .landing-tile:hover,.landing-tile:focus-visible{border-color:var(--accent)}
 .landing-tile strong{display:block}
 .landing-tile small{display:block;color:var(--text-muted);margin-top:2px}
