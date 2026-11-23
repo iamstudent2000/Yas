@@ -57,7 +57,7 @@
                             <ul class="lm-links">
                                 @foreach (var picture in pictures)
                                 {
-                                    <li><a class="lm-link" href="/gallery"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
+                                    <li><a class="lm-link" href="/gallery?q=@Uri.EscapeDataString(picture.Title)"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
                                 }
                             </ul>
                         }
@@ -67,7 +67,7 @@
                             <ul class="lm-links">
                                 @foreach (var contact in contacts)
                                 {
-                                    <li><a class="lm-link" href="/phone-book"><i class="ti ti-phone"></i> @contact.FullName@if (!string.IsNullOrWhiteSpace(contact.Extension)) { <span class="lm-path"> داخلی @contact.Extension</span> }</a></li>
+                                    <li><a class="lm-link" href="/phone-book?q=@Uri.EscapeDataString(contact.FullName)"><i class="ti ti-phone"></i> @contact.FullName@if (!string.IsNullOrWhiteSpace(contact.Extension)) { <span class="lm-path"> داخلی @contact.Extension</span> }</a></li>
                                 }
                             </ul>
                         }

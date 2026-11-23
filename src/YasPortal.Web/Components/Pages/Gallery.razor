@@ -144,6 +144,8 @@
     // What the visitor typed in the search box (the pictures are filtered at every keystroke), and the group button chosen: null = all groups, "" = the pictures without a group.
     private string _query = "";
     private string? _group;
+    // Search text from the address (/gallery?q=...), set by the home page search.
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
     // The search text. Typing changes the pictures shown, so the large view is closed and the sections are worked out again.
     private string Query
@@ -170,6 +172,7 @@
     // On opening: load the pictures and arrange them.
     protected override async Task OnInitializedAsync()
     {
+        _query = Q ?? "";
         _images = await Provider.ListAsync();
         _groupNames = _images.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct().ToList();
         _hasUngrouped = _images.Any(g => g.GroupName is null);

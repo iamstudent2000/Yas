@@ -31,7 +31,7 @@
     }
     else
     {
-        <PhoneBookView Tree="_tree" CanPrint="_canPrint" PrintBlocked="!_canPrint" />
+        <PhoneBookView InitialQuery="@Q" Tree="_tree" CanPrint="_canPrint" PrintBlocked="!_canPrint" />
     }
 </div>
 
@@ -39,6 +39,8 @@
     // _tree is the whole grouped directory; _canPrint says whether this visitor may print it.
     private PhoneBookTree? _tree;
     private bool _canPrint;
+    // Search text from the address (/phone-book?q=...), set by the home page search.
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
