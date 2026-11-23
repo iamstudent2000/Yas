@@ -5,16 +5,18 @@
 @using YasPortal.Domain.Gallery
 @using YasPortal.Domain.Guides
 @using YasPortal.Domain.Paging
+@using YasPortal.Infrastructure.Gallery
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @attribute [Authorize(Policy = Perm.AdminGalleryView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
+@inject GalleryGroupService GalleryGroups
 @inject AppState AppState
 
 @* Image gallery management page (/admin/gallery). Administrators upload one or several pictures (png, jpg, gif, webp), give each *@
-@* a title and an optional caption, set the order, switch a picture on or off and delete it. Switched-on pictures are shown to *@
+@* a title, an optional caption and an optional group, set the order, switch a picture on or off and delete it. Switched-on pictures are shown to *@
 @* everyone on the public gallery page (/gallery). People with the view permission can look; people with the manage permission can change. *@
 <PageTitle>گالری تصاویر - یاس پورتال</PageTitle>
 
@@ -38,6 +40,7 @@
         <div class="form-actions no-print">
             <button class="btn @(_tab == "list" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "list")">تصاویر</button>
             <button class="btn @(_tab == "form" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "form")">بارگذاری تصویر</button>
+            <button class="btn @(_tab == "groups" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "groups")">گروه‌ها</button>
         </div>
     }
 
@@ -90,6 +93,11 @@
                 {
                     <p class="muted" style="margin:12px 0 0">عنوان هر تصویر از نام فایل آن گرفته می‌شود؛ بعد از بارگذاری می‌توانید عنوان و توضیح هر کدام را ویرایش کنید.</p>
                 }
+                @* The group is picked from the list of groups (made on the groups tab). Uploaded pictures all go into the chosen group. *@
+                <div class="admin-row-grid" style="margin-top:12px">
+                    <div class="form-field"><label class="form-label">گروه (اختیاری)</label>
+                        <LookupSelect @key="_formKey" Options="FormGroupOptions" Value="@(_groupId?.ToString())" ValueChanged="k => _groupId = Guid.TryParse(k, out var pickedGroup) ? pickedGroup : null" Placeholder="بدون گروه" SearchPlaceholder="جستجوی گروه..." /></div>
+                </div>
                 <div class="admin-row-grid" style="margin-top:12px">
                     <div class="form-field admin-row-submit"><div class="form-actions">
                         <button class="btn btn-primary" disabled="@_saving" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "بارگذاری" : "ذخیره")</button>
@@ -104,13 +112,73 @@
             </FormHost>
         }
 
+        @* Groups tab (only for people who may manage the gallery): add, rename, order, switch on or off and delete the groups that gather *@
+        @* pictures under one heading on the gallery page. It works like the groups of the guides. An existing group is edited in a window over the list. *@
+        @if (_tab == "groups" && _canManage)
+        {
+            <FormHost Modal="@(_editGroupId is not null)" OnClose="ResetGroupForm" Size="small" CloseOnOutsideClick="true">
+            <section class="card admin-form-row">
+                <div class="admin-form-row-head">
+                    <h2 class="section-title"><i class="ti @(_editGroupId is null ? Icons.Add : Icons.Edit)"></i> @(_editGroupId is null ? "افزودن گروه" : "ویرایش گروه")</h2>
+                    <p class="muted">مثلاً «مراسم» یا «محل کار». تصاویر هر گروه در صفحه گالری زیر یک عنوان می‌آیند.</p>
+                </div>
+                <div class="admin-row-grid">
+                    <div class="form-field is-grow"><label class="form-label">نام گروه</label><input class="form-control" @bind="_groupName" maxlength="@GalleryGroup.NameMax" /></div>
+                    <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_groupOrder" /></div>
+                    <div class="form-field admin-row-submit"><div class="form-actions">
+                        <button class="btn btn-primary" disabled="@_groupBusy" @onclick="SaveGroupAsync"><i class="ti @Icons.Save"></i> @(_editGroupId is null ? "افزودن گروه" : "ذخیره")</button>
+                        @if (_editGroupId is not null) { <button class="btn btn-secondary" @onclick="ResetGroupForm">انصراف</button> }
+                    </div></div>
+                </div>
+            </section>
+            </FormHost>
+
+            @* The list of groups with the number of pictures in each, and buttons to edit, switch on or off and delete (delete asks twice). *@
+            <section class="card">
+                <h2 class="section-title"><i class="ti @Icons.Gallery"></i> گروه‌ها</h2>
+                <p class="muted">گروهِ غیرفعال همراه با تصاویرش از دید بازدیدکنندگان پنهان می‌شود (خود تصاویر پاک نمی‌شوند). گروهی که تصویر دارد حذف نمی‌شود.</p>
+                <div class="data-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>نام</th><th>ترتیب</th><th>تعداد تصویر</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                        <tbody>
+                            @foreach (var group in _groups)
+                            {
+                                <tr>
+                                    <td>@group.Name</td>
+                                    <td>@group.SortOrder</td>
+                                    <td>@(_groupCounts.TryGetValue(group.Id, out var imageCount) ? imageCount : 0)</td>
+                                    <td>@if (group.IsActive) { <span class="badge badge-success">فعال</span> } else { <span class="badge badge-muted">غیرفعال</span> }</td>
+                                    <td><div class="form-actions">
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroup(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                        <button class="btn btn-secondary btn-sm" disabled="@_groupBusy" @onclick="() => ToggleGroupAsync(group)">@(group.IsActive ? "غیرفعال‌کردن" : "فعال‌کردن")</button>
+                                        @if (_confirmGroupId == group.Id)
+                                        {
+                                            <button class="btn btn-danger btn-sm" disabled="@_groupBusy" @onclick="() => DeleteGroupAsync(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                            <button class="btn btn-secondary btn-sm" @onclick="() => _confirmGroupId = null">انصراف</button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-danger btn-sm" @onclick="() => _confirmGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                        }
+                                    </div></td>
+                                </tr>
+                            }
+                            @if (_groups.Count == 0) { <tr><td colspan="5" class="muted">هنوز گروهی تعریف نشده است.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
         @* The list of pictures with their status and action buttons. *@
         @if (_tab == "list")
         {
         @* Search card, like the other lists: nothing is filtered until "جستجو" is pressed. It looks at title, caption and file name. *@
         <ListFilterBar Busy="_loading" ActiveCount="FilterCount" CanClear="@(FilterCount > 0 || HasDraft)" OnSearch="ApplyFilters" OnClear="ClearFilters">
             <div class="admin-filter"><label class="form-label">جستجو</label>
-                <input class="form-control" placeholder="عنوان، توضیح یا نام فایل..." @bind="_dSearch" @bind:event="oninput" /></div>
+                <input class="form-control" placeholder="عنوان، توضیح، گروه یا نام فایل..." @bind="_dSearch" @bind:event="oninput" /></div>
+            <div class="admin-filter"><label class="form-label">گروه</label>
+                <LookupSelect Options="GroupOptions" Value="@_dGroup" ValueChanged="k => _dGroup = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه گروه‌ها" SearchPlaceholder="جستجوی گروه..." /></div>
             <div class="admin-filter"><label class="form-label">وضعیت</label>
                 <LookupSelect Options="StatusOptions" Value="@_dStatus" ValueChanged="k => _dStatus = string.IsNullOrEmpty(k) ? null : k" Placeholder="همه" /></div>
         </ListFilterBar>
@@ -145,18 +213,20 @@
                             <th>تصویر</th>
                             <SortableHeader Text="ترتیب" Column="order" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
                             <SortableHeader Text="عنوان" Column="title" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
+                            <SortableHeader Text="گروه" Column="group" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
                             <SortableHeader Text="فایل" Column="file" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
                             <SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" />
                             @if (_canManage) { <th>عملیات</th> }
                         </tr></thead>
                         <tbody>
-                        @* One row per picture: a small preview, order, title and caption, file, status and actions. *@
+                        @* One row per picture: a small preview, order, title and caption, group, file, status and actions. *@
                         @foreach (var image in ListPaging.Slice(sorted, _page, _pageSize))
                         {
                             <tr>
                                 <td><img class="gallery-admin-thumb" src="@GalleryImage.UrlFor(image.Id, image.Version)" alt="" loading="lazy" /></td>
                                 <td>@image.SortOrder</td>
                                 <td><strong>@image.Title</strong>@if (image.Caption is not null) { <div class="muted">@image.Caption</div> }</td>
+                                <td>@if (image.GroupId is not null) { <span class="badge badge-info">@GroupLabel(image.GroupId)</span> } else { <span class="muted">—</span> }</td>
                                 <td><span dir="ltr">@image.FileName</span><div class="muted">@SizeText(image.SizeBytes)</div></td>
                                 <td><span class="badge @(image.IsActive ? "badge-success" : "badge-muted")">@(image.IsActive ? "فعال" : "غیرفعال")</span></td>
                                 @* Edit, switch on/off and delete buttons only for people who may manage the gallery. *@
@@ -201,7 +271,9 @@
     // ---- search, sorting and paging of the list ----
     // Applied filter values and what is typed in the search card (applied only when "جستجو" is pressed).
     private string _search = "", _dSearch = "";
-    private string? _status, _dStatus;
+    private string? _status, _dStatus, _group, _dGroup;
+    // Key used in the group filter for "pictures without a group" (a real group id can never look like this).
+    private const string NoGroupKey = "\u0001none";
     // The column the list is sorted by (empty = the display order set by the administrator), its direction, and the page shown.
     private string? _sortBy;
     private bool _sortDesc;
@@ -210,26 +282,27 @@
     private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("فعال", "فعال"), ("غیرفعال", "غیرفعال")];
 
     // How many filters are applied right now, and whether something typed or picked is not applied yet.
-    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_status is null ? 0 : 1);
-    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dStatus is not null;
+    private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
+    private bool HasDraft => !string.IsNullOrWhiteSpace(_dSearch) || _dGroup is not null || _dStatus is not null;
 
     // The pictures left after the applied filters, in the chosen sort order (the administrator's display order when no column is chosen).
     private IReadOnlyList<GalleryImage> Sorted
     {
         get
         {
-            var rows = _images.Where(x => GalleryImage.Matches(x.Title, x.Caption, x.FileName, _search)
+            var rows = _images.Where(x => GalleryImage.Matches(x.Title, x.Caption, x.FileName, GroupNameOf(x.GroupId), _search)
+                && (_group is null || (_group == NoGroupKey ? x.GroupId is null : x.GroupId?.ToString() == _group))
                 && (_status is null || (x.IsActive ? "فعال" : "غیرفعال") == _status));
             return TableSort.Apply(rows, _sortBy, _sortDesc,
-                ("order", x => x.SortOrder), ("title", x => x.Title), ("file", x => x.FileName), ("status", x => x.IsActive ? "فعال" : "غیرفعال"));
+                ("order", x => x.SortOrder), ("title", x => x.Title), ("group", x => GroupNameOf(x.GroupId)), ("file", x => x.FileName), ("status", x => x.IsActive ? "فعال" : "غیرفعال"));
         }
     }
 
     // Search button: apply what was typed and picked, and go back to the first page.
-    private void ApplyFilters() { (_search, _status) = (_dSearch.Trim(), _dStatus); _page = 1; }
+    private void ApplyFilters() { (_search, _group, _status) = (_dSearch.Trim(), _dGroup, _dStatus); _page = 1; }
 
     // Clear button: forget every filter.
-    private void ClearFilters() { (_dSearch, _dStatus) = ("", null); ApplyFilters(); }
+    private void ClearFilters() { (_dSearch, _dGroup, _dStatus) = ("", null, null); ApplyFilters(); }
 
     // Heading click: sort by that column (again = reverse) and go back to the first page.
     private void SortBy(string column) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, column); _page = 1; }
@@ -249,6 +322,102 @@
     private List<IBrowserFile> _files = [];
     private static readonly string _accept = string.Join(",", GalleryImage.AllowedExtensions);
 
+    // ---- gallery groups ----
+    // The groups (also the switched-off ones) and how many pictures each holds; loaded together with the pictures.
+    private IReadOnlyList<GalleryGroup> _groups = [];
+    private IReadOnlyDictionary<Guid, int> _groupCounts = new Dictionary<Guid, int>();
+    // The group picked in the picture form (empty = no group).
+    private Guid? _groupId;
+    // The group form on the groups tab: which group is being edited (empty = a new one), its name and order number.
+    private Guid? _editGroupId, _confirmGroupId;
+    private string _groupName = "";
+    private int _groupOrder;
+    private bool _groupBusy;
+    private const string NotAllowedGroups = "اجازه‌ی مدیریت گروه‌ها را ندارید.";
+
+    // The name of a group, or null when the picture has no group (or the group is not in the list).
+    private string? GroupNameOf(Guid? id) => id is Guid g ? _groups.FirstOrDefault(x => x.Id == g)?.Name : null;
+
+    // The name shown in the list; a switched-off group is marked.
+    private string GroupLabel(Guid? id) => id is Guid g && _groups.FirstOrDefault(x => x.Id == g) is { } group ? (group.IsActive ? group.Name : group.Name + " (غیرفعال)") : "";
+
+    // The choices of the group filter: every group (a switched-off one is marked) and "no group".
+    private IReadOnlyList<(string Key, string Text)> GroupOptions =>
+        _groups.Select(g => (g.Id.ToString(), g.IsActive ? g.Name : g.Name + " (غیرفعال)")).Append((NoGroupKey, "بدون گروه")).ToList();
+
+    // The groups offered in the picture form: the ones that are on, plus the group the edited picture already belongs to (even if it was switched off later).
+    private IReadOnlyList<(string Key, string Text)> FormGroupOptions
+    {
+        get
+        {
+            var current = _editingId is Guid eid ? _images.FirstOrDefault(x => x.Id == eid)?.GroupId : null;
+            return _groups.Where(g => g.IsActive || g.Id == current).Select(g => (g.Id.ToString(), g.IsActive ? g.Name : g.Name + " (غیرفعال)")).ToList();
+        }
+    }
+
+    // Edit button on a group: copy it into the form; the form opens in a window over the list.
+    private void BeginEditGroup(GalleryGroup group) { _editGroupId = group.Id; _groupName = group.Name; _groupOrder = group.SortOrder; }
+
+    // Cancel or finish: empty the group form (this also closes the edit window) and suggest the next free order number.
+    private void ResetGroupForm()
+    {
+        _editGroupId = null; _groupName = "";
+        _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
+    }
+
+    // Save a new group or the changes to an edited one; the service refuses an empty, too long or already used name.
+    // The permission is checked again at the moment of every group change (it may have changed since the page was drawn).
+    private async Task SaveGroupAsync()
+    {
+        if (_groupBusy || !_canManage) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await PermissionChecker.HasPermissionAsync(Perm.AdminGalleryManage)) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GalleryGroups.SaveAsync(_editGroupId, _groupName, _groupOrder);
+            if (!result.Ok) { AppState.AddToast(result.Error!, ToastLevel.Error); return; }
+            AppState.AddToast(_editGroupId is null ? "گروه اضافه شد." : "گروه ذخیره شد.", ToastLevel.Success);
+            _editGroupId = null; _groupName = "";
+            await LoadAsync();
+            ResetGroupForm();
+        }
+        finally { _groupBusy = false; }
+    }
+
+    // Switch a group on or off. Off hides the group and its pictures from visitors.
+    private async Task ToggleGroupAsync(GalleryGroup group)
+    {
+        if (_groupBusy) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await PermissionChecker.HasPermissionAsync(Perm.AdminGalleryManage)) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GalleryGroups.SetActiveAsync(group.Id, !group.IsActive);
+            if (!result.Ok) { AppState.AddToast(result.Error!, ToastLevel.Error); return; }
+            AppState.AddToast(group.IsActive ? "گروه غیرفعال شد." : "گروه فعال شد.", ToastLevel.Success);
+            await LoadAsync();
+        }
+        finally { _groupBusy = false; }
+    }
+
+    // Delete a group that no picture uses (the service refuses otherwise and says why).
+    private async Task DeleteGroupAsync(Guid id)
+    {
+        _confirmGroupId = null;
+        if (_groupBusy) return;
+        _groupBusy = true;
+        try
+        {
+            if (!await PermissionChecker.HasPermissionAsync(Perm.AdminGalleryManage)) { AppState.AddToast(NotAllowedGroups, ToastLevel.Error); return; }
+            var result = await GalleryGroups.DeleteAsync(id);
+            if (!result.Ok) { AppState.AddToast(result.Error!, ToastLevel.Error); return; }
+            AppState.AddToast("گروه حذف شد.", ToastLevel.Success);
+            if (_editGroupId == id) ResetGroupForm();
+            await LoadAsync();
+        }
+        finally { _groupBusy = false; }
+    }
+
     // On opening: find out whether the person may manage the gallery, then load the pictures.
     protected override async Task OnInitializedAsync()
     {
@@ -257,9 +426,12 @@
         _loading = false;
     }
 
-    // Load all pictures' details in display order (the bytes stay in the database).
+    // Load the groups and all pictures' details in display order (the bytes stay in the database). The groups come first: the form, the filter and the list column need their names.
     private async Task LoadAsync()
     {
+        _groups = await GalleryGroups.ListAsync(true);
+        _groupCounts = await GalleryGroups.CountImagesAsync();
+        if (_editGroupId is null) _groupOrder = _groups.Count == 0 ? 1 : _groups.Max(x => x.SortOrder) + 1;
         await using var db = await DbFactory.CreateDbContextAsync();
         _images = await db.GalleryImages.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToListAsync();
     }
@@ -273,7 +445,7 @@
     {
         _editingId = image.Id;
         _editingUrl = GalleryImage.UrlFor(image.Id, image.Version);
-        _title = image.Title; _caption = image.Caption ?? ""; _sortOrder = image.SortOrder;
+        _title = image.Title; _caption = image.Caption ?? ""; _sortOrder = image.SortOrder; _groupId = image.GroupId;
         _files = [];
         _formKey++;
     }
@@ -291,6 +463,7 @@
     {
         _editingId = null;
         _title = _caption = "";
+        _groupId = null;
         _files = [];
         _formKey++;
     }
@@ -327,7 +500,10 @@
             {
                 var image = await db.GalleryImages.SingleOrDefaultAsync(x => x.Id == id);
                 if (image is null) { AppState.AddToast("این تصویر دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
-                image.Update(_title, _caption, _sortOrder);
+                // The chosen group must still exist and be on (a picture may keep a group that was switched off later).
+                var groupError = await GalleryGroups.CheckChoiceAsync(_groupId, image.GroupId);
+                if (groupError is not null) { AppState.AddToast(groupError, ToastLevel.Error); return; }
+                image.Update(_title, _caption, _sortOrder, _groupId);
                 // A picked file replaces the picture: the details and the bytes change together.
                 if (_files.Count == 1)
                 {
@@ -344,6 +520,8 @@
             else
             {
                 if (_files.Count == 0) { AppState.AddToast("حداقل یک تصویر انتخاب کنید.", ToastLevel.Error); return; }
+                var groupError = await GalleryGroups.CheckChoiceAsync(_groupId, null);
+                if (groupError is not null) { AppState.AddToast(groupError, ToastLevel.Error); return; }
                 var order = _images.Count == 0 ? 1 : _images.Max(x => x.SortOrder) + 1;
                 foreach (var file in _files)
                 {
@@ -351,7 +529,7 @@
                     using var buffer = new MemoryStream();
                     await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
                         await stream.CopyToAsync(buffer);
-                    var image = new GalleryImage(_files.Count == 1 ? _title : null, _files.Count == 1 ? _caption : null, order++, file.Name, buffer.Length);
+                    var image = new GalleryImage(_files.Count == 1 ? _title : null, _files.Count == 1 ? _caption : null, order++, file.Name, buffer.Length, _groupId);
                     db.GalleryImages.Add(image);
                     db.GalleryImageFiles.Add(new GalleryImageFile(image.Id, buffer.ToArray()));
                 }

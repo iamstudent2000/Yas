@@ -13,6 +13,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
+using YasPortal.Infrastructure.Gallery;
 using YasPortal.Infrastructure.Guides;
 using YasPortal.Infrastructure.Store;
 using YasPortal.Infrastructure.Landing;
@@ -94,6 +95,8 @@ builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<GuideGroupService>();
+builder.Services.AddScoped<GalleryGroupService>();
+builder.Services.AddScoped<GalleryProvider>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
@@ -370,6 +373,15 @@ if (app.Environment.IsDevelopment())
         -- how many times a picture was replaced (part of its address, so browsers fetch the new picture)
         IF COL_LENGTH(N'dbo.GalleryImages', N'Version') IS NULL
             EXEC(N'ALTER TABLE [dbo].[GalleryImages] ADD [Version] int NOT NULL CONSTRAINT [DF_GalleryImages_Version] DEFAULT 0');
+        -- gallery groups: a real list of groups (unique name, order number, on or off); a picture points to its group by GroupId
+        IF OBJECT_ID(N'dbo.GalleryGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[GalleryGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_GalleryGroups] PRIMARY KEY ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GalleryGroups') AND name = N'IX_GalleryGroups_Name')
+            EXEC(N'CREATE UNIQUE INDEX [IX_GalleryGroups_Name] ON [dbo].[GalleryGroups] ([Name])');
+        IF COL_LENGTH(N'dbo.GalleryImages', N'GroupId') IS NULL
+            EXEC(N'ALTER TABLE [dbo].[GalleryImages] ADD [GroupId] uniqueidentifier NULL');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GalleryImages') AND name = N'IX_GalleryImages_GroupId')
+            EXEC(N'CREATE INDEX [IX_GalleryImages_GroupId] ON [dbo].[GalleryImages] ([GroupId])');
         IF OBJECT_ID(N'dbo.GalleryImageFiles', N'U') IS NULL
             CREATE TABLE [dbo].[GalleryImageFiles] ([ImageId] uniqueidentifier NOT NULL, [Content] varbinary(max) NOT NULL, CONSTRAINT [PK_GalleryImageFiles] PRIMARY KEY ([ImageId]), CONSTRAINT [FK_GalleryImageFiles_GalleryImages_ImageId] FOREIGN KEY ([ImageId]) REFERENCES [dbo].[GalleryImages] ([Id]) ON DELETE CASCADE);
         """);

@@ -94,11 +94,25 @@ public sealed class GalleryImageTests
     [Fact]
     public void Search_needs_every_word_in_title_caption_or_file_name_and_ignores_arabic_letter_forms()
     {
-        Assert.True(GalleryImage.Matches("جشن سال نو", null, "a.png", null));            // no search: everything
-        Assert.True(GalleryImage.Matches("جشن سال نو", "همکاران", "a.png", "جشن همکاران"));
-        Assert.True(GalleryImage.Matches("جشن", null, "party.png", "PARTY"));
-        Assert.False(GalleryImage.Matches("جشن", null, "a.png", "جشن همکاران"));
-        Assert.True(GalleryImage.Matches("كتاب", null, "a.png", "کتاب"));                 // Arabic kaf = Persian kaf
+        Assert.True(GalleryImage.Matches("جشن سال نو", null, "a.png", null, null));        // no search: everything
+        Assert.True(GalleryImage.Matches("جشن سال نو", "همکاران", "a.png", null, "جشن همکاران"));
+        Assert.True(GalleryImage.Matches("جشن", null, "party.png", null, "PARTY"));
+        Assert.False(GalleryImage.Matches("جشن", null, "a.png", null, "جشن همکاران"));
+        Assert.True(GalleryImage.Matches("كتاب", null, "a.png", null, "کتاب"));            // Arabic kaf = Persian kaf
+        Assert.True(GalleryImage.Matches("جشن", null, "a.png", "مراسم", "مراسم"));         // the group name is searched too
+    }
+
+    [Fact]
+    public void A_picture_keeps_its_group_and_an_empty_id_means_no_group()
+    {
+        var group = Guid.NewGuid();
+        var image = new GalleryImage("t", null, 1, "a.png", 10, group);
+        Assert.Equal(group, image.GroupId);
+        image.Update("t", null, 1, Guid.Empty);
+        Assert.Null(image.GroupId);
+        image.Update("t", null, 1, group);
+        image.Update("t", null, 1);
+        Assert.Null(image.GroupId);
     }
 
     [Fact]

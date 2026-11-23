@@ -25,20 +25,22 @@ public sealed class GalleryImage
     }
 
     // A new picture. When no title is given, the file name (without its ending) becomes the title.
-    public GalleryImage(string? title, string? caption, int sortOrder, string fileName, long sizeBytes)
+    public GalleryImage(string? title, string? caption, int sortOrder, string fileName, long sizeBytes, Guid? groupId = null)
     {
         var error = ValidateFile(fileName, sizeBytes);
         if (error is not null) throw new ArgumentException(error, nameof(fileName));
         Id = Guid.NewGuid();
         SetFile(fileName, sizeBytes);
         CreatedAtUtc = DateTime.UtcNow;
-        Update(string.IsNullOrWhiteSpace(title) ? TitleFromFileName(FileName) : title, caption, sortOrder);
+        Update(string.IsNullOrWhiteSpace(title) ? TitleFromFileName(FileName) : title, caption, sortOrder, groupId);
     }
 
     public Guid Id { get; private set; }
     public string Title { get; private set; } = "";
     public string? Caption { get; private set; }
     public int SortOrder { get; private set; }
+    /// <summary>The group the picture is listed under on the gallery page (see <see cref="GalleryGroup"/>); empty = no group.</summary>
+    public Guid? GroupId { get; private set; }
     public bool IsActive { get; private set; } = true;
     public string FileName { get; private set; } = "";
     public string ContentType { get; private set; } = "image/png";
@@ -64,8 +66,8 @@ public sealed class GalleryImage
         Version++;
     }
 
-    // Used when editing. The title is required; a blank caption means no caption.
-    public void Update(string title, string? caption, int sortOrder)
+    // Used when editing. The title is required; a blank caption means no caption; an empty group id means no group.
+    public void Update(string title, string? caption, int sortOrder, Guid? groupId = null)
     {
         title = (title ?? "").Trim();
         caption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
@@ -76,6 +78,7 @@ public sealed class GalleryImage
         Title = title;
         Caption = caption;
         SortOrder = sortOrder;
+        GroupId = groupId == Guid.Empty ? null : groupId;
     }
 
     public void Activate() => IsActive = true;
@@ -104,8 +107,8 @@ public sealed class GalleryImage
     /// <summary>The address that serves the picture itself. The version changes when the picture is replaced, so the new picture is fetched.</summary>
     public static string UrlFor(Guid id, int version) => "/gallery/images/" + id + "?v=" + version;
 
-    /// <summary>The search rule: every word typed must be found in the title, the caption or the file name. Persian and Arabic digits and letters count as the same. An empty search matches everything.</summary>
-    public static bool Matches(string? title, string? caption, string? fileName, string? query) =>
+    /// <summary>The search rule: every word typed must be found in the title, the caption, the file name or the group name. Persian and Arabic digits and letters count as the same. An empty search matches everything.</summary>
+    public static bool Matches(string? title, string? caption, string? fileName, string? groupName, string? query) =>
         string.IsNullOrWhiteSpace(query)
-        || PhoneBookText.ContainsAllWords(string.Join(' ', new[] { title, caption, fileName }.Where(x => !string.IsNullOrEmpty(x))), query);
+        || PhoneBookText.ContainsAllWords(string.Join(' ', new[] { title, caption, fileName, groupName }.Where(x => !string.IsNullOrEmpty(x))), query);
 }
