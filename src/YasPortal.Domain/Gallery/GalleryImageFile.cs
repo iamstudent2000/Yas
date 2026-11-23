@@ -18,4 +18,7 @@ public sealed class GalleryImageFile
 
     public Guid ImageId { get; private set; }
     public byte[] Content { get; private set; } = [];
+
+    // Puts the bytes of another picture in place of the old ones.
+    public void Replace(byte[] content) => Content = content;
 }

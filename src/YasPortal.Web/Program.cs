@@ -367,6 +367,9 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[GalleryImages] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(150) NOT NULL, [Caption] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_GalleryImages] PRIMARY KEY ([Id]));
             CREATE INDEX [IX_GalleryImages_IsActive_SortOrder] ON [dbo].[GalleryImages] ([IsActive], [SortOrder]);
         END
+        -- how many times a picture was replaced (part of its address, so browsers fetch the new picture)
+        IF COL_LENGTH(N'dbo.GalleryImages', N'Version') IS NULL
+            EXEC(N'ALTER TABLE [dbo].[GalleryImages] ADD [Version] int NOT NULL CONSTRAINT [DF_GalleryImages_Version] DEFAULT 0');
         IF OBJECT_ID(N'dbo.GalleryImageFiles', N'U') IS NULL
             CREATE TABLE [dbo].[GalleryImageFiles] ([ImageId] uniqueidentifier NOT NULL, [Content] varbinary(max) NOT NULL, CONSTRAINT [PK_GalleryImageFiles] PRIMARY KEY ([ImageId]), CONSTRAINT [FK_GalleryImageFiles_GalleryImages_ImageId] FOREIGN KEY ([ImageId]) REFERENCES [dbo].[GalleryImages] ([Id]) ON DELETE CASCADE);
         """);
@@ -605,7 +608,7 @@ app.MapGet("/gallery/images/{id:guid}", async (Guid id, HttpContext http, IDbCon
     if (bytes is null)
         return Results.NotFound();
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    // A picture never changes (it is deleted and uploaded again instead), so the browser may keep it for a while and not ask again for every thumbnail.
+    // A replaced picture gets a new address (the version in the address), so the browser may keep each address for a while and not ask again for every thumbnail.
     http.Response.Headers.CacheControl = "private, max-age=3600";
     return Results.File(bytes, image.ContentType);
 });

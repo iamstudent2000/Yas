@@ -52,7 +52,7 @@
             <section class="card admin-form-row">
                 <div class="admin-form-row-head">
                     <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "بارگذاری تصویر" : "ویرایش تصویر")</h2>
-                    <p class="muted">@(_editingId is null ? "یک یا چند تصویر انتخاب کنید (حداکثر " + GalleryImage.MaxPerUpload + " تصویر در هر بار). تصاویر در انتهای ترتیب فعلی اضافه می‌شوند." : "عنوان، توضیح و ترتیب تصویر را تغییر دهید. برای تصویر دیگر، این تصویر را حذف و تصویر جدید را بارگذاری کنید.")</p>
+                    <p class="muted">@(_editingId is null ? "یک یا چند تصویر انتخاب کنید (حداکثر " + GalleryImage.MaxPerUpload + " تصویر در هر بار). تصاویر در انتهای ترتیب فعلی اضافه می‌شوند." : "عنوان، توضیح و ترتیب تصویر را تغییر دهید، یا فایل دیگری را جایگزین آن کنید.")</p>
                 </div>
                 @if (_editingId is null)
                 {
@@ -64,8 +64,12 @@
                 }
                 else
                 {
+                    @* Editing: the current picture, and an optional file that replaces it (title, caption and order stay). *@
                     <div class="admin-row-grid">
-                        <div class="form-field"><img class="gallery-admin-preview" src="@GalleryImage.UrlFor(_editingId.Value)" alt="" /></div>
+                        <div class="form-field"><img class="gallery-admin-preview" src="@_editingUrl" alt="" /></div>
+                        <div class="form-field is-grow"><label class="form-label">جایگزینی تصویر (اختیاری)</label>
+                            <InputFile @key="_formKey" class="form-control" accept="@_accept" OnChange="FilesPicked" />
+                            <p class="muted" style="margin:6px 0 0">@(_files.Count == 0 ? "اگر فایلی انتخاب نکنید، تصویر فعلی می‌ماند." : "تصویر فعلی با فایل انتخاب‌شده جایگزین می‌شود.")</p></div>
                     </div>
                 }
                 @* Title and caption: for one new picture, or when editing. Several new pictures take their titles from the file names. *@
@@ -150,7 +154,7 @@
                         @foreach (var image in ListPaging.Slice(sorted, _page, _pageSize))
                         {
                             <tr>
-                                <td><img class="gallery-admin-thumb" src="@GalleryImage.UrlFor(image.Id)" alt="" loading="lazy" /></td>
+                                <td><img class="gallery-admin-thumb" src="@GalleryImage.UrlFor(image.Id, image.Version)" alt="" loading="lazy" /></td>
                                 <td>@image.SortOrder</td>
                                 <td><strong>@image.Title</strong>@if (image.Caption is not null) { <div class="muted">@image.Caption</div> }</td>
                                 <td><span dir="ltr">@image.FileName</span><div class="muted">@SizeText(image.SizeBytes)</div></td>
@@ -235,6 +239,8 @@
 
     // ---- the form ----
     private Guid? _editingId, _confirmDeleteId;
+    // The address of the picture being edited (shown as its current picture).
+    private string _editingUrl = "";
     private string _title = "", _caption = "";
     private int _sortOrder;
     // Changing this number gives the file picker a new life, which empties it.
@@ -266,6 +272,7 @@
     private void BeginEdit(GalleryImage image)
     {
         _editingId = image.Id;
+        _editingUrl = GalleryImage.UrlFor(image.Id, image.Version);
         _title = image.Title; _caption = image.Caption ?? ""; _sortOrder = image.SortOrder;
         _files = [];
         _formKey++;
@@ -321,6 +328,16 @@
                 var image = await db.GalleryImages.SingleOrDefaultAsync(x => x.Id == id);
                 if (image is null) { AppState.AddToast("این تصویر دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
                 image.Update(_title, _caption, _sortOrder);
+                // A picked file replaces the picture: the details and the bytes change together.
+                if (_files.Count == 1)
+                {
+                    using var buffer = new MemoryStream();
+                    await using (var stream = _files[0].OpenReadStream(UserGuideAttachment.MaxBytes))
+                        await stream.CopyToAsync(buffer);
+                    image.ReplaceFile(_files[0].Name, buffer.Length);
+                    var row = await db.GalleryImageFiles.SingleAsync(x => x.ImageId == id);
+                    row.Replace(buffer.ToArray());
+                }
                 await db.SaveChangesAsync();
                 AppState.AddToast("تصویر ذخیره شد.", ToastLevel.Success);
             }

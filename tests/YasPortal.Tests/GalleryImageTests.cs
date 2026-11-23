@@ -105,7 +105,25 @@ public sealed class GalleryImageTests
     public void The_picture_address_points_to_the_picture()
     {
         var id = Guid.NewGuid();
-        Assert.Equal("/gallery/images/" + id, GalleryImage.UrlFor(id));
+        Assert.Equal("/gallery/images/" + id + "?v=2", GalleryImage.UrlFor(id, 2));
+    }
+
+    [Fact]
+    public void Replacing_the_file_changes_the_details_and_the_address_but_keeps_title_caption_and_order()
+    {
+        var image = new GalleryImage("t", "c", 4, "a.png", 10);
+        var before = GalleryImage.UrlFor(image.Id, image.Version);
+        image.ReplaceFile("folder/b.JPG", 99);
+        Assert.Equal("b.JPG", image.FileName);
+        Assert.Equal("image/jpeg", image.ContentType);
+        Assert.Equal(99, image.SizeBytes);
+        Assert.Equal(("t", "c", 4), (image.Title, image.Caption, image.SortOrder));
+        Assert.NotEqual(before, GalleryImage.UrlFor(image.Id, image.Version));
+        // A refused file changes nothing.
+        Assert.Throws<ArgumentException>(() => image.ReplaceFile("b.svg", 5));
+        Assert.Throws<ArgumentException>(() => image.ReplaceFile("c.png", UserGuideAttachment.MaxBytes + 1));
+        Assert.Equal("b.JPG", image.FileName);
+        Assert.Equal(1, image.Version);
     }
 
     [Fact]

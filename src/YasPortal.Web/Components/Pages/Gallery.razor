@@ -49,7 +49,7 @@
             @foreach (var (image, index) in _images.Select((x, i) => (x, i)).Skip((CurrentPage - 1) * _pageSize).Take(_pageSize))
             {
                 <button type="button" class="gallery-thumb" @onclick="() => Open(index)" title="@image.Title">
-                    <span class="gallery-thumb-frame"><img src="@GalleryImage.UrlFor(image.Id)" alt="@image.Title" loading="lazy" decoding="async" /></span>
+                    <span class="gallery-thumb-frame"><img src="@GalleryImage.UrlFor(image.Id, image.Version)" alt="@image.Title" loading="lazy" decoding="async" /></span>
                     <span class="gallery-thumb-title">@image.Title</span>
                 </button>
             }
@@ -72,7 +72,7 @@
         <div class="gallery-lightbox-stage">
             @* In right-to-left reading, "previous" is on the right and "next" on the left. *@
             <button type="button" class="gallery-lightbox-btn" @onclick="Previous" @onclick:stopPropagation="true" title="قبلی" aria-label="قبلی"><i class="ti @Icons.PagePrev"></i></button>
-            <img src="@GalleryImage.UrlFor(current.Id)" alt="@current.Title" @onclick:stopPropagation="true" />
+            <img src="@GalleryImage.UrlFor(current.Id, current.Version)" alt="@current.Title" @onclick:stopPropagation="true" />
             <button type="button" class="gallery-lightbox-btn" @onclick="Next" @onclick:stopPropagation="true" title="بعدی" aria-label="بعدی"><i class="ti @Icons.PageNext"></i></button>
         </div>
         @if (current.Caption is not null)

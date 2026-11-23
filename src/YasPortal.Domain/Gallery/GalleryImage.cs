@@ -30,9 +30,7 @@ public sealed class GalleryImage
         var error = ValidateFile(fileName, sizeBytes);
         if (error is not null) throw new ArgumentException(error, nameof(fileName));
         Id = Guid.NewGuid();
-        FileName = UserGuideAttachment.CleanName(fileName);
-        ContentType = UserGuideAttachment.ContentTypeFor(FileName);
-        SizeBytes = sizeBytes;
+        SetFile(fileName, sizeBytes);
         CreatedAtUtc = DateTime.UtcNow;
         Update(string.IsNullOrWhiteSpace(title) ? TitleFromFileName(FileName) : title, caption, sortOrder);
     }
@@ -45,7 +43,26 @@ public sealed class GalleryImage
     public string FileName { get; private set; } = "";
     public string ContentType { get; private set; } = "image/png";
     public long SizeBytes { get; private set; }
+    /// <summary>Goes up by one each time the picture is replaced. It is part of the picture's address, so browsers do not show the old picture from their memory.</summary>
+    public int Version { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
+
+    // Takes over the details of a file (already checked by the caller).
+    private void SetFile(string fileName, long sizeBytes)
+    {
+        FileName = UserGuideAttachment.CleanName(fileName);
+        ContentType = UserGuideAttachment.ContentTypeFor(FileName);
+        SizeBytes = sizeBytes;
+    }
+
+    /// <summary>Puts another picture in place of this one (title, caption and order stay). The file is checked first and refused when it breaks a rule.</summary>
+    public void ReplaceFile(string fileName, long sizeBytes)
+    {
+        var error = ValidateFile(fileName, sizeBytes);
+        if (error is not null) throw new ArgumentException(error, nameof(fileName));
+        SetFile(fileName, sizeBytes);
+        Version++;
+    }
 
     // Used when editing. The title is required; a blank caption means no caption.
     public void Update(string title, string? caption, int sortOrder)
@@ -84,8 +101,8 @@ public sealed class GalleryImage
         return stem.Length > TitleMax ? stem[..TitleMax] : stem;
     }
 
-    /// <summary>The address that serves the picture itself.</summary>
-    public static string UrlFor(Guid id) => "/gallery/images/" + id;
+    /// <summary>The address that serves the picture itself. The version changes when the picture is replaced, so the new picture is fetched.</summary>
+    public static string UrlFor(Guid id, int version) => "/gallery/images/" + id + "?v=" + version;
 
     /// <summary>The search rule: every word typed must be found in the title, the caption or the file name. Persian and Arabic digits and letters count as the same. An empty search matches everything.</summary>
     public static bool Matches(string? title, string? caption, string? fileName, string? query) =>
