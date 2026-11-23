@@ -10,7 +10,7 @@
 
 @* Public image gallery (/gallery), open to everyone, also before sign-in. It shows the switched-on pictures as a grid of small *@
 @* pictures, gathered under group headings (like the guides page), with a button per group to show only one group. The pictures of a *@
-@* group sit in one sideways-scrolling row (a slider) instead of many rows. Clicking a *@
+@* group sit in one sideways-scrolling row (a slider) instead of many rows. A search box filters while typing. Clicking a *@
 @* picture opens it larger in a plain dark layer with previous and next buttons (and the arrow keys); they go through the pictures *@
 @* in the order shown on the page. Everything is kept flat and light on purpose: no animation, no blur and no shadows, because many *@
 @* computers here have no graphics card. The small pictures are the real pictures scaled down by the browser, and they load only when *@
@@ -45,6 +45,11 @@
     }
     else
     {
+        @* The search box looks at the title, the caption and the group name, and filters while typing (like the guides page). *@
+        <div class="guide-search">
+            <i class="ti @Icons.Search"></i>
+            <input class="form-control" type="search" placeholder="جستجو در عنوان، توضیح و گروه تصاویر..." @bind="Query" @bind:event="oninput" />
+        </div>
         @* One button per group (only when at least one picture has a group); the chosen button is highlighted, and "همه" shows everything. *@
         @if (_groupNames.Count > 0)
         {
@@ -61,6 +66,12 @@
             </div>
         }
 
+        @if (_sections.Count == 0)
+        {
+            <section class="card">
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Search"></i></div><strong>تصویری با این جستجو پیدا نشد</strong><span>عبارت دیگری بنویسید یا گروه «همه» را انتخاب کنید.</span></div>
+            </section>
+        }
         @* Each group is a heading with its pictures under it; pictures without a group are collected last. A heading is skipped when *@
         @* no picture has a group, so a gallery that does not use groups looks plain. *@
         @foreach (var section in _sections)
@@ -129,8 +140,16 @@
     // Every picture a visitor may see (details only, no bytes), in the order set by the administrator.
     private IReadOnlyList<GalleryListItem> _images = [];
 
-    // The group button chosen: null = all groups, "" = the pictures without a group.
+    // What the visitor typed in the search box (the pictures are filtered at every keystroke), and the group button chosen: null = all groups, "" = the pictures without a group.
+    private string _query = "";
     private string? _group;
+
+    // The search text. Typing changes the pictures shown, so the large view is closed and the sections are worked out again.
+    private string Query
+    {
+        get => _query;
+        set { _query = value ?? ""; _open = null; Arrange(); }
+    }
     // The group names present among the pictures, and whether some pictures have no group.
     private IReadOnlyList<string> _groupNames = [];
     private bool _hasUngrouped;
@@ -160,10 +179,10 @@
     // Group button: show that group only (null = all) and close the large view, because its list has changed.
     private void ChooseGroup(string? name) { _group = name; _open = null; Arrange(); }
 
-    // Work out the sections, the flat list and the places for the chosen group.
+    // Work out the sections, the flat list and the places for the search text and the chosen group.
     private void Arrange()
     {
-        _sections = GalleryCatalog.Group(GalleryCatalog.Filter(_images, _group));
+        _sections = GalleryCatalog.Group(GalleryCatalog.Filter(_images, _query, _group));
         _shown = _sections.SelectMany(s => s.Images).ToList();
         _position = _shown.Select((x, i) => (x.Id, i)).ToDictionary(x => x.Id, x => x.i);
     }

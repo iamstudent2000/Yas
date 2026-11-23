@@ -132,9 +132,14 @@ public sealed class GalleryGroupTests
         Assert.Equal(["اول", "دوم", null], sections.Select(s => s.GroupName));          // the group's order number wins over the picture order
 
         // The group buttons: one group, only the pictures without a group, or everything.
-        Assert.Equal(["الف"], GalleryCatalog.Filter(list, "دوم").Select(g => g.Title));
-        Assert.Equal(["ت"], GalleryCatalog.Filter(list, "").Select(g => g.Title));
-        Assert.Equal(3, GalleryCatalog.Filter(list, null).Count);
+        Assert.Equal(["الف"], GalleryCatalog.Filter(list, null, "دوم").Select(g => g.Title));
+        Assert.Equal(["ت"], GalleryCatalog.Filter(list, null, "").Select(g => g.Title));
+        Assert.Equal(3, GalleryCatalog.Filter(list, null, null).Count);
+
+        // The search box: words are looked for in the title and the group name, together with the group button.
+        Assert.Equal(["ب"], GalleryCatalog.Filter(list, "ب", null).Select(g => g.Title));
+        Assert.Equal(["ب"], GalleryCatalog.Filter(list, "اول", null).Select(g => g.Title));         // by group name
+        Assert.Empty(GalleryCatalog.Filter(list, "ب", "دوم"));                                      // search and group button both apply
     }
 
     private static (GalleryGroupService Service, Factory Factory) Create()

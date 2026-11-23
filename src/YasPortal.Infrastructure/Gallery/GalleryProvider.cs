@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using YasPortal.Domain.Gallery;
 using YasPortal.Infrastructure.Persistence;
 
 namespace YasPortal.Infrastructure.Gallery;
@@ -43,9 +44,13 @@ public static class GalleryCatalog
     /// <summary>The heading shown above the pictures that belong to no group.</summary>
     public const string UngroupedLabel = "سایر تصاویر";
 
-    /// <summary>The pictures of the chosen group. <paramref name="groupName"/>: null = every group, an empty text = only the pictures without a group, otherwise that group. The display order is kept.</summary>
-    public static IReadOnlyList<GalleryListItem> Filter(IEnumerable<GalleryListItem> images, string? groupName) =>
-        images.Where(g => groupName is null || (groupName.Length == 0 ? g.GroupName is null : g.GroupName == groupName)).ToList();
+    /// <summary>
+    /// The pictures that match the typed words (see <see cref="GalleryImage.Matches"/>: title, caption and group name) and the chosen group.
+    /// <paramref name="groupName"/>: null = every group, an empty text = only the pictures without a group, otherwise that group. The display order is kept.
+    /// </summary>
+    public static IReadOnlyList<GalleryListItem> Filter(IEnumerable<GalleryListItem> images, string? query, string? groupName) =>
+        images.Where(g => (groupName is null || (groupName.Length == 0 ? g.GroupName is null : g.GroupName == groupName))
+                          && GalleryImage.Matches(g.Title, g.Caption, null, g.GroupName, query)).ToList();
 
     /// <summary>
     /// The pictures in sections, one per group. Groups come in the order the administrators gave them (the group's order number); groups with the
