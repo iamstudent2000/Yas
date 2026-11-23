@@ -24,12 +24,13 @@
             <h1 class="page-title"><i class="ti @Icons.Gallery"></i> گالری تصاویر</h1>
             <p class="page-subtitle">روی هر تصویر بزنید تا بزرگ‌تر دیده شود.</p>
         </div>
-        @* Only people allowed to manage the gallery see the management button. *@
-        <AuthorizeView Policy="@Perm.AdminGalleryView">
-            <div class="form-actions">
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+            @* Only people allowed to manage the gallery see the management button. *@
+            <AuthorizeView Policy="@Perm.AdminGalleryView">
                 <a class="btn btn-secondary" href="/admin/gallery"><i class="ti @Icons.Edit"></i> مدیریت تصاویر</a>
-            </div>
-        </AuthorizeView>
+            </AuthorizeView>
+        </div>
     </div>
 
     @* Three states: still loading, no pictures, or the grid. *@

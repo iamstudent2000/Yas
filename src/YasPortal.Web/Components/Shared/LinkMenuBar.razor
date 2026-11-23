@@ -2,7 +2,7 @@
 @* The home page's horizontal links menu: a search box, then one dropdown per top group (its links and its
    sub-groups), and "سایر" for links in no group. With a mouse a dropdown opens when the pointer is over its button and closes when
    the pointer leaves it; a click keeps it open. On touch screens it opens on tap. Escape, a click outside, or opening another closes it.
-   A small group shows its sub-groups already open, side by side; a big one keeps them as closed headings. *@
+   A sub-group is an item with an arrow; it opens as its own menu beside the parent menu (not inside it). *@
 <nav class="lm" dir="rtl" aria-label="پیوندها" @onkeydown="OnKeyDown">
     @* While a dropdown is open or a search is shown, an invisible layer behind it closes everything when clicked. *@
     @if (_open is not null || Searching)
@@ -45,8 +45,8 @@
                 </button>
                 @if (_open == key)
                 {
-                    var small = group.TotalLinks <= SmallGroupLinks;
-                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "") @(small && group.Children.Count > 1 ? "is-wide" : "")"><LinkMenuSection Node="group" OpenSubGroups="small" /></div>
+                    @* A menu with sub-groups must not clip them, so it does not scroll by itself ("has-fly"). *@
+                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "") @(group.Children.Count > 0 ? "has-fly" : "")"><LinkMenuSection Node="group" /></div>
                 }
             </li>
         }
@@ -73,8 +73,6 @@
     private string _query = "";
     // The dropdown that the mouse pointer opened (it closes when the pointer leaves, unless it was clicked to keep it open).
     private string? _hoverOpened;
-    // A group with at most this many links (counting its sub-groups) shows its sub-groups already open.
-    private const int SmallGroupLinks = 12;
 
     // The links tree (groups, sub-groups and ungrouped links) handed in by the home page.
     [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
