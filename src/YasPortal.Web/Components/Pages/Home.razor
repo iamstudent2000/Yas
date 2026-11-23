@@ -39,28 +39,8 @@ else if (!_showLanding)
 else
 {
     <div class="landing" dir="rtl">
-        @* The link menu and quick-access links are maintained by an administrator in the home page content section. They come first, *@
-        @* because they are what people use most; the banner slides follow. *@
-        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
-        {
-            <LinkMenuBar Tree="_tree" />
-        }
-
-        @if (_tree.QuickAccess.Count > 0)
-        {
-            <section class="landing-quick" aria-label="دسترسی سریع">
-                <div class="landing-quick-links">
-                    <span class="landing-quick-title"><i class="ti ti-bolt"></i> دسترسی سریع</span>
-                    @foreach (var link in _tree.QuickAccess)
-                    {
-                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
-                    }
-                </div>
-            </section>
-        }
-
         @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
-        @* The slides stop turning while the mouse is over them, so a text can be read in peace. *@
+        @* The banner is the first thing under the top bar and always has the same height. The slides stop turning while the mouse is over them, so a text can be read in peace. *@
         @if (_slides.Count > 0)
         {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه" @onmouseenter="() => _paused = true" @onmouseleave="() => _paused = false">
@@ -95,6 +75,25 @@ else
                 </div>
             }
         </section>
+        }
+
+        @* The link menu and quick-access links are maintained by an administrator in the home page content section. *@
+        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
+        {
+            <LinkMenuBar Tree="_tree" />
+        }
+
+        @if (_tree.QuickAccess.Count > 0)
+        {
+            <section class="landing-quick" aria-label="دسترسی سریع">
+                <div class="landing-quick-links">
+                    <span class="landing-quick-title"><i class="ti ti-bolt"></i> دسترسی سریع</span>
+                    @foreach (var link in _tree.QuickAccess)
+                    {
+                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
+                    }
+                </div>
+            </section>
         }
 
         @* Tiles for the public pages that were not reachable from here: phone book, guides (only when there are some) and gallery (only when it has pictures). *@
