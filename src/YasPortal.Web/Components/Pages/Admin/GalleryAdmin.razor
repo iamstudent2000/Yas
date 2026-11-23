@@ -137,7 +137,7 @@
             <section class="card">
                 <h2 class="section-title"><i class="ti @Icons.Gallery"></i> گروه‌ها</h2>
                 <p class="muted">گروهِ غیرفعال همراه با تصاویرش از دید بازدیدکنندگان پنهان می‌شود (خود تصاویر پاک نمی‌شوند). گروهی که تصویر دارد حذف نمی‌شود.</p>
-                <div class="data-table-wrap">
+                <div class="data-table-wrap" data-no-auto-paginate>
                     <table class="data-table">
                         <thead><tr><th>نام</th><th>ترتیب</th><th>تعداد تصویر</th><th>وضعیت</th><th>عملیات</th></tr></thead>
                         <tbody>
@@ -206,8 +206,9 @@
             else
             {
                 var sorted = Sorted;
-                <div class="data-table-wrap">
+                <div class="data-table-wrap" data-no-auto-paginate>
                     <table class="data-table data-table-bordered-rows">
+                        @* "data-no-auto-paginate" stops the site-wide script from adding a second page bar; the page bar below the table is the only one. *@
                         @* Click a heading to sort by it, click again to reverse. The picture and buttons columns cannot be sorted. *@
                         <thead><tr>
                             <th>تصویر</th>
