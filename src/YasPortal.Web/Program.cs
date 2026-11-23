@@ -13,6 +13,7 @@ using YasPortal.Domain.Auditing;
 using YasPortal.Domain.Organization;
 using YasPortal.Infrastructure.Authorization;
 using YasPortal.Infrastructure.Development;
+using YasPortal.Infrastructure.Gallery;
 using YasPortal.Infrastructure.Guides;
 using YasPortal.Infrastructure.Store;
 using YasPortal.Infrastructure.Landing;
@@ -94,6 +95,8 @@ builder.Services.AddSingleton<LandingContent>();
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<GuideGroupService>();
+builder.Services.AddScoped<GalleryGroupService>();
+builder.Services.AddScoped<GalleryProvider>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
@@ -361,6 +364,26 @@ if (app.Environment.IsDevelopment())
             CREATE TABLE [dbo].[UserGuideAttachments] ([Id] uniqueidentifier NOT NULL, [GuideId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [Content] varbinary(max) NOT NULL, [UploadedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_UserGuideAttachments] PRIMARY KEY ([Id]), CONSTRAINT [FK_UserGuideAttachments_UserGuides_GuideId] FOREIGN KEY ([GuideId]) REFERENCES [dbo].[UserGuides] ([Id]) ON DELETE CASCADE);
             CREATE INDEX [IX_UserGuideAttachments_GuideId] ON [dbo].[UserGuideAttachments] ([GuideId]);
         END
+        -- image gallery: the picture details in one table, the picture bytes in another (deleted together with the picture)
+        IF OBJECT_ID(N'dbo.GalleryImages', N'U') IS NULL
+        BEGIN
+            CREATE TABLE [dbo].[GalleryImages] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(150) NOT NULL, [Caption] nvarchar(300) NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [SizeBytes] bigint NOT NULL, [CreatedAtUtc] datetime2 NOT NULL, CONSTRAINT [PK_GalleryImages] PRIMARY KEY ([Id]));
+            CREATE INDEX [IX_GalleryImages_IsActive_SortOrder] ON [dbo].[GalleryImages] ([IsActive], [SortOrder]);
+        END
+        -- how many times a picture was replaced (part of its address, so browsers fetch the new picture)
+        IF COL_LENGTH(N'dbo.GalleryImages', N'Version') IS NULL
+            EXEC(N'ALTER TABLE [dbo].[GalleryImages] ADD [Version] int NOT NULL CONSTRAINT [DF_GalleryImages_Version] DEFAULT 0');
+        -- gallery groups: a real list of groups (unique name, order number, on or off); a picture points to its group by GroupId
+        IF OBJECT_ID(N'dbo.GalleryGroups', N'U') IS NULL
+            CREATE TABLE [dbo].[GalleryGroups] ([Id] uniqueidentifier NOT NULL, [Name] nvarchar(100) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_GalleryGroups] PRIMARY KEY ([Id]));
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GalleryGroups') AND name = N'IX_GalleryGroups_Name')
+            EXEC(N'CREATE UNIQUE INDEX [IX_GalleryGroups_Name] ON [dbo].[GalleryGroups] ([Name])');
+        IF COL_LENGTH(N'dbo.GalleryImages', N'GroupId') IS NULL
+            EXEC(N'ALTER TABLE [dbo].[GalleryImages] ADD [GroupId] uniqueidentifier NULL');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.GalleryImages') AND name = N'IX_GalleryImages_GroupId')
+            EXEC(N'CREATE INDEX [IX_GalleryImages_GroupId] ON [dbo].[GalleryImages] ([GroupId])');
+        IF OBJECT_ID(N'dbo.GalleryImageFiles', N'U') IS NULL
+            CREATE TABLE [dbo].[GalleryImageFiles] ([ImageId] uniqueidentifier NOT NULL, [Content] varbinary(max) NOT NULL, CONSTRAINT [PK_GalleryImageFiles] PRIMARY KEY ([ImageId]), CONSTRAINT [FK_GalleryImageFiles_GalleryImages_ImageId] FOREIGN KEY ([ImageId]) REFERENCES [dbo].[GalleryImages] ([Id]) ON DELETE CASCADE);
         """);
     // Loads the demo organization, accounts and workflow definitions the first time (see the README for the accounts).
     await DevelopmentDataSeeder.SeedAsync(db, passwordHasher);
@@ -581,6 +604,26 @@ app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuidePro
         return Results.NotFound();
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
+});
+// A gallery picture, shown inside the page (inline); with ?download=1 it is sent as a file to save instead. Open to everyone while the picture is switched on; a switched-off
+// picture is only for people who may see the gallery list (so the admin list can still show it). The type is one of the safe picture types
+// and the browser is told not to guess another one.
+app.MapGet("/gallery/images/{id:guid}", async (Guid id, HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync();
+    var image = await db.GalleryImages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id);
+    var canSeeAll = http.User.Identity?.IsAuthenticated == true
+        && (http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminGalleryView) || http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminGalleryManage));
+    if (image is null || (!image.IsActive && !canSeeAll))
+        return Results.NotFound();
+    var bytes = await db.GalleryImageFiles.AsNoTracking().Where(f => f.ImageId == id).Select(f => f.Content).SingleOrDefaultAsync();
+    if (bytes is null)
+        return Results.NotFound();
+    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    // A replaced picture gets a new address (the version in the address), so the browser may keep each address for a while and not ask again for every thumbnail.
+    http.Response.Headers.CacheControl = "private, max-age=3600";
+    // With ?download=1 the picture is sent as a file to save (under its own file name); otherwise it is shown inside the page.
+    return http.Request.Query.ContainsKey("download") ? Results.File(bytes, image.ContentType, image.FileName) : Results.File(bytes, image.ContentType);
 });
 // Download of the file uploaded for a home-page link. Anyone may download it (the home page is public), but only while the link is switched on.
 app.MapGet("/links/files/{id:guid}", async (Guid id, IDbContextFactory<ApplicationDbContext> dbFactory) =>

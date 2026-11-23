@@ -1,0 +1,219 @@
+@page "/gallery"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using YasPortal.Domain.Gallery
+@using YasPortal.Infrastructure.Gallery
+@using YasPortal.Web.Components.Shared
+@attribute [AllowAnonymous]
+@inject GalleryProvider Provider
+
+@* Public image gallery (/gallery), open to everyone, also before sign-in. It shows the switched-on pictures as a grid of small *@
+@* pictures, gathered under group headings (like the guides page), with a button per group to show only one group. The pictures of a *@
+@* group sit in one sideways-scrolling row (a slider) instead of many rows. A search box filters while typing. Clicking a *@
+@* picture opens it larger in a plain dark layer with previous and next buttons (and the arrow keys); they go through the pictures *@
+@* in the order shown on the page. Everything is kept flat and light on purpose: no animation, no blur and no shadows, because many *@
+@* computers here have no graphics card. The small pictures are the real pictures scaled down by the browser, and they load only when *@
+@* they come near the screen, so the page needs no page numbers. *@
+<PageTitle>گالری تصاویر - یاس پورتال</PageTitle>
+
+<div class="admin-page" dir="rtl">
+    <div class="page-header">
+        <div>
+            <div class="page-kicker">گالری</div>
+            <h1 class="page-title"><i class="ti @Icons.Gallery"></i> گالری تصاویر</h1>
+            <p class="page-subtitle">روی هر تصویر بزنید تا بزرگ‌تر دیده شود.</p>
+        </div>
+        @* Only people allowed to manage the gallery see the management button. *@
+        <AuthorizeView Policy="@Perm.AdminGalleryView">
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/admin/gallery"><i class="ti @Icons.Edit"></i> مدیریت تصاویر</a>
+            </div>
+        </AuthorizeView>
+    </div>
+
+    @* Three states: still loading, no pictures, or the grid. *@
+    @if (_loading)
+    {
+        <LoadingState />
+    }
+    else if (_images.Count == 0)
+    {
+        <section class="card">
+            <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Gallery"></i></div><strong>هنوز تصویری در گالری نیست</strong><span>تصاویری که مدیر سامانه اضافه کند در همین‌جا دیده می‌شود.</span></div>
+        </section>
+    }
+    else
+    {
+        @* The search box looks at the title, the caption and the group name, and filters while typing (like the guides page). *@
+        <div class="guide-search">
+            <i class="ti @Icons.Search"></i>
+            <input class="form-control" type="search" placeholder="جستجو در عنوان، توضیح و گروه تصاویر..." @bind="Query" @bind:event="oninput" />
+        </div>
+        @* One button per group (only when at least one picture has a group); the chosen button is highlighted, and "همه" shows everything. *@
+        @if (_groupNames.Count > 0)
+        {
+            <div class="guide-chips" role="group" aria-label="گروه تصاویر">
+                <button type="button" class="guide-chip @(_group is null ? "is-active" : "")" @onclick="() => ChooseGroup(null)">همه</button>
+                @foreach (var name in _groupNames)
+                {
+                    <button type="button" class="guide-chip @(_group == name ? "is-active" : "")" @onclick="() => ChooseGroup(name)">@name</button>
+                }
+                @if (_hasUngrouped)
+                {
+                    <button type="button" class="guide-chip @(_group == "" ? "is-active" : "")" @onclick='() => ChooseGroup("")'>@GalleryCatalog.UngroupedLabel</button>
+                }
+            </div>
+        }
+
+        @if (_sections.Count == 0)
+        {
+            <section class="card">
+                <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Search"></i></div><strong>تصویری با این جستجو پیدا نشد</strong><span>عبارت دیگری بنویسید یا گروه «همه» را انتخاب کنید.</span></div>
+            </section>
+        }
+        @* Each group is a heading with its pictures under it; pictures without a group are collected last. A heading is skipped when *@
+        @* no picture has a group, so a gallery that does not use groups looks plain. *@
+        @foreach (var section in _sections)
+        {
+            <section class="guide-section">
+                @if (_groupNames.Count > 0)
+                {
+                    <h2 class="guide-section-title">@(section.GroupName ?? GalleryCatalog.UngroupedLabel) <span class="badge badge-muted">@section.Images.Count</span></h2>
+                }
+                @* The pictures of a group sit in ONE row that scrolls sideways (a slider). With more than a few pictures, arrow buttons *@
+                @* move the row (see js/gallery.js); the row can also be dragged or scrolled with the mouse wheel or touch. *@
+                <div class="gallery-slider">
+                    @if (section.Images.Count > SliderArrowsFrom)
+                    {
+                        <button type="button" class="gallery-slider-btn" data-gallery-scroll="1" title="قبلی" aria-label="قبلی"><i class="ti @Icons.PagePrev"></i></button>
+                    }
+                    <div class="gallery-row">
+                        @foreach (var image in section.Images)
+                        {
+                            var position = _position[image.Id];
+                            <button type="button" class="gallery-thumb" @onclick="() => Open(position)" title="@image.Title">
+                                <span class="gallery-thumb-frame"><img src="@GalleryImage.UrlFor(image.Id, image.Version)" alt="@image.Title" loading="lazy" decoding="async" /></span>
+                                <span class="gallery-thumb-title">@image.Title</span>
+                            </button>
+                        }
+                    </div>
+                    @if (section.Images.Count > SliderArrowsFrom)
+                    {
+                        <button type="button" class="gallery-slider-btn" data-gallery-scroll="-1" title="بعدی" aria-label="بعدی"><i class="ti @Icons.PageNext"></i></button>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@* The large view. A click on the dark background closes it; clicks on the picture and the buttons do not. *@
+@if (_open is int open && open >= 0 && open < _shown.Count)
+{
+    var current = _shown[open];
+    <div class="gallery-lightbox" role="dialog" aria-modal="true" aria-label="@current.Title" tabindex="-1" @ref="_lightbox" @onkeydown="OnKeyDown" @onclick="Close">
+        <div class="gallery-lightbox-bar" @onclick:stopPropagation="true">
+            <span class="gallery-lightbox-count">@(open + 1) / @_shown.Count</span>
+            <strong class="gallery-lightbox-title">@current.Title</strong>
+            @* Download button: the "download" attribute makes the browser save the file instead of Blazor trying to open it as a page. *@
+            <a class="gallery-lightbox-btn" href="@GalleryImage.DownloadUrlFor(current.Id)" download title="دانلود تصویر" aria-label="دانلود تصویر"><i class="ti @Icons.Download"></i></a>
+            <button type="button" class="gallery-lightbox-btn" @onclick="Close" title="بستن" aria-label="بستن"><i class="ti @Icons.Close"></i></button>
+        </div>
+        <div class="gallery-lightbox-stage">
+            @* In right-to-left reading, "previous" is on the right and "next" on the left. *@
+            <button type="button" class="gallery-lightbox-btn" @onclick="Previous" @onclick:stopPropagation="true" title="قبلی" aria-label="قبلی"><i class="ti @Icons.PagePrev"></i></button>
+            <img src="@GalleryImage.UrlFor(current.Id, current.Version)" alt="@current.Title" @onclick:stopPropagation="true" />
+            <button type="button" class="gallery-lightbox-btn" @onclick="Next" @onclick:stopPropagation="true" title="بعدی" aria-label="بعدی"><i class="ti @Icons.PageNext"></i></button>
+        </div>
+        @if (current.Caption is not null)
+        {
+            <p class="gallery-lightbox-caption" @onclick:stopPropagation="true">@current.Caption</p>
+        }
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    // A row with more pictures than this gets arrow buttons (fewer pictures fit on the screen anyway).
+    private const int SliderArrowsFrom = 4;
+    // Every picture a visitor may see (details only, no bytes), in the order set by the administrator.
+    private IReadOnlyList<GalleryListItem> _images = [];
+
+    // What the visitor typed in the search box (the pictures are filtered at every keystroke), and the group button chosen: null = all groups, "" = the pictures without a group.
+    private string _query = "";
+    private string? _group;
+
+    // The search text. Typing changes the pictures shown, so the large view is closed and the sections are worked out again.
+    private string Query
+    {
+        get => _query;
+        set { _query = value ?? ""; _open = null; Arrange(); }
+    }
+    // The group names present among the pictures, and whether some pictures have no group.
+    private IReadOnlyList<string> _groupNames = [];
+    private bool _hasUngrouped;
+
+    // What is shown for the chosen group: the sections with their pictures, the same pictures as one list in the order shown
+    // (the large view steps through this list), and the place of each picture in it.
+    private IReadOnlyList<GallerySection> _sections = [];
+    private IReadOnlyList<GalleryListItem> _shown = [];
+    private Dictionary<Guid, int> _position = [];
+
+    // The place (in the shown list) of the picture shown large, or nothing when the large view is closed.
+    private int? _open;
+    // The large view element, used to give it the keyboard when it opens (so the arrow keys and Escape work at once).
+    private ElementReference _lightbox;
+    private bool _focusPending;
+
+    // On opening: load the pictures and arrange them.
+    protected override async Task OnInitializedAsync()
+    {
+        _images = await Provider.ListAsync();
+        _groupNames = _images.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct().ToList();
+        _hasUngrouped = _images.Any(g => g.GroupName is null);
+        Arrange();
+        _loading = false;
+    }
+
+    // Group button: show that group only (null = all) and close the large view, because its list has changed.
+    private void ChooseGroup(string? name) { _group = name; _open = null; Arrange(); }
+
+    // Work out the sections, the flat list and the places for the search text and the chosen group.
+    private void Arrange()
+    {
+        _sections = GalleryCatalog.Group(GalleryCatalog.Filter(_images, _query, _group));
+        _shown = _sections.SelectMany(s => s.Images).ToList();
+        _position = _shown.Select((x, i) => (x.Id, i)).ToDictionary(x => x.Id, x => x.i);
+    }
+
+    // Open a picture large; the keyboard is moved into the large view after it is drawn.
+    private void Open(int index) { _open = index; _focusPending = true; }
+
+    private void Close() => _open = null;
+
+    // Next and previous go around: after the last picture comes the first.
+    private void Next() { if (_open is int i && _shown.Count > 0) _open = (i + 1) % _shown.Count; }
+    private void Previous() { if (_open is int i && _shown.Count > 0) _open = (i - 1 + _shown.Count) % _shown.Count; }
+
+    // Keys in the large view: Escape closes; in right-to-left reading the left arrow goes forward and the right arrow goes back.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape": Close(); break;
+            case "ArrowLeft": Next(); break;
+            case "ArrowRight": Previous(); break;
+        }
+    }
+
+    // Right after the large view opens, give it the keyboard.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusPending && _open is not null)
+        {
+            _focusPending = false;
+            await _lightbox.FocusAsync();
+        }
+    }
+}
