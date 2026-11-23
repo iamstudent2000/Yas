@@ -96,3 +96,7 @@
 .lm-panel.is-flipped .lm-flyout{inset-inline-start:auto;inset-inline-end:100%}
 /* on a narrow screen there is no room beside the parent, so the menu opens right under the item */
 @media (max-width:720px){.lm-flyout,.lm-panel.is-flipped .lm-flyout{position:static;inset:auto;min-width:0;max-width:none;margin-top:2px;box-shadow:none}}
+
+/* "My work" buttons for a signed-in person: a tile with a waiting items count */
+.landing-tile.has-count{border-color:var(--accent)}
+.landing-count{margin-inline-start:auto;min-width:26px;padding:2px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:.8rem;font-weight:700;text-align:center}

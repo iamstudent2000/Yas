@@ -7,13 +7,17 @@
 @using YasPortal.Infrastructure.Gallery
 @using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Landing
+@using System.Security.Claims
 @using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
 @implements IDisposable
 @inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
 @inject GuideProvider GuideProv
 @inject GalleryProvider GalleryProv
+@inject WorkflowService Workflows
+@inject NotificationService NotificationsService
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
@@ -96,6 +100,22 @@ else
             </section>
         }
 
+        @* For a signed-in person: buttons for their own work (new request, my requests, approvals inbox, notifications) with the number of items *@
+        @* waiting. Only the pages the person may open are shown, with the same permission check as the sidebar. *@
+        @if (_personal.Count > 0)
+        {
+            <section class="landing-tiles" aria-label="کارهای من">
+                @foreach (var tile in _personal)
+                {
+                    <a class="landing-tile @(tile.Count > 0 ? "has-count" : "")" href="@tile.Href">
+                        <span class="landing-link-icon"><i class="ti @tile.Icon"></i></span>
+                        <span><strong>@tile.Label</strong>@if (tile.Count > 0) { <small>@tile.Count مورد منتظر شما</small> }</span>
+                        @if (tile.Count > 0) { <span class="landing-count">@tile.Count</span> }
+                    </a>
+                }
+            </section>
+        }
+
         @* Tiles for the public pages that were not reachable from here: phone book, guides (only when there are some) and gallery (only when it has pictures). *@
         <section class="landing-tiles" aria-label="بخش‌های عمومی">
             <a class="landing-tile" href="/phone-book"><span class="landing-link-icon"><i class="ti @Icons.PhoneBook"></i></span><span><strong>دفترچه تلفن</strong><small>شماره داخلی و تماس همکاران</small></span></a>
@@ -158,6 +178,9 @@ else
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     // True while the mouse is over the slides (they do not turn then).
     private bool _paused;
+    // A button of the "my work" row: where it leads, its text, its icon and the number of items waiting (0 = none).
+    private sealed record PersonalTile(string Href, string Label, string Icon, int Count);
+    private IReadOnlyList<PersonalTile> _personal = [];
     // What the front page shows from the guides and the gallery.
     private IReadOnlyList<GuideListItem> _guides = [];
     private IReadOnlyList<GalleryListItem> _pictures = [];
@@ -193,10 +216,45 @@ else
             }
         }
         _guides = await GuideProv.ListAsync(_signedIn);
+        if (_signedIn) _personal = await LoadPersonalAsync(user);
         _pictures = await GalleryProv.ListAsync();
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;
+    }
+
+    // The "my work" buttons. The pages come from the "requests" and "notifications" sections of the sidebar, so a button appears only when
+    // the person may open that page; the counters are the same ones the sidebar shows. A failure to count just shows the buttons without numbers.
+    private async Task<IReadOnlyList<PersonalTile>> LoadPersonalAsync(ClaimsPrincipal user)
+    {
+        var requestTabs = await SectionNav.VisibleAsync(AuthzService, user, SectionNav.MyRequests);
+        var notificationTabs = await SectionNav.VisibleAsync(AuthzService, user, SectionNav.Notifications);
+        int mine = 0, inbox = 0, unread = 0;
+        try
+        {
+            var employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var eid) ? (Guid?)eid : null;
+            var positionId = Guid.TryParse(user.FindFirstValue("yas_active_position_id"), out var pid) ? (Guid?)pid : null;
+            mine = await Workflows.CountUnseenForRequesterAsync(employeeId);
+            unread = await NotificationsService.CountUnreadAsync(employeeId);
+            inbox = await Workflows.CountInboxAsync(employeeId, positionId, DateTime.Now);
+        }
+        catch
+        {
+            // Best-effort numbers; the buttons still work without them.
+        }
+        var tiles = new List<PersonalTile>();
+        foreach (var tab in requestTabs)
+        {
+            switch (tab.Href)
+            {
+                case "/requests/new": tiles.Add(new(tab.Href, tab.Label, tab.Icon, 0)); break;
+                case "/requests/mine": tiles.Add(new(tab.Href, tab.Label, tab.Icon, mine)); break;
+                case "/requests/inbox": tiles.Add(new(tab.Href, tab.Label, tab.Icon, inbox)); break;
+            }
+        }
+        if (notificationTabs.FirstOrDefault() is { } notifications)
+            tiles.Add(new(notifications.Href, "اعلان‌ها", Icons.Bell, unread));
+        return tiles;
     }
 
     protected override void OnAfterRender(bool firstRender)
