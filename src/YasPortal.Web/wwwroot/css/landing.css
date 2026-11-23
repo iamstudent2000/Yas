@@ -59,12 +59,16 @@
 .lm-links a:hover{background:var(--accent-soft);color:var(--accent-strong)}
 .lm-links small{display:block;color:var(--text-muted);margin-top:0;font-size:.78rem}
 .lm-links .ti{color:var(--accent);margin-top:3px;font-size:14px}
+/* Top-bar search: the box and its results panel (the panel reuses the .lm-panel look). */
+.ts{position:relative;flex:0 1 460px;min-width:0}
+.ts-backdrop{position:fixed;inset:0;z-index:1;background:transparent}
+.ts-box{position:relative;z-index:2;display:flex;align-items:center;gap:6px;padding-inline:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.ts-box .ti{color:var(--text-muted)}
+.ts-box input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.9rem;padding:8px 0}
+.ts-panel{inset-inline-start:0;inset-inline-end:0;max-width:none;z-index:3;margin-top:4px}
 .lm-result-title{padding:6px 8px 2px 8px;color:var(--text-muted);font-size:.8rem;font-weight:600}
 .lm-path{padding:0 8px 4px 8px;color:var(--text-muted);font-size:.8rem}
-.lm-search{margin-inline-end:6px;display:flex;align-items:center;gap:5px;padding-inline:10px;border:1px solid var(--border);border-radius:8px}
-.lm-search .ti{color:var(--text-muted)}
-.lm-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.95rem;min-width:220px;padding:8px 0}
-@media (max-width:720px){.lm-search{margin-inline-end:0;width:100%}.lm-search input{flex:1}.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
+@media (max-width:720px){.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
 
 /* Quick access: its own frame under the links menu */
 .landing-quick{padding:10px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
