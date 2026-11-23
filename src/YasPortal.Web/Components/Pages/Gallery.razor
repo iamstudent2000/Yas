@@ -92,6 +92,8 @@
         <div class="gallery-lightbox-bar" @onclick:stopPropagation="true">
             <span class="gallery-lightbox-count">@(open + 1) / @_shown.Count</span>
             <strong class="gallery-lightbox-title">@current.Title</strong>
+            @* Download button: the "download" attribute makes the browser save the file instead of Blazor trying to open it as a page. *@
+            <a class="gallery-lightbox-btn" href="@GalleryImage.DownloadUrlFor(current.Id)" download title="دانلود تصویر" aria-label="دانلود تصویر"><i class="ti @Icons.Download"></i></a>
             <button type="button" class="gallery-lightbox-btn" @onclick="Close" title="بستن" aria-label="بستن"><i class="ti @Icons.Close"></i></button>
         </div>
         <div class="gallery-lightbox-stage">

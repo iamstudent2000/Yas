@@ -140,6 +140,7 @@ public static class Icons
     public const string LandingSlides = "ti-presentation";
     public const string Links = "ti-link";
     public const string Gallery = "ti-photo";
+    public const string Download = "ti-download";
     public const string PhoneBook = "ti-address-book";
     public const string Guide = "ti-book-2";
     public const string Store = "ti-building-store";

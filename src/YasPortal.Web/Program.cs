@@ -605,7 +605,7 @@ app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuidePro
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     return Results.File(file.Content, file.ContentType, file.FileName);
 });
-// A gallery picture, shown inside the page (inline, not as a download). Open to everyone while the picture is switched on; a switched-off
+// A gallery picture, shown inside the page (inline); with ?download=1 it is sent as a file to save instead. Open to everyone while the picture is switched on; a switched-off
 // picture is only for people who may see the gallery list (so the admin list can still show it). The type is one of the safe picture types
 // and the browser is told not to guess another one.
 app.MapGet("/gallery/images/{id:guid}", async (Guid id, HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
@@ -622,7 +622,8 @@ app.MapGet("/gallery/images/{id:guid}", async (Guid id, HttpContext http, IDbCon
     http.Response.Headers["X-Content-Type-Options"] = "nosniff";
     // A replaced picture gets a new address (the version in the address), so the browser may keep each address for a while and not ask again for every thumbnail.
     http.Response.Headers.CacheControl = "private, max-age=3600";
-    return Results.File(bytes, image.ContentType);
+    // With ?download=1 the picture is sent as a file to save (under its own file name); otherwise it is shown inside the page.
+    return http.Request.Query.ContainsKey("download") ? Results.File(bytes, image.ContentType, image.FileName) : Results.File(bytes, image.ContentType);
 });
 // Download of the file uploaded for a home-page link. Anyone may download it (the home page is public), but only while the link is switched on.
 app.MapGet("/links/files/{id:guid}", async (Guid id, IDbContextFactory<ApplicationDbContext> dbFactory) =>

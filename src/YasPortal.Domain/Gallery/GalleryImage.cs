@@ -107,6 +107,9 @@ public sealed class GalleryImage
     /// <summary>The address that serves the picture itself. The version changes when the picture is replaced, so the new picture is fetched.</summary>
     public static string UrlFor(Guid id, int version) => "/gallery/images/" + id + "?v=" + version;
 
+    /// <summary>The address that downloads the picture as a file (with its own file name) instead of showing it.</summary>
+    public static string DownloadUrlFor(Guid id) => "/gallery/images/" + id + "?download=1";
+
     /// <summary>The search rule: every word typed must be found in the title, the caption, the file name or the group name. Persian and Arabic digits and letters count as the same. An empty search matches everything.</summary>
     public static bool Matches(string? title, string? caption, string? fileName, string? groupName, string? query) =>
         string.IsNullOrWhiteSpace(query)
