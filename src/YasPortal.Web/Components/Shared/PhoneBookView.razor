@@ -182,6 +182,10 @@ else if (PrintBlocked)
 
     // Screen state: the general search text, which groups are open, each group's own search text and sort, and print-watching flags.
     private string _query = "";
+    // A search text to start with (used when the home page search sends a person to one contact).
+    [Parameter] public string? InitialQuery { get; set; }
+    // On the first drawing, fill the search box with the text handed in, if any.
+    protected override void OnInitialized() => _query = InitialQuery ?? "";
     private readonly HashSet<Guid> _open = [];
     private readonly Dictionary<Guid, string> _groupQueries = [];
     private readonly Dictionary<Guid, (ContactSortKey Key, bool Descending)> _sorts = [];

@@ -1,21 +1,22 @@
 @using YasPortal.Domain.Landing
-@* One group in the links menu. The top group is shown open inside its dropdown; a sub-group is a closed heading that opens (and
-   closes) when clicked, so a deep tree stays short. Each level opens on its own. *@
+@using Microsoft.AspNetCore.Components.Web
+@* One group in the links menu. The top group is shown inside its dropdown. A sub-group is an item with an arrow that opens as its own
+   menu next to the parent menu (a "flyout"), not inside it: with a mouse it opens when the pointer is over it and closes when the pointer
+   leaves; a click keeps it open; on touch screens it opens on tap (on a narrow screen it opens under the item instead). Each level opens on its own. *@
 @if (Depth == 0)
-@* Top level: always open. Deeper levels: a folder heading with a link count that the user clicks to open or close. *@
 {
     <div class="lm-section"><LinkMenuBody Node="Node" Depth="Depth" /></div>
 }
 else
 {
-    <div class="lm-section is-sub @(_expanded ? "is-expanded" : "")">
-        <button type="button" class="lm-sub-toggle" aria-expanded="@(_expanded ? "true" : "false")" @onclick="() => _expanded = !_expanded">
-            <i class="ti ti-chevron-left lm-sub-caret"></i>
+    <div class="lm-section is-sub lm-fly-host @(_expanded ? "is-expanded" : "")" @onpointerenter="HoverOpen" @onpointerleave="HoverLeave">
+        <button type="button" class="lm-sub-toggle" aria-expanded="@(_expanded ? "true" : "false")" aria-haspopup="true" @onclick="Toggle">
             <i class="ti ti-folder"></i> <span>@Node.Name</span> <span class="lm-count">@Node.TotalLinks</span>
+            <i class="ti ti-chevron-left lm-sub-caret"></i>
         </button>
         @if (_expanded)
         {
-            <div class="lm-sub-body"><LinkMenuBody Node="Node" Depth="Depth" /></div>
+            <div class="lm-flyout"><LinkMenuBody Node="Node" Depth="Depth" /></div>
         }
     </div>
 }
@@ -26,6 +27,29 @@ else
     // How deep this group sits in the tree (0 = top group).
     [Parameter] public int Depth { get; set; }
 
-    // Whether this sub-group is currently open; each level opens independently.
-    private bool _expanded;
+    // Whether this sub-group's menu is open, and whether the mouse pointer opened it (then it closes when the pointer leaves, unless clicked).
+    private bool _expanded, _hoverOpened;
+
+    // Mouse pointer over the item: open its menu (a finger does not count, it opens by the tap).
+    private void HoverOpen(PointerEventArgs e)
+    {
+        if (e.PointerType != "mouse" || _expanded) return;
+        _expanded = true;
+        _hoverOpened = true;
+    }
+
+    // Pointer left the item and its menu: close it, but only if the pointer opened it and it was not kept open by a click.
+    private void HoverLeave()
+    {
+        if (!_hoverOpened) return;
+        _hoverOpened = false;
+        _expanded = false;
+    }
+
+    // A click on a menu the pointer just opened keeps it open; otherwise it opens or closes the menu.
+    private void Toggle()
+    {
+        if (_hoverOpened) { _hoverOpened = false; return; }
+        _expanded = !_expanded;
+    }
 }

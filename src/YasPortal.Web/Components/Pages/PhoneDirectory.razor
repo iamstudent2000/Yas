@@ -19,6 +19,9 @@
             <h1 class="page-title"><i class="ti @Icons.PhoneBook"></i> دفترچه تلفن</h1>
             <p class="page-subtitle">شماره‌های داخلی و تماس. در همه گروه‌ها جستجو کنید یا در هر گروه جداگانه بگردید.</p>
         </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+        </div>
     </div>
 
     @* While the directory is loading show a spinner; afterwards the shared phone-book view draws the groups and numbers. *@
@@ -28,7 +31,7 @@
     }
     else
     {
-        <PhoneBookView Tree="_tree" CanPrint="_canPrint" PrintBlocked="!_canPrint" />
+        <PhoneBookView InitialQuery="@Q" Tree="_tree" CanPrint="_canPrint" PrintBlocked="!_canPrint" />
     }
 </div>
 
@@ -36,6 +39,8 @@
     // _tree is the whole grouped directory; _canPrint says whether this visitor may print it.
     private PhoneBookTree? _tree;
     private bool _canPrint;
+    // Search text from the address (/phone-book?q=...), set by the home page search.
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
     protected override async Task OnInitializedAsync()
     {

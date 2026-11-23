@@ -1,66 +1,105 @@
 @using YasPortal.Domain.Landing
-@* The home page's horizontal links menu: one dropdown per top group (its links and its
-   sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
-   another is opened or anything outside is clicked. *@
-<nav class="lm" dir="rtl" aria-label="پیوندها">
+@using YasPortal.Domain.Gallery
+@using YasPortal.Domain.PhoneBook
+@using YasPortal.Infrastructure.Gallery
+@using YasPortal.Infrastructure.Guides
+@* The home page's horizontal links menu: a search box, then one dropdown per top group (its links and its
+   sub-groups), and "سایر" for links in no group. With a mouse a dropdown opens when the pointer is over its button and closes when
+   the pointer leaves it; a click keeps it open. On touch screens it opens on tap. Escape, a click outside, or opening another closes it.
+   A sub-group is an item with an arrow; it opens as its own menu beside the parent menu (not inside it).
+   The search box looks through everything: links, guides, gallery pictures and phone book contacts. *@
+<nav class="lm" dir="rtl" aria-label="پیوندها" @onkeydown="OnKeyDown">
     @* While a dropdown is open or a search is shown, an invisible layer behind it closes everything when clicked. *@
     @if (_open is not null || Searching)
     {
         <div class="lm-backdrop" @onclick="Close"></div>
     }
     <ul class="lm-bar">
+        @* The search box is always there, first in the bar. *@
+            <li class="lm-item lm-search">
+                <i class="ti ti-search"></i>
+                <input type="search" placeholder="جستجو در پیوندها، راهنماها، تصاویر و دفترچه تلفن..." aria-label="جستجوی همه‌جا" value="@_query" @oninput="OnSearch" />
+                @* Search results are shown in small labeled parts: links (with the group path they live in), guides, pictures and contacts. *@
+                @if (Searching)
+                {
+                    var links = Results;
+                    var guides = GuideHits;
+                    var pictures = PictureHits;
+                    var contacts = ContactHits;
+                    <div class="lm-panel is-flipped lm-results">
+                        @if (links.Count + guides.Count + pictures.Count + contacts.Count == 0)
+                        {
+                            <p class="muted">چیزی با این عبارت پیدا نشد.</p>
+                        }
+                        @if (links.Count > 0)
+                        {
+                            <div class="lm-result-title">پیوندها</div>
+                            <ul class="lm-links">
+                                @foreach (var (path, link) in links)
+                                {
+                                    <li><LinkMenuEntry Link="link" />@if (path.Length > 0) { <div class="lm-path">@path</div> }</li>
+                                }
+                            </ul>
+                        }
+                        @if (guides.Count > 0)
+                        {
+                            <div class="lm-result-title">راهنماها</div>
+                            <ul class="lm-links">
+                                @foreach (var guide in guides)
+                                {
+                                    <li><a class="lm-link" href="/guides/@guide.Id"><i class="ti @Icons.Guide"></i> @guide.Title</a></li>
+                                }
+                            </ul>
+                        }
+                        @if (pictures.Count > 0)
+                        {
+                            <div class="lm-result-title">گالری تصاویر</div>
+                            <ul class="lm-links">
+                                @foreach (var picture in pictures)
+                                {
+                                    <li><a class="lm-link" href="/gallery?q=@Uri.EscapeDataString(picture.Title)"><i class="ti @Icons.Gallery"></i> @picture.Title</a></li>
+                                }
+                            </ul>
+                        }
+                        @if (contacts.Count > 0)
+                        {
+                            <div class="lm-result-title">دفترچه تلفن</div>
+                            <ul class="lm-links">
+                                @foreach (var contact in contacts)
+                                {
+                                    <li><a class="lm-link" href="/phone-book?q=@Uri.EscapeDataString(contact.FullName)"><i class="ti ti-phone"></i> @contact.FullName@if (!string.IsNullOrWhiteSpace(contact.Extension)) { <span class="lm-path"> داخلی @contact.Extension</span> }</a></li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+            </li>
         @* One dropdown button per top-level link group; the panel with its links appears only for the open one. *@
         @for (var i = 0; i < Tree.Groups.Count; i++)
         {
             var group = Tree.Groups[i];
             var key = group.Id.ToString();
-            <li class="lm-item">
+            <li class="lm-item" @onpointerenter="e => HoverOpen(key, e)" @onpointerleave="() => HoverLeave(key)">
                 <button type="button" class="lm-top @(_open == key ? "is-open" : "")" aria-expanded="@(_open == key ? "true" : "false")" @onclick="() => Toggle(key)">
                     <i class="ti ti-folder"></i> @group.Name <i class="ti ti-chevron-down lm-caret"></i>
                 </button>
                 @if (_open == key)
                 {
-                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "")"><LinkMenuSection Node="group" /></div>
+                    @* A menu with sub-groups must not clip them, so it does not scroll by itself ("has-fly"). *@
+                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "") @(group.Children.Count > 0 ? "has-fly" : "")"><LinkMenuSection Node="group" /></div>
                 }
             </li>
         }
         @* Links that belong to no group are collected under one extra dropdown. *@
         @if (Tree.Ungrouped.Count > 0)
         {
-            <li class="lm-item">
+            <li class="lm-item" @onpointerenter="e => HoverOpen(OtherKey, e)" @onpointerleave="() => HoverLeave(OtherKey)">
                 <button type="button" class="lm-top @(_open == OtherKey ? "is-open" : "")" aria-expanded="@(_open == OtherKey ? "true" : "false")" @onclick="() => Toggle(OtherKey)">
                     <i class="ti ti-folder"></i> سایر <i class="ti ti-chevron-down lm-caret"></i>
                 </button>
                 @if (_open == OtherKey)
                 {
                     <div class="lm-panel @(Flip(Tree.Groups.Count) ? "is-flipped" : "")"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
-                }
-            </li>
-        }
-        @* The search box appears only when the portal has more than 8 links in total. *@
-        @if (Tree.TotalLinks > 8)
-        {
-            <li class="lm-item lm-search">
-                <i class="ti ti-search"></i>
-                <input type="search" placeholder="جستجو در پیوندها..." aria-label="جستجو در پیوندها" value="@_query" @oninput="OnSearch" />
-                @* Search results list every matching link together with the group path it lives in. *@
-                @if (Searching)
-                {
-                    <div class="lm-panel is-flipped lm-results">
-                        @if (Results.Count == 0)
-                        {
-                            <p class="muted">پیوندی با این عبارت پیدا نشد.</p>
-                        }
-                        else
-                        {
-                            <ul class="lm-links">
-                                @foreach (var (path, link) in Results)
-                                {
-                                    <li><LinkMenuEntry Link="link" />@if (path.Length > 0) { <div class="lm-path">@path</div> }</li>
-                                }
-                            </ul>
-                        }
-                    </div>
                 }
             </li>
         }
@@ -72,9 +111,24 @@
     private const string OtherKey = "other";
     private string? _open;
     private string _query = "";
+    // The dropdown that the mouse pointer opened (it closes when the pointer leaves, unless it was clicked to keep it open).
+    private string? _hoverOpened;
 
     // The links tree (groups, sub-groups and ungrouped links) handed in by the home page.
     [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
+
+    // The guides, the gallery pictures and the phone book handed in by the home page; the search looks through them too.
+    [Parameter] public IReadOnlyList<GuideListItem> Guides { get; set; } = [];
+    [Parameter] public IReadOnlyList<GalleryListItem> Pictures { get; set; } = [];
+    [Parameter] public PhoneBookTree? Phones { get; set; }
+
+    // How many results of each kind the small search panel shows (the full pages have the rest).
+    private const int HitsShown = 5;
+
+    // The guides, pictures and contacts that match the search, at most a few of each. They use the same search rules as their own pages.
+    private IReadOnlyList<GuideListItem> GuideHits => GuideCatalog.Search(Guides, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<GalleryListItem> PictureHits => GalleryCatalog.Filter(Pictures, _query, null).Take(HitsShown).ToList();
+    private IReadOnlyList<Contact> ContactHits => Phones is null ? [] : Phones.Filter(_query).Groups.SelectMany(g => g.Contacts).Take(HitsShown).ToList();
 
     // True while the search box holds some text.
     private bool Searching => _query.Trim().Length > 0;
@@ -89,22 +143,49 @@
         return total > 4 && index >= total - 3;
     }
 
+    // Mouse pointer over a group button: open its dropdown (a finger on a touch screen does not count, it opens by the tap).
+    private void HoverOpen(string key, PointerEventArgs e)
+    {
+        if (e.PointerType != "mouse" || Searching) return;
+        _open = key;
+        _hoverOpened = key;
+    }
+
+    // Pointer left the button and its dropdown: close it, but only if it was opened by the pointer and not kept open by a click.
+    private void HoverLeave(string key)
+    {
+        if (_hoverOpened != key) return;
+        _hoverOpened = null;
+        _open = null;
+    }
+
     private void Toggle(string key)
     {
         _query = "";
+        // A click on a dropdown that the pointer just opened keeps it open (it would otherwise close it at once).
+        if (_hoverOpened == key) { _hoverOpened = null; return; }
+        _hoverOpened = null;
         _open = _open == key ? null : key;
     }
 
     private void Close()
     {
         _open = null;
+        _hoverOpened = null;
         _query = "";
+    }
+
+    // Escape closes the open dropdown or the search results.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
     }
 
     private void OnSearch(ChangeEventArgs e)
     {
         _query = e.Value?.ToString() ?? "";
         _open = null;
+        _hoverOpened = null;
     }
 
     // Everything that matches the search, with the group it is in (shown small under the link).

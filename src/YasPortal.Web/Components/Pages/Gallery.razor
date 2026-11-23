@@ -24,12 +24,13 @@
             <h1 class="page-title"><i class="ti @Icons.Gallery"></i> گالری تصاویر</h1>
             <p class="page-subtitle">روی هر تصویر بزنید تا بزرگ‌تر دیده شود.</p>
         </div>
-        @* Only people allowed to manage the gallery see the management button. *@
-        <AuthorizeView Policy="@Perm.AdminGalleryView">
-            <div class="form-actions">
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="/home"><i class="ti @Icons.Home"></i> صفحه اصلی</a>
+            @* Only people allowed to manage the gallery see the management button. *@
+            <AuthorizeView Policy="@Perm.AdminGalleryView">
                 <a class="btn btn-secondary" href="/admin/gallery"><i class="ti @Icons.Edit"></i> مدیریت تصاویر</a>
-            </div>
-        </AuthorizeView>
+            </AuthorizeView>
+        </div>
     </div>
 
     @* Three states: still loading, no pictures, or the grid. *@
@@ -143,6 +144,8 @@
     // What the visitor typed in the search box (the pictures are filtered at every keystroke), and the group button chosen: null = all groups, "" = the pictures without a group.
     private string _query = "";
     private string? _group;
+    // Search text from the address (/gallery?q=...), set by the home page search.
+    [SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
 
     // The search text. Typing changes the pictures shown, so the large view is closed and the sections are worked out again.
     private string Query
@@ -169,6 +172,7 @@
     // On opening: load the pictures and arrange them.
     protected override async Task OnInitializedAsync()
     {
+        _query = Q ?? "";
         _images = await Provider.ListAsync();
         _groupNames = _images.Where(g => g.GroupName is not null).Select(g => g.GroupName!).Distinct().ToList();
         _hasUngrouped = _images.Any(g => g.GroupName is null);
