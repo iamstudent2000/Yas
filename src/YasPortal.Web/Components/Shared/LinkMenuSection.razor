@@ -4,7 +4,7 @@
 @if (Depth == 0)
 @* Top level: always open. Deeper levels: a folder heading with a link count that the user clicks to open or close. *@
 {
-    <div class="lm-section"><LinkMenuBody Node="Node" Depth="Depth" /></div>
+    <div class="lm-section"><LinkMenuBody Node="Node" Depth="Depth" OpenSubGroups="OpenSubGroups" /></div>
 }
 else
 {
@@ -15,7 +15,7 @@ else
         </button>
         @if (_expanded)
         {
-            <div class="lm-sub-body"><LinkMenuBody Node="Node" Depth="Depth" /></div>
+            <div class="lm-sub-body"><LinkMenuBody Node="Node" Depth="Depth" OpenSubGroups="OpenSubGroups" /></div>
         }
     </div>
 }
@@ -26,6 +26,11 @@ else
     // How deep this group sits in the tree (0 = top group).
     [Parameter] public int Depth { get; set; }
 
+    // True in a small group: its sub-groups start open instead of closed.
+    [Parameter] public bool OpenSubGroups { get; set; }
+
     // Whether this sub-group is currently open; each level opens independently.
     private bool _expanded;
+
+    protected override void OnInitialized() => _expanded = OpenSubGroups;
 }

@@ -3,6 +3,8 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using YasPortal.Domain.Landing
+@using YasPortal.Domain.Gallery
+@using YasPortal.Infrastructure.Gallery
 @using YasPortal.Infrastructure.Guides
 @using YasPortal.Infrastructure.Landing
 @using YasPortal.Web.Components.Shared
@@ -11,10 +13,11 @@
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
 @inject GuideProvider GuideProv
+@inject GalleryProvider GalleryProv
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
-@* The public front page: open to everyone, shows only the texts from LandingContent (no database data). At "/" a signed-in person is
+@* The public front page: open to everyone (texts from LandingContent, the links and slides, and a short preview of the guides and the gallery). At "/" a signed-in person is
    sent on to the dashboard (or, without that permission, sees a short welcome); "/home" shows this page to everyone, signed in or not
    (the sidebar's "صفحه اصلی" link). The personal sidebar appears only after sign-in. *@
 
@@ -36,10 +39,43 @@ else if (!_showLanding)
 else
 {
     <div class="landing" dir="rtl">
+        @* Top strip: a greeting, and for a visitor who is not signed in a clear sign-in button (it used to be only inside the slide and at the bottom). *@
+        <section class="landing-welcome">
+            <div>
+                <strong>@(_signedIn ? "خوش آمدید" + (string.IsNullOrWhiteSpace(_userName) ? "" : "، " + _userName) : "به یاس پورتال خوش آمدید")</strong>
+                <span>@(_signedIn ? "از منوی کناری یا پیوندهای زیر ادامه دهید." : "برای استفاده از امکانات سامانه وارد شوید.")</span>
+            </div>
+            @if (!_signedIn)
+            {
+                <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود به سامانه</a>
+            }
+        </section>
+
+        @* The link menu and quick-access links are maintained by an administrator in the home page content section. They come first, *@
+        @* because they are what people use most; the banner slides follow. *@
+        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
+        {
+            <LinkMenuBar Tree="_tree" />
+        }
+
+        @if (_tree.QuickAccess.Count > 0)
+        {
+            <section class="landing-quick" aria-label="دسترسی سریع">
+                <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
+                <div class="landing-quick-links">
+                    @foreach (var link in _tree.QuickAccess)
+                    {
+                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
+                    }
+                </div>
+            </section>
+        }
+
         @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
+        @* The slides stop turning while the mouse is over them, so a text can be read in peace. *@
         @if (_slides.Count > 0)
         {
-        <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه">
+        <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه" @onmouseenter="() => _paused = true" @onmouseleave="() => _paused = false">
             @{ var slide = _slides[_index]; }
             <div class="landing-slide" @key="_index">
                 <span class="landing-slide-icon"><i class="ti @slide.Icon"></i></span>
@@ -77,22 +113,44 @@ else
         </section>
         }
 
-        @* The link menu and quick-access links are maintained by an administrator in the home page content section. *@
-        @if (_tree.Groups.Count > 0 || _tree.Ungrouped.Count > 0)
-        {
-            <LinkMenuBar Tree="_tree" />
-        }
+        @* Tiles for the public pages that were not reachable from here: phone book, guides (only when there are some) and gallery (only when it has pictures). *@
+        <section class="landing-tiles" aria-label="بخش‌های عمومی">
+            <a class="landing-tile" href="/phone-book"><span class="landing-link-icon"><i class="ti @Icons.PhoneBook"></i></span><span><strong>دفترچه تلفن</strong><small>شماره داخلی و تماس همکاران</small></span></a>
+            @if (_guides.Count > 0)
+            {
+                <a class="landing-tile" href="/guides"><span class="landing-link-icon"><i class="ti @Icons.Guide"></i></span><span><strong>راهنمای کاربری</strong><small>@_guides.Count راهنما</small></span></a>
+            }
+            @if (_pictures.Count > 0)
+            {
+                <a class="landing-tile" href="/gallery"><span class="landing-link-icon"><i class="ti @Icons.Gallery"></i></span><span><strong>گالری تصاویر</strong><small>@_pictures.Count تصویر</small></span></a>
+            }
+        </section>
 
-        @if (_tree.QuickAccess.Count > 0)
+        @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens the gallery. *@
+        @if (_pictures.Count > 0)
         {
-            <section class="landing-quick" aria-label="دسترسی سریع">
-                <h2 class="landing-heading"><i class="ti ti-bolt"></i> دسترسی سریع</h2>
-                <div class="landing-quick-links">
-                    @foreach (var link in _tree.QuickAccess)
+            <section class="landing-section">
+                <h2 class="landing-heading"><i class="ti @Icons.Gallery"></i> گالری <a class="landing-more" href="/gallery">مشاهده همه</a></h2>
+                <div class="landing-pictures">
+                    @foreach (var picture in _pictures.Take(PicturesShown))
                     {
-                        <span class="lm-quick"><LinkMenuEntry Link="link" /></span>
+                        <a class="landing-picture" href="/gallery" title="@picture.Title"><img src="@GalleryImage.UrlFor(picture.Id, picture.Version)" alt="@picture.Title" loading="lazy" decoding="async" /></a>
                     }
                 </div>
+            </section>
+        }
+
+        @* The first guides in their display order, each opening its page. *@
+        @if (_guides.Count > 0)
+        {
+            <section class="landing-section">
+                <h2 class="landing-heading"><i class="ti @Icons.Guide"></i> راهنماها <a class="landing-more" href="/guides">مشاهده همه</a></h2>
+                <ul class="landing-guides">
+                    @foreach (var guide in _guides.Take(GuidesShown))
+                    {
+                        <li><a href="/guides/@guide.Id"><strong>@guide.Title</strong>@if (!string.IsNullOrWhiteSpace(guide.Summary)) { <small>@guide.Summary</small> }</a></li>
+                    }
+                </ul>
             </section>
         }
 
@@ -117,10 +175,6 @@ else
                 <span>هر کاربر فقط بخش‌هایی را می‌بیند که مجوز آن‌ها را دارد.</span>
             </div>
             <div class="form-actions">
-                @if (_hasGuides)
-                {
-                    <a class="btn btn-secondary" href="/guides"><i class="ti @Icons.Guide"></i> راهنمای کاربری</a>
-                }
                 @if (!_signedIn)
                 {
                     <a class="btn btn-primary" href="/login"><i class="ti @Icons.LogIn"></i> ورود</a>
@@ -131,7 +185,15 @@ else
 }
 
 @code {
-    private bool _ready, _signedIn, _canDashboard, _showLanding = true, _hasGuides;
+    private bool _ready, _signedIn, _canDashboard, _showLanding = true;
+    // True while the mouse is over the slides (they do not turn then).
+    private bool _paused;
+    // The name shown in the greeting (the sign-in name), and what the front page shows from the guides and the gallery.
+    private string? _userName;
+    private IReadOnlyList<GuideListItem> _guides = [];
+    private IReadOnlyList<GalleryListItem> _pictures = [];
+    // How many guides and pictures are previewed on this page.
+    private const int GuidesShown = 5, PicturesShown = 6;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private LinkTree _tree = LinkTree.Build([], []);
@@ -149,6 +211,7 @@ else
     {
         var user = (await AuthState.GetAuthenticationStateAsync()).User;
         _signedIn = user.Identity?.IsAuthenticated == true;
+        _userName = _signedIn ? user.Identity?.Name : null;
         if (_signedIn)
         {
             _canDashboard = (await AuthzService.AuthorizeAsync(user, Perm.DashboardPageView)).Succeeded;
@@ -161,7 +224,8 @@ else
                 return;
             }
         }
-        _hasGuides = (await GuideProv.ListAsync(_signedIn)).Count > 0;
+        _guides = await GuideProv.ListAsync(_signedIn);
+        _pictures = await GalleryProv.ListAsync();
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _info = Content.Info;
@@ -171,7 +235,7 @@ else
     {
         // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds.
         if (firstRender && _showLanding && _slides.Count > 1)
-            _timer = new Timer(_ => _ = InvokeAsync(() => { Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
+            _timer = new Timer(_ => _ = InvokeAsync(() => { if (!_paused) Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
     }
 
     private static string FileSizeText(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";

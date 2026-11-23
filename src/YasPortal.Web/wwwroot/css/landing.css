@@ -1,7 +1,7 @@
 /* Public landing page (Components/Pages/Home.razor): slides, quick links, general information. Scoped under .landing. */
 .landing{display:flex;flex-direction:column;gap:28px;max-width:1100px;margin:0 auto;padding:8px 0 32px}
-.landing-hero{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff;min-height:260px;display:flex;align-items:center}
-.landing-slide{display:flex;align-items:center;gap:28px;padding:40px 72px;width:100%;animation:landing-fade .45s ease}
+.landing-hero{position:relative;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--accent-strong),var(--accent));color:#fff;min-height:200px;display:flex;align-items:center}
+.landing-slide{display:flex;align-items:center;gap:28px;padding:28px 72px;width:100%;animation:landing-fade .45s ease}
 .landing-slide-icon{flex:0 0 auto;width:92px;height:92px;border-radius:24px;background:rgba(255,255,255,.16);display:grid;place-items:center;font-size:46px}
 .landing-slide-body h1{margin:0 0 10px;font-size:1.7rem;line-height:1.5;color:#fff}
 .landing-slide-body p{margin:0 0 18px;font-size:1.02rem;line-height:2;opacity:.94;max-width:640px}
@@ -37,9 +37,9 @@
 .lm{position:relative;z-index:20;direction:rtl;text-align:start}
 .lm .ti-external-link{display:inline-block;transform:scaleX(-1)}   /* the arrow points up and to the left, as the text runs */
 .lm-backdrop{position:fixed;inset:0;z-index:1;background:transparent}
-.lm-bar{list-style:none;margin:0;padding:3px 6px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;border:1px solid var(--border);border-radius:10px;background:var(--surface);position:relative;z-index:2}
+.lm-bar{list-style:none;margin:0;padding:6px 8px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;border:1px solid var(--border);border-radius:10px;background:var(--surface);position:relative;z-index:2}
 .lm-item{position:relative}
-.lm-top{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:.9rem;cursor:pointer}
+.lm-top{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:1rem;font-weight:600;cursor:pointer}
 .lm-top:hover,.lm-top.is-open{background:var(--accent-soft);color:var(--accent-strong)}
 .lm-top .ti-folder{color:var(--accent)}
 .lm-caret{font-size:12px;transition:transform .15s}
@@ -47,7 +47,7 @@
 .lm-quick a{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:10px;color:var(--accent-strong);background:var(--accent-soft);text-decoration:none;font-weight:600}
 .lm-quick a small{display:none}
 .lm-quick a:hover{background:var(--accent-soft2)}
-.lm-panel{position:absolute;top:calc(100% + 4px);inset-inline-start:0;z-index:3;min-width:240px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(16,24,40,.16)}
+.lm-panel{position:absolute;top:100%;inset-inline-start:0;z-index:3;min-width:240px;max-width:min(92vw,380px);max-height:70vh;overflow:auto;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:0 12px 32px rgba(16,24,40,.16)}
 .lm-panel.is-flipped{inset-inline-start:auto;inset-inline-end:0}
 .lm-section.is-sub{margin-top:2px}
 .lm-sub-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:5px 8px;border:0;border-radius:8px;background:transparent;color:var(--text);font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-align:start}
@@ -63,12 +63,37 @@
 .lm-links small{display:block;color:var(--text-muted);margin-top:0;font-size:.78rem}
 .lm-links .ti{color:var(--accent);margin-top:3px;font-size:14px}
 .lm-path{padding:0 8px 4px 8px;color:var(--text-muted);font-size:.8rem}
-.lm-search{margin-inline-start:auto;display:flex;align-items:center;gap:5px;padding-inline:8px;border:1px solid var(--border);border-radius:8px}
+.lm-search{margin-inline-end:6px;display:flex;align-items:center;gap:5px;padding-inline:10px;border:1px solid var(--border);border-radius:8px}
 .lm-search .ti{color:var(--text-muted)}
-.lm-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.9rem;min-width:130px;padding:4px 0}
-@media (max-width:720px){.lm-search{margin-inline-start:0;width:100%}.lm-search input{flex:1}.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
+.lm-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:.95rem;min-width:220px;padding:8px 0}
+@media (max-width:720px){.lm-search{margin-inline-end:0;width:100%}.lm-search input{flex:1}.lm-item{position:static}.lm-panel,.lm-panel.is-flipped{inset-inline:0;top:calc(100% + 4px);min-width:0;max-width:none}}
 
 /* Quick access: its own frame under the links menu */
 .landing-quick{padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 .landing-quick .landing-heading{margin-bottom:12px}
 .landing-quick-links{display:flex;flex-wrap:wrap;gap:10px}
+
+/* Front page additions: greeting strip, tiles for the public pages, gallery pictures and guide list */
+.landing-welcome{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 20px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.landing-welcome strong{display:block;font-size:1.05rem}
+.landing-welcome span{color:var(--text-muted)}
+.landing-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.landing-tile{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);text-decoration:none}
+.landing-tile:hover,.landing-tile:focus-visible{border-color:var(--accent)}
+.landing-tile strong{display:block}
+.landing-tile small{display:block;color:var(--text-muted);margin-top:2px}
+.landing-more{margin-inline-start:auto;font-size:.85rem;font-weight:400;color:var(--accent-strong);text-decoration:none}
+.landing-more:hover{text-decoration:underline}
+.landing-pictures{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.landing-picture{display:block;aspect-ratio:4/3;overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--surface-2,var(--surface))}
+.landing-picture:hover,.landing-picture:focus-visible{border-color:var(--accent)}
+.landing-picture img{display:block;width:100%;height:100%;object-fit:cover}
+.landing-guides{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px}
+.landing-guides a{display:block;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);text-decoration:none}
+.landing-guides a:hover,.landing-guides a:focus-visible{border-color:var(--accent)}
+.landing-guides small{display:block;margin-top:2px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A small group's dropdown: wider, with its open sub-groups side by side */
+.lm-subgroups{display:block}
+.lm-panel.is-wide{min-width:min(92vw,520px);max-width:min(92vw,680px)}
+.lm-panel.is-wide>.lm-section>.lm-subgroups{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 12px;align-items:start}

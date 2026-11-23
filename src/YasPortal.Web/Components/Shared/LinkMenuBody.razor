@@ -10,14 +10,19 @@
         }
     </ul>
 }
-@foreach (var child in Node.Children)
-{
-    <LinkMenuSection @key="child.Id" Node="child" Depth="Depth + 1" />
-}
+@* The sub-groups sit in one block, so a small group can show them side by side. *@
+<div class="lm-subgroups">
+    @foreach (var child in Node.Children)
+    {
+        <LinkMenuSection @key="child.Id" Node="child" Depth="Depth + 1" OpenSubGroups="OpenSubGroups" />
+    }
+</div>
 
 @code {
     // The group of the links menu to draw, including its links and sub-groups.
     [Parameter, EditorRequired] public LinkGroupNode Node { get; set; } = null!;
     // How deep this group sits in the tree (0 = top group).
     [Parameter] public int Depth { get; set; }
+    // True in a small group: its sub-groups start open.
+    [Parameter] public bool OpenSubGroups { get; set; }
 }

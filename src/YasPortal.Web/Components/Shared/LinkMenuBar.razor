@@ -1,45 +1,16 @@
 @using YasPortal.Domain.Landing
-@* The home page's horizontal links menu: one dropdown per top group (its links and its
-   sub-groups), "سایر" for links in no group, and a search box. A dropdown opens on click (works on touch screens) and closes when
-   another is opened or anything outside is clicked. *@
-<nav class="lm" dir="rtl" aria-label="پیوندها">
+@* The home page's horizontal links menu: a search box, then one dropdown per top group (its links and its
+   sub-groups), and "سایر" for links in no group. With a mouse a dropdown opens when the pointer is over its button and closes when
+   the pointer leaves it; a click keeps it open. On touch screens it opens on tap. Escape, a click outside, or opening another closes it.
+   A small group shows its sub-groups already open, side by side; a big one keeps them as closed headings. *@
+<nav class="lm" dir="rtl" aria-label="پیوندها" @onkeydown="OnKeyDown">
     @* While a dropdown is open or a search is shown, an invisible layer behind it closes everything when clicked. *@
     @if (_open is not null || Searching)
     {
         <div class="lm-backdrop" @onclick="Close"></div>
     }
     <ul class="lm-bar">
-        @* One dropdown button per top-level link group; the panel with its links appears only for the open one. *@
-        @for (var i = 0; i < Tree.Groups.Count; i++)
-        {
-            var group = Tree.Groups[i];
-            var key = group.Id.ToString();
-            <li class="lm-item">
-                <button type="button" class="lm-top @(_open == key ? "is-open" : "")" aria-expanded="@(_open == key ? "true" : "false")" @onclick="() => Toggle(key)">
-                    <i class="ti ti-folder"></i> @group.Name <i class="ti ti-chevron-down lm-caret"></i>
-                </button>
-                @if (_open == key)
-                {
-                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "")"><LinkMenuSection Node="group" /></div>
-                }
-            </li>
-        }
-        @* Links that belong to no group are collected under one extra dropdown. *@
-        @if (Tree.Ungrouped.Count > 0)
-        {
-            <li class="lm-item">
-                <button type="button" class="lm-top @(_open == OtherKey ? "is-open" : "")" aria-expanded="@(_open == OtherKey ? "true" : "false")" @onclick="() => Toggle(OtherKey)">
-                    <i class="ti ti-folder"></i> سایر <i class="ti ti-chevron-down lm-caret"></i>
-                </button>
-                @if (_open == OtherKey)
-                {
-                    <div class="lm-panel @(Flip(Tree.Groups.Count) ? "is-flipped" : "")"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
-                }
-            </li>
-        }
-        @* The search box appears only when the portal has more than 8 links in total. *@
-        @if (Tree.TotalLinks > 8)
-        {
+        @* The search box is always there, first in the bar. *@
             <li class="lm-item lm-search">
                 <i class="ti ti-search"></i>
                 <input type="search" placeholder="جستجو در پیوندها..." aria-label="جستجو در پیوندها" value="@_query" @oninput="OnSearch" />
@@ -63,6 +34,34 @@
                     </div>
                 }
             </li>
+        @* One dropdown button per top-level link group; the panel with its links appears only for the open one. *@
+        @for (var i = 0; i < Tree.Groups.Count; i++)
+        {
+            var group = Tree.Groups[i];
+            var key = group.Id.ToString();
+            <li class="lm-item" @onpointerenter="e => HoverOpen(key, e)" @onpointerleave="() => HoverLeave(key)">
+                <button type="button" class="lm-top @(_open == key ? "is-open" : "")" aria-expanded="@(_open == key ? "true" : "false")" @onclick="() => Toggle(key)">
+                    <i class="ti ti-folder"></i> @group.Name <i class="ti ti-chevron-down lm-caret"></i>
+                </button>
+                @if (_open == key)
+                {
+                    var small = group.TotalLinks <= SmallGroupLinks;
+                    <div class="lm-panel @(Flip(i) ? "is-flipped" : "") @(small && group.Children.Count > 1 ? "is-wide" : "")"><LinkMenuSection Node="group" OpenSubGroups="small" /></div>
+                }
+            </li>
+        }
+        @* Links that belong to no group are collected under one extra dropdown. *@
+        @if (Tree.Ungrouped.Count > 0)
+        {
+            <li class="lm-item" @onpointerenter="e => HoverOpen(OtherKey, e)" @onpointerleave="() => HoverLeave(OtherKey)">
+                <button type="button" class="lm-top @(_open == OtherKey ? "is-open" : "")" aria-expanded="@(_open == OtherKey ? "true" : "false")" @onclick="() => Toggle(OtherKey)">
+                    <i class="ti ti-folder"></i> سایر <i class="ti ti-chevron-down lm-caret"></i>
+                </button>
+                @if (_open == OtherKey)
+                {
+                    <div class="lm-panel @(Flip(Tree.Groups.Count) ? "is-flipped" : "")"><ul class="lm-links">@foreach (var link in Tree.Ungrouped) { <li><LinkMenuEntry Link="link" /></li> }</ul></div>
+                }
+            </li>
         }
     </ul>
 </nav>
@@ -72,6 +71,10 @@
     private const string OtherKey = "other";
     private string? _open;
     private string _query = "";
+    // The dropdown that the mouse pointer opened (it closes when the pointer leaves, unless it was clicked to keep it open).
+    private string? _hoverOpened;
+    // A group with at most this many links (counting its sub-groups) shows its sub-groups already open.
+    private const int SmallGroupLinks = 12;
 
     // The links tree (groups, sub-groups and ungrouped links) handed in by the home page.
     [Parameter, EditorRequired] public LinkTree Tree { get; set; } = null!;
@@ -89,22 +92,49 @@
         return total > 4 && index >= total - 3;
     }
 
+    // Mouse pointer over a group button: open its dropdown (a finger on a touch screen does not count, it opens by the tap).
+    private void HoverOpen(string key, PointerEventArgs e)
+    {
+        if (e.PointerType != "mouse" || Searching) return;
+        _open = key;
+        _hoverOpened = key;
+    }
+
+    // Pointer left the button and its dropdown: close it, but only if it was opened by the pointer and not kept open by a click.
+    private void HoverLeave(string key)
+    {
+        if (_hoverOpened != key) return;
+        _hoverOpened = null;
+        _open = null;
+    }
+
     private void Toggle(string key)
     {
         _query = "";
+        // A click on a dropdown that the pointer just opened keeps it open (it would otherwise close it at once).
+        if (_hoverOpened == key) { _hoverOpened = null; return; }
+        _hoverOpened = null;
         _open = _open == key ? null : key;
     }
 
     private void Close()
     {
         _open = null;
+        _hoverOpened = null;
         _query = "";
+    }
+
+    // Escape closes the open dropdown or the search results.
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
     }
 
     private void OnSearch(ChangeEventArgs e)
     {
         _query = e.Value?.ToString() ?? "";
         _open = null;
+        _hoverOpened = null;
     }
 
     // Everything that matches the search, with the group it is in (shown small under the link).
