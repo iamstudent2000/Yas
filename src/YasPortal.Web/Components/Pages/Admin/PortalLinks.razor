@@ -15,7 +15,8 @@
 
 @* Admin page for the links shown on the portal home page (address /admin/links). Links are arranged in groups, and groups *@
 @* can sit inside other groups up to a limited depth. People with the view permission can look; people with the manage *@
-@* permission can add, edit, switch on or off and delete groups and links, or import many links at once. *@
+@* permission can add, edit, switch on or off and delete groups and links, or import many links at once. A fourth tab, "کاشی‌ها", holds the *@
+@* (at most four) big tiles of the last section of the home page (see HomeTilesTab). *@
 <PageTitle>پیوندهای صفحه اصلی - یاس پورتال</PageTitle>
 
 <div class="admin-page" dir="rtl">
@@ -31,11 +32,12 @@
         </div>
     </div>
 
-    @* Sub tabs, the same as on the store items page: links, groups, and (for people who may manage) the bulk import. *@
+    @* Sub tabs, the same as on the store items page: links, groups, the home page tiles, and (for people who may manage) the bulk import. *@
     @* Each tab holds its own form (managers only) and its list. *@
     <div class="form-actions no-print">
         <button class="btn @(_tab == "links" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "links")">پیوندها</button>
         <button class="btn @(_tab == "groups" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "groups")">گروه‌ها</button>
+        <button class="btn @(_tab == "tiles" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "tiles")">کاشی‌ها</button>
         @if (_canManage)
         {
             <button class="btn @(_tab == "import" ? "btn-primary" : "btn-secondary")" @onclick="@(() => _tab = "import")">ورود گروهی</button>
@@ -49,6 +51,11 @@
     else
     {
         <div class="admin-stack">
+            @* The tiles tab has its own list and form in its own component. *@
+            @if (_tab == "tiles")
+            {
+                <HomeTilesTab CanManage="_canManage" />
+            }
             @if (_canManage && _tab == "links")
             {
                 @* While an existing link is being edited, this form opens in a window over the page; adding a new link still uses the form in the page. *@
@@ -306,7 +313,7 @@
 
 @code {
     private bool _loading = true, _canManage, _busy;
-    // The tab shown: "links", "groups" or "import".
+    // The tab shown: "links", "groups", "tiles" or "import".
     private string _tab = "links";
     private List<LinkGroup> _groups = [];
     private List<PortalLink> _links = [];

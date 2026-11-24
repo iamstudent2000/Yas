@@ -14,6 +14,7 @@
 @inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
+@inject HomeTileProvider TileProvider
 @inject GuideProvider GuideProv
 @inject GalleryProvider GalleryProv
 @inject WorkflowService Workflows
@@ -28,7 +29,7 @@
 <PageTitle>یاس پورتال</PageTitle>
 
 @* Three views: nothing until loading is done; a short welcome (signed-in person at the root address without a dashboard); *@
-@* or the full landing page with link menu, quick links, personal buttons, tiles and previews. The slides and the general information cards are paused (see ShowSlides and ShowInfo in the code part). *@
+@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. The slides and the general information cards are paused (see ShowSlides and ShowInfo in the code part). *@
 @if (!_ready)
 {
     @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
@@ -174,6 +175,24 @@ else
             </div>
         </section>
         }
+
+        @* The last section: up to four tiles, defined by administrators on /admin/links (tab "کاشی‌ها"). A tile opens its address; other websites open in a new tab. *@
+        @if (_tiles.Count > 0)
+        {
+            <section class="landing-section">
+                <div class="landing-info">
+                    @foreach (var tile in _tiles)
+                    {
+                        var external = PortalLink.IsExternal(tile.Url);
+                        <a class="landing-info-card landing-info-link" href="@tile.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)">
+                            <span class="landing-link-icon"><i class="ti @tile.Icon"></i></span>
+                            <h3>@tile.Title</h3>
+                            @if (tile.Text is not null) { <p>@tile.Text</p> }
+                        </a>
+                    }
+                </div>
+            </section>
+        }
     </div>
 }
 
@@ -196,6 +215,8 @@ else
     private IReadOnlyList<LandingSlide> _slides = [];
     private LinkTree _tree = LinkTree.Build([], []);
     private IReadOnlyList<LandingInfo> _info = [];
+    // The tiles of the last section (switched-on ones, in order).
+    private IReadOnlyList<HomeTile> _tiles = [];
     private Timer? _timer;
 
     // Loads the page content once. At the root address a signed-in person is redirected to the dashboard if allowed.
@@ -226,6 +247,7 @@ else
         _pictures = await GalleryProv.ListAsync();
         if (ShowSlides) _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
+        _tiles = await TileProvider.ListAsync();
         _info = Content.Info;
     }
 

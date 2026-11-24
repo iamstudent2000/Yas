@@ -1,0 +1,206 @@
+@using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Landing
+@using YasPortal.Infrastructure.Persistence
+@using YasPortal.Web.Components.Shared
+@using YasPortal.Web.Services
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IPermissionChecker PermissionChecker
+@inject AppState AppState
+
+@* The "کاشی‌ها" tab of /admin/links: the (at most four) big tiles of the last section of the home page. People with the view permission *@
+@* can look; people with the manage permission can add, edit, switch on or off and delete tiles. Adding is closed while four tiles exist. *@
+@* While an existing tile is being edited, the form opens in a window over the page; adding a new tile uses the form in the page. *@
+@if (_loading)
+{
+    <LoadingState />
+}
+else
+{
+    @if (CanManage && (_editingId is not null || _tiles.Count < HomeTile.MaxCount))
+    {
+        <FormHost Modal="@(_editingId is not null)" OnClose="ResetForm" Size="medium" CloseOnOutsideClick="false">
+        <section class="card admin-form-row">
+            <div class="admin-form-row-head">
+                <h2 class="section-title"><i class="ti @(_editingId is null ? Icons.Add : Icons.Edit)"></i> @(_editingId is null ? "افزودن کاشی" : "ویرایش کاشی")</h2>
+                <p class="muted">کاشی‌ها در آخرین بخش صفحه اصلی نمایش داده می‌شوند (حداکثر @HomeTile.MaxCount کاشی). آدرس مثل پیوندها است: http، https، نام سرور یا صفحه‌ای از همین سامانه مثل /gallery.</p>
+            </div>
+            <div class="admin-row-grid">
+                <div class="form-field is-grow"><label class="form-label">عنوان</label><input class="form-control" @bind="_title" maxlength="@HomeTile.TitleMax" /></div>
+                <div class="form-field"><label class="form-label">نماد</label>
+                    <LookupSelect @key="_formKey" Options="HomeSlide.IconChoices" Value="@_icon" ValueChanged="k => _icon = k ?? HomeSlide.IconChoices[0].Key" Placeholder="نماد" /></div>
+                <div class="form-field"><label class="form-label">ترتیب</label><input class="form-control" type="number" @bind="_order" /></div>
+            </div>
+            <div class="admin-row-grid" style="margin-top:12px">
+                <div class="form-field is-grow"><label class="form-label">آدرس</label><input class="form-control" dir="ltr" placeholder="/gallery یا https://..." @bind="_url" maxlength="@HomeTile.UrlMax" /></div>
+                <div class="form-field is-grow"><label class="form-label">متن کوتاه (اختیاری)</label><input class="form-control" @bind="_text" maxlength="@HomeTile.TextMax" /></div>
+                <div class="form-field admin-row-submit"><div class="form-actions">
+                    <button class="btn btn-primary" disabled="@_busy" @onclick="SaveAsync"><i class="ti @Icons.Save"></i> @(_editingId is null ? "افزودن کاشی" : "ذخیره")</button>
+                    @if (_editingId is not null) { <button class="btn btn-secondary" @onclick="ResetForm">انصراف</button> }
+                </div></div>
+            </div>
+        </section>
+        </FormHost>
+    }
+
+    <section class="card table-card">
+        <div class="card-toolbar">
+            <div><h2 class="section-title" style="margin:0">کاشی‌های صفحه اصلی</h2></div>
+            <span class="badge badge-muted">@_tiles.Count از @HomeTile.MaxCount کاشی</span>
+        </div>
+        @if (_tiles.Count == 0)
+        {
+            <div class="empty-state"><div class="empty-icon"><i class="ti @Icons.Links"></i></div><strong>هنوز کاشی‌ای تعریف نشده است</strong></div>
+        }
+        else
+        {
+            @* At most four rows, so this table has no page numbers (and the site-wide auto pager is switched off for it). *@
+            <div class="data-table-wrap">
+                <table class="data-table data-table-bordered-rows" data-no-auto-paginate>
+                    <thead><tr><th>عنوان</th><th>آدرس</th><th>ترتیب</th><th>وضعیت</th>@if (CanManage) { <th>عملیات</th> }</tr></thead>
+                    <tbody>
+                    @foreach (var tile in _tiles)
+                    {
+                        <tr>
+                            <td><i class="ti @tile.Icon"></i> <strong>@tile.Title</strong>@if (tile.Text is not null) { <div class="muted">@tile.Text</div> }</td>
+                            <td dir="ltr">@tile.Url</td>
+                            <td>@tile.SortOrder</td>
+                            <td><span class="badge @(tile.IsActive ? "badge-success" : "badge-muted")">@(tile.IsActive ? "فعال" : "غیرفعال")</span></td>
+                            @if (CanManage)
+                            {
+                                <td class="action-cell">
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => BeginEdit(tile)"><i class="ti @Icons.Edit"></i> ویرایش</button>
+                                    <button class="btn btn-secondary btn-sm" @onclick="() => ToggleAsync(tile.Id)"><i class="ti @(tile.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(tile.IsActive ? "غیرفعال" : "فعال")</button>
+                                    @* Confirmation step before deleting a tile. *@
+                                    @if (_confirmId == tile.Id)
+                                    {
+                                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteAsync(tile.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => _confirmId = null">انصراف</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-danger btn-sm" @onclick="() => _confirmId = tile.Id"><i class="ti @Icons.Delete"></i> حذف</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    // True when the person may change tiles (decided by the links page that holds this tab).
+    [Parameter] public bool CanManage { get; set; }
+
+    private bool _loading = true, _busy;
+    private List<HomeTile> _tiles = [];
+    // The form: the tile being edited (nothing = a new one), its fields, and a key that resets the icon picker.
+    private Guid? _editingId, _confirmId;
+    private string _title = "", _text = "", _url = "", _icon = HomeSlide.IconChoices[0].Key;
+    private int _order, _formKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _loading = false;
+    }
+
+    // Load the tiles in the order the home page shows them (switched-off ones too).
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _tiles = await db.HomeTiles.AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToListAsync();
+    }
+
+    // Every change re-checks the manage permission, instead of trusting the page alone.
+    private Task<bool> AllowedAsync() => PermissionChecker.HasPermissionAsync(Perm.AdminLinksManage);
+
+    private void ResetForm()
+    {
+        _editingId = null;
+        _title = _text = _url = "";
+        _icon = HomeSlide.IconChoices[0].Key;
+        _order = 0;
+        _formKey++;
+    }
+
+    private void BeginEdit(HomeTile tile)
+    {
+        _editingId = tile.Id;
+        _title = tile.Title; _text = tile.Text ?? ""; _url = tile.Url; _icon = tile.Icon; _order = tile.SortOrder;
+        _formKey++;
+    }
+
+    // Add a new tile (refused when four exist) or save the edited one.
+    private async Task SaveAsync()
+    {
+        if (_busy || !await AllowedAsync()) return;
+        _busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_editingId is Guid id)
+            {
+                var tile = await db.HomeTiles.SingleOrDefaultAsync(x => x.Id == id);
+                if (tile is null) { AppState.AddToast("این کاشی دیگر وجود ندارد.", ToastLevel.Error); ResetForm(); await LoadAsync(); return; }
+                tile.Update(_title, _text, _icon, _url, _order);
+            }
+            else
+            {
+                var full = HomeTile.ValidateCanAdd(await db.HomeTiles.CountAsync());
+                if (full is not null) { AppState.AddToast(full, ToastLevel.Error); return; }
+                db.HomeTiles.Add(new HomeTile(_title, _text, _icon, _url, _order));
+            }
+            await db.SaveChangesAsync();
+            AppState.AddToast(_editingId is null ? "کاشی اضافه شد." : "کاشی ذخیره شد.", ToastLevel.Success);
+            await LoadAsync();
+            ResetForm();
+        }
+        catch (ArgumentException ex)
+        {
+            AppState.AddToast(ex.ParamName switch
+            {
+                "title" => $"عنوان لازم است و حداکثر {HomeTile.TitleMax} نویسه باشد.",
+                "text" => $"متن حداکثر {HomeTile.TextMax} نویسه باشد.",
+                "url" => "آدرس معتبر نیست: http، https، نام سرور (مثل intranet/app) یا صفحه‌ای از همین سامانه (مثل /gallery).",
+                _ => "اطلاعات کاشی معتبر نیست.",
+            }, ToastLevel.Error);
+        }
+        catch (Exception) { AppState.AddToast("ذخیره کاشی انجام نشد.", ToastLevel.Error); }
+        finally { _busy = false; }
+    }
+
+    // Switch a tile on or off.
+    private async Task ToggleAsync(Guid id)
+    {
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var tile = await db.HomeTiles.SingleOrDefaultAsync(x => x.Id == id);
+        if (tile is not null)
+        {
+            if (tile.IsActive) tile.Deactivate(); else tile.Activate();
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+
+    // Delete a tile.
+    private async Task DeleteAsync(Guid id)
+    {
+        _confirmId = null;
+        if (!await AllowedAsync()) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var tile = await db.HomeTiles.SingleOrDefaultAsync(x => x.Id == id);
+        if (tile is not null)
+        {
+            db.HomeTiles.Remove(tile);
+            await db.SaveChangesAsync();
+            AppState.AddToast("کاشی حذف شد.", ToastLevel.Success);
+        }
+        if (_editingId == id) ResetForm();
+        await LoadAsync();
+    }
+}
