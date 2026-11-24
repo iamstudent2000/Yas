@@ -117,22 +117,6 @@ else
             </section>
         }
 
-        @* The public pages that are not reachable from the menus (phone book, guides when there are some, gallery when it has pictures), as one thin row of small links. *@
-        <section class="landing-quick" aria-label="بخش‌های عمومی">
-            <div class="landing-quick-links">
-                <span class="landing-quick-title"><i class="ti ti-compass"></i> بخش‌ها</span>
-                <span class="lm-quick"><a href="/phone-book"><i class="ti @Icons.PhoneBook"></i> دفترچه تلفن</a></span>
-                @if (_guides.Count > 0)
-                {
-                    <span class="lm-quick"><a href="/guides"><i class="ti @Icons.Guide"></i> راهنمای کاربری (@_guides.Count)</a></span>
-                }
-                @if (_pictures.Count > 0)
-                {
-                    <span class="lm-quick"><a href="/gallery"><i class="ti @Icons.Gallery"></i> گالری تصاویر (@_pictures.Count)</a></span>
-                }
-            </div>
-        </section>
-
         @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens that picture large in the gallery. *@
         @if (_pictures.Count > 0)
         {
