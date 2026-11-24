@@ -286,8 +286,9 @@ else
 
     protected override void OnAfterRender(bool firstRender)
     {
-        // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds.
-        if (firstRender && _showLanding && _slides.Count > 1)
+        // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds. The timer is started once,
+        // as soon as the slides are loaded (the very first drawing happens before they are loaded, so it must not be tied to it).
+        if (_timer is null && _showLanding && _slides.Count > 1)
             _timer = new Timer(_ => _ = InvokeAsync(() => { if (!_paused) Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
     }
 
