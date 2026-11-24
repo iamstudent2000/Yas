@@ -14,6 +14,7 @@
 @inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
+@inject HomeTileProvider TileProvider
 @inject GuideProvider GuideProv
 @inject GalleryProvider GalleryProv
 @inject WorkflowService Workflows
@@ -28,7 +29,7 @@
 <PageTitle>یاس پورتال</PageTitle>
 
 @* Three views: nothing until loading is done; a short welcome (signed-in person at the root address without a dashboard); *@
-@* or the full landing page with link menu, quick links, personal buttons, tiles and previews. The slides and the general information cards are paused (see ShowSlides and ShowInfo in the code part). *@
+@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. The general information cards are paused (see ShowInfo in the code part). *@
 @if (!_ready)
 {
     @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
@@ -45,7 +46,7 @@ else
     <div class="landing" dir="rtl">
         @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
         @* The banner is the first thing under the top bar and always has the same height. The slides stop turning while the mouse is over them, so a text can be read in peace. *@
-        @if (ShowSlides && _slides.Count > 0)
+        @if (_slides.Count > 0)
         {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه" @onmouseenter="() => _paused = true" @onmouseleave="() => _paused = false">
             @{ var slide = _slides[_index]; }
@@ -116,24 +117,11 @@ else
             </section>
         }
 
-        @* Tiles for the public pages that were not reachable from here: phone book, guides (only when there are some) and gallery (only when it has pictures). *@
-        <section class="landing-tiles" aria-label="بخش‌های عمومی">
-            <a class="landing-tile" href="/phone-book"><span class="landing-link-icon"><i class="ti @Icons.PhoneBook"></i></span><span><strong>دفترچه تلفن</strong><small>شماره داخلی و تماس همکاران</small></span></a>
-            @if (_guides.Count > 0)
-            {
-                <a class="landing-tile" href="/guides"><span class="landing-link-icon"><i class="ti @Icons.Guide"></i></span><span><strong>راهنمای کاربری</strong><small>@_guides.Count راهنما</small></span></a>
-            }
-            @if (_pictures.Count > 0)
-            {
-                <a class="landing-tile" href="/gallery"><span class="landing-link-icon"><i class="ti @Icons.Gallery"></i></span><span><strong>گالری تصاویر</strong><small>@_pictures.Count تصویر</small></span></a>
-            }
-        </section>
-
         @* A few pictures of the gallery (the first ones in the order the administrators set); a click opens that picture large in the gallery. *@
         @if (_pictures.Count > 0)
         {
             <section class="landing-section">
-                <h2 class="landing-heading"><i class="ti @Icons.Gallery"></i> گالری <a class="landing-more" href="/gallery">مشاهده همه</a></h2>
+                <h2 class="landing-heading"><i class="ti @Icons.Gallery"></i> گالری <small class="landing-hint">برای دیدن بزرگ‌تر روی تصویر بزنید</small> <a class="landing-more" href="/gallery">مشاهده همه</a></h2>
                 <div class="landing-pictures">
                     @foreach (var picture in _pictures.Take(PicturesShown))
                     {
@@ -174,13 +162,31 @@ else
             </div>
         </section>
         }
+
+        @* The last section: up to four tiles, defined by administrators on /admin/links (tab "کاشی‌ها"). A tile opens its address; other websites open in a new tab. *@
+        @if (_tiles.Count > 0)
+        {
+            <section class="landing-section">
+                <h2 class="landing-heading"><i class="ti ti-layout-grid"></i> دسترسی‌های ویژه</h2>
+                @* One row of up to four tiles of the same height; the icon sits beside the title and the short text is under them. *@
+                <div class="landing-big-tiles">
+                    @foreach (var tile in _tiles)
+                    {
+                        var external = PortalLink.IsExternal(tile.Url);
+                        <a class="landing-info-card landing-info-link" href="@tile.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)">
+                            <span class="landing-big-tile-head"><span class="landing-link-icon"><i class="ti @tile.Icon"></i></span><h3>@tile.Title</h3></span>
+                            @if (tile.Text is not null) { <p>@tile.Text</p> }
+                        </a>
+                    }
+                </div>
+            </section>
+        }
     </div>
 }
 
 @code {
-    // Pause switches: the slide banner and the «اطلاعات عمومی» cards are switched off for now. Set a switch to true to show that part again.
-    // While the slides are off they are not loaded and do not turn.
-    private const bool ShowSlides = false, ShowInfo = false;
+    // Pause switch: the «اطلاعات عمومی» cards are switched off for now. Set it to true to show them again.
+    private const bool ShowInfo = false;
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     // True while the mouse is over the slides (they do not turn then).
     private bool _paused;
@@ -191,11 +197,13 @@ else
     private IReadOnlyList<GuideListItem> _guides = [];
     private IReadOnlyList<GalleryListItem> _pictures = [];
     // How many guides and pictures are previewed on this page.
-    private const int GuidesShown = 5, PicturesShown = 6;
+    private const int GuidesShown = 6, PicturesShown = 6;
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private LinkTree _tree = LinkTree.Build([], []);
     private IReadOnlyList<LandingInfo> _info = [];
+    // The tiles of the last section (switched-on ones, in order).
+    private IReadOnlyList<HomeTile> _tiles = [];
     private Timer? _timer;
 
     // Loads the page content once. At the root address a signed-in person is redirected to the dashboard if allowed.
@@ -224,8 +232,9 @@ else
         _guides = await GuideProv.ListAsync(_signedIn);
         if (_signedIn) _personal = await LoadPersonalAsync(user);
         _pictures = await GalleryProv.ListAsync();
-        if (ShowSlides) _slides = await SlideProvider.GetSlidesAsync();
+        _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
+        _tiles = await TileProvider.ListAsync();
         _info = Content.Info;
     }
 
@@ -265,8 +274,9 @@ else
 
     protected override void OnAfterRender(bool firstRender)
     {
-        // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds.
-        if (firstRender && _showLanding && _slides.Count > 1)
+        // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds. The timer is started once,
+        // as soon as the slides are loaded (the very first drawing happens before they are loaded, so it must not be tied to it).
+        if (_timer is null && _showLanding && _slides.Count > 1)
             _timer = new Timer(_ => _ = InvokeAsync(() => { if (!_paused) Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
     }
 

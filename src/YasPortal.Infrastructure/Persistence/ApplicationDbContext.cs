@@ -53,6 +53,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     // User guides.
     public DbSet<UserGuide> UserGuides => Set<UserGuide>();
     public DbSet<PortalLinkFile> PortalLinkFiles => Set<PortalLinkFile>();
+    public DbSet<HomeTile> HomeTiles => Set<HomeTile>();
     public DbSet<UserGuideAttachment> UserGuideAttachments => Set<UserGuideAttachment>();
     public DbSet<UserGuideGroup> UserGuideGroups => Set<UserGuideGroup>();
     // Image gallery: the picture details and, in another table, the picture bytes.
@@ -356,6 +357,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         modelBuilder.Entity<GalleryGroup>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Name).HasMaxLength(GalleryGroup.NameMax).IsRequired(); e.HasIndex(x => x.Name).IsUnique(); });
         modelBuilder.Entity<GalleryImageFile>(e => { e.HasKey(x => x.ImageId); e.Property(x => x.ImageId).ValueGeneratedNever(); e.Property(x => x.Content).IsRequired(); e.HasOne<GalleryImage>().WithOne().HasForeignKey<GalleryImageFile>(x => x.ImageId).OnDelete(DeleteBehavior.Cascade); });
         // Home slides: text length limits, optional start and end dates, indexed by on/off and order.
+        modelBuilder.Entity<HomeTile>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeTile.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeTile.TextMax); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.Url).HasMaxLength(HomeTile.UrlMax).IsRequired(); });
         modelBuilder.Entity<HomeSlide>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Title).HasMaxLength(HomeSlide.TitleMax).IsRequired(); e.Property(x => x.Text).HasMaxLength(HomeSlide.TextMax).IsRequired(); e.Property(x => x.Icon).HasMaxLength(HomeSlide.IconMax).IsRequired(); e.Property(x => x.LinkText).HasMaxLength(HomeSlide.LinkTextMax); e.Property(x => x.LinkUrl).HasMaxLength(HomeSlide.LinkUrlMax); e.Property(x => x.StartsOn).HasColumnType("date"); e.Property(x => x.ExpiresOn).HasColumnType("date"); e.HasIndex(x => new { x.IsActive, x.SortOrder }); });
         // Settings row for the audit archive; its id is set by the application.
         modelBuilder.Entity<AuditArchiveSetting>(e => { e.HasKey(x => x.Id); e.Property(x => x.Id).ValueGeneratedNever(); });

@@ -99,6 +99,7 @@ builder.Services.AddScoped<GalleryGroupService>();
 builder.Services.AddScoped<GalleryProvider>();
 builder.Services.AddScoped<StoreService>();
 builder.Services.AddScoped<PortalLinkProvider>();
+builder.Services.AddScoped<HomeTileProvider>();
 builder.Services.AddScoped<PhoneBookProvider>();
 // Audit archiving: old audit entries are moved to an archive on a schedule by a background worker (hosted service).
 builder.Services.AddScoped<AuditArchiveSettingsService>();
@@ -355,6 +356,9 @@ if (app.Environment.IsDevelopment())
         END
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.UserGuides') AND name = N'IX_UserGuides_IsActive_SortOrder')
             EXEC(N'CREATE INDEX [IX_UserGuides_IsActive_SortOrder] ON [dbo].[UserGuides] ([IsActive], [SortOrder])');
+        -- the (at most four) tiles of the last section of the home page
+        IF OBJECT_ID(N'dbo.HomeTiles', N'U') IS NULL
+            CREATE TABLE [dbo].[HomeTiles] ([Id] uniqueidentifier NOT NULL, [Title] nvarchar(60) NOT NULL, [Text] nvarchar(150) NULL, [Icon] nvarchar(50) NOT NULL, [Url] nvarchar(500) NOT NULL, [SortOrder] int NOT NULL, [IsActive] bit NOT NULL, CONSTRAINT [PK_HomeTiles] PRIMARY KEY ([Id]));
         -- the file uploaded for a home-page link (one per link; deleted together with the link)
         IF OBJECT_ID(N'dbo.PortalLinkFiles', N'U') IS NULL
             CREATE TABLE [dbo].[PortalLinkFiles] ([LinkId] uniqueidentifier NOT NULL, [FileName] nvarchar(200) NOT NULL, [ContentType] nvarchar(150) NOT NULL, [Content] varbinary(max) NOT NULL, CONSTRAINT [PK_PortalLinkFiles] PRIMARY KEY ([LinkId]), CONSTRAINT [FK_PortalLinkFiles_PortalLinks_LinkId] FOREIGN KEY ([LinkId]) REFERENCES [dbo].[PortalLinks] ([Id]) ON DELETE CASCADE);
