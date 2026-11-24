@@ -180,13 +180,13 @@ else
         @if (_tiles.Count > 0)
         {
             <section class="landing-section">
-                <div class="landing-info">
+                @* One row of up to four tiles of the same height; the icon sits beside the title and the short text is under them. *@
+                <div class="landing-big-tiles">
                     @foreach (var tile in _tiles)
                     {
                         var external = PortalLink.IsExternal(tile.Url);
                         <a class="landing-info-card landing-info-link" href="@tile.Url" target="@(external ? "_blank" : null)" rel="@(external ? "noopener noreferrer" : null)">
-                            <span class="landing-link-icon"><i class="ti @tile.Icon"></i></span>
-                            <h3>@tile.Title</h3>
+                            <span class="landing-big-tile-head"><span class="landing-link-icon"><i class="ti @tile.Icon"></i></span><h3>@tile.Title</h3></span>
                             @if (tile.Text is not null) { <p>@tile.Text</p> }
                         </a>
                     }

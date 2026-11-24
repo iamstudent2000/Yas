@@ -27,6 +27,13 @@
 .landing-info{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
 .landing-info-card{padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 .landing-info-link{display:block;color:inherit;text-decoration:none}
+/* The tiles of the last section: one row of four equal boxes (two per row on small screens), icon beside the title, text cut after two lines. */
+.landing-big-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.landing-big-tiles .landing-info-card{height:108px;padding:14px 16px;overflow:hidden}
+.landing-big-tile-head{display:flex;align-items:center;gap:10px}
+.landing-big-tile-head h3{margin:0;font-size:1rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.landing-big-tiles .landing-info-card p{margin:8px 0 0;line-height:1.6;font-size:.88rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (max-width:900px){.landing-big-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .landing-info-link:hover{background:var(--accent-soft);border-color:var(--accent)}
 .landing-info-card h3{margin:12px 0 6px;font-size:1.02rem}
 .landing-info-card p{margin:0;color:var(--text-muted);line-height:1.9}
