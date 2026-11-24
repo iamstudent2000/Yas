@@ -29,7 +29,7 @@
 <PageTitle>یاس پورتال</PageTitle>
 
 @* Three views: nothing until loading is done; a short welcome (signed-in person at the root address without a dashboard); *@
-@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. The slides and the general information cards are paused (see ShowSlides and ShowInfo in the code part). *@
+@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. The general information cards are paused (see ShowInfo in the code part). *@
 @if (!_ready)
 {
     @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
@@ -46,7 +46,7 @@ else
     <div class="landing" dir="rtl">
         @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
         @* The banner is the first thing under the top bar and always has the same height. The slides stop turning while the mouse is over them, so a text can be read in peace. *@
-        @if (ShowSlides && _slides.Count > 0)
+        @if (_slides.Count > 0)
         {
         <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه" @onmouseenter="() => _paused = true" @onmouseleave="() => _paused = false">
             @{ var slide = _slides[_index]; }
@@ -197,9 +197,8 @@ else
 }
 
 @code {
-    // Pause switches: the slide banner and the «اطلاعات عمومی» cards are switched off for now. Set a switch to true to show that part again.
-    // While the slides are off they are not loaded and do not turn.
-    private const bool ShowSlides = false, ShowInfo = false;
+    // Pause switch: the «اطلاعات عمومی» cards are switched off for now. Set it to true to show them again.
+    private const bool ShowInfo = false;
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     // True while the mouse is over the slides (they do not turn then).
     private bool _paused;
@@ -245,7 +244,7 @@ else
         _guides = await GuideProv.ListAsync(_signedIn);
         if (_signedIn) _personal = await LoadPersonalAsync(user);
         _pictures = await GalleryProv.ListAsync();
-        if (ShowSlides) _slides = await SlideProvider.GetSlidesAsync();
+        _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _tiles = await TileProvider.ListAsync();
         _info = Content.Info;
