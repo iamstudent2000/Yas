@@ -1,6 +1,7 @@
 @page "/admin/store/reports"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.JSInterop
+@using YasPortal.Domain.Paging
 @using YasPortal.Infrastructure.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -61,17 +62,19 @@
             else
             {
                 <div class="data-table-wrap">
-                    <table class="data-table data-table-bordered-rows" data-auto-paginate>
+                    <table class="data-table data-table-bordered-rows">
                         <thead><tr>@for (var ci = 0; ci < _table.Headers.Count; ci++) { var col = ci; <SortableHeader Text="@_table.Headers[col]" Column="@col.ToString()" CurrentSort="@_sortCol" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /> }</tr></thead>
                         <tbody>
-                            @foreach (var row in SortedRows)
+                            @foreach (var row in ListPaging.Slice(SortedRows, _page, _pageSize))
                             {
                                 <tr>@foreach (var cell in row) {<td>@WorkflowDisplay.ToPersianDigits(cell)</td>}</tr>
                             }
                         </tbody>
                     </table>
                 </div>
-                <p class="muted">@WorkflowDisplay.ToPersianDigits(_table.Rows.Count.ToString()) ردیف</p>
+                @* Page navigation under the result table (the rows are cut into pages here in the page). *@
+                <ServerPagination Page="@ListPaging.ClampPage(_page, _table.Rows.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@_table.Rows.Count"
+                                  PageChanged="p => _page = p" PageSizeChanged="size => { _pageSize = size; _page = 1; }" />
             }
         </section>
     }
@@ -91,9 +94,11 @@
     private StoreReportTable? _table;
     private string? _sortCol;
     private bool _sortDesc;
+    // Which page of the result rows is shown and how many rows each page has.
+    private int _page = 1, _pageSize = 20;
 
     // Clicking a column heading sorts the rows of the table in the page.
-    private Task SortByAsync(string col) { (_sortCol, _sortDesc) = TableSort.Toggle(_sortCol, _sortDesc, col); return Task.CompletedTask; }
+    private Task SortByAsync(string col) { (_sortCol, _sortDesc) = TableSort.Toggle(_sortCol, _sortDesc, col); _page = 1; return Task.CompletedTask; }
 
     // The result rows in the current sort order (unsorted until a heading is clicked).
     private IReadOnlyList<IReadOnlyList<string>> SortedRows
@@ -121,7 +126,7 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        _sortCol = null; _sortDesc = false;
+        _sortCol = null; _sortDesc = false; _page = 1;
         try { _table = await Reports.BuildAsync(_key, _from, _to, _days); }
         catch (Exception) { AppState.AddToast("ساخت گزارش انجام نشد.", ToastLevel.Error); }
         finally { _loading = false; }

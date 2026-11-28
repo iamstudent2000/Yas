@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
+@using YasPortal.Domain.Paging
 @using YasPortal.Domain.Store
 @using YasPortal.Domain.Workflows
 @using YasPortal.Infrastructure.Persistence
@@ -91,10 +92,10 @@
             <section class="card">
                 <h2 class="section-title">اقلام درخواست</h2>
                 <div class="data-table-wrap">
-                    <table class="data-table" data-auto-paginate>
+                    <table class="data-table">
                         <thead><tr><th>کد</th><th>کالا</th><th>مقدار</th><th>قیمت واحد</th><th>مبلغ</th><th></th></tr></thead>
                         <tbody>
-                            @foreach (var l in _lines)
+                            @foreach (var l in ListPaging.Slice(_lines, _linePage, _linePageSize))
                             {
                                 <tr>
                                     <td dir="ltr" style="text-align:right">@l.Code</td><td>@l.Name</td>
@@ -107,6 +108,9 @@
                         </tbody>
                     </table>
                 </div>
+                @* Page navigation under the added items (cut into pages here in the page). *@
+                <ServerPagination Page="@ListPaging.ClampPage(_linePage, _lines.Count, _linePageSize)" PageSize="@_linePageSize" TotalCount="@_lines.Count"
+                                  PageChanged="p => _linePage = p" PageSizeChanged="size => { _linePageSize = size; _linePage = 1; }" />
                 @if (NeedsConsent)
                 {
                     @* the employee is not here, so the administrator records that the employee agreed; the record shows the administrator as the one who accepted *@
@@ -139,6 +143,8 @@
     private int _itemKey;
     private bool _busy;
     private readonly List<Line> _lines = [];
+    // Which page of the added items is shown and how many items each page has.
+    private int _linePage = 1, _linePageSize = 20;
     private readonly Dictionary<Guid, StoreItemRow> _found = [];
 
     // On opening, remember which administrator is signed in (recorded as the creator of the order).
