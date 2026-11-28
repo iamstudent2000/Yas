@@ -5,7 +5,10 @@
   const PAGE_SIZE = 15;
   const enhanced = new WeakSet();
   const paged = new WeakSet();
+  // Parts of the page added since the last scan; only these are looked at again, not the whole page.
+  const pending = new Set();
   let timer;
+  const LIST_SELECTOR = '.data-table tbody,.employee-list,.position-assignment-list,.group-cards,.permission-list';
 
   // Add the look of the search box and the page buttons once (it is added by this script, not by a stylesheet file).
   function styles() {
@@ -78,7 +81,7 @@
     input.oninput=()=>{render();menu.classList.add('open');};
     input.onkeydown=e=>{if(e.key==='Escape'){sync();close();}else if(e.key==='Enter'){const first=menu.querySelector('.ys-search-select-option');if(first){e.preventDefault();first.click();}}};
     select.addEventListener('change',sync);
-    document.addEventListener('click',e=>{if(!host.contains(e.target))close();});
+    // (clicking outside is handled by one shared listener at the bottom of this file)
     sync();
   }
 
@@ -115,8 +118,29 @@
   }
 
   // Apply both improvements (search boxes and paging) to everything under the given part of the page.
-  function scan(root=document){styles();root.querySelectorAll?.('select').forEach(searchableSelect);root.querySelectorAll?.('.data-table tbody,.employee-list,.position-assignment-list,.group-cards,.permission-list').forEach(paginate);}
-  // The portal redraws parts of the page often; after the page settles for a moment, scan it again for new lists to improve.
-  function schedule(){clearTimeout(timer);timer=setTimeout(()=>scan(),100);}
-  window.addEventListener('load',()=>{scan();new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});});
+  function scan(root=document){
+    styles();
+    root.querySelectorAll?.('select').forEach(searchableSelect);
+    root.querySelectorAll?.(LIST_SELECTOR).forEach(paginate);
+    // a list that was already on the page may only now have received its rows
+    root.parentElement?.closest?.(LIST_SELECTOR) && paginate(root.parentElement.closest(LIST_SELECTOR));
+    if (root.matches?.('select')) searchableSelect(root);
+    if (root.matches?.(LIST_SELECTOR)) paginate(root);
+  }
+  // The portal redraws parts of the page often; after the page settles for a moment, scan only the new parts for lists to improve.
+  function schedule(){
+    clearTimeout(timer);
+    timer=setTimeout(()=>{ const nodes=[...pending]; pending.clear(); nodes.forEach(n=>{ if(n.isConnected) scan(n); }); },100);
+  }
+  // One shared listener closes every open search-box list when the click happened outside of it.
+  document.addEventListener('click',e=>{
+    document.querySelectorAll('.ys-search-select-menu.open').forEach(m=>{ if(!m.closest('.ys-search-select-host')?.contains(e.target)) m.classList.remove('open'); });
+  });
+  window.addEventListener('load',()=>{
+    scan();
+    new MutationObserver(changes=>{
+      changes.forEach(c=>c.addedNodes.forEach(n=>{ if(n.nodeType===1 && !n.classList.contains('ys-pagination')) pending.add(n); }));
+      if(pending.size) schedule();
+    }).observe(document.body,{childList:true,subtree:true});
+  });
 })();
