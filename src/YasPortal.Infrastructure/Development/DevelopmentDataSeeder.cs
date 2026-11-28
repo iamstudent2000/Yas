@@ -287,10 +287,10 @@ public static class DevelopmentDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    // Finds the position by name or creates it, and corrects its parent if it differs.
+    // Finds the position by its code (the code is unique, so a renamed position is still found) or creates it, and corrects its parent if it differs.
     private static async Task<Position> EnsurePosition(ApplicationDbContext db, string code, string name, Guid? parentPositionId, CancellationToken ct)
     {
-        var position = await db.Positions.SingleOrDefaultAsync(x => x.Name == name, ct);
+        var position = await db.Positions.SingleOrDefaultAsync(x => x.Code == code, ct);
         if (position is null)
         {
             position = new Position(code, name, parentPositionId);
