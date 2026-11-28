@@ -10,51 +10,11 @@ using Xunit;
 
 namespace YasPortal.Tests;
 
-// Permission checker tests. A person's rights come from their active position; these tests make sure rights are refused when the position or account is no longer valid,
-// that 'manage' implies 'view', and that rights of one position never leak into another.
+// Permission checker tests. The checker only reads the permission claims stored in the sign-in cookie; these tests make sure
+// anonymous and blank requests are refused and that 'manage' implies 'view'. How the claims are built is tested in PermissionSnapshotTests,
+// and whether a cookie is still valid in IdentitySnapshotValidatorTests.
 public sealed class PermissionCheckerTests
 {
-    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
-    public async Task Permission_is_denied_when_active_position_claim_is_no_longer_assigned()
-    {
-        await using var fixture = new PermissionFixture();
-        var permission = new Permission("Requests.View", "View requests");
-        fixture.Db.Permissions.Add(permission);
-        fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, permission.Id));
-        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
-        fixture.Employee.Positions.Add(assignment);
-        fixture.Db.EmployeePositions.Add(assignment);
-        await fixture.Db.SaveChangesAsync();
-
-        var employeePosition = await fixture.Db.EmployeePositions.SingleAsync();
-        employeePosition.End();
-        await fixture.Db.SaveChangesAsync();
-
-        var allowed = await fixture.Checker.HasPermissionAsync(fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()), permission.Code);
-
-        Assert.False(allowed);
-    }
-
-    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
-    public async Task Permission_is_denied_for_deactivated_employee_even_with_valid_claims()
-    {
-        await using var fixture = new PermissionFixture();
-        var permission = new Permission("Requests.View", "View requests");
-        fixture.Db.Permissions.Add(permission);
-        fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, permission.Id));
-        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
-        fixture.Employee.Positions.Add(assignment);
-        fixture.Db.EmployeePositions.Add(assignment);
-        await fixture.Db.SaveChangesAsync();
-
-        fixture.Employee.Deactivate();
-        await fixture.Db.SaveChangesAsync();
-
-        var allowed = await fixture.Checker.HasPermissionAsync(fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()), permission.Code);
-
-        Assert.False(allowed);
-    }
-
     [Fact]
     public async Task Permission_is_granted_only_when_the_snapshot_claim_is_present()
     {
@@ -105,42 +65,6 @@ public sealed class PermissionCheckerTests
         Assert.False(await fixture.Checker.HasPermissionAsync(fixture.PrincipalWith("Requests.View"), "  "));
     }
 
-    [Fact(Skip = "PermissionChecker now reads only the sign-in claim snapshot (commit 896fb4d), so revocation is no longer re-checked per call. Re-enable if cookie revalidation is added.")]
-    public async Task Admin_permission_uses_database_admin_state_not_stale_claim()
-    {
-        await using var fixture = new PermissionFixture(isAdmin: false);
-        var permission = new Permission("Admin.Access", "Access management");
-        fixture.Db.Permissions.Add(permission);
-        fixture.Db.EmployeePermissions.Add(new EmployeePermission(fixture.Employee.Id, permission.Id));
-        fixture.Employee.SetAdmin(true);
-        await fixture.Db.SaveChangesAsync();
-
-        var allowed = await fixture.Checker.HasPermissionAsync(
-            fixture.Principal(AuthClaimNames.IsAdmin, "False"),
-            permission.Code);
-
-        Assert.True(allowed);
-    }
-
-    [Fact(Skip = "The admin/employee track split now happens when the cookie is built in Program.cs, so this checker cannot enforce it.")]
-    public async Task Non_admin_cannot_use_an_admin_permission_from_a_position_assignment()
-    {
-        await using var fixture = new PermissionFixture(isAdmin: false);
-        var permission = new Permission("Admin.Access", "Access management");
-        fixture.Db.Permissions.Add(permission);
-        var assignment = new EmployeePosition(fixture.Employee.Id, fixture.Position.Id);
-        fixture.Employee.Positions.Add(assignment);
-        fixture.Db.EmployeePositions.Add(assignment);
-        fixture.Db.UserPositionPermissions.Add(new UserPositionPermission(fixture.Employee.Id, fixture.Position.Id, permission.Id));
-        await fixture.Db.SaveChangesAsync();
-
-        var allowed = await fixture.Checker.HasPermissionAsync(
-            fixture.Principal(AuthClaimNames.ActivePositionId, fixture.Position.Id.ToString()),
-            permission.Code);
-
-        Assert.False(allowed);
-    }
-
     private sealed class PermissionFixture : IAsyncDisposable
     {
         private readonly InMemoryDatabaseRoot _databaseRoot;
@@ -180,18 +104,6 @@ public sealed class PermissionCheckerTests
             get;
         }
 
-        public ClaimsPrincipal Principal(string? extraClaimType = null, string? extraClaimValue = null)
-        {
-            var claims = new List<Claim>
-            {
-                new(ClaimTypes.NameIdentifier, Employee.Id.ToString()),
-                new(AuthClaimNames.IsAdmin, Employee.IsAdmin.ToString())
-            };
-            if (extraClaimType is not null && extraClaimValue is not null)
-                claims.Add(new Claim(extraClaimType, extraClaimValue));
-            return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
-        }
-
         /// <summary>A signed-in principal carrying exactly the given permission snapshot claims.</summary>
         public ClaimsPrincipal PrincipalWith(params string[] permissionCodes)
         {
@@ -205,13 +117,6 @@ public sealed class PermissionCheckerTests
         }
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();
-    }
-
-    private sealed class TestDbContextFactory(DbContextOptions<ApplicationDbContext> options) : IDbContextFactory<ApplicationDbContext>
-    {
-        public ApplicationDbContext CreateDbContext() => new(options);
-        public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ApplicationDbContext(options));
     }
 
     private sealed class TestAuthenticationStateProvider : AuthenticationStateProvider
