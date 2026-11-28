@@ -462,7 +462,7 @@ app.MapPost("/account/login", async (HttpContext http, ApplicationDbContext db, 
 
     // Build the cookie: who the person is, whether they are an administrator, their active position and a
     // snapshot of their permissions. Pages read only this snapshot and do not query permissions again.
-    var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, activePositionId, employee.IsAdmin);
+    var permissionSnapshot = await PermissionSnapshot.BuildAsync(db, employee.Id, activePositionId, employee.IsAdmin);
     var claims = new List<Claim>
     {
         new(ClaimTypes.NameIdentifier, employee.Id.ToString()),
@@ -507,7 +507,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     // The returnUrl is only followed if it is a safe address inside this site (see LocalReturnUrl).
     // Rebuild the snapshot for the newly selected position. Old permission claims
     // are explicitly removed so permissions from the previous position cannot leak.
-    var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, positionId, isAdmin: false);
+    var permissionSnapshot = await PermissionSnapshot.BuildAsync(db, employee.Id, positionId, isAdmin: false);
     var claims = http.User.Claims
         .Where(c => c.Type != AuthClaimNames.ActivePositionId && c.Type != AuthClaimNames.Permission)
         .ToList();
@@ -570,7 +570,7 @@ app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<A
 
     // Identity still holds — refresh permissions here too, same as OnValidatePrincipal, since a
     // grant or revocation is exactly the kind of change SessionGuard exists to catch quickly.
-    var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
+    var freshPermissionSnapshot = await PermissionSnapshot.BuildAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
     var claims = principal.Claims.Where(c => c.Type != AuthClaimNames.Permission && c.Type != LastValidatedClaimType).ToList();
     claims.AddRange(freshPermissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
     claims.Add(new Claim(LastValidatedClaimType, DateTime.UtcNow.ToString("O")));
@@ -696,7 +696,7 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
 
     // Identity still holds — but permissions may have been revoked or granted since sign-in.
     // Reissue the cookie with a fresh snapshot so that takes effect without forcing a re-login.
-    var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
+    var freshPermissionSnapshot = await PermissionSnapshot.BuildAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
 
     var claims = principal.Claims
         .Where(c => c.Type != AuthClaimNames.Permission && c.Type != LastValidatedClaimType)
@@ -716,64 +716,6 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
 static (Guid? EmployeeId, Guid? PositionId) ActorOf(ClaimsPrincipal user) =>
     (Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employeeId) ? employeeId : (Guid?)null,
      Guid.TryParse(user.FindFirstValue(AuthClaimNames.ActivePositionId), out var positionId) ? positionId : (Guid?)null);
-
-// Collects the permission codes a person holds, from the database. Administrators get only what is assigned to
-// them directly or through permission groups. Everyone else gets only what the currently chosen position was
-// given (directly or through groups). There is no all-powerful role that skips these checks.
-static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
-    ApplicationDbContext db,
-    Guid employeeId,
-    Guid? positionId,
-    bool isAdmin,
-    CancellationToken cancellationToken = default)
-{
-    List<string> permissions;
-
-    if (isAdmin)
-    {
-        // Admin is not a special full-access bypass. Admin access is still exactly
-        // the direct/group permissions assigned to the employee.
-        permissions = await db.EmployeePermissions
-            .AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId)
-            .Select(x => x.Permission.Code)
-            .ToListAsync(cancellationToken);
-
-        var grouped = await db.EmployeePermissionGroups
-            .AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId)
-            .SelectMany(x => db.PermissionGroupPermissions
-                .Where(gp => gp.GroupId == x.GroupId)
-                .Select(gp => gp.Permission.Code))
-            .ToListAsync(cancellationToken);
-
-        permissions.AddRange(grouped);
-    }
-    else
-    {
-        if (positionId is null || positionId == Guid.Empty)
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Normal users get permissions only from User + currently selected Position.
-        permissions = await db.UserPositionPermissions
-            .AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId && x.PositionId == positionId.Value)
-            .Select(x => x.Permission.Code)
-            .ToListAsync(cancellationToken);
-
-        var grouped = await db.UserPositionPermissionGroups
-            .AsNoTracking()
-            .Where(x => x.EmployeeId == employeeId && x.PositionId == positionId.Value)
-            .SelectMany(x => db.PermissionGroupPermissions
-                .Where(gp => gp.GroupId == x.GroupId)
-                .Select(gp => gp.Permission.Code))
-            .ToListAsync(cancellationToken);
-
-        permissions.AddRange(grouped);
-    }
-
-    return permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
-}
 
 // Sends a stored file as a download (under its own file name) and tells the browser not to guess another file type.
 static IResult DownloadFile(HttpContext http, byte[] content, string contentType, string fileName)
