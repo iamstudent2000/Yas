@@ -1,4 +1,5 @@
 @using YasPortal.Domain.Auditing
+@using YasPortal.Domain.Paging
 @using YasPortal.Domain.PhoneBook
 @using YasPortal.Infrastructure.Persistence
 @using Microsoft.JSInterop
@@ -86,7 +87,7 @@
                             var sort = _sorts.GetValueOrDefault(group.Id);
                             var rows = ContactSorter.Sort(contacts, sort.Key, sort.Descending);
                             <div class="data-table-wrap">
-                                <table class="data-table pb-table" data-auto-paginate>
+                                <table class="data-table pb-table">
                                     <thead><tr>
                                         <SortableHeader Text="نام" Column="@nameof(ContactSortKey.Name)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
                                         <SortableHeader Text="سمت" Column="@nameof(ContactSortKey.JobTitle)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
@@ -98,7 +99,7 @@
                                     </tr></thead>
                                     <tbody>
                                     @* One row per contact: name, job title, extension, phone, mobile and email. *@
-                                    @foreach (var c in rows)
+                                    @foreach (var c in ListPaging.Slice(rows, _groupPages.GetValueOrDefault(group.Id, 1), _pageSize))
                                     {
                                         <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
                                             <td class="pb-name"><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }@if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }</td>
@@ -113,6 +114,9 @@
                                     </tbody>
                                 </table>
                             </div>
+                            @* Page navigation under this group's contacts (each group has its own page number; the page size is shared). *@
+                            <ServerPagination Page="@ListPaging.ClampPage(_groupPages.GetValueOrDefault(group.Id, 1), rows.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@rows.Count"
+                                              PageChanged="p => _groupPages[group.Id] = p" PageSizeChanged="size => { _pageSize = size; _groupPages.Clear(); }" />
                         }
                     </div>
                 }
@@ -189,6 +193,9 @@ else if (PrintBlocked)
     private readonly HashSet<Guid> _open = [];
     private readonly Dictionary<Guid, string> _groupQueries = [];
     private readonly Dictionary<Guid, (ContactSortKey Key, bool Descending)> _sorts = [];
+    // The page of contacts each group is showing (a group not listed shows page 1) and how many contacts a page holds.
+    private readonly Dictionary<Guid, int> _groupPages = [];
+    private int _pageSize = 20;
     private bool _started, _watching;
     private DotNetObjectReference<PhoneBookView>? _self;
 
@@ -271,6 +278,7 @@ else if (PrintBlocked)
     private void SortBy(Guid groupId, string column)
     {
         var key = ContactSorter.Parse(column);
+        _groupPages.Remove(groupId);
         var current = _sorts.GetValueOrDefault(groupId);
         if (key == ContactSortKey.Default || current.Key != key)
             _sorts[groupId] = (key, false);
@@ -286,6 +294,7 @@ else if (PrintBlocked)
     // Remember (or forget) the search text of one group.
     private void SetGroupQuery(Guid id, string? value)
     {
+        _groupPages.Remove(id);
         if (string.IsNullOrEmpty(value))
             _groupQueries.Remove(id);
         else

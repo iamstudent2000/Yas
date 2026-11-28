@@ -2,6 +2,7 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using YasPortal.Domain.Paging
 @using YasPortal.Domain.Store
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
@@ -37,12 +38,12 @@
     {
         <section class="card">
             <div class="data-table-wrap">
-                <table class="data-table" data-auto-paginate>
+                <table class="data-table">
                     <thead><tr><SortableHeader Text="کالا" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="پایان ثبت‌نام" Column="closes" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="متقاضیان" Column="applicants" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="مجموع درخواست" Column="total" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><th></th></tr></thead>
                     <tbody>
                         @* One row per lottery item that has registrations waiting: closing date, number of applicants, total quantity wanted and stock. *@
                         @* The buttons let the storekeeper see the applicants or run the draw (after a confirmation). *@
-                        @foreach (var i in SortedItems)
+                        @foreach (var i in ListPaging.Slice(SortedItems, _page, _pageSize))
                         {
                             <tr>
                                 <td><strong>@i.Name</strong> <span class="muted" dir="ltr">@i.Code</span></td>
@@ -91,6 +92,9 @@
                     </tbody>
                 </table>
             </div>
+            @* Page navigation under the list of items (cut into pages here in the page). *@
+            <ServerPagination Page="@ListPaging.ClampPage(_page, _items.Count, _pageSize)" PageSize="@_pageSize" TotalCount="@_items.Count"
+                              PageChanged="p => _page = p" PageSizeChanged="size => { _pageSize = size; _page = 1; }" />
         </section>
     }
 </div>
@@ -103,6 +107,8 @@
     private Guid? _openItemId, _confirmId;
     private string? _sortBy, _aSort;
     private bool _sortDesc, _aDesc;
+    // Which page of the items is shown and how many items each page has.
+    private int _page = 1, _pageSize = 20;
 
     // Items and applicants are sorted here in the page when a column heading is clicked.
     private IReadOnlyList<LotteryItemRow> SortedItems => TableSort.Apply(_items, _sortBy, _sortDesc,
@@ -110,7 +116,7 @@
         ("status", i => i.Window == StoreRequestWindow.Closed ? 0 : i.ClosesOn is null ? 2 : 1));
     private IReadOnlyList<LotteryApplicantRow> SortedApplicants => TableSort.Apply(_applicants, _aSort, _aDesc,
         ("name", a => a.EmployeeName), ("position", a => a.PositionName), ("qty", a => a.Quantity), ("date", a => a.AppliedAtUtc));
-    private void SortBy(string col) => (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col);
+    private void SortBy(string col) { (_sortBy, _sortDesc) = TableSort.Toggle(_sortBy, _sortDesc, col); _page = 1; }
     private void ApplicantSortBy(string col) => (_aSort, _aDesc) = TableSort.Toggle(_aSort, _aDesc, col);
 
     // On opening, load the items that have registrations waiting.
