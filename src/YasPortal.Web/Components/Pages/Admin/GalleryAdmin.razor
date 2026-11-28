@@ -9,6 +9,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
+@using YasPortal.Domain.Files
 @attribute [Authorize(Policy = Perm.AdminGalleryView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
@@ -26,7 +27,7 @@
         <div>
             <div class="page-kicker">مدیریت سامانه / صفحه اصلی</div>
             <h1 class="page-title"><i class="ti @Icons.Gallery"></i> گالری تصاویر</h1>
-            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")تصاویر فعال برای همه در صفحه گالری نمایش داده می‌شود. فرمت‌های PNG، JPG، GIF و WebP و حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت برای هر تصویر.</p>
+            <p class="page-subtitle">@(_canManage ? "" : "فقط خواندنی. ")تصاویر فعال برای همه در صفحه گالری نمایش داده می‌شود. فرمت‌های PNG، JPG، GIF و WebP و حداکثر @(UploadRules.MaxBytes / (1024 * 1024)) مگابایت برای هر تصویر.</p>
         </div>
         <div class="form-actions">
             <a class="btn btn-secondary" href="/gallery"><i class="ti @Icons.Gallery"></i> مشاهده گالری</a>
@@ -508,7 +509,7 @@
                 if (_files.Count == 1)
                 {
                     using var buffer = new MemoryStream();
-                    await using (var stream = _files[0].OpenReadStream(UserGuideAttachment.MaxBytes))
+                    await using (var stream = _files[0].OpenReadStream(UploadRules.MaxBytes))
                         await stream.CopyToAsync(buffer);
                     image.ReplaceFile(_files[0].Name, buffer.Length);
                     var row = await db.GalleryImageFiles.SingleAsync(x => x.ImageId == id);
@@ -527,7 +528,7 @@
                 {
                     // Read the file, then keep its details and its bytes in the two tables. A typed title and caption are used only for a single picture.
                     using var buffer = new MemoryStream();
-                    await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+                    await using (var stream = file.OpenReadStream(UploadRules.MaxBytes))
                         await stream.CopyToAsync(buffer);
                     var image = new GalleryImage(_files.Count == 1 ? _title : null, _files.Count == 1 ? _caption : null, order++, file.Name, buffer.Length, _groupId);
                     db.GalleryImages.Add(image);

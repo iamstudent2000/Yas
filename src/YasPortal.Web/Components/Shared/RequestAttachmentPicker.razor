@@ -1,13 +1,14 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using YasPortal.Domain.Workflows
 @using YasPortal.Web.Services
+@using YasPortal.Domain.Files
 @inject AppState AppState
 
 @* Choose up to a few files to send with a new request. The files stay in memory in the page's list until the request is submitted. *@
 @* The upload box is hidden once the allowed number of files is reached; below it the chosen files are listed with a remove button. *@
 <div class="form-field is-wide attachment-picker">
     <label class="form-label">
-        <i class="ti @Icons.Attachment"></i> پیوست (اختیاری، حداکثر @ToPersianDigits(WorkflowRequestAttachment.MaxFilesPerRequest.ToString()) فایل، هر کدام تا @ToPersianDigits((WorkflowRequestAttachment.MaxBytes / (1024 * 1024)).ToString()) مگابایت)
+        <i class="ti @Icons.Attachment"></i> پیوست (اختیاری، حداکثر @ToPersianDigits(WorkflowRequestAttachment.MaxFilesPerRequest.ToString()) فایل، هر کدام تا @ToPersianDigits((UploadRules.MaxBytes / (1024 * 1024)).ToString()) مگابایت)
     </label>
     @if (Files.Count < WorkflowRequestAttachment.MaxFilesPerRequest)
     {
@@ -31,7 +32,7 @@
 
 @* The file types the browser's file chooser accepts, and a counter that resets the chooser after every pick. *@
 @code {
-    private static readonly string _accept = string.Join(",", WorkflowRequestAttachment.AllowedExtensions);
+    private static readonly string _accept = string.Join(",", UploadRules.AllowedExtensions);
     private int _inputKey;
 
     // The page's own list of chosen files is handed in here; this widget adds files to it and removes files from it.
@@ -49,7 +50,7 @@
 
         foreach (var file in picked.Take(room))
         {
-            var error = WorkflowRequestAttachment.Validate(file.Name, file.Size);
+            var error = UploadRules.Validate(file.Name, file.Size);
             if (error is not null)
             {
                 AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error);
@@ -58,9 +59,9 @@
             try
             {
                 using var buffer = new MemoryStream();
-                await using (var stream = file.OpenReadStream(WorkflowRequestAttachment.MaxBytes))
+                await using (var stream = file.OpenReadStream(UploadRules.MaxBytes))
                     await stream.CopyToAsync(buffer);
-                Files.Add(new PendingAttachment(WorkflowRequestAttachment.CleanName(file.Name), buffer.ToArray()));
+                Files.Add(new PendingAttachment(UploadRules.CleanName(file.Name), buffer.ToArray()));
             }
             catch (IOException)
             {

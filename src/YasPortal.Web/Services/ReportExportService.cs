@@ -21,9 +21,6 @@ namespace YasPortal.Web.Services;
 /// </summary>
 public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> dbFactory, WorkflowService workflows, AppState appState, IPermissionChecker permissions, AuditEventWriter audit, AuthenticationStateProvider authState, ExportFilesService files)
 {
-    // Largest export allowed in one file; if more rows match, the first rows are exported and the user is warned.
-    /// <summary>Upper limit of one export; a bigger result is cut off and the user is told.</summary>
-    public const int MaxRows = 20000;
     // Rows are read from the database 300 at a time so a very large report never has to be loaded all at once.
     private const int BatchSize = 300;
 
@@ -104,7 +101,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             return;
         }
 
-        var take = Math.Min(total, MaxRows);
+        var take = Math.Min(total, ExportFilesService.CsvMaxRows);
         var rows = new List<IReadOnlyList<string>>();
         for (var skip = 0; skip < take; skip += BatchSize)
         {
@@ -122,8 +119,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         }
 
         await DownloadAsync(permission, fileBaseName, headers, rows);
-        if (total > MaxRows)
-            appState.AddToast($"فقط {MaxRows:N0} درخواست اول از {total:N0} درخواست در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
+        if (total > ExportFilesService.CsvMaxRows)
+            appState.AddToast($"فقط {ExportFilesService.CsvMaxRows:N0} درخواست اول از {total:N0} درخواست در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
     // Generic export for any list: the page supplies the query and how each record becomes a row.
@@ -150,7 +147,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
             return;
         }
 
-        var take = Math.Min(total, MaxRows);
+        var take = Math.Min(total, ExportFilesService.CsvMaxRows);
         var rows = new List<IReadOnlyList<string>>();
         for (var skip = 0; skip < take; skip += BatchSize)
         {
@@ -159,8 +156,8 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         }
 
         await DownloadAsync(permission, fileBaseName, headers, rows);
-        if (total > MaxRows)
-            appState.AddToast($"فقط {MaxRows:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
+        if (total > ExportFilesService.CsvMaxRows)
+            appState.AddToast($"فقط {ExportFilesService.CsvMaxRows:N0} ردیف اول از {total:N0} ردیف در خروجی قرار گرفت؛ فیلترها را محدودتر کنید.", ToastLevel.Warning);
     }
 
     // Export for lists that can only be read page by page through a service; pages are read until all rows or the limit are reached.
@@ -177,7 +174,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
         const int pageSize = 100;
         var rows = new List<IReadOnlyList<string>>();
         var total = 0;
-        for (var page = 1; rows.Count < MaxRows; page++)
+        for (var page = 1; rows.Count < ExportFilesService.CsvMaxRows; page++)
         {
             var result = await loadPage(page, pageSize);
             total = result.TotalCount;
@@ -352,7 +349,7 @@ public sealed class ReportExportService(IDbContextFactory<ApplicationDbContext> 
     {
         // the PDF heading is the Persian name of the permission; ExportFilesService decides between CSV and PDF
         var written = await files.SaveAsync(TitleOf(permission, fileBaseName), fileBaseName, headers, rows);
-        // Recorded once the file has been handed to the browser; the row count is what was really exported (cut at MaxRows, or at the PDF limit).
+        // Recorded once the file has been handed to the browser; the row count is what was really exported (cut at ExportFilesService.CsvMaxRows, or at the PDF limit).
         // The person comes from the signed-in claims, not the ambient audit actor, which a Blazor circuit may not have.
         var user = (await authState.GetAuthenticationStateAsync()).User;
         Guid? employeeId = Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var employee) ? employee : null;

@@ -19,6 +19,9 @@ public sealed class ExportFilesService(IJSRuntime js, ExportOptions options, App
     /// <summary>A PDF holds at most this many rows (a bigger one gets slow and unwieldy); the CSV is the choice for a really long list.</summary>
     public const int PdfMaxRows = 3000;
 
+    /// <summary>A CSV holds at most this many rows; if more match, the first rows are exported and the person is told. Every export of a list uses this one number.</summary>
+    public const int CsvMaxRows = 20000;
+
     /// <summary>True when the export that is running was started with «خروجی PDF».</summary>
     public bool WantsPdf => options.Pdf;
 

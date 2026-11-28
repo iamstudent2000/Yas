@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using YasPortal.Application.Authorization;
 using YasPortal.Domain.Gallery;
 using YasPortal.Domain.Guides;
@@ -32,9 +33,9 @@ public sealed class GalleryImageTests
     public void Empty_and_too_big_pictures_are_refused_with_the_guide_attachment_limit()
     {
         Assert.NotNull(GalleryImage.ValidateFile("a.png", 0));
-        Assert.Null(GalleryImage.ValidateFile("a.png", UserGuideAttachment.MaxBytes));
-        Assert.NotNull(GalleryImage.ValidateFile("a.png", UserGuideAttachment.MaxBytes + 1));
-        Assert.NotNull(GalleryImage.ValidateFile(new string('x', UserGuideAttachment.FileNameMax) + ".png", 10));
+        Assert.Null(GalleryImage.ValidateFile("a.png", UploadRules.MaxBytes));
+        Assert.NotNull(GalleryImage.ValidateFile("a.png", UploadRules.MaxBytes + 1));
+        Assert.NotNull(GalleryImage.ValidateFile(new string('x', UploadRules.FileNameMax) + ".png", 10));
     }
 
     [Fact]
@@ -135,7 +136,7 @@ public sealed class GalleryImageTests
         Assert.NotEqual(before, GalleryImage.UrlFor(image.Id, image.Version));
         // A refused file changes nothing.
         Assert.Throws<ArgumentException>(() => image.ReplaceFile("b.svg", 5));
-        Assert.Throws<ArgumentException>(() => image.ReplaceFile("c.png", UserGuideAttachment.MaxBytes + 1));
+        Assert.Throws<ArgumentException>(() => image.ReplaceFile("c.png", UploadRules.MaxBytes + 1));
         Assert.Equal("b.JPG", image.FileName);
         Assert.Equal(1, image.Version);
     }

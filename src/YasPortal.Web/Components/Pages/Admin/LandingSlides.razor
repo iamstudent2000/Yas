@@ -7,6 +7,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
+@using YasPortal.Domain.Files
 @attribute [Authorize(Policy = Perm.AdminLandingSlidesView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
@@ -78,7 +79,7 @@
                     <div class="form-field is-grow"><label class="form-label">نشانی پیوند (اختیاری)</label><input class="form-control" dir="ltr" placeholder="/login یا https://..." @bind="_linkUrl" maxlength="@HomeSlide.LinkUrlMax" /></div>
                 </div>
                 <div class="admin-row-grid" style="margin-top:12px">
-                    <div class="form-field is-grow"><label class="form-label">فایل پیوست (اختیاری، حداکثر @(HomeSlideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                    <div class="form-field is-grow"><label class="form-label">فایل پیوست (اختیاری، حداکثر @(UploadRules.MaxBytes / (1024 * 1024)) مگابایت)</label>
                         <InputFile @key="_formKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
                         @* When editing a slide that already has a file, show it and offer to remove it. *@
                         @if (_editingId is Guid editId && _files.TryGetValue(editId, out var current))
@@ -255,7 +256,7 @@
     private IBrowserFile? _file;
     private bool _removeFile;
     private Dictionary<Guid, (string Name, long Size)> _files = [];
-    private static readonly string _accept = string.Join(",", HomeSlideAttachment.AllowedExtensions);
+    private static readonly string _accept = string.Join(",", UploadRules.AllowedExtensions);
     private const string KeepOneMessage = "حداقل یک اسلاید معتبر (فعال و در بازه نمایش) باید باقی بماند؛ ابتدا اسلاید معتبر دیگری اضافه کنید.";
 
     // Days left until the last valid slide expires, when every valid slide has an expiry date within the coming week; otherwise null.
@@ -340,7 +341,7 @@
     // Check the chosen file (type and size) as soon as it is picked and refuse it with a message if it is not allowed.
     private void FilePicked(InputFileChangeEventArgs e)
     {
-        var error = HomeSlideAttachment.Validate(e.File.Name, e.File.Size);
+        var error = UploadRules.Validate(e.File.Name, e.File.Size);
         if (error is not null)
         {
             AppState.AddToast(error, ToastLevel.Error);
@@ -401,7 +402,7 @@
         if (_file is not null)
         {
             using var buffer = new MemoryStream();
-            await using (var stream = _file.OpenReadStream(HomeSlideAttachment.MaxBytes))
+            await using (var stream = _file.OpenReadStream(UploadRules.MaxBytes))
                 await stream.CopyToAsync(buffer);
             if (existing is null) db.HomeSlideAttachments.Add(new HomeSlideAttachment(slideId, _file.Name, buffer.ToArray()));
             else existing.Replace(_file.Name, buffer.ToArray());

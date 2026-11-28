@@ -190,7 +190,7 @@
 
     private async Task ExportMovesCoreAsync()
     {
-        var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, 20000, _moveText, _mSort, _mDesc);
+        var all = await Store.SearchMovementsAsync(_moveItemId, _moveKind, _moveFrom?.Date.ToUniversalTime(), _moveTo?.Date.AddDays(1).ToUniversalTime(), 1, ExportFilesService.CsvMaxRows, _moveText, _mSort, _mDesc);
         var table = all.Rows.Select(m => (IReadOnlyList<string>)[WorkflowDisplay.ToPersianDateTime(m.CreatedAtUtc), m.ItemCode, m.ItemName, StoreService.KindLabel(m.Kind),
                 m.Delta.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), m.Unit, m.Reference ?? "", m.Note ?? "", m.CreatedBy ?? ""]).ToList();
         await Files.SaveAsync("گردش موجودی فروشگاه", "store-movements", ["زمان", "کد کالا", "کالا", "نوع", "مقدار", "واحد", "مرجع", "توضیح", "ثبت‌کننده"], table);

@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using Xunit;
 using YasPortal.Domain.Workflows;
 using YasPortal.Domain.Notifications;
@@ -169,9 +170,9 @@ public class HelpdeskTests
     [InlineData("run.exe", 1000, false)]
     [InlineData("noext", 1000, false)]
     [InlineData("empty.png", 0, false)]
-    [InlineData("big.png", WorkflowRequestAttachment.MaxBytes + 1, false)]
+    [InlineData("big.png", UploadRules.MaxBytes + 1, false)]
     public void Attachment_type_and_size_rules(string name, long size, bool ok) =>
-        Assert.Equal(ok, WorkflowRequestAttachment.Validate(name, size) is null);
+        Assert.Equal(ok, UploadRules.Validate(name, size) is null);
 
     [Fact]
     public void Attachment_keeps_only_the_file_name_and_the_matching_content_type()

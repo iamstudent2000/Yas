@@ -8,6 +8,7 @@
 @using YasPortal.Infrastructure.Persistence
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
+@using YasPortal.Domain.Files
 @attribute [Authorize(Policy = Perm.AdminLinksView)]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IPermissionChecker PermissionChecker
@@ -80,7 +81,7 @@
                         <div class="admin-row-grid" style="margin-top:12px">
                             <div class="form-field is-grow"><label class="form-label">پیوند به یک راهنما (اختیاری)</label>
                               <LookupSelect @key="_guidePickKey" Options="GuideOptions" Value="@("")" ValueChanged="PickGuide" Placeholder="یک راهنما را انتخاب کنید تا آدرس آن پر شود" SearchPlaceholder="جستجوی راهنما..." /></div>
-                            <div class="form-field is-grow"><label class="form-label">یا یک فایل پیوست کنید (به‌جای آدرس؛ حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                            <div class="form-field is-grow"><label class="form-label">یا یک فایل پیوست کنید (به‌جای آدرس؛ حداکثر @(UploadRules.MaxBytes / (1024 * 1024)) مگابایت)</label>
                               <InputFile @key="_filePickKey" class="form-control" accept="@_accept" OnChange="FilePicked" />
                               @if (_pickedFile is { } picked) { <div class="muted"><i class="ti @Icons.Attachment"></i> @picked.Name <span class="badge badge-info">جدید</span> <button type="button" class="btn btn-secondary btn-sm" @onclick="() => _pickedFile = null">برداشتن</button></div> }
                               else if (_currentFileName is not null) { <div class="muted"><i class="ti @Icons.Attachment"></i> فایل فعلی: @_currentFileName</div> }</div>
@@ -336,7 +337,7 @@
     // Guides offered in the "link to a guide" picker (id as text, title). _guidePickKey resets the picker after each choice.
     private IReadOnlyList<(string Key, string Text)> GuideOptions = [];
     private int _guidePickKey;
-    private static readonly string _accept = string.Join(",", UserGuideAttachment.AllowedExtensions);
+    private static readonly string _accept = string.Join(",", UploadRules.AllowedExtensions);
 
     // The file chosen in the form for this link (name and bytes), waiting to be saved with the link. _filePickKey empties the picker.
     private (string Name, byte[] Content)? _pickedFile;
@@ -349,12 +350,12 @@
     private async Task FilePicked(InputFileChangeEventArgs e)
     {
         var file = e.File;
-        var error = UserGuideAttachment.Validate(file.Name, file.Size);
+        var error = UploadRules.Validate(file.Name, file.Size);
         if (error is not null) { AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error); _filePickKey++; return; }
         try
         {
             using var buffer = new MemoryStream();
-            await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+            await using (var stream = file.OpenReadStream(UploadRules.MaxBytes))
                 await stream.CopyToAsync(buffer);
             _pickedFile = (file.Name, buffer.ToArray());
         }
