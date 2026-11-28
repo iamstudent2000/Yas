@@ -99,8 +99,15 @@
                             <div class="admin-list-actions">@if (_canManage) {<button type="button" class="btn btn-secondary btn-sm"
                                                                     @onclick:stopPropagation="true" @onclick="() => EditGroup(group)"><i
                                 class="ti @Icons.Edit"></i> ویرایش</button>}@if(group.AssignmentCount==0){
-                                @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
-                                        @onclick="() => DeleteGroup(group.Id)"><i class="ti @Icons.Delete"></i> حذف</button>}
+                                @* Deleting asks for a second click. *@
+                                @if (_canManage && _confirmDeleteGroupId == group.Id) {
+                                    <button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
+                                        @onclick="() => DeleteGroup(group.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" @onclick:stopPropagation="true"
+                                        @onclick="() => _confirmDeleteGroupId = null">انصراف</button>
+                                }
+                                else if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick:stopPropagation="true"
+                                        @onclick="() => _confirmDeleteGroupId = group.Id"><i class="ti @Icons.Delete"></i> حذف</button>}
                             }
                         </div>
                     </div>
@@ -291,9 +298,11 @@ ToastLevel.Error); return;
         else db.PermissionGroups.Add(new
     PermissionGroup(code, name, _description)); await db.SaveChangesAsync(); AppState.AddToast(_editingId is null ? "گروه ایجاد شد." : "گروه ویرایش شد.", ToastLevel.Success); CancelEdit(); await LoadGroupsAsync();
     }
+    // The group whose delete button was clicked once and now waits for «تأیید حذف».
+    private Guid? _confirmDeleteGroupId;
     // Delete a group. Refused while the group is still given to any position or employee, so nobody loses access by accident.
     private async Task DeleteGroup(Guid id)
-    { if (!_canManage) return;
+    { if (!_canManage) return; _confirmDeleteGroupId = null;
         await using var db = await DbFactory.CreateDbContextAsync(); if (await
     db.UserPositionPermissionGroups.AnyAsync(x => x.GroupId == id) || await
     db.EmployeePermissionGroups.AnyAsync(x => x.GroupId == id)) { AppState.AddToast("این گروه هنوز تخصیص دارد و قابل حذف نیست.", ToastLevel.Error); return; }

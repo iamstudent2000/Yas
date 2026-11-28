@@ -157,7 +157,7 @@
                                 <input type="checkbox" @bind="_allowDelegation" />
                                 <span>تاییدکننده می‌تواند اختیار این مرحله را تفویض کند</span>
                             </label>
-                            <p class="muted">اگر خاموش باشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
+                            <p class="muted">اگر فعال نباشد، فقط جانشین موقتی که مدیر سامانه تعیین می‌کند می‌تواند به‌جای تاییدکننده تصمیم بگیرد.</p>
 </div>
 
 @* Some request types have a form in several parts, completed by different approvers; here a step can be chosen as the one *@
@@ -272,7 +272,9 @@
                                                                     @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" disabled="@(!parallel && step.Order == _steps.Min(x => x.Order))" @onclick="() => ToggleParallel(step.Id)"><i class="ti @Icons.Parallel"></i> @(parallel ? "جدا کردن به مرحله مستقل" : "موازی با مرحله قبل")</button>}
                                                                     @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => EditStep(step)"><i class="ti @Icons.Edit"></i> ویرایش</button>}
                                                                     @if (_canManage) {<button type="button" class="btn btn-secondary btn-sm" @onclick="() => ToggleActive(step.Id)"><i class="ti @(step.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(step.IsActive ? "غیرفعال کردن" : "فعال کردن")</button>}
-                                                                    @if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="ti @Icons.Delete"></i> حذف</button>}
+                                                                    @* Deleting a step asks for a second click. *@
+                                                                    @if (_canManage && _confirmDeleteStepId == step.Id) {<button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteStep(step.Id)"><i class="ti @Icons.Delete"></i> تأیید حذف</button><button type="button" class="btn btn-secondary btn-sm" @onclick="() => _confirmDeleteStepId = null">انصراف</button>}
+                                                                    else if (_canManage) {<button type="button" class="btn btn-danger btn-sm" @onclick="() => _confirmDeleteStepId = step.Id"><i class="ti @Icons.Delete"></i> حذف</button>}
                                                                 </span>
                                                             </div>
                                                         }
@@ -782,9 +784,11 @@ x.ApproverPositionId!.Value).Distinct().ToList();
         await LoadStepsAsync();
     }
 
+    // The step whose delete button was clicked once and now waits for «تأیید حذف».
+    private Guid? _confirmDeleteStepId;
     // Delete a step. Refused when it was ever used by a request: it can only be switched off, so the history stays complete.
     private async Task DeleteStep(Guid id)
-    { if (!_canManage) return;
+    { if (!_canManage) return; _confirmDeleteStepId = null;
         if (!await EnsureNoBlockingRequestsAsync())
             return;
 

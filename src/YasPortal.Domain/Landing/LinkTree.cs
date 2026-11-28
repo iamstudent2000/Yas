@@ -21,7 +21,7 @@ public sealed class LinkTree
     public IReadOnlyList<LinkGroupNode> Groups { get; init; } = [];
     public IReadOnlyList<PortalLink> Ungrouped { get; init; } = [];
     /// <summary>
-    /// Only what matches <paramref name="query"/> (title, address, description of a link, or the name of its group; a matching group keeps
+    /// Only what matches <paramref name="query"/> (title, address, description of a link, or the name of its group; every typed word must be found, Persian and Arabic letters and digits count the same; a matching group keeps
     /// everything inside it). Quick access is left as it is. A blank query returns the tree unchanged.
     /// </summary>
     public LinkTree Filter(string? query)
@@ -29,7 +29,8 @@ public sealed class LinkTree
         query = (query ?? "").Trim();
         if (query.Length == 0)
             return this;
-        bool Hit(string? text) => text?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false;
+        // Same rule as the guides, gallery and phone book: Persian and Arabic letters and digits count the same, every word must be found.
+        bool Hit(string? text) => !string.IsNullOrEmpty(text) && PhoneBook.PhoneBookText.ContainsAllWords(text, query);
         bool LinkHit(PortalLink l) => Hit(l.Title) || Hit(l.Description) || Hit(l.Url);
 
         LinkGroupNode? Keep(LinkGroupNode node)

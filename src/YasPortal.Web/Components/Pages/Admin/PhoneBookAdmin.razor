@@ -177,7 +177,7 @@
                 <div class="card-toolbar">
                     <div>
                         <h2 class="section-title" style="margin:0">گروه‌ها و مخاطبان</h2>
-                        <p class="muted">خاموش‌کردن یک گروه یا مخاطب آن را از دفترچه تلفن کاربران پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
+                        <p class="muted">غیرفعال‌کردن یک گروه یا مخاطب آن را از دفترچه تلفن کاربران پنهان می‌کند. گروه فقط وقتی خالی است حذف می‌شود.</p>
                     </div>
                 </div>
                 @* the view gets the already filtered book; its own search box is hidden because the filter card above replaces it *@
@@ -186,7 +186,7 @@
                         @if (_canManage)
                         {
                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditGroupAsync(group)"><i class="ti @Icons.Edit"></i> ویرایش</button>
-                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "خاموش" : "روشن")</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleGroupAsync(group.Id)"><i class="ti @(group.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(group.IsActive ? "غیرفعال" : "فعال")</button>
                             @* Confirmation step before deleting a group. *@
                             @if (_confirmGroupId == group.Id)
                             {
@@ -203,7 +203,7 @@
                         @if (_canManage)
                         {
                             <button class="btn btn-secondary btn-sm" @onclick="() => BeginEditContactAsync(contact)"><i class="ti @Icons.Edit"></i> ویرایش</button>
-                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleContactAsync(contact.Id)"><i class="ti @(contact.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(contact.IsActive ? "خاموش" : "روشن")</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => ToggleContactAsync(contact.Id)"><i class="ti @(contact.IsActive ? Icons.Deactivate : Icons.Activate)"></i> @(contact.IsActive ? "غیرفعال" : "فعال")</button>
                             @* Confirmation step before deleting a contact. *@
                             @if (_confirmContactId == contact.Id)
                             {
@@ -274,7 +274,7 @@
     private string? _dGroup, _group, _dStatus, _status;
     private bool _exporting;
 
-    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("on", "روشن"), ("off", "خاموش")];
+    private static readonly IReadOnlyList<(string Key, string Text)> StatusOptions = [("on", "فعال"), ("off", "غیرفعال")];
 
     // How many filters are applied right now, and whether something typed or picked is not applied yet.
     private int FilterCount => (string.IsNullOrWhiteSpace(_search) ? 0 : 1) + (_group is null ? 0 : 1) + (_status is null ? 0 : 1);
@@ -310,10 +310,10 @@
             foreach (var g in shown.Groups)
                 foreach (var c in g.Contacts)
                     rows.Add([g.Group.Name, c.FullName, c.JobTitle ?? "", c.Extension ?? "", c.Phone ?? "", c.Mobile ?? "", c.Email ?? "", c.Note ?? "",
-                        g.Group.IsActive && c.IsActive ? "روشن" : "خاموش"]);
+                        g.Group.IsActive && c.IsActive ? "فعال" : "غیرفعال"]);
             var groupName = _tree.Groups.FirstOrDefault(x => x.Group.Id.ToString() == _group)?.Group.Name;
             var filters = string.Join(" · ", new[] { string.IsNullOrWhiteSpace(_search) ? null : $"جستجو: {_search}", groupName is null ? null : $"گروه: {groupName}",
-                _status is null ? null : $"وضعیت: {(_status == "on" ? "روشن" : "خاموش")}" }.Where(x => x is not null));
+                _status is null ? null : $"وضعیت: {(_status == "on" ? "فعال" : "غیرفعال")}" }.Where(x => x is not null));
             var written = await Files.SaveAsync("دفترچه تلفن", "phone-book", ["گروه", "نام", "سمت", "داخلی", "تلفن", "موبایل", "ایمیل", "توضیح", "وضعیت"], rows, filters.Length == 0 ? null : filters);
             await Audit.WriteAsync(AuditActions.ReportExported, AuditEntityTypes.Report, "phone-book",
                 AuditEventWriter.Describe(("Permission", Perm.AdminPhoneBookView), Audit.PendingExportFilters ?? new { Search = _search, Group = groupName, Status = _status },
