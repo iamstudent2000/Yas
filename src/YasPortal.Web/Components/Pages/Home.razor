@@ -10,7 +10,6 @@
 @using System.Security.Claims
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
-@implements IDisposable
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
 @inject HomeTileProvider TileProvider
@@ -44,10 +43,10 @@ else
 {
     <div class="landing" dir="rtl">
         @* Rotating slides (introduction banners written by an administrator); optional buttons link to a page or a downloadable file. *@
-        @* The banner is the first thing under the top bar and always has the same height. The slides stop turning while the mouse is over them, so a text can be read in peace. *@
+        @* The banner is the first thing under the top bar and always has the same height. The slides turn only when the person clicks the arrows or dots. *@
         @if (_slides.Count > 0)
         {
-        <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه" @onmouseenter="() => _paused = true" @onmouseleave="() => _paused = false">
+        <section class="landing-hero" aria-roledescription="carousel" aria-label="معرفی سامانه">
             @{ var slide = _slides[_index]; }
             <div class="landing-slide" @key="_index">
                 <span class="landing-slide-icon"><i class="ti @slide.Icon"></i></span>
@@ -167,8 +166,6 @@ else
 
 @code {
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
-    // True while the mouse is over the slides (they do not turn then).
-    private bool _paused;
     // A button of the "my work" row: where it leads, its text, its icon and the number of items waiting (0 = none).
     private sealed record PersonalTile(string Href, string Label, string Icon, int Count);
     private IReadOnlyList<PersonalTile> _personal = [];
@@ -182,7 +179,6 @@ else
     private LinkTree _tree = LinkTree.Build([], []);
     // The tiles of the last section (switched-on ones, in order).
     private IReadOnlyList<HomeTile> _tiles = [];
-    private Timer? _timer;
 
     // Loads the page content once. At the root address a signed-in person is redirected to the dashboard if allowed.
     protected override async Task OnInitializedAsync()
@@ -249,14 +245,6 @@ else
         return tiles;
     }
 
-    protected override void OnAfterRender(bool firstRender)
-    {
-        // Only in the live circuit (not while pre-rendering): the slides turn by themselves every 7 seconds. The timer is started once,
-        // as soon as the slides are loaded (the very first drawing happens before they are loaded, so it must not be tied to it).
-        if (_timer is null && _showLanding && _slides.Count > 1)
-            _timer = new Timer(_ => _ = InvokeAsync(() => { if (!_paused) Go(_index + 1); }), null, TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(7));
-    }
-
     private static string FileSizeText(long bytes) => bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";
 
     private void Go(int to)
@@ -264,6 +252,4 @@ else
         _index = ((to % _slides.Count) + _slides.Count) % _slides.Count;
         StateHasChanged();
     }
-
-    public void Dispose() => _timer?.Dispose();
 }
