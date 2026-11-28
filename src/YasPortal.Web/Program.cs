@@ -505,7 +505,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
         await audit.WriteAsync(AuditActions.PositionSwitched, AuditEntityTypes.Session, employee.Id.ToString(),
             new { FromPositionId = previousPositionId, ToPositionId = positionId }, employeeId: employee.Id, activePositionId: positionId, anonymous: true);
 
-    // The returnUrl is only followed if it is a safe address inside this site (see IsSafeLocalReturnUrl).
+    // The returnUrl is only followed if it is a safe address inside this site (see LocalReturnUrl).
     // Rebuild the snapshot for the newly selected position. Old permission claims
     // are explicitly removed so permissions from the previous position cannot leak.
     var permissionSnapshot = await BuildPermissionSnapshotAsync(db, employee.Id, positionId, isAdmin: false);
@@ -516,7 +516,7 @@ app.MapPost("/account/position", async (HttpContext http, ApplicationDbContext d
     claims.AddRange(permissionSnapshot.Select(code => new Claim(AuthClaimNames.Permission, code)));
 
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
-    if (IsSafeLocalReturnUrl(returnUrl))
+    if (LocalReturnUrl.IsSafe(returnUrl))
         return Results.Redirect(returnUrl);
     return Results.Redirect("/my-positions");
 });
@@ -577,7 +577,7 @@ app.MapGet("/account/reauth-check", async (HttpContext http, IDbContextFactory<A
     claims.Add(new Claim(LastValidatedClaimType, DateTime.UtcNow.ToString("O")));
     await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
 
-    return Results.Redirect(IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/");
+    return Results.Redirect(LocalReturnUrl.IsSafe(returnUrl) ? returnUrl! : "/");
 });
 // Download of a landing slide's attached file. Open to everyone while the slide is shown; for a slide that is not shown (expired,
 // not started, switched off) only people who may see the slide list. Always sent as a download, never rendered by the browser.
@@ -591,8 +591,7 @@ app.MapGet("/landing/files/{slideId:guid}", async (Guid slideId, HttpContext htt
     var canSeeAll = http.User.Identity?.IsAuthenticated == true && http.User.HasClaim(AuthClaimNames.Permission, Perm.AdminLandingSlidesView);
     if (!slide.IsShownOn(DateTime.Now) && !canSeeAll)
         return Results.NotFound();
-    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    return Results.File(file.Content, file.ContentType, file.FileName);
+    return DownloadFile(http, file.Content, file.ContentType, file.FileName);
 });
 // Download of a file attached to a guide. Same visibility rules as reading the guide itself (see GuideProvider.GetAttachmentAsync):
 // a visitor gets files of public guides only; a guide that is off, or for signed-in people, looks like a missing file. Always sent
@@ -606,8 +605,7 @@ app.MapGet("/guides/files/{id:guid}", async (Guid id, HttpContext http, GuidePro
     var file = await guides.GetAttachmentAsync(id, signedIn, canPreviewAll, authorId);
     if (file is null)
         return Results.NotFound();
-    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    return Results.File(file.Content, file.ContentType, file.FileName);
+    return DownloadFile(http, file.Content, file.ContentType, file.FileName);
 });
 // A gallery picture, shown inside the page (inline); with ?download=1 it is sent as a file to save instead. Open to everyone while the picture is switched on; a switched-off
 // picture is only for people who may see the gallery list (so the admin list can still show it). The type is one of the safe picture types
@@ -630,11 +628,12 @@ app.MapGet("/gallery/images/{id:guid}", async (Guid id, HttpContext http, IDbCon
     return http.Request.Query.ContainsKey("download") ? Results.File(bytes, image.ContentType, image.FileName) : Results.File(bytes, image.ContentType);
 });
 // Download of the file uploaded for a home-page link. Anyone may download it (the home page is public), but only while the link is switched on.
-app.MapGet("/links/files/{id:guid}", async (Guid id, IDbContextFactory<ApplicationDbContext> dbFactory) =>
+// Always sent as a download, never rendered by the browser.
+app.MapGet("/links/files/{id:guid}", async (Guid id, HttpContext http, IDbContextFactory<ApplicationDbContext> dbFactory) =>
 {
     await using var db = await dbFactory.CreateDbContextAsync();
     var file = await db.PortalLinkFiles.AsNoTracking().FirstOrDefaultAsync(f => f.LinkId == id && db.PortalLinks.Any(l => l.Id == id && l.IsActive));
-    return file is null ? Results.NotFound() : Results.File(file.Content, file.ContentType, file.FileName);
+    return file is null ? Results.NotFound() : DownloadFile(http, file.Content, file.ContentType, file.FileName);
 });
 // Download of a file attached to a request. Only people who may see the request get it (see RequestAttachmentService); everyone else
 // gets the same 404 as for a missing file. Always sent as a download, never rendered by the browser.
@@ -643,8 +642,7 @@ app.MapGet("/requests/files/{id:guid}", async (Guid id, HttpContext http, Reques
     var file = await attachments.GetForDownloadAsync(id, http.User);
     if (file is null)
         return Results.NotFound();
-    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    return Results.File(file.Content, file.ContentType, file.FileName);
+    return DownloadFile(http, file.Content, file.ContentType, file.FileName);
 }).RequireAuthorization();
 // Hands every other address to the Blazor pages, then starts the web server.
 app.MapRazorComponents<YasPortal.Web.Components.App>().AddInteractiveServerRenderMode();
@@ -779,13 +777,9 @@ static async Task<HashSet<string>> BuildPermissionSnapshotAsync(
     return permissions.ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
-// Accepts a redirect target only when it is an address inside this site (starts with one slash), so a crafted
-// link cannot send a person to an outside website.
-static bool IsSafeLocalReturnUrl(string? returnUrl)
+// Sends a stored file as a download (under its own file name) and tells the browser not to guess another file type.
+static IResult DownloadFile(HttpContext http, byte[] content, string contentType, string fileName)
 {
-    if (string.IsNullOrWhiteSpace(returnUrl) || !returnUrl.StartsWith("/", StringComparison.Ordinal))
-        return false;
-    if (returnUrl.StartsWith("//", StringComparison.Ordinal))
-        return false;
-    return Uri.TryCreate(returnUrl, UriKind.Relative, out var uri) && !uri.IsAbsoluteUri;
+    http.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    return Results.File(content, contentType, fileName);
 }
