@@ -55,7 +55,7 @@ else
         {
             @* At most four rows, so this table has no page numbers (and the site-wide auto pager is switched off for it). *@
             <div class="data-table-wrap">
-                <table class="data-table data-table-bordered-rows" data-no-auto-paginate>
+                <table class="data-table data-table-bordered-rows">
                     <thead><tr><th>عنوان</th><th>آدرس</th><th>ترتیب</th><th>وضعیت</th>@if (CanManage) { <th>عملیات</th> }</tr></thead>
                     <tbody>
                     @foreach (var tile in _tiles)

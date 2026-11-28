@@ -1,6 +1,6 @@
 (() => {
   // Small helpers applied automatically to every page. Drop-down lists with at least this many options get a search box,
-  // and long lists of rows are split into pages of PAGE_SIZE rows.
+  // and tables marked data-auto-paginate (long lists that have no page bar of their own) are split into pages of PAGE_SIZE rows.
   const SELECT_MIN_OPTIONS = 8;
   const PAGE_SIZE = 15;
   const enhanced = new WeakSet();
@@ -8,7 +8,7 @@
   // Parts of the page added since the last scan; only these are looked at again, not the whole page.
   const pending = new Set();
   let timer;
-  const LIST_SELECTOR = '.data-table tbody,.employee-list,.position-assignment-list,.group-cards,.permission-list';
+  const LIST_SELECTOR = '[data-auto-paginate] tbody';
 
   // Add the look of the search box and the page buttons once (it is added by this script, not by a stylesheet file).
   function styles() {
@@ -85,16 +85,14 @@
     sync();
   }
 
-  // The rows of a table or list that should be paged.
+  // The rows of a table body that should be paged.
   function rows(container) {
-    if (container.matches('tbody')) return [...container.children].filter(x=>x.tagName==='TR');
-    return [...container.children].filter(x=>x.matches('.employee-row,.assignment-row,.managed-group-card,.permission-list-row,.request-row,.list-row'));
+    return [...container.children].filter(x=>x.tagName==='TR');
   }
 
-  // Split a long list into pages and add the previous / next and page number buttons (areas marked data-no-auto-paginate are skipped).
+  // Split a long list into pages and add the previous / next and page number buttons (only tables marked data-auto-paginate are paged).
   function paginate(container) {
     if (paged.has(container)) return;
-    if (container.closest('[data-no-auto-paginate]')) return;
     const initial=rows(container); if(initial.length<=PAGE_SIZE) return;
     paged.add(container);
     let page=1;

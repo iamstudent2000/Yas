@@ -37,7 +37,7 @@
     {
         <section class="card">
             <div class="data-table-wrap">
-                <table class="data-table">
+                <table class="data-table" data-auto-paginate>
                     <thead><tr><SortableHeader Text="کالا" Column="name" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="پایان ثبت‌نام" Column="closes" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="متقاضیان" Column="applicants" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="مجموع درخواست" Column="total" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="موجودی" Column="stock" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><SortableHeader Text="وضعیت" Column="status" CurrentSort="@_sortBy" CurrentDescending="@_sortDesc" OnSort="SortBy" /><th></th></tr></thead>
                     <tbody>
                         @* One row per lottery item that has registrations waiting: closing date, number of applicants, total quantity wanted and stock. *@

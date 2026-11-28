@@ -61,7 +61,7 @@
             else
             {
                 <div class="data-table-wrap">
-                    <table class="data-table data-table-bordered-rows">
+                    <table class="data-table data-table-bordered-rows" data-auto-paginate>
                         <thead><tr>@for (var ci = 0; ci < _table.Headers.Count; ci++) { var col = ci; <SortableHeader Text="@_table.Headers[col]" Column="@col.ToString()" CurrentSort="@_sortCol" CurrentDescending="@_sortDesc" OnSort="SortByAsync" /> }</tr></thead>
                         <tbody>
                             @foreach (var row in SortedRows)

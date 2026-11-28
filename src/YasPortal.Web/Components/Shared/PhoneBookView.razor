@@ -86,7 +86,7 @@
                             var sort = _sorts.GetValueOrDefault(group.Id);
                             var rows = ContactSorter.Sort(contacts, sort.Key, sort.Descending);
                             <div class="data-table-wrap">
-                                <table class="data-table pb-table">
+                                <table class="data-table pb-table" data-auto-paginate>
                                     <thead><tr>
                                         <SortableHeader Text="نام" Column="@nameof(ContactSortKey.Name)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
                                         <SortableHeader Text="سمت" Column="@nameof(ContactSortKey.JobTitle)" CurrentSort="@(sort.Key == ContactSortKey.Default ? null : sort.Key.ToString())" CurrentDescending="sort.Descending" OnSort="c => SortBy(group.Id, c)" />
