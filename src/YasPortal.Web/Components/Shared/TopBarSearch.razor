@@ -15,7 +15,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @* The search box in the top bar, on every page. It looks through the portal links, the guides, the gallery pictures and the phone book. *@
-@* The things to search are loaded once, the first time the person clicks in the box, so pages that never use it pay nothing. *@
+@* The things to search are loaded each time the person clicks in the box (never before), so pages that never use it pay nothing. *@
 @* Results appear in a small panel with labeled parts (at most a few of each); a click on a result opens its page, and Escape, a click outside or a page change closes the panel. *@
 <div class="ts" dir="rtl" @onkeydown="OnKeyDown">
     @if (Searching)
@@ -116,7 +116,7 @@
         _wait?.Cancel();
     }
 
-    // Loads what can be searched, once. Guides depend on whether the person is signed in; the phone book shows switched-on contacts only.
+    // Loads what can be searched (again after each click into the box; not twice at the same time). Guides depend on whether the person is signed in; the phone book shows switched-on contacts only.
     private async Task EnsureLoadedAsync()
     {
         if (_loaded || _loading) return;
