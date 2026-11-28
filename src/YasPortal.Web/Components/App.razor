@@ -27,32 +27,32 @@
         my-positions) and login (branded sign-in screen), and rtl-utilities
         always loads last.
     -->
-    <link rel="stylesheet" href="css/base.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/components.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/notifications.css?v=20260828-1" />
-    <link rel="stylesheet" href="css/admin/admin-core.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/admin/admin-tables-and-lists.css?v=20260913-3" />
-    <link rel="stylesheet" href="css/admin/permission-checkboxes.css?v=20261020-1" />
-    <link rel="stylesheet" href="css/admin/positions.css?v=20260912-1" />
-    <link rel="stylesheet" href="css/personal-pages.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/requests.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/login.css?v=20260916-1" />
-    <link rel="stylesheet" href="css/landing.css?v=20261128-1" />
-    <link rel="stylesheet" href="css/phone-book.css?v=20261103-1" />
-    <link rel="stylesheet" href="css/guides.css?v=20261118-2" />
-    <link rel="stylesheet" href="css/gallery.css?v=20261123-2" />
-    <link rel="stylesheet" href="css/store.css?v=20261110-1" />
-    <link rel="stylesheet" href="css/server-lookup.css?v=20261019-1" />
-    <link rel="stylesheet" href="css/theme.css?v=20261128-9" />
-    <link rel="stylesheet" href="css/rtl-utilities.css?v=20260828-1" />
-    <link rel="stylesheet" href="css/print.css?v=20261024-1" />
-    <link rel="stylesheet" href="css/reconnect-modal.css?v=20260828-1" />
-    <link rel="stylesheet" href="lib/tabler-icons/tabler-icons.min.css?v=3.49.0" />
+    <link rel="stylesheet" href="@Assets["css/base.css"]" />
+    <link rel="stylesheet" href="@Assets["css/components.css"]" />
+    <link rel="stylesheet" href="@Assets["css/notifications.css"]" />
+    <link rel="stylesheet" href="@Assets["css/admin/admin-core.css"]" />
+    <link rel="stylesheet" href="@Assets["css/admin/admin-tables-and-lists.css"]" />
+    <link rel="stylesheet" href="@Assets["css/admin/permission-checkboxes.css"]" />
+    <link rel="stylesheet" href="@Assets["css/admin/positions.css"]" />
+    <link rel="stylesheet" href="@Assets["css/personal-pages.css"]" />
+    <link rel="stylesheet" href="@Assets["css/requests.css"]" />
+    <link rel="stylesheet" href="@Assets["css/login.css"]" />
+    <link rel="stylesheet" href="@Assets["css/landing.css"]" />
+    <link rel="stylesheet" href="@Assets["css/phone-book.css"]" />
+    <link rel="stylesheet" href="@Assets["css/guides.css"]" />
+    <link rel="stylesheet" href="@Assets["css/gallery.css"]" />
+    <link rel="stylesheet" href="@Assets["css/store.css"]" />
+    <link rel="stylesheet" href="@Assets["css/server-lookup.css"]" />
+    <link rel="stylesheet" href="@Assets["css/theme.css"]" />
+    <link rel="stylesheet" href="@Assets["css/rtl-utilities.css"]" />
+    <link rel="stylesheet" href="@Assets["css/print.css"]" />
+    <link rel="stylesheet" href="@Assets["css/reconnect-modal.css"]" />
+    <link rel="stylesheet" href="@Assets["lib/tabler-icons/tabler-icons.min.css"]" />
     @* Head outlet = lets individual pages set their own browser tab title. *@
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 
-@* Style sheets are listed in a deliberate order (see the note above them); the short ?v= suffix makes browsers fetch a new copy after a change. *@
+@* Style sheets are listed in a deliberate order (see the note above them); each address comes from the build with a fingerprint in its name, so browsers fetch a new copy after a change by themselves. *@
 <body>
     @* The application shell (side menu, top bar and the current page) is created here and stays interactive after the first load. *@
     <ApplicationShell @rendermode="InteractiveServer" />
@@ -78,16 +78,16 @@
             });
     </script>
     @* Small helper scripts used by the widgets (date picker, dropdown placement, Persian digits, printing, file downloads and so on). *@
-    <script src="js/admin-ui.js?v=20261128-3"></script>
-    <script src="js/active-position-dropdown.js"></script>
-    <script src="js/popup-place.js"></script>
-    <script src="js/server-lookup.js"></script>
-    <script src="js/persian-date-picker.js"></script>
-    <script src="js/persian-digits.js"></script>
-    <script src="js/ui-prefs.js"></script>
-    <script src="js/file-download.js"></script>
-    <script src="js/print.js"></script>
-    <script src="js/gallery.js?v=20261123-1"></script>
+    <script src="@Assets["js/admin-ui.js"]"></script>
+    <script src="@Assets["js/active-position-dropdown.js"]"></script>
+    <script src="@Assets["js/popup-place.js"]"></script>
+    <script src="@Assets["js/server-lookup.js"]"></script>
+    <script src="@Assets["js/persian-date-picker.js"]"></script>
+    <script src="@Assets["js/persian-digits.js"]"></script>
+    <script src="@Assets["js/ui-prefs.js"]"></script>
+    <script src="@Assets["js/file-download.js"]"></script>
+    <script src="@Assets["js/print.js"]"></script>
+    <script src="@Assets["js/gallery.js"]"></script>
 </body>
 
 </html>

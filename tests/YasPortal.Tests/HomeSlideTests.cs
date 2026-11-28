@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -122,10 +123,10 @@ public sealed class HomeSlideTests
     [InlineData("run.exe", 1000, false)]
     [InlineData("noextension", 1000, false)]
     [InlineData("empty.pdf", 0, false)]
-    [InlineData("big.pdf", HomeSlideAttachment.MaxBytes + 1, false)]
-    [InlineData("exactly.pdf", HomeSlideAttachment.MaxBytes, true)]
+    [InlineData("big.pdf", UploadRules.MaxBytes + 1, false)]
+    [InlineData("exactly.pdf", UploadRules.MaxBytes, true)]
     public void Attachment_accepts_only_listed_types_and_sizes(string name, long size, bool ok) =>
-        Assert.Equal(ok, HomeSlideAttachment.Validate(name, size) is null);
+        Assert.Equal(ok, UploadRules.Validate(name, size) is null);
 
     [Fact]
     public void Attachment_keeps_a_clean_name_and_the_matching_content_type()

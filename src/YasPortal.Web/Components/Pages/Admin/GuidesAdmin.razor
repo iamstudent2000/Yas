@@ -20,6 +20,7 @@
 @inject GuideProvider GuideFiles
 @inject GuideGroupService GuideGroups
 @using Microsoft.AspNetCore.Components.Forms
+@using YasPortal.Domain.Files
 
 @* Guides management page (/admin/guides). A guide is a written how-to article for portal users, shown on the *@
 @* Guides screen. People with the right permission can write, edit, hide or delete guides here. Someone who may only manage *@
@@ -92,7 +93,7 @@
 
                 @* Files for readers to download. Existing files can be marked for removal; new ones are added to the list and are stored when the guide is saved. *@
                 <div style="margin-top:12px">
-                    <label class="form-label">فایل‌های پیوست (اختیاری، تا @UserGuideAttachment.MaxPerGuide فایل، هر کدام حداکثر @(UserGuideAttachment.MaxBytes / (1024 * 1024)) مگابایت)</label>
+                    <label class="form-label">فایل‌های پیوست (اختیاری، تا @UserGuideAttachment.MaxPerGuide فایل، هر کدام حداکثر @(UploadRules.MaxBytes / (1024 * 1024)) مگابایت)</label>
                     <InputFile @key="_pickKey" class="form-control" multiple accept="@_accept" OnChange="FilesPicked" />
                     @foreach (var file in _existingFiles)
                     {
@@ -301,7 +302,7 @@
 
     // ---- attached files ----
 
-    private static readonly string _accept = string.Join(",", UserGuideAttachment.AllowedExtensions);
+    private static readonly string _accept = string.Join(",", UploadRules.AllowedExtensions);
     // How many files each guide has (for the list), the files of the guide being edited, those marked for removal,
     // and the newly picked ones that are stored when the guide is saved. _pickKey clears the file picker after each pick.
     private Dictionary<Guid, int> _fileCounts = [];
@@ -326,14 +327,14 @@
     {
         foreach (var file in e.GetMultipleFiles(UserGuideAttachment.MaxPerGuide))
         {
-            var error = UserGuideAttachment.Validate(file.Name, file.Size);
+            var error = UploadRules.Validate(file.Name, file.Size);
             if (error is not null) { AppState.AddToast($"{file.Name}: {error}", ToastLevel.Error); continue; }
             var countError = UserGuideAttachment.ValidateCount(_existingFiles.Count(f => !_removeIds.Contains(f.Id)) + _newFiles.Count + 1);
             if (countError is not null) { AppState.AddToast(countError, ToastLevel.Error); break; }
             try
             {
                 using var buffer = new MemoryStream();
-                await using (var stream = file.OpenReadStream(UserGuideAttachment.MaxBytes))
+                await using (var stream = file.OpenReadStream(UploadRules.MaxBytes))
                     await stream.CopyToAsync(buffer);
                 _newFiles.Add(new PendingFile(file.Name, buffer.ToArray()));
             }

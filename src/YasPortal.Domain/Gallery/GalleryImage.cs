@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using YasPortal.Domain.Guides;
 using YasPortal.Domain.PhoneBook;
 
@@ -52,8 +53,8 @@ public sealed class GalleryImage
     // Takes over the details of a file (already checked by the caller).
     private void SetFile(string fileName, long sizeBytes)
     {
-        FileName = UserGuideAttachment.CleanName(fileName);
-        ContentType = UserGuideAttachment.ContentTypeFor(FileName);
+        FileName = UploadRules.CleanName(fileName);
+        ContentType = UploadRules.ContentTypeFor(FileName);
         SizeBytes = sizeBytes;
     }
 
@@ -87,10 +88,10 @@ public sealed class GalleryImage
     /// <summary>A Persian reason the file cannot be a gallery picture, or null when it is fine. Besides the picture types, it uses the guide attachment rules (name length, empty, size).</summary>
     public static string? ValidateFile(string? fileName, long sizeBytes)
     {
-        var name = UserGuideAttachment.CleanName(fileName);
+        var name = UploadRules.CleanName(fileName);
         if (!Extensions.Contains(Path.GetExtension(name)))
             return "نوع فایل مجاز نیست. فقط تصویر PNG، JPG، GIF یا WebP پذیرفته می‌شود.";
-        return UserGuideAttachment.Validate(name, sizeBytes);
+        return UploadRules.Validate(name, sizeBytes);
     }
 
     /// <summary>A Persian reason that this many pictures cannot be uploaded at once, or null when the number is fine.</summary>
@@ -100,7 +101,7 @@ public sealed class GalleryImage
     /// <summary>The title taken from a file name: the name without its ending, cut to the title limit.</summary>
     public static string TitleFromFileName(string fileName)
     {
-        var stem = Path.GetFileNameWithoutExtension(UserGuideAttachment.CleanName(fileName)).Trim();
+        var stem = Path.GetFileNameWithoutExtension(UploadRules.CleanName(fileName)).Trim();
         return stem.Length > TitleMax ? stem[..TitleMax] : stem;
     }
 

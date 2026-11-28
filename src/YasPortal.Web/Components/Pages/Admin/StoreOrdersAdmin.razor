@@ -137,7 +137,7 @@
         _exporting = true;
         try
         {
-            var all = await Orders.ListAllAsync(1, 20000, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
+            var all = await Orders.ListAllAsync(1, ExportFilesService.CsvMaxRows, _sortBy, _sortDesc, _search, _status, _from?.Date.ToUniversalTime(), _to?.Date.AddDays(1).ToUniversalTime());
             var rows = all.Rows.Select(o => (IReadOnlyList<string>)[o.Id.ToString("N")[..8].ToUpperInvariant(), o.RequesterName ?? "", WorkflowDisplay.ToPersianDateTime(o.CreatedAtUtc), o.Summary, o.Total > 0 ? StoreMoney.Plain(o.Total) : "",
                     StoreOrderService.StatusText(o.Status, o.IssuedAtUtc is not null), o.IssuedAtUtc is DateTime d ? WorkflowDisplay.ToPersianDateTime(d) : "", o.IssuedByName ?? ""]).ToList();
             await Files.SaveAsync("همه سفارش‌های فروشگاه", "store-orders", ["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)", "وضعیت", "تاریخ تحویل", "تحویل‌دهنده"], rows);

@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using YasPortal.Domain.Guides;
 using Xunit;
 
@@ -12,7 +13,7 @@ public sealed class UserGuideAttachmentTests
     [InlineData("sheet.xlsx")]
     [InlineData("archive.zip")]
     public void Allowed_types_are_accepted_whatever_the_letter_case(string name) =>
-        Assert.Null(UserGuideAttachment.Validate(name, 100));
+        Assert.Null(UploadRules.Validate(name, 100));
 
     [Theory]
     [InlineData("page.html")]
@@ -21,15 +22,15 @@ public sealed class UserGuideAttachmentTests
     [InlineData("noextension")]
     [InlineData("")]
     public void Types_a_browser_could_run_or_unknown_types_are_refused(string name) =>
-        Assert.NotNull(UserGuideAttachment.Validate(name, 100));
+        Assert.NotNull(UploadRules.Validate(name, 100));
 
     [Fact]
     public void Empty_and_too_big_files_are_refused()
     {
-        Assert.NotNull(UserGuideAttachment.Validate("a.pdf", 0));
-        Assert.Null(UserGuideAttachment.Validate("a.pdf", UserGuideAttachment.MaxBytes));
-        Assert.NotNull(UserGuideAttachment.Validate("a.pdf", UserGuideAttachment.MaxBytes + 1));
-        Assert.NotNull(UserGuideAttachment.Validate(new string('x', UserGuideAttachment.FileNameMax) + ".pdf", 10));
+        Assert.NotNull(UploadRules.Validate("a.pdf", 0));
+        Assert.Null(UploadRules.Validate("a.pdf", UploadRules.MaxBytes));
+        Assert.NotNull(UploadRules.Validate("a.pdf", UploadRules.MaxBytes + 1));
+        Assert.NotNull(UploadRules.Validate(new string('x', UploadRules.FileNameMax) + ".pdf", 10));
     }
 
     [Fact]
@@ -42,8 +43,8 @@ public sealed class UserGuideAttachmentTests
     [Fact]
     public void Folder_parts_and_quotes_are_removed_from_the_name()
     {
-        Assert.Equal("form.pdf", UserGuideAttachment.CleanName(@"C:\Users\me\form.pdf"));
-        Assert.Equal("form.pdf", UserGuideAttachment.CleanName("../../etc/\"form\".pdf"));
+        Assert.Equal("form.pdf", UploadRules.CleanName(@"C:\Users\me\form.pdf"));
+        Assert.Equal("form.pdf", UploadRules.CleanName("../../etc/\"form\".pdf"));
     }
 
     [Fact]

@@ -197,8 +197,6 @@
 
     // ---- Export (CSV or PDF): the same rows, everything the last search matched (not only this page) ----
 
-    private const int ExportLimit = 20000;
-
     private IReadOnlyList<string> ExportHeaders() => _history
         ? ["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)", "تاریخ تحویل", "تحویل‌دهنده"]
         : ["شماره", "درخواست‌کننده", "تاریخ ثبت", "اقلام", "مبلغ نهایی (تومان)"];
@@ -217,7 +215,7 @@
         _exporting = true;
         try
         {
-            var all = await FetchAsync(1, ExportLimit);
+            var all = await FetchAsync(1, ExportFilesService.CsvMaxRows);
             var filters = string.Join(" · ", new[] { string.IsNullOrWhiteSpace(_search) ? null : $"جستجو: {_search}", _from is DateTime f ? $"از {WorkflowDisplay.ToPersianDate(f)}" : null, _to is DateTime t ? $"تا {WorkflowDisplay.ToPersianDate(t)}" : null }.Where(x => x is not null));
             await Files.SaveAsync(_history ? "تاریخچه تحویل کالا" : "سفارش‌های در انتظار تحویل", _history ? "store-issued" : "store-waiting",
                 ExportHeaders(), ExportRows(all.Rows), filters.Length == 0 ? null : filters);

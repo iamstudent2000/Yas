@@ -1,3 +1,5 @@
+using YasPortal.Domain.Files;
+
 namespace YasPortal.Domain.Workflows;
 
 // Request attachments: files the requester adds when submitting (for example a screenshot or a document).
@@ -12,24 +14,8 @@ namespace YasPortal.Domain.Workflows;
 /// </summary>
 public sealed class WorkflowRequestAttachment
 {
-    // Limits: 5 MB per file, 3 files per request, and file names up to 200 characters.
-    public const long MaxBytes = 5 * 1024 * 1024;
+    // Limits: 3 files per request (the size, name length and file types are in UploadRules).
     public const int MaxFilesPerRequest = 3;
-    public const int FileNameMax = 200;
-
-    // The allowed file extensions and the content type each one is stored with.
-    private static readonly Dictionary<string, string> Types = new(StringComparer.OrdinalIgnoreCase)
-    {
-        [".pdf"] = "application/pdf",
-        [".png"] = "image/png", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".gif"] = "image/gif", [".webp"] = "image/webp",
-        [".txt"] = "text/plain",
-        [".doc"] = "application/msword", [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        [".xls"] = "application/vnd.ms-excel", [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        [".zip"] = "application/zip",
-    };
-
-    /// <summary>The accepted extensions, for the file picker.</summary>
-    public static IReadOnlyCollection<string> AllowedExtensions => Types.Keys;
 
     // Private empty constructor: needed by the database layer to load rows.
     private WorkflowRequestAttachment()
@@ -44,14 +30,14 @@ public sealed class WorkflowRequestAttachment
             throw new ArgumentException("Request is required.", nameof(requestId));
         if (uploadedByEmployeeId == Guid.Empty)
             throw new ArgumentException("Uploader is required.", nameof(uploadedByEmployeeId));
-        var error = Validate(fileName, content?.LongLength ?? 0);
+        var error = UploadRules.Validate(fileName, content?.LongLength ?? 0);
         if (error is not null)
             throw new ArgumentException(error, nameof(fileName));
 
         RequestId = requestId;
         UploadedByEmployeeId = uploadedByEmployeeId;
-        FileName = CleanName(fileName);
-        ContentType = Types[Path.GetExtension(FileName)];
+        FileName = UploadRules.CleanName(fileName);
+        ContentType = UploadRules.ContentTypeFor(FileName);
         Content = content!;
         SizeBytes = content!.LongLength;
         UploadedAtUtc = DateTime.UtcNow;
@@ -65,30 +51,4 @@ public sealed class WorkflowRequestAttachment
     public long SizeBytes { get; private set; }
     public byte[] Content { get; private set; } = [];
     public DateTime UploadedAtUtc { get; private set; }
-
-    // Checks one file against the rules (type, name length, not empty, size) and returns the reason it is
-    // refused, if any.
-    /// <summary>A Persian reason the file cannot be attached, or null when it is fine.</summary>
-    public static string? Validate(string? fileName, long sizeBytes)
-    {
-        var name = CleanName(fileName);
-        if (name.Length == 0 || !Types.ContainsKey(Path.GetExtension(name)))
-            return "نوع فایل مجاز نیست. فایل‌های PDF، تصویر، Word، Excel، متن و ZIP پذیرفته می‌شود.";
-        if (name.Length > FileNameMax)
-            return $"نام فایل باید حداکثر {FileNameMax} نویسه باشد.";
-        if (sizeBytes <= 0)
-            return "فایل خالی است.";
-        if (sizeBytes > MaxBytes)
-            return $"حجم فایل باید حداکثر {MaxBytes / (1024 * 1024)} مگابایت باشد.";
-        return null;
-    }
-
-    // Strips any folder path and unsafe characters from the file name that the browser sent.
-    /// <summary>The file name without any folder part or control characters (what a browser may send as a path).</summary>
-    public static string CleanName(string? fileName)
-    {
-        var name = (fileName ?? "").Replace('\\', '/');
-        name = name[(name.LastIndexOf('/') + 1)..];
-        return new string(name.Where(c => !char.IsControl(c) && c != '"').ToArray()).Trim();
-    }
 }

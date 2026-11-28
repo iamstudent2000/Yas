@@ -1,3 +1,4 @@
+using YasPortal.Domain.Files;
 using YasPortal.Domain.Guides;
 
 namespace YasPortal.Domain.Landing;
@@ -26,10 +27,10 @@ public sealed class PortalLinkFile
     // Puts a new file in place of the old one. The file is checked first and refused when it breaks a rule (type, empty, too big).
     public void Replace(string fileName, byte[] content)
     {
-        var error = UserGuideAttachment.Validate(fileName, content?.LongLength ?? 0);
+        var error = UploadRules.Validate(fileName, content?.LongLength ?? 0);
         if (error is not null) throw new ArgumentException(error, nameof(fileName));
-        FileName = UserGuideAttachment.CleanName(fileName);
-        ContentType = UserGuideAttachment.ContentTypeFor(FileName);
+        FileName = UploadRules.CleanName(fileName);
+        ContentType = UploadRules.ContentTypeFor(FileName);
         Content = content!;
     }
 
