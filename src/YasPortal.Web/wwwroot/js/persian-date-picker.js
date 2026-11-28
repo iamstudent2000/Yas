@@ -113,8 +113,9 @@
 
     const observer = new MutationObserver(() => {
         // Do not reposition every picker after a Blazor render. That was reopening
-        // hidden date pickers. Only currently visible popovers are repositioned.
-        scheduleReposition();
+        // hidden date pickers. Only currently visible popovers are repositioned,
+        // and nothing is done at all while no calendar is open.
+        if ([...document.querySelectorAll('.pdp-popover, .pdp-menu')].some(isVisible)) scheduleReposition();
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
