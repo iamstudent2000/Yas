@@ -23,7 +23,7 @@
 /* =============================================================
    Dashboard
    ============================================================= */
-.dash-hero{position:relative;overflow:hidden;display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 6px 24px rgba(16,24,40,.045)}
+.dash-hero{position:relative;overflow:hidden;display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
 .dash-hero-bloom{position:absolute;width:190px;height:190px;left:-40px;top:-50px;color:var(--accent-soft,#eef2ff);pointer-events:none}
 .dash-hero-text{position:relative;flex:1 1 260px;min-width:0}
 .dash-hero-greeting{margin:0;font-size:13px;color:var(--text-muted,#667085)}
@@ -36,7 +36,7 @@
 .dash-hero-position a i{font-size:14px}
 
 .dash-columns{display:grid;grid-template-columns:1fr 1.15fr;gap:16px;align-items:start}
-.dash-facts,.dash-links{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:18px 20px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
+.dash-facts,.dash-links{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
 
 .dash-link{display:flex;align-items:center;gap:12px;padding:12px 8px;border-radius:11px;color:inherit;transition:background .14s}
 .dash-link+.dash-link{margin-top:2px}
@@ -53,7 +53,7 @@
 /* =============================================================
    Profile
    ============================================================= */
-.profile-identity{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 6px 24px rgba(16,24,40,.045)}
+.profile-identity{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:22px 26px;margin-bottom:16px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
 .profile-avatar{position:relative;width:58px;height:58px;flex:0 0 58px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(160deg,var(--accent-strong,#1d4ed8),#2f6f4f);color:#fff;font-size:22px;font-weight:800}
 .profile-identity-text{position:relative;min-width:0}
 .profile-identity-text h2{margin:0;font-size:20px;font-weight:800;color:var(--text,#141c2c)}
@@ -62,7 +62,7 @@
 .profile-identity-bloom{position:absolute;width:170px;height:170px;left:-40px;top:-60px;color:#f2f4f7;pointer-events:none}
 
 .profile-columns{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;align-items:start}
-.profile-card{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:18px 20px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
+.profile-card{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:18px 20px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
 .profile-org-card p{margin:12px 0 0;color:var(--text-muted,#667085);font-size:12.5px;line-height:1.85}
 .profile-org-status{display:flex}
 .profile-org-link{display:inline-flex;align-items:center;gap:5px;margin-top:14px;font-size:12.5px;font-weight:700;color:var(--accent-strong,#1d4ed8)}
@@ -81,7 +81,7 @@
 .position-active-text span{font-size:11.5px;color:#3854a6}
 .position-active-text h2{margin:2px 0 0;font-size:19px;font-weight:800;color:var(--text,#182751)}
 
-.position-others{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:6px 20px 10px;box-shadow:0 6px 24px rgba(16,24,40,.04)}
+.position-others{background:var(--surface,#fff);border:1px solid var(--border,#e6ebf2);border-radius:16px;padding:6px 20px 10px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
 .position-others .section-title{padding-top:12px}
 .position-list{display:flex;flex-direction:column}
 .position-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid var(--border,#eef1f5)}
