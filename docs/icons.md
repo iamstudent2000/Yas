@@ -37,7 +37,7 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `ChevronDown` | `ti-chevron-down` | 19 | PersistentSidebar×4, Permissions×2, Login, Organizations +11 more |
 | `ChevronUp` | `ti-chevron-up` | 6 | Permissions×2, AllRequests, TeamHistory, RequestSummary +1 more |
 | `PagePrev` | `ti-chevron-right` | 2 | ServerPagination, UsagePager |
-| `PageNext` | `ti-chevron-left` | 3 | ServerPagination, UsagePager, SearchableGuidSelect |
+| `PageNext` | `ti-chevron-left` | 2 | ServerPagination, UsagePager |
 | `ArrowGo` | `ti-arrow-left` | 10 | Dashboard×5, Login, MyProfile, Delegations +2 more |
 | `Back` | `ti-arrow-right` | 6 | Routes, AuditLog, Organizations, Users +2 more |
 | `MoveUp` | `ti-arrow-up` | 1 | Workflows |
@@ -71,15 +71,15 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `Age` | `ti-hourglass` | 1 | RequestNowLine |
 | `Bell` | `ti-bell` | 5 | PersistentSidebar×2, TopBarNotificationBell, NotificationList, NotificationDisplay |
 | `NoNotifications` | `ti-bell-off` | 2 | SendNotification, NotificationList |
-| `LogIn` | `ti-login` | 4 | AccessDeniedView×2, ApplicationLayout, ApplicationShell |
+| `LogIn` | `ti-login` | 3 | AccessDeniedView×2, ApplicationShell |
 | `AccessDenied` | `ti-shield-lock` | 1 | AccessDeniedView |
 | `NotFound` | `ti-error-404` | 1 | Routes |
 | `Home` | `ti-home` | 3 | Routes, Error, AccessDeniedView |
-| `LogOut` | `ti-logout` | 2 | ApplicationLayout, ApplicationShell |
+| `LogOut` | `ti-logout` | 1 | ApplicationShell |
 | `Code` | `ti-code` | 1 | Login |
 | `EventCount` | `ti-database` | 1 | AuditLog |
 | `Test` | `ti-test-pipe` | 2 | PasswordPolicy, Workflows |
-| `Secure` | `ti-shield-lock` | 3 | Login, ApplicationLayout, PersistentSidebar |
+| `Secure` | `ti-shield-lock` | 2 | Login, PersistentSidebar |
 
 ## Notifications
 
@@ -99,10 +99,9 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 
 | Concept | Icon | Uses | Where |
 |---|---|---|---|
-| `Brand` | `ti-flower` | 1 | ApplicationLayout |
-| `Dashboard` | `ti-layout-dashboard` | 2 | ApplicationLayout, PersistentSidebar |
+| `Dashboard` | `ti-layout-dashboard` | 1 | PersistentSidebar |
 | `Reports` | `ti-chart-bar` | 1 | Dashboard |
-| `Profile` | `ti-user-circle` | 4 | Dashboard×2, ApplicationLayout, PersistentSidebar |
+| `Profile` | `ti-user-circle` | 3 | Dashboard×2, PersistentSidebar |
 | `AccountGroup` | `ti-user-square-rounded` | 1 | PersistentSidebar |
 | `Identity` | `ti-id` | 1 | MyProfile |
 | `Username` | `ti-at` | 1 | MyProfile |
@@ -134,8 +133,8 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `AccessManagement` | `ti-shield-cog` | 8 | Users×2, Permissions×2, AccessManagement, PermissionGroups +2 more |
 | `AccessFinal` | `ti-shield-check` | 1 | AccessManagement |
 | `AccessLevel` | `ti-shield-check` | 1 | Dashboard |
-| `Permission` | `ti-key` | 8 | PermissionGroups×3, Permissions×2, AccessManagement, ApplicationLayout +1 more |
-| `PermissionGroup` | `ti-stack-2` | 11 | Permissions×5, PermissionGroups×2, AccessManagement, PermissionGroupAssignment +2 more |
+| `Permission` | `ti-key` | 7 | PermissionGroups×3, Permissions×2, AccessManagement +1 more |
+| `PermissionGroup` | `ti-stack-2` | 10 | Permissions×5, PermissionGroups×2, AccessManagement +2 more |
 | `Assignments` | `ti-link` | 1 | PermissionGroups |
 | `DirectAssignment` | `ti-user-check` | 3 | Permissions×3 |
 
@@ -150,10 +149,10 @@ The page is generated from `Icons.cs`; regenerate it after changing icons.
 | `RootPosition` | `ti-tree` | 1 | Positions |
 | `OpenBranches` | `ti-folder-open` | 1 | Positions |
 | `OrgStructure` | `ti-hierarchy-3` | 2 | Login, PersistentSidebar |
-| `Organization` | `ti-building` | 8 | Organizations×4, MyProfile, Dashboard, ApplicationLayout +1 more |
+| `Organization` | `ti-building` | 7 | Organizations×4, MyProfile, Dashboard +1 more |
 | `Subordinates` | `ti-users-group` | 3 | TeamHistory×2, PersistentSidebar |
 | `History` | `ti-history` | 13 | AssignmentHistory×3, PositionAssignmentHistoryPanel×3, TeamHistory×2, Inbox×2 +3 more |
-| `AuditLog` | `ti-file-search` | 4 | Login, AuditLog, ApplicationLayout, PersistentSidebar |
+| `AuditLog` | `ti-file-search` | 3 | Login, AuditLog, PersistentSidebar |
 | `Delegation` | `ti-user-share` | 3 | Delegations, Inbox, PersistentSidebar |
 | `DelegationGiven` | `ti-transfer-out` | 2 | Delegations×2 |
 | `DelegationReceived` | `ti-transfer-in` | 2 | Delegations×2 |

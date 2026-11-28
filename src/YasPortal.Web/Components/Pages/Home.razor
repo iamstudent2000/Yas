@@ -11,7 +11,6 @@
 @using YasPortal.Web.Components.Shared
 @using YasPortal.Web.Services
 @implements IDisposable
-@inject LandingContent Content
 @inject HomeSlideProvider SlideProvider
 @inject PortalLinkProvider LinkProvider
 @inject HomeTileProvider TileProvider
@@ -22,14 +21,14 @@
 @inject AuthenticationStateProvider AuthState
 @inject IAuthorizationService AuthzService
 @inject NavigationManager Navigation
-@* The public front page: open to everyone (texts from LandingContent, the links and slides, and a short preview of the guides and the gallery). The only sign-in button is the one in the top bar. At "/" a signed-in person is
+@* The public front page: open to everyone (the links and slides, and a short preview of the guides and the gallery). The only sign-in button is the one in the top bar. At "/" a signed-in person is
    sent on to the dashboard (or, without that permission, sees a short welcome); "/home" shows this page to everyone, signed in or not
    (the sidebar's "صفحه اصلی" link). The personal sidebar appears only after sign-in. The search box is not here: it lives in the top bar (TopBarSearch). *@
 
 <PageTitle>یاس پورتال</PageTitle>
 
 @* Three views: nothing until loading is done; a short welcome (signed-in person at the root address without a dashboard); *@
-@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. The general information cards are paused (see ShowInfo in the code part). *@
+@* or the full landing page with link menu, quick links, personal buttons, tiles, previews and the last section of up to four tiles. *@
 @if (!_ready)
 {
     @* nothing until the first load has finished: the component is drawn once before OnInitializedAsync completes *@
@@ -145,24 +144,6 @@ else
             </section>
         }
 
-        @* General information cards (paused while ShowInfo is false). *@
-        @if (ShowInfo)
-        {
-        <section class="landing-section">
-            <h2 class="landing-heading"><i class="ti ti-info-circle"></i> اطلاعات عمومی</h2>
-            <div class="landing-info">
-                @foreach (var info in _info)
-                {
-                    <article class="landing-info-card">
-                        <span class="landing-link-icon"><i class="ti @info.Icon"></i></span>
-                        <h3>@info.Title</h3>
-                        <p>@info.Text</p>
-                    </article>
-                }
-            </div>
-        </section>
-        }
-
         @* The last section: up to four tiles, defined by administrators on /admin/links (tab "کاشی‌ها"). A tile opens its address; other websites open in a new tab. *@
         @if (_tiles.Count > 0)
         {
@@ -185,8 +166,6 @@ else
 }
 
 @code {
-    // Pause switch: the «اطلاعات عمومی» cards are switched off for now. Set it to true to show them again.
-    private const bool ShowInfo = false;
     private bool _ready, _signedIn, _canDashboard, _showLanding = true;
     // True while the mouse is over the slides (they do not turn then).
     private bool _paused;
@@ -201,7 +180,6 @@ else
     private int _index;
     private IReadOnlyList<LandingSlide> _slides = [];
     private LinkTree _tree = LinkTree.Build([], []);
-    private IReadOnlyList<LandingInfo> _info = [];
     // The tiles of the last section (switched-on ones, in order).
     private IReadOnlyList<HomeTile> _tiles = [];
     private Timer? _timer;
@@ -235,7 +213,6 @@ else
         _slides = await SlideProvider.GetSlidesAsync();
         _tree = await LinkProvider.GetTreeAsync();
         _tiles = await TileProvider.ListAsync();
-        _info = Content.Info;
     }
 
     // The "my work" buttons. The pages come from the "requests" and "notifications" sections of the sidebar, so a button appears only when

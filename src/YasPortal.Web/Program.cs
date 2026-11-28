@@ -90,8 +90,7 @@ builder.Services.AddScoped<AppState>();
 builder.Services.AddSingleton<AuditActorContext>();
 builder.Services.AddScoped<AuditEventWriter>();
 builder.Services.AddScoped<AuditArchiver>();
-// Content and helpers for the public home page, user guides, the store, portal links and the phone book.
-builder.Services.AddSingleton<LandingContent>();
+// Helpers for the public home page, user guides, the store, portal links and the phone book.
 builder.Services.AddScoped<HomeSlideProvider>();
 builder.Services.AddScoped<GuideProvider>();
 builder.Services.AddScoped<GuideGroupService>();
@@ -699,7 +698,6 @@ static async Task ValidateAndRefreshPrincipalAsync(CookieValidatePrincipalContex
 
     // Identity still holds — but permissions may have been revoked or granted since sign-in.
     // Reissue the cookie with a fresh snapshot so that takes effect without forcing a re-login.
-    var currentPermissionClaims = principal.FindAll(AuthClaimNames.Permission).Select(c => c.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
     var freshPermissionSnapshot = await BuildPermissionSnapshotAsync(db, employee!.Id, claimedPositionId, employee.IsAdmin);
 
     var claims = principal.Claims
