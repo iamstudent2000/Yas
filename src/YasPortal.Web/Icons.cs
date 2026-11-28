@@ -88,7 +88,6 @@ public static class Icons
     public const string RestoreNotification = "ti-arrow-back-up";
 
     // Account and appearance
-    public const string Brand = "ti-flower";
     public const string Dashboard = "ti-layout-dashboard";
     public const string Reports = "ti-chart-bar";
     public const string Profile = "ti-user-circle";

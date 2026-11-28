@@ -12,19 +12,17 @@
 
 `css/base.css` این فایل‌ها را به صورت local بارگذاری می‌کند.
 
-## Boxicons
+## Tabler Icons
 
-نسخه local پکیج Boxicons را در این مسیر قرار دهید:
+نسخه local پکیج Tabler Icons در این مسیر قرار دارد:
 
-`wwwroot/lib/boxicons/`
+`wwwroot/lib/tabler-icons/`
 
-حداقل فایل مورد نیاز:
+- `wwwroot/lib/tabler-icons/tabler-icons.min.css`
+- فایل‌های فونت آیکن‌ها در `wwwroot/lib/tabler-icons/fonts/`
 
-- `wwwroot/lib/boxicons/css/boxicons.min.css`
-- فایل‌های فونت Boxicons که در CSS آن با مسیر `../fonts/...` ارجاع داده شده‌اند، داخل `wwwroot/lib/boxicons/fonts/`
-
-بهتر است ساختار پوشه را مستقیماً از package رسمی Boxicons کپی کنید تا mapping آیکن‌ها کامل باقی بماند.
+ویرایشگر متن راهنماها (Quill) هم local است: `wwwroot/lib/quill/`.
 
 ## نکته مهم
 
-هیچ فایل فونت یا Boxicons از اینترنت در زمان اجرای برنامه درخواست نمی‌شود. فقط فایل‌هایی که داخل `wwwroot` قرار می‌دهید استفاده خواهند شد.
+هیچ فایل فونت یا آیکنی از اینترنت در زمان اجرای برنامه درخواست نمی‌شود. فقط فایل‌هایی که داخل `wwwroot` قرار می‌دهید استفاده خواهند شد.

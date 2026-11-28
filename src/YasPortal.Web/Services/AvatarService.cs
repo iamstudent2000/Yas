@@ -5,7 +5,7 @@ namespace YasPortal.Web.Services;
 
 // Avatars: the 16 ready-made profile pictures (an icon on a coloured circle) people can pick on the profile page.
 // Only the short key is stored with the employee; the icon and colour come from the fixed list below.
-/// <summary>One predefined avatar: a boxicons icon on a colored circle.</summary>
+/// <summary>One predefined avatar: a Tabler icon on a colored circle.</summary>
 public sealed record AvatarOption(string Key, string Icon, string Color, string Label);
 
 /// <summary>The fixed set of avatars an employee can choose from. Keys are what gets stored.</summary>

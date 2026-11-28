@@ -63,7 +63,7 @@ Cookie claims:
 | `yas_active_position_id` | Selected position (non-admin) |
 | `yas_permission` | One claim per granted permission code |
 
-Grant or revoke changes take effect on the next login or position switch, not on the current cookie. Workflow **actions** are an exception: inbox load and step decisions re-check that the actor still holds the claimed position (`WorkflowService.HoldsActivePositionAsync`).
+Grant or revoke changes reach the cookie within about 2 minutes (the cookie is re-checked against the database and refreshed; a deactivated person is signed out at that check), or at the next login or position switch. Workflow **actions** are an exception: inbox load and step decisions re-check that the actor still holds the claimed position (`WorkflowService.HoldsActivePositionAsync`).
 
 ## Workflow / requests
 
@@ -87,14 +87,7 @@ Default seed paths:
 | Helpdesk | مدیر سامانه (fills part 2, the support action, before approving) |
 | Work Report | direct manager |
 
-Pages:
-
-| Route | Permission |
-|---|---|
-| `/requests/new` | `Requests.Create` |
-| `/requests/mine` | `Requests.View` |
-| `/requests/inbox` | `Requests.View` (actions gated by `Requests.Approve` / `Reject` / `ReturnToRequester` / `ReturnToPreviousStep`) |
-| `/admin/workflows` | `Admin.Workflows` |
+Pages: the request pages are `/requests/new`, `/requests/mine`, `/requests/inbox`, `/requests/team`, `/requests/new-for-team` and the admin pages `/admin/requests`, `/admin/workflows`. Actions in the inbox are gated by the Approve / Reject / ReturnToRequester / ReturnToPreviousStep permissions.
 
 Helpdesk specifics: part 1 has category, priority, affected system, location and contact phone besides subject and description; part 2 (شرح اقدام انجام‌شده, time spent) is filled by the handler's step, so approving means "resolved". Pending helpdesk requests show a badge with the priority and how long they have been waiting (`HelpdeskWaiting`: time since the current round was submitted; no target times). Requesters can attach up to 3 files (5 MB each) at submission, on every request type made from the request forms (not store orders) (`WorkflowRequestAttachment`, downloads at `/requests/files/{id}` only for people who may see the request). Production SQL: `docs/helpdesk-improvements-migration.sql`.
 
@@ -112,19 +105,7 @@ Enforced in domain + persistence, not only in UI:
 
 ## Pages
 
-| Route | Permission |
-|---|---|
-| `/dashboard` | `Dashboard.View` |
-| `/my-profile` | `Profile.View` |
-| `/my-positions` | signed-in non-admin |
-| `/admin/users` | `Admin.Users` |
-| `/admin/access` | `Admin.Access` |
-| `/admin/permissions` | `Admin.Permissions` |
-| `/admin/permission-groups` | `Admin.Permissions` |
-| `/admin/positions` | `Admin.Positions` |
-| `/admin/organizations` | `Admin.Organizations` |
-| `/admin/assignment-history` | `Admin.AssignmentHistory` |
-| `/admin/audit-log` | `Admin.AuditLog` |
+Every page names its permission in the `@attribute [Authorize(...)]` line at the top of its `.razor` file; the permission codes are in `PermissionCatalog`, and the sidebar and section tabs are built from `src/YasPortal.Web/Services/SectionNav.cs`. Public pages (open without signing in): home, gallery, guides, phone book.
 
 ## Solution
 
@@ -133,4 +114,3 @@ Enforced in domain + persistence, not only in UI:
 - `src/YasPortal.Infrastructure` — EF Core, cookie snapshot builder inputs, authorization handler, seeder
 - `src/YasPortal.Web` — Blazor Server UI, cookie endpoints, `WorkflowService`
 - `tests/YasPortal.Tests` — tests
-- `Patchs/` — numbered development patches
