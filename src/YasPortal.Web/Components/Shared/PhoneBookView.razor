@@ -62,7 +62,7 @@
                         <i class="ti @(open ? "ti-folder-open" : "ti-folder") pb-folder"></i>
                         <strong>@group.Name</strong>
                         <span class="badge badge-muted">@(groupQuery.Length > 0 && open ? $"{contacts.Count} از {entry.Contacts.Count}" : entry.Contacts.Count.ToString())</span>
-                        @if (!group.IsActive) { <span class="badge badge-warning">خاموش</span> }
+                        @if (!group.IsActive) { <span class="badge badge-warning">غیرفعال</span> }
                     </button>
                     @if (open)
                     {
@@ -102,7 +102,7 @@
                                     @foreach (var c in ListPaging.Slice(rows, _groupPages.GetValueOrDefault(group.Id, 1), _pageSize))
                                     {
                                         <tr class="@(c.IsActive ? "" : "is-off")" @key="c.Id">
-                                            <td class="pb-name"><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">خاموش</span> }@if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }</td>
+                                            <td class="pb-name"><strong>@c.FullName</strong>@if (!c.IsActive) { <span class="badge badge-warning">غیرفعال</span> }@if (c.Note is not null) { <div class="muted pb-note">@c.Note</div> }</td>
                                             <td>@c.JobTitle</td>
                                             <td dir="ltr" class="pb-num">@Dash(c.Extension)</td>
                                             <td dir="ltr" class="pb-num">@Dash(c.Phone)</td>

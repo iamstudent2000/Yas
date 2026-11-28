@@ -118,6 +118,7 @@ public sealed class PortalLinkTests
         Assert.Equal("ویکی", Assert.Single(tree.Filter("WIKI").Ungrouped).Title);                 // by address, any case
         Assert.Equal(1, tree.Filter("budget").TotalLinks);                                        // by address
         Assert.Equal(0, tree.Filter("چیزی نیست").TotalLinks);
+        Assert.Equal(1, tree.Filter("ثبت مرخصي").TotalLinks);                                    // Arabic letter and word order do not matter
     }
 
     [Fact]

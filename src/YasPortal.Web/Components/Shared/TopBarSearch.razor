@@ -15,7 +15,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @* The search box in the top bar, on every page. It looks through the portal links, the guides, the gallery pictures and the phone book. *@
-@* The things to search are loaded once, the first time the person clicks in the box, so pages that never use it pay nothing. *@
+@* The things to search are loaded each time the person clicks in the box (never before), so pages that never use it pay nothing. *@
 @* Results appear in a small panel with labeled parts (at most a few of each); a click on a result opens its page, and Escape, a click outside or a page change closes the panel. *@
 <div class="ts" dir="rtl" @onkeydown="OnKeyDown">
     @if (Searching)
@@ -25,7 +25,7 @@
     }
     <div class="ts-box">
         <i class="ti ti-search"></i>
-        <input type="search" placeholder="جستجو در پیوندها، راهنماها، تصاویر و دفترچه تلفن..." aria-label="جستجوی همه‌جا" value="@_query" @oninput="OnSearch" @onfocus="EnsureLoadedAsync" />
+        <input type="search" placeholder="جستجو در پیوندها، راهنماها، تصاویر و دفترچه تلفن..." aria-label="جستجوی همه‌جا" value="@_typed" @oninput="OnSearch" @onfocus="ReloadAsync" />
     </div>
     @if (Searching)
     {
@@ -90,8 +90,9 @@
     // How many results of each kind the small panel shows (the full pages have the rest).
     private const int HitsShown = 5;
 
-    // The text typed, and what can be searched (filled once, on first use).
-    private string _query = "";
+    // The text typed in the box, the text the results are built from (it follows the typed text after a short pause), and what can be searched.
+    private string _typed = "", _query = "";
+    private CancellationTokenSource? _wait;
     private bool _loaded, _loading;
     private LinkTree _tree = LinkTree.Build([], []);
     private IReadOnlyList<GuideListItem> _guides = [];
@@ -105,13 +106,17 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        _query = "";
+        _query = _typed = "";
         _ = InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        _wait?.Cancel();
+    }
 
-    // Loads what can be searched, once. Guides depend on whether the person is signed in; the phone book shows switched-on contacts only.
+    // Loads what can be searched (again after each click into the box; not twice at the same time). Guides depend on whether the person is signed in; the phone book shows switched-on contacts only.
     private async Task EnsureLoadedAsync()
     {
         if (_loaded || _loading) return;
@@ -126,14 +131,28 @@
         _loading = false;
     }
 
-    // Typing: remember the text (and load the data if the focus event was missed).
-    private async Task OnSearch(ChangeEventArgs e)
+    // Every time the box gets the focus the data is read again, so changes made since the last search show up.
+    private async Task ReloadAsync()
     {
-        _query = e.Value?.ToString() ?? "";
+        _loaded = false;
         await EnsureLoadedAsync();
     }
 
-    private void Close() => _query = "";
+    // Typing: remember the text (and load the data if the focus event was missed). The results follow after a quarter of a second
+    // without typing, so the server is not asked again for every single key.
+    private async Task OnSearch(ChangeEventArgs e)
+    {
+        _typed = e.Value?.ToString() ?? "";
+        _wait?.Cancel();
+        _wait = new CancellationTokenSource();
+        var token = _wait.Token;
+        await EnsureLoadedAsync();
+        try { await Task.Delay(250, token); }
+        catch (TaskCanceledException) { return; }
+        _query = _typed;
+    }
+
+    private void Close() => _query = _typed = "";
 
     // Escape closes the results.
     private void OnKeyDown(KeyboardEventArgs e)
